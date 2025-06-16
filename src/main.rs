@@ -14,15 +14,15 @@ mod views;
 mod io;
 mod extractor;
 
+mod approute;
 /// The Route enum is used to define the structure of internal routes in our app. All route enums need to derive
 /// the [`Routable`] trait, which provides the necessary methods for the router to work.
 /// 
 /// Each variant represents a different URL pattern that can be matched by the router. If that pattern is matched,
 /// the components for that route will be rendered.
 // #[derive(Debug, Clone, Routable, PartialEq)]
-#[rustfmt::skip]
+// #[rustfmt::skip]
 
-mod approute;
 
 // enum Route {
 //     // The layout attribute defines a wrapper for all routes under the layout. Layouts are great for wrapping
