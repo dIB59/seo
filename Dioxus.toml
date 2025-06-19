@@ -5,11 +5,18 @@
 # HTML title tag content
 title = "seoinsikt_rs_op"
 
+[web.watcher]
+
+# When watcher is triggered, regenerate the `index.html`
+
+# Which files or dirs will be monitored
+watch_path = ["src", "public"]
+
 # include `assets` in web platform
 [web.resource]
 
 # Additional CSS style files
-style = []
+style = ["assets/tailwind.css"]
 
 # Additional JavaScript files
 script = []
@@ -19,3 +26,4 @@ script = []
 # Javascript code file
 # serve: [dev-server] only
 script = []
+

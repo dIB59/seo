@@ -1,4 +1,4 @@
-use dioxus::prelude::server_fn::request::reqwest::Client;
+use reqwest::Client;
 
 pub async fn fetch_html_from_url(url: &str) -> Option<String> {
     println!("Fetching HTML from URL: {}", url);
