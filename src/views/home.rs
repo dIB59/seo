@@ -1,4 +1,4 @@
-use crate::{components::{Echo, Hero}, views::HeadingExtractor};
+use crate::components::{Echo, Hero};
 
 use dioxus::prelude::*;
 
