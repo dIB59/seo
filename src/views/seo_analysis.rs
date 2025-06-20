@@ -1,51 +1,70 @@
-use dioxus::prelude::*;
-use crate::io::http_client;
 use crate::extractor::heading_extractor;
+use crate::io::http_client;
+use dioxus::prelude::*;
 
 #[component]
 pub fn HeadingExtractor() -> Element {
     let mut url = use_signal(|| String::new());
     let headings = use_signal(|| Vec::<(String, String)>::new());
-    println!("App component rendered");
 
     rsx! {
         div {
             id: "seo-analysis",
-            class: "p-6 max-w-xl mx-auto",
-
-            h1 { class: "text-2xl font-bold mb-4", "Heading Extractor" }
-
-            input {
-                class: "border p-2 w-full mb-4 rounded text-gray-700",
-                r#type: "text",
-                placeholder: "Enter URL...",
-                value: "{url()}",
-                oninput: move |e| url.set(e.value().clone()),
-            }
-
-            button {
-                class: "bg-blue-500 text-black px-4 py-2 rounded hover:bg-blue-600",
-                onclick: move |_| {
-                    println!("Fetching headings from URL: {}", url());
-                    let url_val = url();
-                    let mut headings = headings;
-                    spawn(async move {
-                        if let Some(html) = http_client::fetch_html_from_url(&url_val).await {
-                            let result = heading_extractor::extract_headings_from_html(&html);
-                            headings.set(result);
-                        }
-                    });
-                },
-                "Extract Headings"
-            }
+            class: "bg-background min-h-screen p-8 flex flex-col items-center justify-start",
 
             div {
-                class: "mt-6 space-y-2",
-                for (tag, text) in headings().iter() {
+                class: "w-full max-w-2xl space-y-6",
+
+                h1 {
+                    class: "text-3xl font-semibold tracking-tight",
+                    "Heading Extractor"
+                }
+
+                input {
+                    class: "w-full px-4 py-2 bg-input text-foreground border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring transition",
+                    r#type: "url",
+                    placeholder: "Enter a URL (e.g. https://example.com)",
+                    value: "{url()}",
+                    oninput: move |e| url.set(e.value().clone()),
+                }
+
+                button {
+                    class: "w-full bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition",
+                    onclick: move |_| {
+                        let url_val = url();
+                        let mut headings = headings;
+                        spawn(async move {
+                            if let Some(html) = http_client::fetch_html_from_url(&url_val).await {
+                                let result = heading_extractor::extract_headings_from_html(&html);
+                                headings.set(result);
+                            }
+                        });
+                    },
+                    "Extract Headings"
+                }
+
+                if !headings().is_empty() {
                     div {
-                        class: "p-2 bg-gray-100 rounded",
-                        strong { "{tag}: " }
-                        span { "{text}" }
+                        class: "bg-card border border-border rounded-lg p-4 space-y-3",
+
+                        h2 {
+                            class: "text-xl font-medium",
+                            "Extracted Headings"
+                        }
+
+                        for (tag, text) in headings().iter() {
+                            div {
+                                class: "bg-muted px-4 py-2 rounded flex items-center space-x-2",
+                                span {
+                                    class: "text-sm font-semibold text-muted-foreground",
+                                    "{tag}"
+                                }
+                                span {
+                                    class: "text-sm text-foreground",
+                                    "{text}"
+                                }
+                            }
+                        }
                     }
                 }
             }

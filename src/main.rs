@@ -59,21 +59,19 @@ fn main() {
 /// Components should be annotated with `#[component]` to support props, better error messages, and autocomplete
 #[component]
 fn App() -> Element {
-    // The `rsx!` macro lets us define HTML inside of rust. It expands to an Element with all of our HTML inside.
     rsx! {
-        // In addition to element and text (which we will see later), rsx can contain other components. In this case,
-        // we are using the `document::Link` component to add a link to our favicon and main CSS file into the head of our app.
-        document::Stylesheet {
-            // Urls are relative to your Cargo.toml file
-            href: asset!("/assets/tailwind.css")
+        // Wrap everything in a div with class "dark"
+        div {
+            document::Stylesheet {
+                href: asset!("/assets/tailwind.css")
+            }
+
+            document::Link { rel: "icon", href: FAVICON }
+            document::Link { rel: "stylesheet", href: TAILWIND_CSS }
+
+            // Router will inherit the dark styles
+            Router::<Route> {}
+            // HeadingExtractor {}
         }
-        document::Link { rel: "icon", href: FAVICON }
-        document::Link { rel: "stylesheet", href: TAILWIND_CSS }
-
-        // The router component renders the route enum we defined above. It will handle synchronization of the URL and render
-        // the layouts and components for the active route.
-        Router::<Route> {}
-        // HeadingExtractor{}
     }
-
 }
