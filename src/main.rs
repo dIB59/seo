@@ -2,9 +2,7 @@
 // need dioxus
 use dioxus::prelude::*;
 
-use views::{Blog, Home, Navbar};
 
-use crate::views::HeadingExtractor;
 use crate::approute::approute::Route;
 /// Define a components module that contains all shared components for our app.
 mod components;
