@@ -16,7 +16,7 @@ pub fn HeadingExtractor() -> Element {
             h1 { class: "text-2xl font-bold mb-4", "Heading Extractor" }
 
             input {
-                class: "border p-2 w-full mb-4 rounded",
+                class: "border p-2 w-full mb-4 rounded text-gray-700",
                 r#type: "text",
                 placeholder: "Enter URL...",
                 value: "{url()}",
@@ -24,7 +24,7 @@ pub fn HeadingExtractor() -> Element {
             }
 
             button {
-                class: "bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600",
+                class: "bg-blue-500 text-black px-4 py-2 rounded hover:bg-blue-600",
                 onclick: move |_| {
                     println!("Fetching headings from URL: {}", url());
                     let url_val = url();
