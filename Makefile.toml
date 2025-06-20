@@ -1,6 +1,6 @@
 [tasks.dev]
 description = "Run Tailwind CSS in watch mode and dx serve"
 script = [
-    "npx tailwindcss -i ./tailwind.css -o ./assets/tailwind.css &",
+    "npx @tailwindcss/cli -i ./tailwind.css -o ./assets/tailwind.css --watch &",
     "dx serve"
 ]
