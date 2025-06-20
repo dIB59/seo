@@ -9,11 +9,10 @@ pub fn HeadingExtractor() -> Element {
 
     rsx! {
         div {
-            id: "seo-analysis",
-            class: "bg-background min-h-screen p-8 flex flex-col items-center justify-start",
+            class: "min-h-screen p-8 flex flex-col items-center justify-start",
 
             div {
-                class: "w-full max-w-2xl space-y-6",
+                class: "w-full max-w-2xl space-y-6 bg-card",
 
                 h1 {
                     class: "text-3xl font-semibold tracking-tight",
