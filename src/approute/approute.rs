@@ -4,7 +4,7 @@ use dioxus::prelude::*;
 
 use crate::views::{Blog, Home, Navbar};
 
-use crate::views::{HeadingExtractor};
+use crate::views::{HeadingExtractor, BrokenLinks};
 
 
 /// The Route enum is used to define the structure of internal routes in our app. All route enums need to derive
@@ -31,4 +31,7 @@ pub(crate) enum Route {
         // The route for seo analysis
         #[route("/seo")]
         HeadingExtractor {},
+        // The broken link
+        #[route("/broken")]
+        BrokenLinks {},
 }
