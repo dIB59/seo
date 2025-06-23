@@ -1,6 +1,6 @@
 use scraper::{Html, Selector};
 
-pub fn extract_url_from_html(html: &str) -> Vec<(String)> {
+pub fn extract_urls_from_html(html: &str) -> Vec<(String)> {
     println!("Extracting URLs from HTML...");
     let document = Html::parse_document(html);
     let mut results = vec![];

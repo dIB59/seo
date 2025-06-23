@@ -44,6 +44,8 @@ pub async fn identify_broken_links(url: &str) -> String {
         }
     out
 }
+
+// "check not" is not intended to be used, testing code
 pub async fn check_link(url: &str) -> bool {
     println!("Identifing links from URL: {}", url);
     let client = Client::builder()
