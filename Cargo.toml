@@ -1,6 +1,6 @@
 [package]
 name = "seoinsikt_rs_op"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Ibrahim Iqbal <ibrahim@ebs.net.pk>"]
 edition = "2021"
 
