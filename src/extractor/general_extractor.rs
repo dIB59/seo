@@ -1,4 +1,3 @@
-use dioxus::document;
 use scraper::{Html, Selector};
 
 pub fn extract_meta_titles_from_html(html: &str) -> String {
