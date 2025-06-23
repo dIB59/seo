@@ -30,11 +30,6 @@ pub fn BrokenLinks() -> Element {
                         class: "w-full bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition",
                         onclick: move |_| async move {
                             let url_val = url();
-                            // spawn(async move {
-                            //     let res = http_client::identify_broken_links(&url_val).await;
-                            //     println!("Response: {}", res);
-                            //     brokenLink.set(res);
-                            // });
                             spawn(async move {
                                 if let Some(html) = http_client::fetch_html_from_url(&url_val).await {
                                     let res = url_extractor::extract_urls_from_html(&html);

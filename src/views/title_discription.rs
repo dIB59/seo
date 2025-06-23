@@ -31,7 +31,6 @@ pub fn TitleDiscription() -> Element {
                     class: "w-full bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition",
                     onclick: move |_| {
                         let url_val = url();
-                        // let mut headings = headings;
                         spawn(async move {
                             if let Some(html) = http_client::fetch_html_from_url(&url_val).await {
                                 let m_title = general_extractor::extract_meta_titles_from_html(&html);
