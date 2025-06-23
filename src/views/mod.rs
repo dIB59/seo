@@ -23,5 +23,5 @@ pub use seo_analysis::HeadingExtractor;
 mod brokenlinks;
 pub use brokenlinks::BrokenLinks;
 
-mod title_discription;
-pub use title_discription::TitleDiscription;
+mod title_description;
+pub use title_description::TitleDiscription;
