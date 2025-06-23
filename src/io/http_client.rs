@@ -1,3 +1,5 @@
+use std::vec;
+
 use reqwest::Client;
 
 pub async fn fetch_html_from_url(url: &str) -> Option<String> {
@@ -38,7 +40,23 @@ pub async fn identify_broken_links(url: &str) -> String {
             }
         Err(e) => {
             out = e.to_string();
-        },
-                }
+            },
+        }
     out
+}
+pub async fn check_link(url: &str) -> bool {
+    println!("Identifing links from URL: {}", url);
+    let client = Client::builder()
+        .user_agent("Mozilla/5.0 (compatible; RustReqwestBot/1.0; +https://example.com/bot)")
+        .build()
+        .unwrap();
+    let res = client.get(url).send().await;
+    match res {
+        Ok(_) => {
+            return true
+        }
+        Err(_) => {
+            return false
+        },
+    }
 }
