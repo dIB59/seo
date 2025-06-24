@@ -5,7 +5,7 @@ use dioxus::prelude::*;
 #[component]
 pub fn HeadingExtractor() -> Element {
     let mut url = use_signal(|| String::new());
-    let headings = use_signal(|| Vec::<(String, String)>::new());
+    let mut headings = use_signal(|| Vec::<(String, String)>::new());
 
     rsx! {
         div {
@@ -31,7 +31,6 @@ pub fn HeadingExtractor() -> Element {
                     class: "w-full bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition",
                     onclick: move |_| {
                         let url_val = url();
-                        let mut headings = headings;
                         spawn(async move {
                             if let Some(html) = http_client::fetch_html_from_url(&url_val).await {
                                 let result = heading_extractor::extract_headings_from_html(&html);
