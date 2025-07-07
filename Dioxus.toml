@@ -3,7 +3,7 @@
 [web.app]
 
 # HTML title tag content
-title = "seoinsikt_rs_op"
+title = "seoinsikt"
 
 [web.watcher]
 
