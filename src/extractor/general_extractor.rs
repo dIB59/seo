@@ -6,9 +6,9 @@ pub fn extract_meta_titles_from_html(html: &str) -> String {
     let selector = Selector::parse("title").unwrap();
     let mut results = String::new();
     for element in document.select(&selector) {
-        let content = element.text().collect::<Vec<_>>().join(" ").trim().to_string();
+        let content = element.text().collect::<Vec<_>>().join(" ").to_string();
         if !content.is_empty() {
-            results = content;
+            results += &content;
         }
     }
     results
