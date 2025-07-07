@@ -3974,7 +3974,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "seoinsikt_rs_op"
+name = "seoinsikt"
 version = "0.1.1"
 dependencies = [
  "dioxus",
