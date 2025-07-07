@@ -1,4 +1,4 @@
-/*! tailwindcss v4.1.10 | MIT License | https://tailwindcss.com */
+/*! tailwindcss v4.1.11 | MIT License | https://tailwindcss.com */
 @layer properties;
 @layer theme, base, components, utilities;
 @layer theme {
@@ -7,7 +7,6 @@
       "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
       "Courier New", monospace;
-    --color-black: #000;
     --spacing: 0.25rem;
     --container-2xl: 42rem;
     --text-sm: 0.875rem;
@@ -187,9 +186,6 @@
   .flex {
     display: flex;
   }
-  .table {
-    display: table;
-  }
   .min-h-screen {
     min-height: 100vh;
   }
@@ -199,14 +195,8 @@
   .max-w-2xl {
     max-width: var(--container-2xl);
   }
-  .border-collapse {
-    border-collapse: collapse;
-  }
   .transform {
     transform: var(--tw-rotate-x,) var(--tw-rotate-y,) var(--tw-rotate-z,) var(--tw-skew-x,) var(--tw-skew-y,);
-  }
-  .resize {
-    resize: both;
   }
   .flex-col {
     flex-direction: column;
@@ -250,9 +240,6 @@
   }
   .border-border {
     border-color: var(--border);
-  }
-  .bg-black {
-    background-color: var(--color-black);
   }
   .bg-card {
     background-color: var(--card);
@@ -311,19 +298,12 @@
   .text-primary-foreground {
     color: var(--primary-foreground);
   }
-  .underline {
-    text-decoration-line: underline;
-  }
   .accent-foreground {
     accent-color: var(--foreground);
   }
   .ring {
     --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
-  }
-  .outline {
-    outline-style: var(--tw-outline-style);
-    outline-width: 1px;
   }
   .transition {
     transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, visibility, content-visibility, overlay, pointer-events;
@@ -444,6 +424,51 @@
     color: var(--foreground);
   }
 }
+@layer components {
+  .navbar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    column-gap: calc(var(--spacing) * 5);
+    background-color: var(--sidebar);
+    padding: calc(var(--spacing) * 4);
+    color: var(--sidebar-foreground);
+  }
+  .nav-link {
+    border-radius: calc(var(--radius) - 2px);
+    padding-inline: calc(var(--spacing) * 3);
+    padding-block: calc(var(--spacing) * 1.5);
+    transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to;
+    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+    transition-duration: var(--tw-duration, var(--default-transition-duration));
+    --tw-duration: 200ms;
+    transition-duration: 200ms;
+    &:hover {
+      @media (hover: hover) {
+        background-color: var(--sidebar-accent);
+      }
+    }
+    &:hover {
+      @media (hover: hover) {
+        color: var(--sidebar-accent-foreground);
+      }
+    }
+  }
+  .active-nav-link {
+    background-color: var(--sidebar-primary);
+    color: var(--sidebar-primary-foreground);
+    &:hover {
+      @media (hover: hover) {
+        background-color: var(--sidebar-primary);
+      }
+    }
+    &:hover {
+      @media (hover: hover) {
+        color: var(--sidebar-primary-foreground);
+      }
+    }
+  }
+}
 @property --tw-rotate-x {
   syntax: "*";
   inherits: false;
@@ -552,12 +577,11 @@
   inherits: false;
   initial-value: 0 0 #0000;
 }
-@property --tw-outline-style {
+@property --tw-ease {
   syntax: "*";
   inherits: false;
-  initial-value: solid;
 }
-@property --tw-ease {
+@property --tw-duration {
   syntax: "*";
   inherits: false;
 }
@@ -588,8 +612,8 @@
       --tw-ring-offset-width: 0px;
       --tw-ring-offset-color: #fff;
       --tw-ring-offset-shadow: 0 0 #0000;
-      --tw-outline-style: solid;
       --tw-ease: initial;
+      --tw-duration: initial;
     }
   }
 }
