@@ -55,7 +55,15 @@ pub fn TitleDiscription() -> Element {
                     }
                     li {
                         class: "text-sm font-semibold text-muted-foreground",
+                        "title lenght: " "{title().len()}"
+                    }
+                    li {
+                        class: "text-sm font-semibold text-muted-foreground",
                         "discription: " "{description()}"
+                    }
+                    li {
+                        class: "text-sm font-semibold text-muted-foreground",                        
+                        "discription lenght: " "{description().len()}"
                     }
 
                 }
