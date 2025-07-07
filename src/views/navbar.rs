@@ -10,25 +10,35 @@ use dioxus::prelude::*;
 #[component]
 pub fn Navbar() -> Element {
     rsx! {
-        div {
-            id: "navbar",
+        nav {
+            class: "navbar",
             Link {
+                class: "nav-link",
+                active_class: "active-nav-link",
                 to: Route::Home {},
                 "Home"
             }
             Link {
+                class: "nav-link",
+                active_class: "active-nav-link",
                 to: Route::Blog { id: 1 },
                 "Blog"
             }
             Link {
+                class: "nav-link",
+                active_class: "active-nav-link",
                 to: Route::HeadingExtractor {},
                 "Heading Extractor"
             }
             Link {
+                class: "nav-link",
+                active_class: "active-nav-link",
                 to: Route::BrokenLinks {},
                 "Broken Link"
             }
             Link {
+                class: "nav-link",
+                active_class: "active-nav-link",
                 to: Route::TitleDiscription {},
                 "Title Discription"
             }
