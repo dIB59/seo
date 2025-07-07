@@ -355,7 +355,7 @@
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
+  --accent: oklch(79.484% 0.04023 241.246);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.577 0.245 27.325);
@@ -372,7 +372,7 @@
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent: oklch(79.484% 0.04023 241.246);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
@@ -430,7 +430,7 @@
     flex-direction: row;
     align-items: center;
     column-gap: calc(var(--spacing) * 5);
-    background-color: var(--sidebar);
+    background-color: var(--sidebar-accent);
     padding: calc(var(--spacing) * 4);
     color: var(--sidebar-foreground);
   }
@@ -441,8 +441,8 @@
     transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to;
     transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
     transition-duration: var(--tw-duration, var(--default-transition-duration));
-    --tw-duration: 200ms;
-    transition-duration: 200ms;
+    --tw-duration: 100ms;
+    transition-duration: 100ms;
     &:hover {
       @media (hover: hover) {
         background-color: var(--sidebar-accent);
@@ -459,7 +459,7 @@
     color: var(--sidebar-primary-foreground);
     &:hover {
       @media (hover: hover) {
-        background-color: var(--sidebar-primary);
+        background-color: var(--sidebar-ring);
       }
     }
     &:hover {

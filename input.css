@@ -16,7 +16,7 @@
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
+  --accent: oklch(79.484% 0.04023 241.246);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.577 0.245 27.325);
@@ -33,7 +33,7 @@
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent: oklch(79.484% 0.04023 241.246);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
@@ -125,12 +125,12 @@
 
 @layer components {
   .navbar {
-    @apply bg-sidebar text-sidebar-foreground p-4 flex flex-row items-center gap-x-5
+    @apply bg-sidebar-accent text-sidebar-foreground p-4 flex flex-row items-center gap-x-5
   }
   .nav-link {
-    @apply px-3 py-1.5 rounded-md transition-colors duration-200 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground;
+    @apply px-3 py-1.5 rounded-md transition-colors duration-100 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ;
   }
   .active-nav-link {
-    @apply bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground;
+    @apply bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-ring hover:text-sidebar-primary-foreground;
   }
 }
