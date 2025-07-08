@@ -26,6 +26,8 @@ pub fn BrokenLinks() -> Element {
                         oninput: move |e| url.set(e.value().clone()),
                     }
 
+                    div {
+                        class: "flex space-x-4",
                     button {
                         class: "w-full bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition",
                         onclick: move |_| async move {
@@ -43,6 +45,15 @@ pub fn BrokenLinks() -> Element {
                             });
                         },
                         "Broken Links"
+                    }
+                    button {
+                        class: "w-full bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition",
+                        onclick: move |_| {
+                            foundlinks.set(Vec::<String>::new());
+                            // brokenlinks.set(Vec::<(String, String)>::new());
+                        },
+                        "Stop"
+                    }
                 }
 
                 div {
