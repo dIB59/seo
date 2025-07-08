@@ -18,12 +18,12 @@ pub fn Navbar() -> Element {
                 to: Route::Home {},
                 "Home"
             }
-            Link {
-                class: "nav-link",
-                active_class: "active-nav-link",
-                to: Route::Blog { id: 1 },
-                "Blog"
-            }
+            // Link {
+            //     class: "nav-link",
+            //     active_class: "active-nav-link",
+            //     to: Route::Blog { id: 1 },
+            //     "Blog"
+            // }
             Link {
                 class: "nav-link",
                 active_class: "active-nav-link",
@@ -41,6 +41,12 @@ pub fn Navbar() -> Element {
                 active_class: "active-nav-link",
                 to: Route::TitleDiscription {},
                 "Title Discription"
+            }
+            Link {
+                class: "nav-link",
+                active_class: "active-nav-link",
+                to: Route::Keywords {},
+                "Keywords Extractor"
             }
         }
 
