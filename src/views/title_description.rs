@@ -1,5 +1,5 @@
-use crate::{extractor::{general_extractor, url_extractor}, io::http_client};
-use dioxus::{html::u, prelude::*};
+use crate::{extractor::general_extractor, io::http_client};
+use dioxus::prelude::*;
 
 #[component]
 pub fn TitleDiscription() -> Element {
