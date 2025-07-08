@@ -28,3 +28,19 @@ pub fn extract_meta_description_from_html(html: &str) -> String {
     }
     results
 }
+
+pub fn extract_meta_keywords_from_html(html: &str) -> String {
+    println!("Extracting meta keywords from HTML...");
+    let document = Html::parse_document(html);
+    let selector = Selector::parse("p").unwrap();
+    let mut results = String::new();
+    for element in document.select(&selector) {
+        let text = element.text().collect::<Vec<_>>().join(" ").trim().to_string();
+        
+        println!("c {}", text);
+        if !text.is_empty() {
+            results.push_str(&text);
+        }
+    }
+    results
+}
