@@ -25,3 +25,6 @@ pub use brokenlinks::BrokenLinks;
 
 mod title_description;
 pub use title_description::TitleDiscription;
+
+mod keywords;
+pub use keywords::Keywords;
