@@ -6,6 +6,7 @@ pub fn BrokenLinks() -> Element {
     let mut url = use_signal(|| String::new());
     let mut foundlinks = use_signal(|| Vec::<String>::new());
     let mut brokenlinks = use_signal(|| Vec::<(String, String)>::new());
+    let mut is_checking = use_signal(|| true);
 
     rsx! {
         div {
@@ -39,6 +40,9 @@ pub fn BrokenLinks() -> Element {
                                 }
 
                                 for link in foundlinks() {
+                                    if !is_checking() {
+                                        break;
+                                    }
                                     let res = http_client::identify_broken_links(&link).await;
                                     brokenlinks.push((link, res));
                                 }
@@ -49,8 +53,7 @@ pub fn BrokenLinks() -> Element {
                     button {
                         class: "w-full bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition",
                         onclick: move |_| {
-                            foundlinks.set(Vec::<String>::new());
-                            // brokenlinks.set(Vec::<(String, String)>::new());
+                            is_checking.set(false);
                         },
                         "Stop"
                     }
