@@ -6,6 +6,7 @@ pub fn BrokenLinks() -> Element {
     let mut url = use_signal(|| String::new());
     let mut foundlinks = use_signal(|| Vec::<String>::new());
     let mut brokenlinks = use_signal(|| Vec::<(String, String)>::new());
+    let mut is_checking = use_signal(|| true);
 
     rsx! {
         div {
@@ -26,6 +27,8 @@ pub fn BrokenLinks() -> Element {
                         oninput: move |e| url.set(e.value().clone()),
                     }
 
+                    div {
+                        class: "flex space-x-4",
                     button {
                         class: "w-full bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition",
                         onclick: move |_| async move {
@@ -37,12 +40,23 @@ pub fn BrokenLinks() -> Element {
                                 }
 
                                 for link in foundlinks() {
+                                    if !is_checking() {
+                                        break;
+                                    }
                                     let res = http_client::identify_broken_links(&link).await;
                                     brokenlinks.push((link, res));
                                 }
                             });
                         },
                         "Broken Links"
+                    }
+                    button {
+                        class: "w-full bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition",
+                        onclick: move |_| {
+                            is_checking.set(false);
+                        },
+                        "Stop"
+                    }
                 }
 
                 div {

@@ -1,5 +1,15 @@
 [application]
 
+name = "seo insikt"
+
+[bundle]
+
+identifier = "se.seoinsikt.seoinsikt"
+icon = ["assets/favicon.png", "assets/favicon.ico"]
+category = "Utility"
+short_description = "A utility application for seo analysis"
+publisher = "IM"
+
 [web.app]
 
 # HTML title tag content
@@ -26,4 +36,3 @@ script = []
 # Javascript code file
 # serve: [dev-server] only
 script = []
-
