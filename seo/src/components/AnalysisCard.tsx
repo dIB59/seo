@@ -14,7 +14,7 @@ interface AnalysisCardProps {
 
 export const AnalysisCard: React.FC<AnalysisCardProps> = ({
     analysis,
-    6onView,
+    onView,
     onDelete,
     onPause,
     onResume,
