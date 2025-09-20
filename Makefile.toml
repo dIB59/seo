@@ -1,5 +1,0 @@
-[tasks.dev]
-description = "Run dx serve and Tailwind in watch mode concurrently"
-script = [
-    "npx concurrently -k -n dx,tailwind -c magenta,cyan \"dx serve\" \"npx tailwindcss -i ./input.css -o ./assets/tailwind.css --watch\"",
-]
