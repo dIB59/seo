@@ -39,9 +39,14 @@ pub fn BrokenLinks() -> Element {
                                     foundlinks.set(res);
                                 }
 
-                                for link in foundlinks() {
+                                for mut link in foundlinks() {
                                     if !is_checking() {
                                         break;
+                                    }
+                                    let new_link: String;
+                                    if link.starts_with("/"){
+                                        new_link = format!("{url_val}{link}");
+                                        link = new_link;
                                     }
                                     let res = http_client::identify_broken_links(&link).await;
                                     brokenlinks.push((link, res));
