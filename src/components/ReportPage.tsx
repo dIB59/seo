@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { AnalysisResult } from '../types/seo';
 import { SeoReportTable } from './SeoReportTable';
-import { seoUtils } from '../services/seoAnalysis';
+import { seoUtils } from '../services/seoUtils';
 
 interface ReportPageProps {
     analysis: AnalysisResult;
@@ -42,7 +42,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({ analysis, onBack }) => {
                         <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 mt-4">
                             <div
                                 className={`h-3 rounded-full transition-all ${analysis.summary.seo_score >= 80 ? 'bg-green-500' :
-                                        analysis.summary.seo_score >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                                    analysis.summary.seo_score >= 60 ? 'bg-yellow-500' : 'bg-red-500'
                                     }`}
                                 style={{ width: `${analysis.summary.seo_score}%` }}
                             />
@@ -218,12 +218,12 @@ export const ReportPage: React.FC<ReportPageProps> = ({ analysis, onBack }) => {
                 {(['critical', 'warning', 'suggestion'] as const).map(type => (
                     <div key={type} className="bg-white dark:bg-gray-800 rounded-lg shadow">
                         <div className={`px-6 py-4 border-b border-gray-200 dark:border-gray-700 ${type === 'critical' ? 'bg-red-50 dark:bg-red-900/20' :
-                                type === 'warning' ? 'bg-yellow-50 dark:bg-yellow-900/20' :
-                                    'bg-blue-50 dark:bg-blue-900/20'
+                            type === 'warning' ? 'bg-yellow-50 dark:bg-yellow-900/20' :
+                                'bg-blue-50 dark:bg-blue-900/20'
                             }`}>
                             <h3 className={`text-lg font-semibold ${type === 'critical' ? 'text-red-900 dark:text-red-100' :
-                                    type === 'warning' ? 'text-yellow-900 dark:text-yellow-100' :
-                                        'text-blue-900 dark:text-blue-100'
+                                type === 'warning' ? 'text-yellow-900 dark:text-yellow-100' :
+                                    'text-blue-900 dark:text-blue-100'
                                 }`}>
                                 {type.charAt(0).toUpperCase() + type.slice(1)} Issues ({issuesByType[type].length})
                             </h3>
@@ -236,8 +236,8 @@ export const ReportPage: React.FC<ReportPageProps> = ({ analysis, onBack }) => {
                                             {issue.title}
                                         </h4>
                                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${type === 'critical' ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400' :
-                                                type === 'warning' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400' :
-                                                    'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
+                                            type === 'warning' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400' :
+                                                'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
                                             }`}>
                                             {type.toUpperCase()}
                                         </span>
@@ -339,8 +339,8 @@ export const ReportPage: React.FC<ReportPageProps> = ({ analysis, onBack }) => {
                                 key={tab.key}
                                 onClick={() => setActiveTab(tab.key as any)}
                                 className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === tab.key
-                                        ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
                                     }`}
                             >
                                 {tab.label}

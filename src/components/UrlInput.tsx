@@ -1,7 +1,7 @@
 // components/UrlInput.tsx
 import React, { useState } from 'react';
 import { AnalysisSettings } from '../types/seo';
-import { seoUtils } from '../services/seoAnalysis';
+import { seoUtils } from '../services/seoUtils';
 
 interface UrlInputProps {
     onStartAnalysis: (url: string, settings?: Partial<AnalysisSettings>) => Promise<void>;

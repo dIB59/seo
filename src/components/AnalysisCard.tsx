@@ -1,7 +1,7 @@
 // components/AnalysisCard.tsx
 import React from 'react';
 import { AnalysisResult } from '../types/seo';
-import { seoUtils } from '../services/seoAnalysis';
+import { seoUtils } from '../services/seoUtils';
 
 interface AnalysisCardProps {
     analysis: AnalysisResult;
