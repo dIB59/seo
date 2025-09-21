@@ -82,8 +82,8 @@ export const UrlInput: React.FC<UrlInputProps> = ({
                             placeholder="https://your-website.com"
                             disabled={isAnalyzing}
                             className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors ${!isValidUrl
-                                    ? 'border-red-300 dark:border-red-600'
-                                    : 'border-gray-300 dark:border-gray-600'
+                                ? 'border-red-300 dark:border-red-600'
+                                : 'border-gray-300 dark:border-gray-600'
                                 }`}
                         />
                         <div className="absolute inset-y-0 right-0 flex items-center pr-3">
@@ -199,8 +199,8 @@ export const UrlInput: React.FC<UrlInputProps> = ({
                     type="submit"
                     disabled={isAnalyzing || !url.trim() || !isValidUrl}
                     className={`w-full py-3 px-6 text-lg font-medium rounded-lg transition-all ${isAnalyzing || !url.trim() || !isValidUrl
-                            ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transform hover:-translate-y-0.5'
+                        ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                        : ' hover:from-blue-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transform hover:-translate-y-0.5'
                         }`}
                 >
                     {isAnalyzing ? (

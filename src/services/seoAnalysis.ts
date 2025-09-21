@@ -82,7 +82,7 @@ export const getAnalysis = async (analysisId: string): Promise<AnalysisResult> =
     const dummyPages: PageAnalysis[] = Array.from({ length: 25 }, (_, i) => {
         const pageTypes = ['/', '/about', '/contact', '/blog', '/services', '/products', '/privacy', '/terms'];
         const basePath = pageTypes[i % pageTypes.length] || '/';
-        const pageUrl = i === 0 ? url : `${url.replace(/\/$/, '')}${basePath}${i > 7 ? `/${i}` : ''}`;
+        const pageUrl = i === 0 ? basePath : `${basePath.replace(/\/$/, '')}${basePath}${i > 7 ? `/${i}` : ''}`;
 
         const statusCodes = [200, 200, 200, 200, 200, 301, 302, 404, 500];
         const statusCode = statusCodes[Math.floor(Math.random() * statusCodes.length)];
@@ -112,8 +112,8 @@ export const getAnalysis = async (analysisId: string): Promise<AnalysisResult> =
         return {
             url: pageUrl,
             title: i === 0
-                ? `${new URL(url).hostname} - Home Page`
-                : `${basePath.replace('/', '').replace(/^\w/, c => c.toUpperCase())} Page - ${new URL(url).hostname}`,
+                ? `${new URL(basePath).hostname} - Home Page`
+                : `${basePath.replace('/', '').replace(/^\w/, c => c.toUpperCase())} Page - ${new URL(basePath).hostname}`,
             meta_description: Math.random() > 0.3
                 ? `This is the meta description for the ${basePath} page. It provides a brief summary of the page content.`
                 : undefined,
