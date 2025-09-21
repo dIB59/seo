@@ -1,12 +1,18 @@
 // app/page.tsx
 "use client";
-import React from 'react';
+import React, { useState } from 'react';
 import { useSeoAnalysis } from '../hooks/useSeoAnalysis';
 import { UrlInput } from '../components/UrlInput';
 import { AnalysisCard } from '../components/AnalysisCard';
+import { ReportPage } from '../components/ReportPage';
 import { AnalysisResult } from '../types/seo';
 
+type ViewMode = 'home' | 'report';
+
 export default function Home() {
+  const [viewMode, setViewMode] = useState<ViewMode>('home');
+  const [selectedAnalysis, setSelectedAnalysis] = useState<AnalysisResult | null>(null);
+
   const {
     currentAnalysis,
     recentAnalyses,
@@ -23,10 +29,13 @@ export default function Home() {
   } = useSeoAnalysis();
 
   const handleViewReport = (analysis: AnalysisResult) => {
-    // Navigate to report view
-    // You can implement this with Next.js router
-    console.log('View report for:', analysis.id);
-    // router.push(`/report/${analysis.id}`);
+    setSelectedAnalysis(analysis);
+    setViewMode('report');
+  };
+
+  const handleBackToHome = () => {
+    setViewMode('home');
+    setSelectedAnalysis(null);
   };
 
   const handleExport = async (analysisId: string, format: 'pdf' | 'csv' | 'json') => {
@@ -39,6 +48,17 @@ export default function Home() {
     }
   };
 
+  // If viewing a report, show the report page
+  if (viewMode === 'report' && selectedAnalysis) {
+    return (
+      <ReportPage
+        analysis={selectedAnalysis}
+        onBack={handleBackToHome}
+      />
+    );
+  }
+
+  // Otherwise show the main home page
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       <div className="container mx-auto px-4 py-8">
