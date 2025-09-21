@@ -31,9 +31,14 @@ pub async fn fetch_html_from_url(mut url: &str) -> Option<String> {
     res
 }
 
-pub async fn identify_broken_links(url: &str) -> String {
+pub async fn identify_broken_links(mut url: &str) -> String {
     println!("Identifing links from URL: {}", url);
     let out: String;
+    let new_url: String;
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        new_url = format!("https://{}", url);
+        url = &new_url;
+    }
     let client = Client::builder()
         .user_agent("Mozilla/5.0 (compatible; RustReqwestBot/1.0; +https://example.com/bot)")
         .build()
