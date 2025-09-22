@@ -1,4 +1,4 @@
-// services/seoAnalysis.ts
+// services/mockseoAnalysis.ts
 import {
     AnalysisResult,
     AnalysisSettings,
