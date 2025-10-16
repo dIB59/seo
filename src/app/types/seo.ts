@@ -22,7 +22,7 @@ export interface PageAnalysis {
     image_count: number;
     images_without_alt: number;
     internal_links: number;
-    external_links: number;
+        external_links: number;
     word_count: number;
     load_time: number;
     status_code: number;
@@ -84,3 +84,12 @@ export interface AnalysisSettings {
     lighthouse_analysis: boolean;
     delay_between_requests: number; // milliseconds
 }
+
+export const defaultSettings: AnalysisSettings = {
+  max_pages: 10,
+  include_external_links: false,
+  check_images: true,
+  mobile_analysis: false,
+  lighthouse_analysis: false,
+  delay_between_requests: 500,
+};

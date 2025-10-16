@@ -1,7 +1,10 @@
+import { invoke } from '@tauri-apps/api/core';
+
 // services/seoAnalysis.ts
 import {
     AnalysisResult,
     AnalysisSettings,
+    defaultSettings,
     PageAnalysis
 } from '../types/seo';
 import {
@@ -14,15 +17,13 @@ import {
 /**
  * Start a new SEO analysis
  */
-export const startAnalysis = async (url: string, settings?: Partial<AnalysisSettings>): Promise<string> => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Return dummy analysis ID
-    const analysisId = `analysis_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    console.log('Starting analysis for:', url, 'with settings:', settings);
-
-    return analysisId;
+export const startAnalysis = async (
+  url: string,
+  settings?: Partial<AnalysisSettings>
+): Promise<string> => {
+    const merged: AnalysisSettings = { ...defaultSettings, ...settings };
+    const analysisId = await invoke<number>('start_analysis', {url, merged})   ;
+    return analysisId.toString();
 };
 
 /**
