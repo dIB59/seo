@@ -12,7 +12,9 @@ mod db;
 mod error;
 
 fn main() {
-    env_logger::init();
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Info)
+        .init();
     tauri::Builder::default()
         .setup(|app| {
             // block on async init so the pool is available before commands run
