@@ -1,8 +1,6 @@
 // src-tauri/src/main.rs
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::sync::Mutex;
-
 use tauri::Manager;
 
 use crate::db::DbState;
@@ -10,6 +8,7 @@ use crate::db::DbState;
 mod analysis;
 mod db;
 mod error;
+mod taskqueue;
 
 fn main() {
     env_logger::builder()
@@ -27,13 +26,14 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            analysis::start_analysis // get_analysis_progress,
-                                     // get_analysis_list,
-                                     // get_analysis,
-                                     // pause_analysis,
-                                     // resume_analysis,
-                                     // delete_analysis,
-                                     // export_report
+            analysis::start_analysis,
+            analysis::get_analysis_progress,
+            // get_analysis_list,
+            // get_analysis,
+            // pause_analysis,
+            // resume_analysis,
+            // delete_analysis,
+            // export_report
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

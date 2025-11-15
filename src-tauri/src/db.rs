@@ -28,7 +28,7 @@ pub async fn init_db(app: &AppHandle) -> Result<SqlitePool> {
     }
 
     // Create the database path
-    let db_path = app_data_dir.join("analysis.db");
+    let db_path = app_data_dir.join("analysisdev.db");
     let db_url = format!("sqlite://{}?mode=rwc", db_path.display());
 
     log::info!("Database URL: {}", db_url);
