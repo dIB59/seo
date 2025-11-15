@@ -1,66 +1,83 @@
 // types/api.ts
-import { AnalysisResult, AnalysisSettings } from './seo';
+import { AnalysisProgress, AnalysisResult, AnalysisSettings } from './seo';
 
 // Tauri command parameters - using Record<string, unknown> for compatibility
 export interface StartAnalysisParams extends Record<string, unknown> {
-    url: string;
-    settings?: Partial<AnalysisSettings>;
+	url: string;
+	settings?: Partial<AnalysisSettings>;
 }
 
 export interface GetProgressParams extends Record<string, unknown> {
-    analysis_id: string;
+	analysis_id: string;
 }
 
 export interface GetAnalysisParams extends Record<string, unknown> {
-    analysis_id: string;
+	analysis_id: string;
 }
 
 export interface DeleteAnalysisParams extends Record<string, unknown> {
-    analysis_id: string;
+	analysis_id: string;
 }
 
 export interface ExportReportParams extends Record<string, unknown> {
-    analysis_id: string;
-    format: 'pdf' | 'csv' | 'json';
+	analysis_id: string;
+	format: 'pdf' | 'csv' | 'json';
 }
 
 export interface PauseAnalysisParams extends Record<string, unknown> {
-    analysis_id: string;
+	analysis_id: string;
 }
 
 export interface ResumeAnalysisParams extends Record<string, unknown> {
-    analysis_id: string;
+	analysis_id: string;
 }
 
 // Tauri command responses
 export interface TauriResponse<T> {
-    success: boolean;
-    data?: T;
-    error?: string;
+	success: boolean;
+	data?: T;
+	error?: string;
 }
 
 export interface AnalysisListResponse {
-    analyses: AnalysisResult[];
-    total: number;
-    page: number;
-    per_page: number;
+	analyses: AnalysisProgress[];
+	total: number;
+	page: number;
+	per_page: number;
 }
 
 // Event types for real-time updates
 export interface AnalysisProgressEvent {
-    analysis_id: string;
-    progress: number;
-    analyzed_pages: number;
-    total_pages: number;
-    current_page?: string;
+	analysis_id: string;
+	progress: number;
+	analyzed_pages: number;
+	total_pages: number;
+	current_page?: string;
 }
 
 export interface AnalysisCompleteEvent {
-    analysis_id: string;
-    result: AnalysisResult;
+	analysis_id: string;
+	result: AnalysisProgress;
 }
 
 export interface AnalysisErrorEvent {
-    analysis_id: string;
-    error: string;
+	analysis_id: string;
+	error: string;
+}
+
+export interface AnalysisResult {
+	id: string;
+	url: string;
+	status: 'analyzing' | 'completed' | 'error' | 'paused';
+	progress: number;
+	total_pages: number;
+	analyzed_pages: number;
+	started_at: string;
+	completed_at?: string;
+	sitemap_found: boolean;
+	robots_txt_found: boolean;
+	ssl_certificate: boolean;
+	issues: AnalysisIssues;
+	summary: AnalysisSummary;
+	pages: any[]; // Define PageAnalysis type if needed
 }

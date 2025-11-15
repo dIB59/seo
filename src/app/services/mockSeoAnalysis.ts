@@ -2,6 +2,8 @@ import { invoke } from '@tauri-apps/api/core';
 
 // services/seoAnalysis.ts
 import {
+	AnalysisJobResponse,
+	AnalysisProgress,
 	AnalysisResult,
 	AnalysisSettings,
 	defaultSettings,
@@ -20,60 +22,26 @@ import {
 export const startAnalysis = async (
 	url: string,
 	settings?: Partial<AnalysisSettings>
-): Promise<string> => {
+): Promise<number> => {
 	const merged: AnalysisSettings = { ...defaultSettings, ...settings };
-	const analysisId = await invoke<number>('start_analysis', { url, merged });
-	return analysisId.toString();
+	const analysisId = await invoke<AnalysisJobResponse>('start_analysis', { url, merged });
+	console.log(analysisId);
+	return analysisId.job_id;
 };
+
 
 /**
- * Get analysis progress
+ * Get progress for a specific analysis job
  */
-export const getAnalysisProgress = async (analysisId: string): Promise<AnalysisResult> => {
-	// Simulate API delay
-	await new Promise(resolve => setTimeout(resolve, 300));
+export const getAnalysisProgress = async (id: number): Promise<AnalysisProgress> => {
 
-	// Simulate progressive analysis
-	const startTime = new Date(Date.now() - Math.random() * 300000).toISOString(); // Started 0-5 minutes ago
-	const progress = Math.min(100, Math.random() * 100);
-	const totalPages = 25 + Math.floor(Math.random() * 75); // 25-100 pages
-	const analyzedPages = Math.floor((progress / 100) * totalPages);
+	const progress = await invoke<AnalysisProgress>('get_analysis_progress', {
+		id,
+	});
 
-	const dummyResult: AnalysisResult = {
-		id: analysisId,
-		url: 'https://example.com',
-		status: progress >= 100 ? 'completed' : 'analyzing',
-		progress,
-		total_pages: totalPages,
-		analyzed_pages: analyzedPages,
-		started_at: startTime,
-		completed_at: progress >= 100 ? new Date().toISOString() : undefined,
-		pages: [],
-		issues: {
-			critical: Math.floor(Math.random() * 10),
-			warnings: Math.floor(Math.random() * 20),
-			suggestions: Math.floor(Math.random() * 30),
-		},
-		summary: {
-			avg_load_time: 1.2 + Math.random() * 2,
-			total_words: Math.floor(Math.random() * 50000) + 10000,
-			pages_with_issues: Math.floor(Math.random() * totalPages),
-			seo_score: Math.floor(Math.random() * 40) + 60, // 60-100
-			mobile_friendly_pages: Math.floor(Math.random() * totalPages),
-			pages_with_meta_description: Math.floor(Math.random() * totalPages),
-			pages_with_title_issues: Math.floor(Math.random() * 5),
-			duplicate_titles: Math.floor(Math.random() * 3),
-			duplicate_meta_descriptions: Math.floor(Math.random() * 3),
-		},
-		sitemap_found: Math.random() > 0.3,
-		robots_txt_found: Math.random() > 0.2,
-		ssl_certificate: Math.random() > 0.1,
-	};
-
-	console.log('Progress for analysis:', analysisId, dummyResult);
-	return dummyResult;
+	console.log('Progress for job:', id, progress);
+	return progress;
 };
-
 /**
  * Get completed analysis results
  */
