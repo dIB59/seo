@@ -13,7 +13,8 @@ import {
 	AnalysisListResponse,
 	AnalysisProgressEvent,
 	AnalysisCompleteEvent,
-	AnalysisErrorEvent
+	AnalysisErrorEvent,
+	TauriResponse
 } from '../types/api';
 
 /**
@@ -29,19 +30,20 @@ export const startAnalysis = async (
 	return analysisId.job_id;
 };
 
-
 /**
  * Get progress for a specific analysis job
  */
-export const getAnalysisProgress = async (id: number): Promise<AnalysisProgress> => {
+export const getAnalysisProgress = async (jobId: number): Promise<AnalysisProgress> => {
+	const progress = await invoke<TauriResponse<AnalysisProgress>>('get_analysis_progress', { jobId });
+	console.log('Progress for job:', jobId, progress);
 
-	const progress = await invoke<AnalysisProgress>('get_analysis_progress', {
-		id,
-	});
+	if ('error' in progress) {
+		throw new Error(progress.error);
+	}
+	return progress.data;
 
-	console.log('Progress for job:', id, progress);
-	return progress;
 };
+
 /**
  * Get completed analysis results
  */
@@ -174,7 +176,7 @@ export const getAnalysisList = async (page = 1, perPage = 10): Promise<AnalysisL
 /**
  * Delete an analysis
  */
-export const deleteAnalysis = async (analysisId: string): Promise<void> => {
+export const deleteAnalysis = async (analysisId: number): Promise<void> => {
 	await new Promise(resolve => setTimeout(resolve, 200));
 	console.log('Deleted analysis:', analysisId);
 };

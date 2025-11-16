@@ -33,11 +33,10 @@ export interface ResumeAnalysisParams extends Record<string, unknown> {
 }
 
 // Tauri command responses
-export interface TauriResponse<T> {
-	success: boolean;
-	data?: T;
-	error?: string;
-}
+export type TauriResponse<T> =
+	| { data: T }
+	| { error: string };
+
 
 export interface AnalysisListResponse {
 	analyses: AnalysisProgress[];

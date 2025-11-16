@@ -1,4 +1,4 @@
-// hooks/useSeoAnalysis.ts
+// hooks/useSeoAnalysis.tr
 import { useState, useEffect, useCallback } from 'react';
 import { AnalysisProgress, AnalysisSettings } from '../types/seo';
 import {
@@ -25,9 +25,9 @@ interface UseSeoAnalysisState {
 
 interface UseSeoAnalysisActions {
 	startAnalysis: (url: string, settings?: Partial<AnalysisSettings>) => Promise<void>;
-	pauseAnalysis: (analysisId: string) => Promise<void>;
-	resumeAnalysis: (analysisId: string) => Promise<void>;
-	deleteAnalysis: (analysisId: string) => Promise<void>;
+	pauseAnalysis: (analysisId: number) => Promise<void>;
+	resumeAnalysis: (analysisId: number) => Promise<void>;
+	deleteAnalysis: (analysisId: number) => Promise<void>;
 	exportReport: (analysisId: string, format: 'pdf' | 'csv' | 'json') => Promise<string>;
 	clearError: () => void;
 	refreshAnalyses: () => Promise<void>;
@@ -131,7 +131,7 @@ export function useSeoAnalysis(): UseSeoAnalysisState & UseSeoAnalysisActions {
 			const analysisId = await startAnalysis(url, settings);
 
 			// Get initial analysis state
-			const initialAnalysis = await getAnalysisProgress(analysisId.job_id);
+			const initialAnalysis = await getAnalysisProgress(analysisId);
 
 			setState(prev => ({
 				...prev,
@@ -140,6 +140,7 @@ export function useSeoAnalysis(): UseSeoAnalysisState & UseSeoAnalysisActions {
 			}));
 
 		} catch (error) {
+			console.log(error);
 			const errorMessage = error instanceof Error ? error.message : 'Failed to start analysis';
 			setState(prev => ({
 				...prev,
@@ -149,11 +150,11 @@ export function useSeoAnalysis(): UseSeoAnalysisState & UseSeoAnalysisActions {
 		}
 	}, []);
 
-	const pauseAnalysisHandler = useCallback(async (analysisId: string) => {
+	const pauseAnalysisHandler = useCallback(async (analysisId: number) => {
 		try {
-			await pauseAnalysisService(analysisId);
+			await pauseAnalysisService(String(analysisId));
 			setState(prev => {
-				if (prev.currentAnalysis?.job_id === parseInt(analysisId)) {
+				if (prev.currentAnalysis?.job_id === analysisId) {
 					return {
 						...prev,
 						currentAnalysis: {
@@ -170,11 +171,11 @@ export function useSeoAnalysis(): UseSeoAnalysisState & UseSeoAnalysisActions {
 		}
 	}, []);
 
-	const resumeAnalysisHandler = useCallback(async (analysisId: string) => {
+	const resumeAnalysisHandler = useCallback(async (analysisId: number) => {
 		try {
-			await resumeAnalysisService(analysisId);
+			await resumeAnalysisService(String(analysisId));
 			setState(prev => {
-				if (prev.currentAnalysis?.job_id === parseInt(analysisId)) {
+				if (prev.currentAnalysis?.job_id === analysisId) {
 					return {
 						...prev,
 						currentAnalysis: {
@@ -192,13 +193,13 @@ export function useSeoAnalysis(): UseSeoAnalysisState & UseSeoAnalysisActions {
 		}
 	}, []);
 
-	const deleteAnalysisHandler = useCallback(async (analysisId: string) => {
+	const deleteAnalysisHandler = useCallback(async (analysisId: number) => {
 		try {
 			await deleteAnalysisService(analysisId);
 			setState(prev => ({
 				...prev,
-				recentAnalyses: prev.recentAnalyses.filter(analysis => analysis.job_id !== parseInt(analysisId)),
-				currentAnalysis: prev.currentAnalysis?.job_id === parseInt(analysisId) ? null : prev.currentAnalysis
+				recentAnalyses: prev.recentAnalyses.filter(analysis => analysis.job_id !== analysisId),
+				currentAnalysis: prev.currentAnalysis?.job_id === analysisId ? null : prev.currentAnalysis
 			}));
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : 'Failed to delete analysis';
