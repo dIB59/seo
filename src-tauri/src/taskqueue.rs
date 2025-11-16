@@ -1,64 +1,65 @@
+use anyhow::{anyhow, Context, Error};
 use reqwest::Client;
 use scraper::{Html, Selector};
 use std::collections::HashSet;
 use url::Url;
 
 /// Find all pages for a specific website
-pub async fn find_all_pages(start_url: Url) -> Result<HashSet<Url>, Box<dyn std::error::Error>> {
+pub async fn find_all_pages(start_url: Url) -> Result<HashSet<Url>, Error> {
     let mut visited = HashSet::new();
     let mut to_visit = vec![start_url.clone()];
     let client = Client::new();
 
     // Get the base host (domain or IP) and port to stay within the same site
-    let base_host = start_url.host_str().ok_or("Invalid host")?;
+    let base_host = start_url
+        .host_str()
+        .ok_or_else(|| anyhow!("Invalid host: Start URL has no host component"))?;
     let base_port = start_url.port();
 
     while let Some(url) = to_visit.pop() {
-        // Skip if already visited
         if visited.contains(&url) {
             continue;
         }
 
-        println!("Visiting: {}", url);
+        log::info!("Visiting: {}", url);
         visited.insert(url.clone());
 
         // Fetch the page
-        match client.get(url.as_str()).send().await {
-            Ok(response) => {
-                if let Ok(body) = response.text().await {
-                    // Parse HTML and find all links
-                    let document = Html::parse_document(&body);
-                    let selector = Selector::parse("a[href]").unwrap();
+        let response = client
+            .get(url.as_str())
+            .send()
+            .await
+            .context("Error while sending page request")
+            .map_err(anyhow::Error::from)?;
 
-                    for element in document.select(&selector) {
-                        if let Some(href) = element.value().attr("href") {
-                            // Parse the URL (handle relative URLs)
-                            if let Ok(link_url) = url.join(href) {
-                                // Only follow links from the same host and port
-                                if link_url.host_str() == Some(base_host)
-                                    && link_url.port() == base_port
-                                {
-                                    // Remove fragments (#section)
-                                    let mut clean_url = link_url.clone();
-                                    clean_url.set_fragment(None);
+        if let Ok(body) = response.text().await {
+            // Parse HTML and find all links
+            let document = Html::parse_document(&body);
+            let selector = Selector::parse("a[href]").unwrap();
 
-                                    if !visited.contains(&clean_url) {
-                                        to_visit.push(clean_url);
-                                    }
-                                }
+            for element in document.select(&selector) {
+                if let Some(href) = element.value().attr("href") {
+                    // Parse the URL (handle relative URLs)
+                    if let Ok(link_url) = url.join(href) {
+                        // Only follow links from the same host and port
+                        if link_url.host_str() == Some(base_host) && link_url.port() == base_port {
+                            // Remove fragments (#section)
+                            let mut clean_url = link_url.clone();
+                            clean_url.set_fragment(None);
+
+                            if !visited.contains(&clean_url) {
+                                to_visit.push(clean_url);
                             }
                         }
                     }
                 }
-            }
-            Err(e) => {
-                eprintln!("Error fetching {}: {}", url, e);
             }
         }
     }
 
     Ok(visited)
 }
+
 fn execute(url: Url) {}
 
 #[cfg(test)]
@@ -280,7 +281,6 @@ mod tests {
         let url = Url::parse("https://example.com").unwrap();
         let pages = find_all_pages(url.clone()).await.unwrap();
 
-        // example.com should at least have the homepage
         assert!(pages.len() == 1);
         assert!(pages.contains(&url));
 
