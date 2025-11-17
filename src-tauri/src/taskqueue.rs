@@ -35,24 +35,31 @@ pub async fn find_all_pages(start_url: Url) -> Result<HashSet<Url>, Error> {
         if let Ok(body) = response.text().await {
             // Parse HTML and find all links
             let document = Html::parse_document(&body);
-            let selector = Selector::parse("a[href]").unwrap();
+            let selector = Selector::parse("a[href]").expect("Unable to parse a[href]");
 
             for element in document.select(&selector) {
-                if let Some(href) = element.value().attr("href") {
-                    // Parse the URL (handle relative URLs)
-                    if let Ok(link_url) = url.join(href) {
-                        // Only follow links from the same host and port
-                        if link_url.host_str() == Some(base_host) && link_url.port() == base_port {
-                            // Remove fragments (#section)
-                            let mut clean_url = link_url.clone();
-                            clean_url.set_fragment(None);
+                let Some(href) = element.value().attr("href") else {
+                    continue;
+                };
 
-                            if !visited.contains(&clean_url) {
-                                to_visit.push(clean_url);
-                            }
-                        }
-                    }
+                let Ok(link_url) = url.join(href) else {
+                    continue;
+                };
+
+                // Only follow links from the same host and port
+                if link_url.host_str() != Some(base_host) || link_url.port() != base_port {
+                    continue;
                 }
+
+                // Remove fragments (#section)
+                let mut clean_url = link_url.clone();
+                clean_url.set_fragment(None);
+
+                if visited.contains(&clean_url) {
+                    continue;
+                }
+
+                to_visit.push(clean_url);
             }
         }
     }
@@ -88,7 +95,9 @@ mod tests {
     #[tokio::test]
     async fn test_find_all_pages_with_links() {
         let mut server = Server::new_async().await;
+
         println!("{}", &server.url());
+
         let _m1 = server
             .mock("GET", "/")
             .with_status(200)
