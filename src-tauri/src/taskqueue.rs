@@ -30,7 +30,7 @@ pub async fn find_all_pages(start_url: Url) -> Result<HashSet<Url>, Error> {
             .send()
             .await
             .context("Error while sending page request")
-            .map_err(anyhow::Error::from)?;
+            .map_err(Error::from)?;
 
         if let Ok(body) = response.text().await {
             // Parse HTML and find all links
