@@ -282,7 +282,7 @@ mod tests {
         let pages = find_all_pages(url.clone()).await.unwrap();
 
         // Should still visit the 404 page (it's part of the site)
-        assert!(pages.len() >= 2);
+        assert!(pages.len() >= 3);
     }
 
     #[tokio::test]
