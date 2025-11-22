@@ -56,6 +56,7 @@ pub struct AnalysisJobResponse {
 #[derive(Debug, serde::Serialize)]
 pub struct AnalysisProgress {
     pub job_id: i64,
+    pub url: String,
     pub job_status: String,
     pub result_id: Option<String>,
     pub analysis_status: Option<String>,
@@ -67,6 +68,7 @@ pub struct AnalysisProgress {
 #[derive(Debug, sqlx::FromRow)]
 struct AnalysisProgressRow {
     job_id: i64,
+    url: String,
     job_status: String,
     result_id: Option<String>,
     analysis_status: Option<String>,
@@ -79,6 +81,7 @@ impl From<AnalysisProgressRow> for AnalysisProgress {
     fn from(row: AnalysisProgressRow) -> Self {
         Self {
             job_id: row.job_id,
+            url: row.url,
             job_status: row.job_status,
             result_id: row.result_id,
             analysis_status: row.analysis_status,
@@ -225,7 +228,7 @@ pub async fn start_analysis(
 
     Ok(AnalysisJobResponse {
         job_id,
-        url: url.clone(),
+        url: url,
         status: "queued".to_string(),
     })
 }
@@ -244,6 +247,7 @@ pub async fn get_analysis_progress(
         r#"
         SELECT 
             aj.id as job_id,
+            aj.url as url,
             aj.status as job_status,
             aj.result_id,
             ar.status as analysis_status,
@@ -276,6 +280,7 @@ pub async fn get_all_jobs(db: State<'_, DbState>) -> Result<Vec<AnalysisProgress
             aj.id as job_id,
             aj.status as job_status,
             aj.result_id,
+            aj.url as url
             ar.status as analysis_status,
             ar.progress,
             ar.analyzed_pages,

@@ -8,6 +8,7 @@ use crate::db::DbState;
 mod analysis;
 mod db;
 mod error;
+mod extractor;
 mod taskqueue;
 
 fn main() {
