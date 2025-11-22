@@ -1,11 +1,85 @@
-use anyhow::{anyhow, Context, Error};
-use reqwest::Client;
+use anyhow::{anyhow, Context, Error, Result};
+use reqwest::{Client, StatusCode};
 use scraper::{Html, Selector};
-use std::collections::HashSet;
+use std::{collections::HashSet, fs::create_dir};
+use tauri::http::response;
 use url::Url;
 
+use crate::extractor::sitemap::SITE_MAP_PATH;
+
+const ROBOTS_TXT_PATH: &str = "robots.txt";
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ResourceStatus {
+    Found(String),        // Resource exists and is accessible
+    Unauthorized(String), // Resource exists but requires authentication (401/403)
+    NotFound,             // Resource doesn't exist (404)
+}
+
+impl ResourceStatus {
+    /// Check if resource was successfully found
+    pub fn is_accessible(&self) -> bool {
+        matches!(self, ResourceStatus::Found(_))
+    }
+
+    /// Check if resource exists (even if unauthorized)
+    pub fn exists(&self) -> bool {
+        matches!(
+            self,
+            ResourceStatus::Found(_) | ResourceStatus::Unauthorized(_)
+        )
+    }
+
+    /// Get the resource URL if it's found or unauthorized
+    pub fn url(&self) -> Option<&str> {
+        match self {
+            ResourceStatus::Found(url) | ResourceStatus::Unauthorized(url) => Some(url),
+            _ => None,
+        }
+    }
+}
+
+pub async fn check_resource(base_url: Url, path: &str) -> Result<ResourceStatus> {
+    let client = Client::new();
+
+    let resource_url = base_url
+        .join(path)
+        .with_context(|| format!("Failed to construct URL from {} and {}", base_url, path))?;
+
+    let response = client
+        .get(resource_url.clone())
+        .send()
+        .await
+        .with_context(|| format!("Failed to request {}", resource_url))?;
+
+    let status = match response.status() {
+        StatusCode::OK => ResourceStatus::Found(resource_url.to_string()),
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
+            ResourceStatus::Unauthorized(resource_url.to_string())
+        }
+        StatusCode::NOT_FOUND => ResourceStatus::NotFound,
+        other => {
+            anyhow::bail!(
+                "Unexpected HTTP status {} when checking {}",
+                other,
+                resource_url
+            );
+        }
+    };
+
+    Ok(status)
+}
+
+async fn check_robots_txt(base_url: Url) -> Result<ResourceStatus> {
+    check_resource(base_url, ROBOTS_TXT_PATH).await
+}
+
+async fn check_sitemap_xml(base_url: Url) -> Result<ResourceStatus> {
+    check_resource(base_url, SITE_MAP_PATH).await
+}
+
 /// Find all pages for a specific website
-pub async fn find_all_pages(start_url: Url) -> Result<HashSet<Url>, Error> {
+async fn find_all_pages_without_site_map(start_url: Url) -> Result<HashSet<Url>, Error> {
     let mut visited = HashSet::new();
     let mut to_visit = vec![start_url.clone()];
     let client = Client::new();
@@ -86,7 +160,7 @@ mod tests {
             .await;
 
         let url = Url::parse(&server.url()).unwrap();
-        let pages = find_all_pages(url.clone()).await.unwrap();
+        let pages = find_all_pages_without_site_map(url.clone()).await.unwrap();
 
         assert_eq!(pages.len(), 1);
         assert!(pages.contains(&url));
@@ -125,7 +199,7 @@ mod tests {
             .await;
 
         let url = Url::parse(&server.url()).unwrap();
-        let pages = find_all_pages(url.clone()).await.unwrap();
+        let pages = find_all_pages_without_site_map(url.clone()).await.unwrap();
         assert_eq!(pages.len(), 3);
         assert!(pages.contains(&url));
         assert!(pages.contains(&url.join("/page1").unwrap()));
@@ -158,7 +232,7 @@ mod tests {
             .await;
 
         let url = Url::parse(&server.url()).unwrap();
-        let pages = find_all_pages(url.clone()).await.unwrap();
+        let pages = find_all_pages_without_site_map(url.clone()).await.unwrap();
 
         assert_eq!(pages.len(), 3);
     }
@@ -187,7 +261,7 @@ mod tests {
             .await;
 
         let url = Url::parse(&server.url()).unwrap();
-        let pages = find_all_pages(url.clone()).await.unwrap();
+        let pages = find_all_pages_without_site_map(url.clone()).await.unwrap();
 
         assert_eq!(pages.len(), 2);
         assert!(!pages.iter().any(|u| u.domain() == Some("external.com")));
@@ -218,7 +292,7 @@ mod tests {
             .await;
 
         let url = Url::parse(&server.url()).unwrap();
-        let pages = find_all_pages(url.clone()).await.unwrap();
+        let pages = find_all_pages_without_site_map(url.clone()).await.unwrap();
 
         // Should only visit /page once (fragments removed)
         assert_eq!(pages.len(), 2);
@@ -243,7 +317,7 @@ mod tests {
             .await;
 
         let url = Url::parse(&server.url()).unwrap();
-        let pages = find_all_pages(url.clone()).await.unwrap();
+        let pages = find_all_pages_without_site_map(url.clone()).await.unwrap();
 
         // Should handle circular references without infinite loop
         assert_eq!(pages.len(), 2);
@@ -279,7 +353,7 @@ mod tests {
             .await;
 
         let url = Url::parse(&server.url()).unwrap();
-        let pages = find_all_pages(url.clone()).await.unwrap();
+        let pages = find_all_pages_without_site_map(url.clone()).await.unwrap();
 
         // Should still visit the 404 page (it's part of the site)
         assert!(pages.len() >= 3);
@@ -289,7 +363,7 @@ mod tests {
     #[ignore]
     async fn test_find_all_pages_real_domain() {
         let url = Url::parse("https://google.com").unwrap();
-        let pages = find_all_pages(url.clone()).await.unwrap();
+        let pages = find_all_pages_without_site_map(url.clone()).await.unwrap();
 
         assert!(pages.len() == 318);
         println!("{}", pages.len());
