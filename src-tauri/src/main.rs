@@ -9,7 +9,9 @@ mod analysis;
 mod db;
 mod error;
 mod extractor;
+mod seo_analyzer;
 mod taskqueue;
+mod repository;
 
 fn main() {
     env_logger::builder()
