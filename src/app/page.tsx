@@ -156,7 +156,7 @@ export default function Home() {
 			<div className="grid gap-6">
 				{recentAnalyses.map((analysis) => (
 					<AnalysisCard
-						key={analysis.id}
+						key={analysis.job_id}
 						analysis={analysis}
 						onView={handleViewReport}
 						onDelete={deleteAnalysis}
