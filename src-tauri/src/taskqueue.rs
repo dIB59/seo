@@ -1,8 +1,7 @@
 use anyhow::{anyhow, Context, Error, Result};
 use reqwest::{Client, StatusCode};
 use scraper::{Html, Selector};
-use std::{collections::HashSet, fs::create_dir};
-use tauri::http::response;
+use std::collections::HashSet;
 use url::Url;
 
 use crate::extractor::sitemap::SITE_MAP_PATH;
@@ -17,7 +16,6 @@ pub enum ResourceStatus {
 }
 
 impl ResourceStatus {
-    /// Check if resource was successfully found
     pub fn is_accessible(&self) -> bool {
         matches!(self, ResourceStatus::Found(_))
     }
@@ -30,7 +28,6 @@ impl ResourceStatus {
         )
     }
 
-    /// Get the resource URL if it's found or unauthorized
     pub fn url(&self) -> Option<&str> {
         match self {
             ResourceStatus::Found(url) | ResourceStatus::Unauthorized(url) => Some(url),
