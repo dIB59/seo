@@ -6,12 +6,13 @@ use tauri::Manager;
 use crate::db::DbState;
 
 mod analysis;
+mod application;
 mod db;
+mod domain;
 mod error;
 mod extractor;
-mod seo_analyzer;
-mod taskqueue;
 mod repository;
+mod service;
 
 fn main() {
     env_logger::builder()
@@ -24,6 +25,14 @@ fn main() {
                 db::init_db(app.handle())
                     .await
                     .unwrap_or_else(|e| panic!("failed to init db: {}", e))
+                    
+            });
+            let job_processor = application::JobProcessor::new(pool.clone());
+            tauri::async_runtime::spawn(async move {
+                job_processor
+                    .run()
+                    .await
+                    .unwrap_or_else(|e| panic!("Job processor failed {}", e));
             });
             app.manage(DbState(pool));
             Ok(())
