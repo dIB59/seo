@@ -26,5 +26,3 @@ impl From<anyhow::Error> for CommandError {
         Self(error)
     }
 }
-
-pub type Result<T> = std::result::Result<T, CommandError>;
