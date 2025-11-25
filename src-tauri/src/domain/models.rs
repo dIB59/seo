@@ -188,7 +188,7 @@ impl PageAnalysisData {
     ) -> (Self, Vec<SeoIssue>) {
         let document = Html::parse_document(html);
         
-        let mut page = Self {
+        let page = Self {
             analysis_id: String::new(),
             url: url.clone(),
             title: Self::extract_title(&document),

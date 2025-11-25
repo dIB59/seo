@@ -60,11 +60,10 @@ impl PageDiscovery {
             let links = self.extract_links(&document, &url)?;
             
             for link in links {
-                if link.host_str() == Some(base_host) && link.port() == base_port {
-                    if !visited.contains(&link) && !to_visit.contains(&link) {
+                if link.host_str() == Some(base_host) && link.port() == base_port
+                    && !visited.contains(&link) && !to_visit.contains(&link) {
                         to_visit.push(link);
                     }
-                }
             }
         }
         

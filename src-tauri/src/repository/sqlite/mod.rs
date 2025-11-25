@@ -1,6 +1,6 @@
 //! SQLite repository implementations - no extra interfaces
 
-use crate::{analysis::{self, AnalysisSettingsRequest}, domain::models::*};
+use crate::{analysis::AnalysisSettingsRequest, domain::models::*};
 use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use uuid::Uuid;
@@ -87,12 +87,12 @@ impl JobRepository {
     ) -> Result<i64> {
         let mut tx = self.pool.begin().await.context("Failed to start transaction")?;
         // Insert settings
-        let max_pages = settings.max_pages as i64;
+        let max_pages = settings.max_pages;
         let include_external_links = settings.include_external_links as i64;
         let check_images = settings.check_images as i64;
         let mobile_analysis = settings.mobile_analysis as i64;
         let lighthouse_analysis = settings.lighthouse_analysis as i64;
-        let delay_between_requests = settings.delay_between_requests as i64;
+        let delay_between_requests = settings.delay_between_requests;
 
         let settings_id = sqlx::query_scalar!(
             r#"
@@ -161,7 +161,7 @@ impl JobRepository {
         .await
         .context("Failed to fetch analysis progress")?;
 
-        Ok(row.into())
+        Ok(row)
     }
 
     pub async fn get_all(&self) -> Result<Vec<AnalysisProgress>> {
@@ -517,7 +517,7 @@ impl IssuesRepository {
                 .push_bind(&issue.description)
                 .push_bind(&issue.page_url)
                 .push_bind(&issue.element)
-                .push_bind(&issue.line_number)
+                .push_bind(issue.line_number)
                 .push_bind(&issue.recommendation);
         });
 
