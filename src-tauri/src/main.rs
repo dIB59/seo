@@ -40,12 +40,9 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             analysis::start_analysis,
             analysis::get_analysis_progress,
-            // get_analysis_list,
-            // get_analysis,
-            // pause_analysis,
-            // resume_analysis,
-            // delete_analysis,
-            // export_report
+            analysis::get_all_jobs,
+            analysis::cancel_analysis,
+            analysis::get_result,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
