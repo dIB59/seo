@@ -22,10 +22,11 @@ import {
  */
 export const startAnalysis = async (
 	url: string,
-	settings?: Partial<AnalysisSettings>
+	settings: Partial<AnalysisSettings>
 ): Promise<number> => {
 	const merged: AnalysisSettings = { ...defaultSettings, ...settings };
-	const analysisId = await invoke<AnalysisJobResponse>('start_analysis', { url, merged });
+	console.log(merged);
+	const analysisId = await invoke<AnalysisJobResponse>('start_analysis', { url, settings: merged });
 	console.log(analysisId);
 	return analysisId.job_id;
 };
