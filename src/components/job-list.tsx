@@ -68,7 +68,7 @@ export function JobList({ jobs, onViewResult, onCancel }: JobListProps) {
 
             {job.job_status === "processing" && job.progress !== null && (
               <div className="flex items-center gap-3 mt-2">
-                <Progress value={job.progress * 100} className="flex-1 h-1.5" />
+								<Progress value={job.progress} className="flex-1 h-1.5" />
                 <span className="text-xs text-muted-foreground whitespace-nowrap">
                   {job.analyzed_pages ?? 0} / {job.total_pages ?? "?"} pages
                 </span>
