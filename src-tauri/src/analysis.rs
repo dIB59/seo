@@ -5,7 +5,7 @@ use tauri::State;
 use url::Url;
 use anyhow::{Context, Result};
 
-use crate::{db::DbState, domain::models::{AnalysisProgress, JobStatus}, error::CommandError, repository::sqlite::JobRepository};
+use crate::{db::DbState, domain::models::{AnalysisProgress, CompleteAnalysisResult, JobStatus}, error::CommandError, repository::sqlite::{JobRepository, ResultsRepository}};
 
 #[derive(Debug, serde::Serialize)]
 pub struct AnalysisJobResponse {
@@ -105,6 +105,25 @@ pub async fn cancel_analysis(job_id: i64, db: State<'_, DbState>) -> Result<(), 
     let repository = JobRepository::new(pool.clone());
 
     repository.update_status(job_id, JobStatus::Failed)
+        .await
+        .map_err(CommandError::from)
+}
+
+
+struct GetResultResponse {
+}
+
+#[tauri::command]
+pub async fn get_result(
+    job_id: i64,
+    db: State<'_, DbState>,
+) -> Result<CompleteAnalysisResult, CommandError> {
+    log::info!("Getting result ID for job: {}", job_id);
+
+    let pool = &db.0;
+    let repository = ResultsRepository::new(pool.clone());
+
+    repository.get_result_by_job_id(job_id)
         .await
         .map_err(CommandError::from)
 }
