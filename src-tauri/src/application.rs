@@ -103,6 +103,11 @@ impl JobProcessor {
             .context("Unable to create Result index")?;
 
         self.job_db
+            .link_to_result(job.id, &analysis_result_id)
+            .await
+            .context("Unable to link job to result")?;
+
+        self.job_db
             .update_status(job.id, JobStatus::Processing)
             .await?;
 
@@ -118,6 +123,11 @@ impl JobProcessor {
             .context("Unable to discover pages")?;
         let total_pages = pages.len() as i32;
         log::info!("Discovered {} pages", total_pages);
+
+        self.results_db
+            .update_progress(&analysis_result_id, 8.0, 0, pages.len() as i64)
+            .await
+            .context("Unable to update Analysis Results progress")?;
 
         // 6. Analyze pages
         let mut all_issues = Vec::new();
@@ -154,7 +164,12 @@ impl JobProcessor {
                     // Update progress
                     let progress = (analyzed_count as f64 / total_pages as f64) * 100.0;
                     self.results_db
-                        .update_progress(&analysis_result_id, progress, analyzed_count, total_pages)
+                        .update_progress(
+                            &analysis_result_id,
+                            progress,
+                            analyzed_count,
+                            total_pages as i64,
+                        )
                         .await?;
                 }
                 Err(e) => {
@@ -177,11 +192,6 @@ impl JobProcessor {
             .finalize(&analysis_result_id, AnalysisStatus::Completed)
             .await
             .context("Unable to finalize Analysis Results")?;
-
-        self.job_db
-            .link_to_result(job.id, &analysis_result_id)
-            .await
-            .context("Unable to link job to result")?;
 
         self.job_db
             .update_status(job.id, JobStatus::Completed)
