@@ -1,0 +1,49 @@
+#############################
+# Default job when running `bacon`
+#############################
+default_job = "clippy"
+
+#############################
+# Jobs
+#############################
+
+[jobs.check]
+command = ["cargo", "check", "--color", "always"]
+need_stdout = true
+
+[jobs.clippy]
+command = ["cargo", "clippy", "--all-targets", "--all-features", "--color", "always"]
+need_stdout = true
+
+[jobs.test]
+command = ["sh", "-c", "RUSTFLAGS='-Awarnings' cargo test --all-features --color always -- --nocapture"]
+need_stdout = true
+
+[jobs.doc]
+command = ["cargo", "doc", "--no-deps"]
+need_stdout = true
+
+[jobs.build]
+command = ["cargo", "build", "--all-features", "--color", "always"]
+need_stdout = true
+
+[jobs.fmt]
+command = ["cargo", "fmt", "--", "--check"]
+need_stdout = true
+
+#############################
+# Display tweaks
+#############################
+
+# Show a little context around output
+wrap_output = true
+
+# Automatically clear screen between runs
+clear = true
+
+# Only show errors & warnings for clippy and check
+[jobs.clippy.diagnostics]
+filter = "error,warning"
+
+[jobs.check.diagnostics]
+filter = "error,warning"
