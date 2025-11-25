@@ -1,6 +1,6 @@
 //! SQLite repository implementations - no extra interfaces
 
-use crate::{analysis::{AnalysisSettingsRequest}, domain::models::*};
+use crate::{analysis::{self, AnalysisSettingsRequest}, domain::models::*};
 use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use uuid::Uuid;
@@ -303,6 +303,137 @@ impl ResultsRepository {
             .await
             .context("Failed to finalize analysis")?;
         Ok(())
+    }
+
+    pub async fn get_result_by_job_id(&self, job_id: i64) -> Result<CompleteAnalysisResult> {
+        let analysis_result_row = sqlx::query!(
+            r#"
+            SELECT ar.id as "id!" , ar.url, ar.status, ar.progress, ar.analyzed_pages, ar.total_pages,
+                   ar.started_at, ar.created_at, ar.completed_at, ar.sitemap_found, ar.robots_txt_found, ar.ssl_certificate
+            FROM analysis_results ar
+            JOIN analysis_jobs aj ON aj.result_id = ar.id
+            WHERE aj.id = ?
+            "#,
+            job_id
+        )
+        .fetch_one(&self.pool)
+        .await
+        .context("Failed to fetch analysis result by job ID")?;
+
+        let analysis: AnalysisResults = AnalysisResults {
+            id: analysis_result_row.id.clone(),
+            url: analysis_result_row.url.clone(),
+            status: map_analysis_status(&analysis_result_row.status),
+            progress: analysis_result_row.progress,
+            analyzed_pages: analysis_result_row.analyzed_pages,
+            total_pages: analysis_result_row.total_pages,
+            started_at: analysis_result_row.started_at.map(|dt| dt.and_utc()),
+            created_at: analysis_result_row.created_at.expect("Must Exist").and_utc(),
+            completed_at: analysis_result_row.completed_at.map(|dt| dt.and_utc()),
+            sitemap_found: analysis_result_row.sitemap_found,
+            robots_txt_found: analysis_result_row.robots_txt_found,
+            ssl_certificate: analysis_result_row.ssl_certificate,
+        };
+
+        let issues_rows = sqlx::query!(
+            r#"
+            SELECT si.type, si.title, si.description, si.page_url, si.element, si.line_number, si.recommendation
+            FROM seo_issues si
+            JOIN page_analysis pa ON si.page_id = pa.id
+            WHERE pa.analysis_id = ?
+            "#,
+            analysis_result_row.id
+        )
+        .fetch_all(&self.pool)
+        .await
+        .context("Failed to fetch SEO issues for analysis result")?;
+
+        let issues: Vec<SeoIssue> = issues_rows.into_iter().map(|row| SeoIssue {
+            page_id: "".to_string(), // page_id is not needed here
+            issue_type: map_issue_type(&row.r#type),
+            title: row.title,
+            description: row.description,
+            page_url: row.page_url,
+            element: row.element,
+            line_number: row.line_number,
+            recommendation: row.recommendation,
+        }).collect();
+
+        let pages_rows = sqlx::query!(
+            r#"
+            SELECT id, analysis_id, url, title, meta_description, meta_keywords,
+                   canonical_url, h1_count, h2_count, h3_count, word_count,
+                   image_count, images_without_alt, internal_links, external_links,
+                   load_time, status_code, content_size, mobile_friendly,
+                   has_structured_data, lighthouse_performance,
+                   lighthouse_accessibility, lighthouse_best_practices,
+                   lighthouse_seo, created_at
+            FROM page_analysis
+            WHERE analysis_id = ?
+            "#,
+            analysis_result_row.id
+        )
+        .fetch_all(&self.pool)
+        .await
+        .context("Failed to fetch page analyses for analysis result")?;
+
+        let pages: Vec<PageAnalysisData> = pages_rows.into_iter().map(|row| PageAnalysisData {
+            analysis_id: row.analysis_id,
+            url: row.url,
+            title: row.title,
+            meta_description: row.meta_description,
+            meta_keywords: row.meta_keywords,
+            canonical_url: row.canonical_url,
+            h1_count: row.h1_count,
+            h2_count: row.h2_count,
+            h3_count: row.h3_count,
+            word_count: row.word_count,
+            image_count: row.image_count,
+            images_without_alt: row.images_without_alt,
+            internal_links: row.internal_links,
+            external_links: row.external_links,
+            load_time: row.load_time,
+            status_code: row.status_code,
+            content_size: row.content_size,
+            mobile_friendly: row.mobile_friendly,
+            has_structured_data: row.has_structured_data,
+            lighthouse_performance: row.lighthouse_performance,
+            lighthouse_accessibility: row.lighthouse_accessibility,
+            lighthouse_best_practices: row.lighthouse_best_practices,
+            lighthouse_seo: row.lighthouse_seo,
+        }).collect();
+
+        let summay_row = sqlx::query!(
+            r#"
+            SELECT seo_score, avg_load_time, total_words, pages_with_issues
+            FROM analysis_summary
+            WHERE analysis_id = ?
+            "#,
+            analysis_result_row.id
+        )
+        .fetch_one(&self.pool)
+        .await
+        .context("Failed to fetch analysis summary")?;
+
+        let summary = AnalysisSummary {
+            analysis_id: analysis_result_row.id.clone(),
+            seo_score: summay_row.seo_score,
+            avg_load_time: summay_row.avg_load_time,
+            total_words: summay_row.total_words,
+            total_issues: summay_row.pages_with_issues,
+            // critical_issues: todo!(),
+            // warning_issues: todo!(),
+            // suggestion_issues: todo!(),
+        };
+        let complete_analysis = CompleteAnalysisResult {
+            analysis,
+            issues,
+            pages,
+            summary,
+        };
+    
+
+        Ok(complete_analysis)
     }
 }
 
