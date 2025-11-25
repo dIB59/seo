@@ -50,17 +50,21 @@ jobs:
         
 
       # ----------  SQLite setup for sqlx ----------
-      - name: create CI SQLite db (cross-platform)
+      - name: create CI SQLite db (Windows)
+        if: runner.os == 'Windows'
         run: |
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            export DB_DIR="$TEMP/db"
-          else
-            export DB_DIR="/tmp/db"
-          fi
-          mkdir -p "$DB_DIR"
-          touch "$DB_DIR/ci.db"
-          # GitHub Actions preserves the path for later steps
-          echo "DATABASE_URL=sqlite:///$DB_DIR/ci.db" >> "$GITHUB_ENV"
+          md "$env:TEMP\db"
+          New-Item "$env:TEMP\db\ci.db" -ItemType File
+          # write the URL with THREE slashes and drive letter
+          "DATABASE_URL=sqlite:///$($env:TEMP.Replace('\','/'))/db/ci.db" >> $env:GITHUB_ENV
+        shell: pwsh
+      
+      - name: create CI SQLite db (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p /tmp/db
+          touch /tmp/db/ci.db
+          echo "DATABASE_URL=sqlite:///tmp/db/ci.db" >> "$GITHUB_ENV"
         shell: bash
 
       - name: install sqlx-cli
