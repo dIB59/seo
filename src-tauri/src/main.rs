@@ -1,8 +1,49 @@
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
+// src-tauri/src/main.rs
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use tauri::Manager;
+
+use crate::db::DbState;
+
+mod analysis;
+mod application;
+mod db;
+mod domain;
+mod error;
+mod extractor;
+mod repository;
+mod service;
+
 fn main() {
-  tauri::Builder::default()
-    .run(tauri::generate_context!())
-    .expect("error while running tauri application");
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Info)
+        .init();
+    tauri::Builder::default()
+        .setup(|app| {
+            // block on async init so the pool is available before commands run
+            let pool = tauri::async_runtime::block_on(async {
+                db::init_db(app.handle())
+                    .await
+                    .unwrap_or_else(|e| panic!("failed to init db: {}", e))
+                    
+            });
+            let job_processor = application::JobProcessor::new(pool.clone());
+            tauri::async_runtime::spawn(async move {
+                job_processor
+                    .run()
+                    .await
+                    .unwrap_or_else(|e| panic!("Job processor failed {}", e));
+            });
+            app.manage(DbState(pool));
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            analysis::start_analysis,
+            analysis::get_analysis_progress,
+            analysis::get_all_jobs,
+            analysis::cancel_analysis,
+            analysis::get_result,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
 }
