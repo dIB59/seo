@@ -20,7 +20,7 @@ export default function Home() {
 		mutate,
 		isValidating,
 	} = useSWR("jobs", getAllJobs, {
-		refreshInterval: 2000,
+		refreshInterval: 10000,
 	})
 
 	const handleSubmit = async (url: string, settings: AnalysisSettingsRequest) => {
