@@ -12,7 +12,6 @@ use sqlx::SqlitePool;
 use std::time::Duration;
 use tokio::time::sleep;
 use url::Url;
-use uuid::Uuid;
 
 pub struct JobProcessor {
     job_db: JobRepository,
@@ -92,7 +91,7 @@ impl JobProcessor {
         let has_ssl = self.resource_checker.check_ssl_certificate(&start_url);
 
         // 4. Create analysis record
-        let analysis_id = self
+        let analysis_result_id = self
             .results_db
             .create(
                 &job.url,
@@ -129,9 +128,10 @@ impl JobProcessor {
         for page_url in pages {
             match self.analyze_page(&page_url).await {
                 Ok((mut page, mut issues)) => {
-                    page.analysis_id = analysis_id.clone();
+                    page.analysis_id = analysis_result_id.clone();
 
-                    let page_id = self.page_db
+                    let page_id = self
+                        .page_db
                         .insert(&page)
                         .await
                         .context("Unable to insert page analysis data")?;
@@ -153,7 +153,7 @@ impl JobProcessor {
                     // Update progress
                     let progress = (analyzed_count as f64 / total_pages as f64) * 100.0;
                     self.results_db
-                        .update_progress(&analysis_id, progress, analyzed_count, total_pages)
+                        .update_progress(&analysis_result_id, progress, analyzed_count, total_pages)
                         .await?;
                 }
                 Err(e) => {
@@ -167,22 +167,28 @@ impl JobProcessor {
 
         // 7. Generate summary
         self.summary_db
-            .update_from_issues(&analysis_id, &all_issues, total_pages)
+            .update_from_issues(&analysis_result_id, &all_issues, total_pages)
             .await
             .context("Unable to update issues fpr analysis")?;
 
         // 8. Finalize
         self.results_db
-            .finalize(&analysis_id, AnalysisStatus::Completed)
+            .finalize(&analysis_result_id, AnalysisStatus::Completed)
             .await
             .context("Unable to finalize Analysis Results")?;
+
+        self.job_db
+            .link_to_result(job.id, &analysis_result_id)
+            .await
+            .context("Unable to link job to result")?;
+
         self.job_db
             .update_status(job.id, JobStatus::Completed)
             .await
             .context("Unable to update job status")?;
 
         log::info!("Job {} completed", job.id);
-        Ok(analysis_id)
+        Ok(analysis_result_id)
     }
 
     async fn analyze_page(&self, url: &Url) -> Result<(PageAnalysisData, Vec<SeoIssue>)> {
@@ -203,4 +209,3 @@ impl JobProcessor {
         ))
     }
 }
-
