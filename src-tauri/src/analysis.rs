@@ -1,6 +1,5 @@
 use std::str::FromStr;
 
-use serde::Deserialize;
 use tauri::State;
 use url::Url;
 use anyhow::{Context, Result};
