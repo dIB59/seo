@@ -38,7 +38,7 @@ impl JobStatus {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub enum AnalysisStatus {
     Analyzing,
     Completed,
@@ -57,7 +57,7 @@ impl AnalysisStatus {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub enum IssueType {
     Critical,
     Warning,
@@ -75,6 +75,19 @@ impl IssueType {
 }
 
 // ====== Simple Entities (no behavior needed) ======
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AnalysisSummary {
+    pub analysis_id: String,
+    pub seo_score: i64,
+    pub avg_load_time: f64,
+    pub total_words: i64,
+    pub total_issues: i64,
+    // pub critical_issues: i64,
+    // pub warning_issues: i64,
+    // pub suggestion_issues: i64,
+}
+
 
 #[derive(Debug, Clone)]
 pub struct AnalysisSettings {
@@ -110,16 +123,25 @@ pub struct AnalysisProgress {
     pub total_pages: Option<i64>,
 }
 
-#[derive(Debug, Clone)]
+
+#[derive(Debug, serde::Serialize)]
+pub struct CompleteAnalysisResult {
+    pub analysis: AnalysisResults,
+    pub pages: Vec<PageAnalysisData>,
+    pub issues: Vec<SeoIssue>,
+    pub summary: AnalysisSummary,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct AnalysisResults {
     pub id: String,
     pub url: String,
     pub status: AnalysisStatus,
     pub progress: f64,
-    pub total_pages: i32,
-    pub analyzed_pages: i32,
-    pub started_at: String,
-    pub completed_at: Option<String>,
+    pub total_pages: i64,
+    pub analyzed_pages: i64,
+    pub started_at: Option<chrono::DateTime<Utc>>,
+    pub completed_at: Option<chrono::DateTime<Utc>>,
     pub sitemap_found: bool,
     pub robots_txt_found: bool,
     pub ssl_certificate: bool,
@@ -128,7 +150,7 @@ pub struct AnalysisResults {
 
 // ====== Rich Entity: PageAnalysisData ======
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct PageAnalysisData {
     pub analysis_id: String,
     pub url: String,
@@ -136,17 +158,17 @@ pub struct PageAnalysisData {
     pub meta_description: Option<String>,
     pub meta_keywords: Option<String>,
     pub canonical_url: Option<String>,
-    pub h1_count: i32,
-    pub h2_count: i32,
-    pub h3_count: i32,
-    pub word_count: i32,
-    pub image_count: i32,
-    pub images_without_alt: i32,
-    pub internal_links: i32,
-    pub external_links: i32,
+    pub h1_count: i64,
+    pub h2_count: i64,
+    pub h3_count: i64,
+    pub word_count: i64,
+    pub image_count: i64,
+    pub images_without_alt: i64,
+    pub internal_links: i64,
+    pub external_links: i64,
     pub load_time: f64,
-    pub status_code: Option<i32>,
-    pub content_size: i32,
+    pub status_code: Option<i64>,
+    pub content_size: i64,
     pub mobile_friendly: bool,
     pub has_structured_data: bool,
     pub lighthouse_performance: Option<f64>,
@@ -161,8 +183,8 @@ impl PageAnalysisData {
         url: String,
         html: &str,
         load_time: f64,
-        status_code: i32,
-        content_size: i32,
+        status_code: i64,
+        content_size: i64,
     ) -> (Self, Vec<SeoIssue>) {
         let document = Html::parse_document(html);
         
@@ -349,27 +371,27 @@ impl PageAnalysisData {
         })
     }
 
-    fn count_headings(document: &Html) -> (i32, i32, i32) {
+    fn count_headings(document: &Html) -> (i64, i64, i64) {
         let h1 = Selector::parse("h1").unwrap();
         let h2 = Selector::parse("h2").unwrap();
         let h3 = Selector::parse("h3").unwrap();
         
         (
-            document.select(&h1).count() as i32,
-            document.select(&h2).count() as i32,
-            document.select(&h3).count() as i32,
+            document.select(&h1).count() as i64,
+            document.select(&h2).count() as i64,
+            document.select(&h3).count() as i64,
         )
     }
 
-    fn count_words(document: &Html) -> i32 {
+    fn count_words(document: &Html) -> i64 {
         Selector::parse("body").ok().and_then(|sel| {
             document.select(&sel).next().map(|body| {
-                body.text().collect::<String>().split_whitespace().count() as i32
+                body.text().collect::<String>().split_whitespace().count() as i64
             })
         }).unwrap_or(0)
     }
 
-    fn analyze_images(document: &Html) -> (i32, i32) {
+    fn analyze_images(document: &Html) -> (i64, i64) {
         let img_selector = Selector::parse("img").unwrap();
         let mut count = 0;
         let mut missing_alt = 0;
@@ -383,7 +405,7 @@ impl PageAnalysisData {
         (count, missing_alt)
     }
 
-    fn count_links(document: &Html, base_url: &Url) -> (i32, i32) {
+    fn count_links(document: &Html, base_url: &Url) -> (i64, i64) {
         let a_selector = Selector::parse("a[href]").unwrap();
         let mut internal = 0;
         let mut external = 0;
@@ -412,7 +434,7 @@ impl PageAnalysisData {
 
 // ====== Simple Entity: SeoIssue ======
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct SeoIssue {
     pub page_id: String,
     pub issue_type: IssueType,
@@ -420,6 +442,6 @@ pub struct SeoIssue {
     pub description: String,
     pub page_url: String,
     pub element: Option<String>,
-    pub line_number: Option<i32>,
+    pub line_number: Option<i64>,
     pub recommendation: String,
 }
