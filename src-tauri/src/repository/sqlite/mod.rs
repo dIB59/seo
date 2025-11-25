@@ -280,8 +280,8 @@ impl ResultsRepository {
         &self,
         id: &str,
         progress: f64,
-        analyzed: i32,
-        total: i32,
+        analyzed: i64,
+        total: i64,
     ) -> Result<()> {
         sqlx::query("UPDATE analysis_results SET progress = ?, analyzed_pages = ?, total_pages = ? WHERE id = ?")
             .bind(progress)
