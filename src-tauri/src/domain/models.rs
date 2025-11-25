@@ -15,7 +15,10 @@ pub enum ResourceStatus {
 
 impl ResourceStatus {
     pub fn exists(&self) -> bool {
-        matches!(self, ResourceStatus::Found(_) | ResourceStatus::Unauthorized(_))
+        matches!(
+            self,
+            ResourceStatus::Found(_) | ResourceStatus::Unauthorized(_)
+        )
     }
 }
 
@@ -37,6 +40,11 @@ impl JobStatus {
         }
     }
 }
+
+//TODO:
+//Remove AnalysisStatus
+//and use Job status instead
+//merge both of them
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub enum AnalysisStatus {
@@ -88,7 +96,6 @@ pub struct AnalysisSummary {
     // pub suggestion_issues: i64,
 }
 
-
 #[derive(Debug, Clone)]
 pub struct AnalysisSettings {
     pub id: i64,
@@ -122,7 +129,6 @@ pub struct AnalysisProgress {
     pub analyzed_pages: Option<i64>,
     pub total_pages: Option<i64>,
 }
-
 
 #[derive(Debug, serde::Serialize)]
 pub struct CompleteAnalysisResult {
@@ -187,7 +193,7 @@ impl PageAnalysisData {
         content_size: i64,
     ) -> (Self, Vec<SeoIssue>) {
         let document = Html::parse_document(html);
-        
+
         let page = Self {
             analysis_id: String::new(),
             url: url.clone(),
@@ -233,7 +239,8 @@ impl PageAnalysisData {
                 page_url: self.url.clone(),
                 element: Some("title".to_string()),
                 line_number: None,
-                recommendation: "Add a unique, descriptive title tag (50-60 characters)".to_string(),
+                recommendation: "Add a unique, descriptive title tag (50-60 characters)"
+                    .to_string(),
             });
         } else if let Some(title) = &self.title {
             if title.len() < 30 {
@@ -245,7 +252,8 @@ impl PageAnalysisData {
                     page_url: self.url.clone(),
                     element: Some("title".to_string()),
                     line_number: None,
-                    recommendation: "Expand title to 50-60 characters with main keyword".to_string(),
+                    recommendation: "Expand title to 50-60 characters with main keyword"
+                        .to_string(),
                 });
             } else if title.len() > 60 {
                 issues.push(SeoIssue {
@@ -271,7 +279,8 @@ impl PageAnalysisData {
                 page_url: self.url.clone(),
                 element: Some("meta[name=description]".to_string()),
                 line_number: None,
-                recommendation: "Add a compelling meta description (150-160 characters)".to_string(),
+                recommendation: "Add a compelling meta description (150-160 characters)"
+                    .to_string(),
             });
         }
 
@@ -320,7 +329,10 @@ impl PageAnalysisData {
                 page_id: page_id.clone(),
                 issue_type: IssueType::Warning,
                 title: "Images Missing Alt Text".to_string(),
-                description: format!("{} of {} images lack alt attribute", self.images_without_alt, self.image_count),
+                description: format!(
+                    "{} of {} images lack alt attribute",
+                    self.images_without_alt, self.image_count
+                ),
                 page_url: self.url.clone(),
                 element: Some("img".to_string()),
                 line_number: None,
@@ -338,7 +350,8 @@ impl PageAnalysisData {
                 page_url: self.url.clone(),
                 element: None,
                 line_number: None,
-                recommendation: "Optimize images, enable caching, reduce server response time".to_string(),
+                recommendation: "Optimize images, enable caching, reduce server response time"
+                    .to_string(),
             });
         }
 
@@ -346,36 +359,43 @@ impl PageAnalysisData {
     }
 
     // ====== PRIVATE parsing helpers ======
-    
+
     fn extract_title(document: &Html) -> Option<String> {
         Selector::parse("title").ok().and_then(|sel| {
-            document.select(&sel).next().map(|el| {
-                el.text().collect::<String>().trim().to_string()
-            })
+            document
+                .select(&sel)
+                .next()
+                .map(|el| el.text().collect::<String>().trim().to_string())
         })
     }
 
     fn extract_meta(document: &Html, name: &str) -> Option<String> {
-        Selector::parse(&format!(r#"meta[name="{}"]"#, name)).ok().and_then(|sel| {
-            document.select(&sel).next().and_then(|el| {
-                el.value().attr("content").map(|s| s.to_string())
+        Selector::parse(&format!(r#"meta[name="{}"]"#, name))
+            .ok()
+            .and_then(|sel| {
+                document
+                    .select(&sel)
+                    .next()
+                    .and_then(|el| el.value().attr("content").map(|s| s.to_string()))
             })
-        })
     }
 
     fn extract_canonical(document: &Html) -> Option<String> {
-        Selector::parse(r#"link[rel="canonical"]"#).ok().and_then(|sel| {
-            document.select(&sel).next().and_then(|el| {
-                el.value().attr("href").map(|s| s.to_string())
+        Selector::parse(r#"link[rel="canonical"]"#)
+            .ok()
+            .and_then(|sel| {
+                document
+                    .select(&sel)
+                    .next()
+                    .and_then(|el| el.value().attr("href").map(|s| s.to_string()))
             })
-        })
     }
 
     fn count_headings(document: &Html) -> (i64, i64, i64) {
         let h1 = Selector::parse("h1").unwrap();
         let h2 = Selector::parse("h2").unwrap();
         let h3 = Selector::parse("h3").unwrap();
-        
+
         (
             document.select(&h1).count() as i64,
             document.select(&h2).count() as i64,
@@ -384,18 +404,22 @@ impl PageAnalysisData {
     }
 
     fn count_words(document: &Html) -> i64 {
-        Selector::parse("body").ok().and_then(|sel| {
-            document.select(&sel).next().map(|body| {
-                body.text().collect::<String>().split_whitespace().count() as i64
+        Selector::parse("body")
+            .ok()
+            .and_then(|sel| {
+                document
+                    .select(&sel)
+                    .next()
+                    .map(|body| body.text().collect::<String>().split_whitespace().count() as i64)
             })
-        }).unwrap_or(0)
+            .unwrap_or(0)
     }
 
     fn analyze_images(document: &Html) -> (i64, i64) {
         let img_selector = Selector::parse("img").unwrap();
         let mut count = 0;
         let mut missing_alt = 0;
-        
+
         for img in document.select(&img_selector) {
             count += 1;
             if img.value().attr("alt").is_none() {
@@ -409,7 +433,7 @@ impl PageAnalysisData {
         let a_selector = Selector::parse("a[href]").unwrap();
         let mut internal = 0;
         let mut external = 0;
-        
+
         for link in document.select(&a_selector) {
             if let Some(href) = link.value().attr("href") {
                 if let Ok(url) = base_url.join(href) {
@@ -445,3 +469,4 @@ pub struct SeoIssue {
     pub line_number: Option<i64>,
     pub recommendation: String,
 }
+

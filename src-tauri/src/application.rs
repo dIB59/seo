@@ -25,6 +25,9 @@ pub struct JobProcessor {
 }
 
 impl JobProcessor {
+    //TODO:
+    //Add Discovering stage
+    //Add analyzing stage
     pub fn new(pool: SqlitePool) -> Self {
         Self {
             job_db: JobRepository::new(pool.clone()),
