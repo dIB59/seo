@@ -49,11 +49,18 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf libsoup-3.0-dev
 
       # ----------  SQLite setup for sqlx ----------
-      - name: create CI SQLite db
+      - name: create CI SQLite db (cross-platform)
         run: |
-          mkdir -p /tmp/db
-          touch /tmp/db/ci.db
-          echo "DATABASE_URL=sqlite:///tmp/db/ci.db" >> "$GITHUB_ENV"
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            export DB_DIR="$TEMP/db"
+          else
+            export DB_DIR="/tmp/db"
+          fi
+          mkdir -p "$DB_DIR"
+          touch "$DB_DIR/ci.db"
+          # GitHub Actions preserves the path for later steps
+          echo "DATABASE_URL=sqlite:///$DB_DIR/ci.db" >> "$GITHUB_ENV"
+        shell: bash
 
       - name: install sqlx-cli
         uses: actions/cache@v4
