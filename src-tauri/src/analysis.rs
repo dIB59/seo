@@ -108,10 +108,6 @@ pub async fn cancel_analysis(job_id: i64, db: State<'_, DbState>) -> Result<(), 
         .map_err(CommandError::from)
 }
 
-
-struct GetResultResponse {
-}
-
 #[tauri::command]
 pub async fn get_result(
     job_id: i64,
