@@ -128,6 +128,7 @@ impl JobProcessor {
         for page_url in pages {
             match self.analyze_page(&page_url).await {
                 Ok((mut page, mut issues)) => {
+                    log::debug!("Number of issues for this page {}", issues.len());
                     page.analysis_id = analysis_result_id.clone();
 
                     let page_id = self
@@ -137,7 +138,7 @@ impl JobProcessor {
                         .context("Unable to insert page analysis data")?;
 
                     for issue in &mut issues {
-                        log::info!("Found issue on {}: {}", page_url, issue.description);
+                        log::trace!("Found issue on {}: {}", page_url, issue.description);
                         issue.page_id = page_id.clone();
                     }
 
@@ -195,8 +196,8 @@ impl JobProcessor {
         let start = std::time::Instant::now();
 
         let response = reqwest::get(url.as_str()).await?;
-        let status_code = response.status().as_u16() as i32;
-        let content_size = response.content_length().unwrap_or(0) as i32;
+        let status_code = response.status().as_u16() as i64;
+        let content_size = response.content_length().unwrap_or(0) as i64;
         let html = response.text().await?;
         let load_time = start.elapsed().as_secs_f64();
 
