@@ -6,7 +6,7 @@ use url::Url;
 
 use crate::{
     db::DbState,
-    domain::models::{AnalysisProgress, AnalysisStatus, CompleteAnalysisResult, JobStatus},
+    domain::models::{AnalysisProgress, CompleteAnalysisResult, JobStatus},
     error::CommandError,
     repository::sqlite::{JobRepository, ResultsRepository},
 };
@@ -102,20 +102,15 @@ pub async fn get_all_jobs(db: State<'_, DbState>) -> Result<Vec<AnalysisProgress
 }
 
 #[tauri::command]
-pub async fn cancel_analysis(
-    job_id: i64,
-    db: State<'_, DbState>,
-) -> Result<JobStatus, CommandError> {
+pub async fn cancel_analysis(job_id: i64, db: State<'_, DbState>) -> Result<(), CommandError> {
     log::info!("Cancelling analysis job: {}", job_id);
 
     let pool = &db.0;
     let repository = JobRepository::new(pool.clone());
-
     repository
         .update_status(job_id, JobStatus::Failed)
         .await
         .map_err(CommandError::from)
-        .map(|_| JobStatus::Failed)
 }
 
 #[tauri::command]
