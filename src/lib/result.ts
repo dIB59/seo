@@ -52,11 +52,10 @@ export type Err<E> = Result<never, E>;
 
 export async function fromPromise<T>(p: Promise<T>): Promise<Result<T, string>> {
 	return p
-		.then((v) =>
-			Result.Ok(v)
-				? Result.Err("Something went wrong")
-				: Result.Ok(v)
-		)
+		.then((v) => {
+			logger.info(v);
+			return Result.Ok(v)
+		})
 		.catch((e) => {
 			logger.error(e)
 			return Result.Err((e as Error)?.message ?? String(e))
