@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT ar.id as \"id!\" , ar.url, ar.status, ar.progress, ar.analyzed_pages, ar.total_pages,\n                   ar.started_at, ar.created_at, ar.completed_at, ar.sitemap_found, ar.robots_txt_found, ar.ssl_certificate\n            FROM analysis_results ar\n            JOIN analysis_jobs aj ON aj.result_id = ar.id\n            WHERE aj.id = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "url",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "status",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "progress",
+        "ordinal": 3,
+        "type_info": "Float"
+      },
+      {
+        "name": "analyzed_pages",
+        "ordinal": 4,
+        "type_info": "Int64"
+      },
+      {
+        "name": "total_pages",
+        "ordinal": 5,
+        "type_info": "Int64"
+      },
+      {
+        "name": "started_at",
+        "ordinal": 6,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 7,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "completed_at",
+        "ordinal": 8,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "sitemap_found",
+        "ordinal": 9,
+        "type_info": "Bool"
+      },
+      {
+        "name": "robots_txt_found",
+        "ordinal": 10,
+        "type_info": "Bool"
+      },
+      {
+        "name": "ssl_certificate",
+        "ordinal": 11,
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "44383e4224ea32e097f132eb47faa196097b4701bf96ac420e56d6d6bbd4801b"
+}
