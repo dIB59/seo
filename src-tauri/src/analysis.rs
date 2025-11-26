@@ -1,10 +1,11 @@
-use std::str::FromStr;
+use std::{str::FromStr, sync::Arc};
 
 use anyhow::{Context, Result};
 use tauri::State;
 use url::Url;
 
 use crate::{
+    application::JobProcessor,
     db::DbState,
     domain::models::{AnalysisProgress, CompleteAnalysisResult, JobStatus},
     error::CommandError,
@@ -97,20 +98,21 @@ pub async fn get_all_jobs(db: State<'_, DbState>) -> Result<Vec<AnalysisProgress
     let repository = JobRepository::new(pool.clone());
 
     let jobs = repository.get_all().await.map_err(CommandError::from)?;
+    log::info!("{:?}", jobs.first());
 
     Ok(jobs)
 }
 
-#[tauri::command]
-pub async fn cancel_analysis(job_id: i64, db: State<'_, DbState>) -> Result<(), CommandError> {
-    log::info!("Cancelling analysis job: {}", job_id);
+//TODO:
+//FIx cancel not cancelling properly
 
-    let pool = &db.0;
-    let repository = JobRepository::new(pool.clone());
-    repository
-        .update_status(job_id, JobStatus::Failed)
-        .await
-        .map_err(CommandError::from)
+#[tauri::command]
+pub async fn cancel_analysis(
+    job_id: i64,
+    job_processor: State<'_, Arc<JobProcessor>>,
+) -> Result<(), CommandError> {
+    log::info!("Cancelling analysis job: {}", job_id);
+    job_processor.cancel(job_id).await.map_err(CommandError)
 }
 
 #[tauri::command]
