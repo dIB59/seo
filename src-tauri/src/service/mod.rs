@@ -3,6 +3,7 @@
 use anyhow::Result;
 use scraper::{Html, Selector};
 use std::collections::HashSet;
+use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 use tokio::time::sleep;
 use url::Url;
@@ -29,51 +30,61 @@ impl PageDiscovery {
         start_url: Url,
         max_pages: i64,
         delay_ms: i64,
+        cancel_flag: &AtomicBool,
     ) -> Result<Vec<Url>> {
         let mut visited = HashSet::new();
         let mut to_visit = vec![start_url.clone()];
-        
-        let base_host = start_url.host_str().ok_or_else(|| anyhow::anyhow!("Invalid host"))?;
+
+        let base_host = start_url
+            .host_str()
+            .ok_or_else(|| anyhow::anyhow!("Invalid host"))?;
         let base_port = start_url.port();
-        
+
         while let Some(url) = to_visit.pop() {
+            if cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
+                log::info!("Page discovery cancelled for {}", start_url);
+                return Ok(visited.into_iter().collect());
+            }
             if visited.contains(&url) {
                 continue;
             }
-            
+
             if visited.len() >= max_pages as usize {
                 break;
             }
-            
+
             visited.insert(url.clone());
             sleep(Duration::from_millis(delay_ms as u64)).await;
-            
+
             let Ok(response) = self.client.get(url.as_str()).send().await else {
                 continue;
             };
-            
+
             let Ok(body) = response.text().await else {
                 continue;
             };
-            
+
             let document = Html::parse_document(&body);
             let links = self.extract_links(&document, &url)?;
-            
+
             for link in links {
-                if link.host_str() == Some(base_host) && link.port() == base_port
-                    && !visited.contains(&link) && !to_visit.contains(&link) {
-                        to_visit.push(link);
-                    }
+                if link.host_str() == Some(base_host)
+                    && link.port() == base_port
+                    && !visited.contains(&link)
+                    && !to_visit.contains(&link)
+                {
+                    to_visit.push(link);
+                }
             }
         }
-        
+
         Ok(visited.into_iter().collect())
     }
 
     fn extract_links(&self, document: &Html, base_url: &Url) -> Result<Vec<Url>> {
         let selector = Selector::parse("a[href]").unwrap();
         let mut links = Vec::new();
-        
+
         for element in document.select(&selector) {
             if let Some(href) = element.value().attr("href") {
                 if let Ok(url) = base_url.join(href) {
@@ -81,7 +92,7 @@ impl PageDiscovery {
                 }
             }
         }
-        
+
         Ok(links)
     }
 }
@@ -118,7 +129,7 @@ impl ResourceChecker {
     async fn check_resource(&self, base_url: Url, path: &str) -> Result<ResourceStatus> {
         let resource_url = base_url.join(path)?;
         let response = self.client.get(resource_url.clone()).send().await?;
-        
+
         let status = match response.status() {
             reqwest::StatusCode::OK => ResourceStatus::Found(resource_url.to_string()),
             reqwest::StatusCode::UNAUTHORIZED | reqwest::StatusCode::FORBIDDEN => {
@@ -127,7 +138,8 @@ impl ResourceChecker {
             reqwest::StatusCode::NOT_FOUND => ResourceStatus::NotFound,
             _ => ResourceStatus::NotFound,
         };
-        
+
         Ok(status)
     }
 }
+

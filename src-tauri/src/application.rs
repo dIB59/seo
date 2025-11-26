@@ -1,5 +1,4 @@
 //! Application layer - coordinates services
-
 use crate::domain::models::{
     AnalysisJob, AnalysisStatus, JobStatus, PageAnalysisData, ResourceStatus, SeoIssue,
 };
@@ -8,7 +7,10 @@ use crate::{
     service::{PageDiscovery, ResourceChecker},
 };
 use anyhow::{Context, Result};
+use dashmap::DashMap;
 use sqlx::SqlitePool;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 use url::Url;
@@ -22,12 +24,10 @@ pub struct JobProcessor {
     summary_db: SummaryRepository,
     discovery: PageDiscovery,
     resource_checker: ResourceChecker,
+    cancel_map: Arc<DashMap<i64, Arc<AtomicBool>>>,
 }
 
 impl JobProcessor {
-    //TODO:
-    //Add Discovering stage
-    //Add analyzing stage
     pub fn new(pool: SqlitePool) -> Self {
         Self {
             job_db: JobRepository::new(pool.clone()),
@@ -38,7 +38,26 @@ impl JobProcessor {
             summary_db: SummaryRepository::new(pool.clone()),
             discovery: PageDiscovery::new(),
             resource_checker: ResourceChecker::new(),
+            cancel_map: Arc::new(DashMap::with_capacity(10)),
         }
+    }
+
+    pub async fn cancel(&self, job_id: i64) -> Result<()> {
+        // insert a “true” flag; if job isn’t running flag is simply ignored
+        self.cancel_map
+            .entry(job_id)
+            .or_insert_with(|| Arc::new(AtomicBool::new(false)))
+            .store(true, Ordering::Relaxed);
+
+        self.job_db.update_status(job_id, JobStatus::Failed).await
+    }
+
+    /// Quick check used inside the crawl loop
+    fn is_cancelled(&self, job_id: i64) -> bool {
+        self.cancel_map
+            .get(&job_id)
+            .map(|f| f.load(Ordering::Relaxed))
+            .unwrap_or(false)
     }
 
     pub async fn run(&self) -> Result<()> {
@@ -68,6 +87,12 @@ impl JobProcessor {
 
     async fn process_job(&self, mut job: AnalysisJob) -> Result<String> {
         log::info!("Processing job {} for URL: {}", job.id, job.url);
+        //generate cancel flag for current job
+        let cancel_flag = self
+            .cancel_map
+            .get(&job.id)
+            .map(|f| f.clone())
+            .unwrap_or_else(|| Arc::new(AtomicBool::new(false)));
 
         // 1. Update status
         job.status = JobStatus::Processing;
@@ -110,9 +135,9 @@ impl JobProcessor {
             .await
             .context("Unable to link job to result")?;
 
-        self.job_db
-            .update_status(job.id, JobStatus::Processing)
-            .await?;
+        if self.is_cancelled(job.id) {
+            return Ok(analysis_result_id);
+        }
 
         // 5. Discover pages
         let pages = self
@@ -121,6 +146,7 @@ impl JobProcessor {
                 start_url.clone(),
                 settings.max_pages,
                 settings.delay_between_requests,
+                cancel_flag.as_ref(),
             )
             .await
             .context("Unable to discover pages")?;
