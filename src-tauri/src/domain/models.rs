@@ -2,6 +2,7 @@
 
 use chrono::{DateTime, Utc};
 use scraper::{Html, Selector};
+use serde::Serialize;
 use url::Url;
 
 // ====== Enums ======
@@ -22,7 +23,7 @@ impl ResourceStatus {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum JobStatus {
     Queued,
     Processing,
@@ -469,4 +470,3 @@ pub struct SeoIssue {
     pub line_number: Option<i64>,
     pub recommendation: String,
 }
-
