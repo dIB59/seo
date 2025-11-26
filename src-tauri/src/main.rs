@@ -25,16 +25,16 @@ fn main() {
                 db::init_db(app.handle())
                     .await
                     .unwrap_or_else(|e| panic!("failed to init db: {}", e))
-                    
             });
-            let job_processor = application::JobProcessor::new(pool.clone());
+
+            let processor = std::sync::Arc::new(application::JobProcessor::new(pool.clone()));
+            let proc_clone = processor.clone();
             tauri::async_runtime::spawn(async move {
-                job_processor
-                    .run()
-                    .await
-                    .unwrap_or_else(|e| panic!("Job processor failed {}", e));
+                proc_clone.run().await.expect("job-processor died")
             });
+
             app.manage(DbState(pool));
+            app.manage(processor);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
