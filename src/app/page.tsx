@@ -9,11 +9,15 @@ import { JobList } from "@/src/components/job-list"
 import { AnalysisResults } from "@/src/components/analysis-results"
 import { getAllJobs, startAnalysis, getResult, cancelAnalysis } from "@/src/lib/tauri"
 import type { AnalysisSettingsRequest, CompleteAnalysisResult } from "@/src/lib/types"
+import { logger } from "../lib/logger"
 
 
 
 const fetchJobs = () =>
-	getAllJobs().then((res) => res.unwrap());
+	getAllJobs().then((res) => {
+		logger.info(res)
+		return res.unwrapOr([]);
+	})
 
 export default function Home() {
 	const [isLoading, setIsLoading] = useState(false)
