@@ -15,7 +15,6 @@ import { logger } from "../lib/logger"
 
 const fetchJobs = () =>
 	getAllJobs().then((res) => {
-		logger.info(res)
 		return res.unwrapOr([]);
 	})
 
@@ -38,7 +37,7 @@ export default function Home() {
 		res.matchAsync(
 			async () => {
 				await mutate();
-				console.log("RUNNING MUTATE")
+				logger.info("Running Mutate");
 			},
 			setError
 

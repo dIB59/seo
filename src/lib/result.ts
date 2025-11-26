@@ -40,7 +40,7 @@ export class Result<T, E = string> {
 		onOk: (val: T) => U | Promise<U>,
 		onErr: (err: E) => U | Promise<U>
 	): Promise<U> {
-		console.log(this._value)
+		logger.info(this._value)
 		return this.isOk()
 			? await onOk(this._value as T)
 			: await onErr(this._error as E);
