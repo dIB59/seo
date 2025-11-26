@@ -125,7 +125,6 @@ pub struct AnalysisProgress {
     pub url: String,
     pub job_status: String,
     pub result_id: Option<String>,
-    pub analysis_status: Option<String>,
     pub progress: Option<f64>,
     pub analyzed_pages: Option<i64>,
     pub total_pages: Option<i64>,
@@ -143,7 +142,7 @@ pub struct CompleteAnalysisResult {
 pub struct AnalysisResults {
     pub id: String,
     pub url: String,
-    pub status: AnalysisStatus,
+    pub status: JobStatus,
     pub progress: f64,
     pub total_pages: i64,
     pub analyzed_pages: i64,

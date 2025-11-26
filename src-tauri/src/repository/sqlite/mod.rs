@@ -17,16 +17,6 @@ fn map_job_status(s: &str) -> JobStatus {
     }
 }
 
-fn map_analysis_status(s: &str) -> AnalysisStatus {
-    match s {
-        "analyzing" => AnalysisStatus::Analyzing,
-        "completed" => AnalysisStatus::Completed,
-        "error" => AnalysisStatus::Error,
-        "paused" => AnalysisStatus::Paused,
-        _ => AnalysisStatus::Analyzing,
-    }
-}
-
 fn map_issue_type(s: &str) -> IssueType {
     match s {
         "critical" => IssueType::Critical,
@@ -56,21 +46,24 @@ impl JobRepository {
         .await
         .context("Failed to fetch pending jobs")?;
 
-        Ok(rows.into_iter().map(|row| AnalysisJob {
-            id: row.id.expect("ID must not be null"),
-            url: row.url,
-            settings_id: row.settings_id,
-            created_at: row.created_at.expect("Created at must not be null").and_utc(),
-            status: map_job_status(&row.status),
-            result_id: row.result_id,
-        }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|row| AnalysisJob {
+                id: row.id.expect("ID must not be null"),
+                url: row.url,
+                settings_id: row.settings_id,
+                created_at: row
+                    .created_at
+                    .expect("Created at must not be null")
+                    .and_utc(),
+                status: map_job_status(&row.status),
+                result_id: row.result_id,
+            })
+            .collect())
     }
 
-    pub async fn update_status(
-        &self,
-        job_id: i64,
-        status: JobStatus
-    ) -> Result<()> {
+    pub async fn update_status(&self, job_id: i64, status: JobStatus) -> Result<()> {
+        log::info!("Job {} being updated to {:?}", job_id, status);
         sqlx::query("UPDATE analysis_jobs SET status = ? WHERE id = ?")
             .bind(status.as_str())
             .bind(job_id)
@@ -85,7 +78,11 @@ impl JobRepository {
         url: &str,
         settings: &AnalysisSettingsRequest,
     ) -> Result<i64> {
-        let mut tx = self.pool.begin().await.context("Failed to start transaction")?;
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .context("Failed to start transaction")?;
         // Insert settings
         let max_pages = settings.max_pages;
         let include_external_links = settings.include_external_links as i64;
@@ -147,7 +144,6 @@ impl JobRepository {
                 aj.url,
                 aj.status as job_status,
                 aj.result_id,
-                ar.status as analysis_status,
                 ar.progress,
                 ar.analyzed_pages,
                 ar.total_pages
@@ -185,23 +181,25 @@ impl JobRepository {
         .await
         .context("Failed to fetch analysis jobs")?;
 
-        Ok(rows.into_iter().map(|row| AnalysisProgress {
-            job_id: row.job_id,
-            url: row.url,
-            job_status: row.job_status,
-            result_id: row.result_id,
-            analysis_status: row.analysis_status,
-            progress: row.progress,
-            analyzed_pages: row.analyzed_pages,
-            total_pages: row.total_pages,
-        }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|row| AnalysisProgress {
+                job_id: row.job_id,
+                url: row.url,
+                job_status: row.job_status,
+                result_id: row.result_id,
+                progress: row.progress,
+                analyzed_pages: row.analyzed_pages,
+                total_pages: row.total_pages,
+            })
+            .collect())
     }
 
     pub async fn link_to_result(&self, job_id: i64, result_id: &str) -> Result<()> {
         sqlx::query!(
             r#"
             UPDATE analysis_jobs 
-            SET result_id = ?, status = 'completed' 
+            SET result_id = ? 
             WHERE id = ?
             "#,
             result_id,
@@ -253,15 +251,21 @@ impl ResultsRepository {
         Self { pool }
     }
 
-    pub async fn create(&self, url: &str, sitemap: bool, robots: bool, ssl: bool) -> Result<String> {
+    pub async fn create(
+        &self,
+        url: &str,
+        sitemap: bool,
+        robots: bool,
+        ssl: bool,
+    ) -> Result<String> {
         let id = Uuid::new_v4().to_string();
         let now = chrono::Utc::now().to_rfc3339();
-        
+
         sqlx::query(
             "INSERT INTO analysis_results \
              (id, url, status, progress, analyzed_pages, total_pages, started_at, \
               sitemap_found, robots_txt_found, ssl_certificate) \
-             VALUES (?, ?, 'analyzing', 0, 0, 0, ?, ?, ?, ?)"
+             VALUES (?, ?, 'analyzing', 0, 0, 0, ?, ?, ?, ?)",
         )
         .bind(&id)
         .bind(url)
@@ -272,7 +276,7 @@ impl ResultsRepository {
         .execute(&self.pool)
         .await
         .context("Failed to create analysis result")?;
-        
+
         Ok(id)
     }
 
@@ -294,6 +298,8 @@ impl ResultsRepository {
         Ok(())
     }
 
+    //TODO:
+    //Drop coloum of analysis results
     pub async fn finalize(&self, id: &str, status: AnalysisStatus) -> Result<()> {
         sqlx::query("UPDATE analysis_results SET status = ?, completed_at = ? WHERE id = ?")
             .bind(status.as_str())
@@ -323,12 +329,15 @@ impl ResultsRepository {
         let analysis: AnalysisResults = AnalysisResults {
             id: analysis_result_row.id.clone(),
             url: analysis_result_row.url.clone(),
-            status: map_analysis_status(&analysis_result_row.status),
+            status: map_job_status(&analysis_result_row.status),
             progress: analysis_result_row.progress,
             analyzed_pages: analysis_result_row.analyzed_pages,
             total_pages: analysis_result_row.total_pages,
             started_at: analysis_result_row.started_at.map(|dt| dt.and_utc()),
-            created_at: analysis_result_row.created_at.expect("Must Exist").and_utc(),
+            created_at: analysis_result_row
+                .created_at
+                .expect("Must Exist")
+                .and_utc(),
             completed_at: analysis_result_row.completed_at.map(|dt| dt.and_utc()),
             sitemap_found: analysis_result_row.sitemap_found,
             robots_txt_found: analysis_result_row.robots_txt_found,
@@ -348,16 +357,19 @@ impl ResultsRepository {
         .await
         .context("Failed to fetch SEO issues for analysis result")?;
 
-        let issues: Vec<SeoIssue> = issues_rows.into_iter().map(|row| SeoIssue {
-            page_id: "".to_string(), // page_id is not needed here
-            issue_type: map_issue_type(&row.r#type),
-            title: row.title,
-            description: row.description,
-            page_url: row.page_url,
-            element: row.element,
-            line_number: row.line_number,
-            recommendation: row.recommendation,
-        }).collect();
+        let issues: Vec<SeoIssue> = issues_rows
+            .into_iter()
+            .map(|row| SeoIssue {
+                page_id: "".to_string(), // page_id is not needed here
+                issue_type: map_issue_type(&row.r#type),
+                title: row.title,
+                description: row.description,
+                page_url: row.page_url,
+                element: row.element,
+                line_number: row.line_number,
+                recommendation: row.recommendation,
+            })
+            .collect();
 
         let pages_rows = sqlx::query!(
             r#"
@@ -377,31 +389,34 @@ impl ResultsRepository {
         .await
         .context("Failed to fetch page analyses for analysis result")?;
 
-        let pages: Vec<PageAnalysisData> = pages_rows.into_iter().map(|row| PageAnalysisData {
-            analysis_id: row.analysis_id,
-            url: row.url,
-            title: row.title,
-            meta_description: row.meta_description,
-            meta_keywords: row.meta_keywords,
-            canonical_url: row.canonical_url,
-            h1_count: row.h1_count,
-            h2_count: row.h2_count,
-            h3_count: row.h3_count,
-            word_count: row.word_count,
-            image_count: row.image_count,
-            images_without_alt: row.images_without_alt,
-            internal_links: row.internal_links,
-            external_links: row.external_links,
-            load_time: row.load_time,
-            status_code: row.status_code,
-            content_size: row.content_size,
-            mobile_friendly: row.mobile_friendly,
-            has_structured_data: row.has_structured_data,
-            lighthouse_performance: row.lighthouse_performance,
-            lighthouse_accessibility: row.lighthouse_accessibility,
-            lighthouse_best_practices: row.lighthouse_best_practices,
-            lighthouse_seo: row.lighthouse_seo,
-        }).collect();
+        let pages: Vec<PageAnalysisData> = pages_rows
+            .into_iter()
+            .map(|row| PageAnalysisData {
+                analysis_id: row.analysis_id,
+                url: row.url,
+                title: row.title,
+                meta_description: row.meta_description,
+                meta_keywords: row.meta_keywords,
+                canonical_url: row.canonical_url,
+                h1_count: row.h1_count,
+                h2_count: row.h2_count,
+                h3_count: row.h3_count,
+                word_count: row.word_count,
+                image_count: row.image_count,
+                images_without_alt: row.images_without_alt,
+                internal_links: row.internal_links,
+                external_links: row.external_links,
+                load_time: row.load_time,
+                status_code: row.status_code,
+                content_size: row.content_size,
+                mobile_friendly: row.mobile_friendly,
+                has_structured_data: row.has_structured_data,
+                lighthouse_performance: row.lighthouse_performance,
+                lighthouse_accessibility: row.lighthouse_accessibility,
+                lighthouse_best_practices: row.lighthouse_best_practices,
+                lighthouse_seo: row.lighthouse_seo,
+            })
+            .collect();
 
         let summay_row = sqlx::query!(
             r#"
@@ -431,7 +446,6 @@ impl ResultsRepository {
             pages,
             summary,
         };
-    
 
         Ok(complete_analysis)
     }
@@ -448,7 +462,7 @@ impl PageRepository {
 
     pub async fn insert(&self, page: &PageAnalysisData) -> Result<String> {
         let id = Uuid::new_v4().to_string();
-        
+
         sqlx::query(
             "INSERT INTO page_analysis (id, analysis_id, url, title, meta_description, meta_keywords, \
              canonical_url, h1_count, h2_count, h3_count, word_count, image_count, images_without_alt, \
@@ -485,7 +499,7 @@ impl PageRepository {
         .execute(&self.pool)
         .await
         .context("Failed to insert page analysis")?;
-        
+
         Ok(id)
     }
 }
@@ -545,7 +559,7 @@ impl SummaryRepository {
         let mut critical = 0;
         let mut warnings = 0;
         let mut suggestions = 0;
-        
+
         for issue in issues {
             match issue.issue_type {
                 IssueType::Critical => critical += 1,
@@ -555,7 +569,7 @@ impl SummaryRepository {
         }
 
         let mut tx = self.pool.begin().await?;
-        
+
         sqlx::query(
             "INSERT OR REPLACE INTO analysis_issues (analysis_id, critical, warnings, suggestions) \
              VALUES (?, ?, ?, ?)"
@@ -570,7 +584,7 @@ impl SummaryRepository {
         sqlx::query(
             "INSERT OR REPLACE INTO analysis_summary \
              (analysis_id, seo_score, avg_load_time, total_words, pages_with_issues) \
-             VALUES (?, ?, ?, ?, ?)"
+             VALUES (?, ?, ?, ?, ?)",
         )
         .bind(analysis_id)
         .bind(75)
@@ -584,3 +598,4 @@ impl SummaryRepository {
         Ok(())
     }
 }
+
