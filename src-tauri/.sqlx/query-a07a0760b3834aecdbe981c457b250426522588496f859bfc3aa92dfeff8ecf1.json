@@ -1,0 +1,164 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT id, analysis_id, url, title, meta_description, meta_keywords,\n                   canonical_url, h1_count, h2_count, h3_count, word_count,\n                   image_count, images_without_alt, internal_links, external_links,\n                   load_time, status_code, content_size, mobile_friendly,\n                   has_structured_data, lighthouse_performance,\n                   lighthouse_accessibility, lighthouse_best_practices,\n                   lighthouse_seo, created_at\n            FROM page_analysis\n            WHERE analysis_id = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "analysis_id",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "url",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "title",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "meta_description",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "meta_keywords",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "canonical_url",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "h1_count",
+        "ordinal": 7,
+        "type_info": "Int64"
+      },
+      {
+        "name": "h2_count",
+        "ordinal": 8,
+        "type_info": "Int64"
+      },
+      {
+        "name": "h3_count",
+        "ordinal": 9,
+        "type_info": "Int64"
+      },
+      {
+        "name": "word_count",
+        "ordinal": 10,
+        "type_info": "Int64"
+      },
+      {
+        "name": "image_count",
+        "ordinal": 11,
+        "type_info": "Int64"
+      },
+      {
+        "name": "images_without_alt",
+        "ordinal": 12,
+        "type_info": "Int64"
+      },
+      {
+        "name": "internal_links",
+        "ordinal": 13,
+        "type_info": "Int64"
+      },
+      {
+        "name": "external_links",
+        "ordinal": 14,
+        "type_info": "Int64"
+      },
+      {
+        "name": "load_time",
+        "ordinal": 15,
+        "type_info": "Float"
+      },
+      {
+        "name": "status_code",
+        "ordinal": 16,
+        "type_info": "Int64"
+      },
+      {
+        "name": "content_size",
+        "ordinal": 17,
+        "type_info": "Int64"
+      },
+      {
+        "name": "mobile_friendly",
+        "ordinal": 18,
+        "type_info": "Bool"
+      },
+      {
+        "name": "has_structured_data",
+        "ordinal": 19,
+        "type_info": "Bool"
+      },
+      {
+        "name": "lighthouse_performance",
+        "ordinal": 20,
+        "type_info": "Float"
+      },
+      {
+        "name": "lighthouse_accessibility",
+        "ordinal": 21,
+        "type_info": "Float"
+      },
+      {
+        "name": "lighthouse_best_practices",
+        "ordinal": 22,
+        "type_info": "Float"
+      },
+      {
+        "name": "lighthouse_seo",
+        "ordinal": 23,
+        "type_info": "Float"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 24,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "a07a0760b3834aecdbe981c457b250426522588496f859bfc3aa92dfeff8ecf1"
+}
