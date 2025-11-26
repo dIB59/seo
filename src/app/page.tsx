@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import useSWR from "swr"
-import { Search, RefreshCw, Info } from "lucide-react"
+import { Search, RefreshCw } from "lucide-react"
 import { Button } from "@/src/components/ui/button"
 import { UrlInputForm } from "@/src/components/url-input-form"
 import { JobList } from "@/src/components/job-list"
@@ -10,49 +10,51 @@ import { AnalysisResults } from "@/src/components/analysis-results"
 import { getAllJobs, startAnalysis, getResult, cancelAnalysis } from "@/src/lib/tauri"
 import type { AnalysisSettingsRequest, CompleteAnalysisResult } from "@/src/lib/types"
 
+
+
+const fetchJobs = () =>
+	getAllJobs().then((res) => res.unwrap());
+
 export default function Home() {
 	const [isLoading, setIsLoading] = useState(false)
 	const [selectedResult, setSelectedResult] = useState<CompleteAnalysisResult | null>(null)
 	const [error, setError] = useState<string | null>(null)
 
-	const {
-		data: jobs = [],
-		mutate,
-		isValidating,
-	} = useSWR("jobs", getAllJobs, {
-		refreshInterval: 10000,
-	})
+
+	const { data: jobs = [], mutate, isValidating } = useSWR("jobs", fetchJobs, {
+		refreshInterval: 10_000,
+		onError: (e) => setError(e instanceof Error ? e.message : String(e)),
+	});
 
 	const handleSubmit = async (url: string, settings: AnalysisSettingsRequest) => {
-		setIsLoading(true)
-		setError(null)
-		try {
-			await startAnalysis(url, settings)
-			mutate()
-		} catch (err) {
-			setError(err instanceof Error ? err.message : "Failed to start analysis")
-		} finally {
-			setIsLoading(false)
-		}
-	}
+		setIsLoading(true);
+		setError(null);
+
+		const res = await startAnalysis(url, settings);
+		res.matchAsync(
+			async () => {
+				await mutate();
+				console.log("RUNNING MUTATE")
+			},
+			setError
+
+		);
+
+		setIsLoading(false);
+	};
 
 	const handleViewResult = async (jobId: number) => {
-		try {
-			const result = await getResult(jobId)
-			setSelectedResult(result)
-		} catch (err) {
-			setError(err instanceof Error ? err.message : "Failed to fetch results")
-		}
-	}
+		const res = await getResult(jobId);
+		res.match(setSelectedResult, setError);
+	};
 
 	const handleCancel = async (jobId: number) => {
-		try {
-			await cancelAnalysis(jobId)
-			mutate()
-		} catch (err) {
-			setError(err instanceof Error ? err.message : "Failed to cancel analysis")
-		}
-	}
+		const res = await cancelAnalysis(jobId);
+		res.match(
+			() => { mutate(); },   // void
+			setError // void
+		);
+	};
 
 	if (selectedResult) {
 		return (
