@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT \n                aj.id as \"job_id!\",\n                aj.url,\n                aj.status as job_status,\n                aj.result_id,\n                ar.status as analysis_status,\n                ar.progress,\n                ar.analyzed_pages,\n                ar.total_pages\n            FROM analysis_jobs aj\n            LEFT JOIN analysis_results ar ON aj.result_id = ar.id\n            ORDER BY aj.created_at DESC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "job_id!",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "url",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "job_status",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "result_id",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "analysis_status",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "progress",
+        "ordinal": 5,
+        "type_info": "Float"
+      },
+      {
+        "name": "analyzed_pages",
+        "ordinal": 6,
+        "type_info": "Int64"
+      },
+      {
+        "name": "total_pages",
+        "ordinal": 7,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "cdae90db1e83769de3350d8599d93ec0fd345131fbfc564e746073e603c094ef"
+}

@@ -143,7 +143,7 @@ https://www.google.com/intl/am/gmail/about/policy/"#;
         <loc>https://test.com</loc> invalid stuff"#;
 
         let urls = extract_url_from_sitemap(text).unwrap();
-        println!("{}", urls.get(0).expect("MISSING"));
+        println!("{}", urls.first().expect("MISSING"));
         assert_eq!(urls.len(), 1);
         assert!(urls.contains(&"https://test.com".to_string()));
     }

@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO analysis_jobs (url, settings_id, status) \n            VALUES (?, ?, 'queued') \n            RETURNING id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "6bf8770f90bf4cb11c8e5d93f9a74b394b918221277c569a79547468442c316d"
+}

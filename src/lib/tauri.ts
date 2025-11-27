@@ -1,43 +1,22 @@
 import { invoke } from "@tauri-apps/api/core"
 import type { AnalysisProgress, AnalysisSettingsRequest, CompleteAnalysisResult } from "./types"
+import { fromPromise } from "@/src/lib/result";
 
 
-// Dynamic import of Tauri API
-async function invokeTauri<T>(command: string, args?: Record<string, unknown>): Promise<T> {
-	return invoke<T>(command, args)
+export const startAnalysis = (url: string, settings: AnalysisSettingsRequest) =>
+	fromPromise(invoke<{ job_id: number }>("start_analysis", { url, settings }));
+
+export const getAllJobs = () =>
+	fromPromise(invoke<AnalysisProgress[]>("get_all_jobs"));
+
+export const getResult = (jobId: number) =>
+	fromPromise(invoke<CompleteAnalysisResult>("get_result", { jobId }));
+
+export const cancelAnalysis = (jobId: number) => {
+
+	const some = invoke<void>("cancel_analysis", { jobId });
+	return fromPromise(some)
 }
 
-// Start a new analysis job
-export async function startAnalysis(url: string, settings: AnalysisSettingsRequest): Promise<{ job_id: number }> {
-	return invokeTauri("start_analysis", { url, settings })
-}
-
-// Get all analysis jobs
-export async function getAllJobs(): Promise<AnalysisProgress[]> {
-	const some = invokeTauri<AnalysisProgress[]>("get_all_jobs");
-	return some;
-}
-
-// Get analysis result by job ID
-export async function getResult(jobId: number): Promise<CompleteAnalysisResult> {
-	let result = invokeTauri<CompleteAnalysisResult>("get_result", { jobId });
-	if (!result) {
-		throw new Error(`No results found for job ${jobId}`)
-	}
-
-	return result
-}
-
-// Cancel an analysis job
-export async function cancelAnalysis(jobId: number): Promise<void> {
-	return await invokeTauri("cancel_analysis", { jobId })
-}
-
-// Get analysis progress
-export async function getAnalysisProgress(jobId: number): Promise<AnalysisProgress> {
-	let job: Promise<AnalysisProgress> = invokeTauri("get_analysis_progress", { jobId })
-	if (!job) {
-		throw new Error(`Job ${jobId} not found`)
-	}
-	return job
-}
+export const getAnalysisProgress = (jobId: number) =>
+	fromPromise(invoke<AnalysisProgress>("get_analysis_progress", { jobId }));

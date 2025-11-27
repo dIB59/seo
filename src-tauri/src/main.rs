@@ -14,6 +14,10 @@ mod extractor;
 mod repository;
 mod service;
 
+//TODO:
+//-implement broken links, if internal link returns 404 it is broken
+//-implement pagination for get all jobs
+
 fn main() {
     env_logger::builder()
         .filter_level(log::LevelFilter::Info)
@@ -25,16 +29,16 @@ fn main() {
                 db::init_db(app.handle())
                     .await
                     .unwrap_or_else(|e| panic!("failed to init db: {}", e))
-                    
             });
-            let job_processor = application::JobProcessor::new(pool.clone());
+
+            let processor = std::sync::Arc::new(application::JobProcessor::new(pool.clone()));
+            let proc_clone = processor.clone();
             tauri::async_runtime::spawn(async move {
-                job_processor
-                    .run()
-                    .await
-                    .unwrap_or_else(|e| panic!("Job processor failed {}", e));
+                proc_clone.run().await.expect("job-processor died")
             });
+
             app.manage(DbState(pool));
+            app.manage(processor);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
