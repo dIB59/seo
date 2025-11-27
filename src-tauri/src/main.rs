@@ -14,6 +14,10 @@ mod extractor;
 mod repository;
 mod service;
 
+//TODO:
+//implement broken links
+//if internal link returns 404 it is broken
+
 fn main() {
     env_logger::builder()
         .filter_level(log::LevelFilter::Info)
