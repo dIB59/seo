@@ -42,22 +42,20 @@ impl JobProcessor {
         }
     }
 
-    pub async fn cancel(&self, job_id: i64) -> Result<()> {
-        // insert a “true” flag; if job isn’t running flag is simply ignored
+    fn cancel_flag(&self, job_id: i64) -> Arc<AtomicBool> {
         self.cancel_map
             .entry(job_id)
             .or_insert_with(|| Arc::new(AtomicBool::new(false)))
-            .store(true, Ordering::Relaxed);
+            .clone()
+    }
 
+    pub async fn cancel(&self, job_id: i64) -> Result<()> {
+        self.cancel_flag(job_id).store(true, Ordering::Relaxed);
         self.job_db.update_status(job_id, JobStatus::Failed).await
     }
 
-    /// Quick check used inside the crawl loop
     fn is_cancelled(&self, job_id: i64) -> bool {
-        self.cancel_map
-            .get(&job_id)
-            .map(|f| f.load(Ordering::Relaxed))
-            .unwrap_or(false)
+        self.cancel_flag(job_id).load(Ordering::Relaxed)
     }
 
     pub async fn run(&self) -> Result<()> {
@@ -88,11 +86,7 @@ impl JobProcessor {
     async fn process_job(&self, mut job: AnalysisJob) -> Result<String> {
         log::info!("Processing job {} for URL: {}", job.id, job.url);
         //generate cancel flag for current job
-        let cancel_flag = self
-            .cancel_map
-            .get(&job.id)
-            .map(|f| f.clone())
-            .unwrap_or_else(|| Arc::new(AtomicBool::new(false)));
+        let cancel_flag = self.cancel_flag(job.id);
 
         // 1. Update status
         job.status = JobStatus::Processing;
@@ -134,7 +128,11 @@ impl JobProcessor {
             .link_to_result(job.id, &analysis_result_id)
             .await
             .context("Unable to link job to result")?;
-
+        log::info!(
+            "{:?} {}",
+            self.job_db.get_progress(job.id).await.map(|s| s.job_status),
+            self.is_cancelled(job.id)
+        );
         if self.is_cancelled(job.id) {
             return Ok(analysis_result_id);
         }
@@ -217,16 +215,31 @@ impl JobProcessor {
             .await
             .context("Unable to update issues fpr analysis")?;
 
-        // 8. Finalize
-        self.results_db
-            .finalize(&analysis_result_id, AnalysisStatus::Completed)
-            .await
-            .context("Unable to finalize Analysis Results")?;
+        match self.is_cancelled(job.id) {
+            true => {
+                self.results_db
+                    .finalize(&analysis_result_id, AnalysisStatus::Error)
+                    .await
+                    .context("Unable to finalize Analysis Results")?;
 
-        self.job_db
-            .update_status(job.id, JobStatus::Completed)
-            .await
-            .context("Unable to update job status")?;
+                self.job_db
+                    .update_status(job.id, JobStatus::Failed)
+                    .await
+                    .context("Unable to update job status")?;
+            }
+            false => {
+                self.results_db
+                    .finalize(&analysis_result_id, AnalysisStatus::Completed)
+                    .await
+                    .context("Unable to finalize Analysis Results")?;
+
+                self.job_db
+                    .update_status(job.id, JobStatus::Completed)
+                    .await
+                    .context("Unable to update job status")?;
+            }
+        }
+        // 8. Finalize
 
         log::info!("Job {} completed", job.id);
         Ok(analysis_result_id)
