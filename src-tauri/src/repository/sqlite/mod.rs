@@ -436,9 +436,6 @@ impl ResultsRepository {
             avg_load_time: summay_row.avg_load_time,
             total_words: summay_row.total_words,
             total_issues: summay_row.pages_with_issues,
-            // critical_issues: todo!(),
-            // warning_issues: todo!(),
-            // suggestion_issues: todo!(),
         };
         let complete_analysis = CompleteAnalysisResult {
             analysis,
@@ -550,11 +547,11 @@ impl SummaryRepository {
         Self { pool }
     }
 
-    pub async fn update_from_issues(
+    pub async fn generate_summary(
         &self,
         analysis_id: &str,
         issues: &[SeoIssue],
-        total_pages: i32,
+        analyzed_page_data: &[PageAnalysisData],
     ) -> Result<()> {
         let mut critical = 0;
         let mut warnings = 0;
@@ -569,6 +566,17 @@ impl SummaryRepository {
         }
 
         let mut tx = self.pool.begin().await?;
+        let average_load_time = analyzed_page_data
+            .iter()
+            .map(|d| d.load_time)
+            .reduce(|a, b| a + b)
+            .unwrap_or_default();
+
+        let total_words = analyzed_page_data
+            .iter()
+            .map(|d| d.word_count)
+            .reduce(|a, b| a + b)
+            .unwrap_or_default();
 
         sqlx::query(
             "INSERT OR REPLACE INTO analysis_issues (analysis_id, critical, warnings, suggestions) \
@@ -580,7 +588,8 @@ impl SummaryRepository {
         .bind(suggestions)
         .execute(&mut *tx)
         .await?;
-
+        //TODO:
+        //FIX HARD CODED VALUES
         sqlx::query(
             "INSERT OR REPLACE INTO analysis_summary \
              (analysis_id, seo_score, avg_load_time, total_words, pages_with_issues) \
@@ -588,9 +597,13 @@ impl SummaryRepository {
         )
         .bind(analysis_id)
         .bind(75)
-        .bind(1.5)
-        .bind(500)
-        .bind(if issues.is_empty() { 0 } else { total_pages })
+        .bind(average_load_time)
+        .bind(total_words)
+        .bind(if issues.is_empty() {
+            0
+        } else {
+            analyzed_page_data.len() as i64
+        })
         .execute(&mut *tx)
         .await?;
 
