@@ -1,12 +1,16 @@
 name: publish
 
 on:
+  workflow_dispatch:          # still allow manual runs
+  workflow_run:
+    workflows: ["Bump version on merge to release"] # exact name of first workflow
+    types:
+      - completed
   push:
     branches: [release]
 
 jobs:
   publish-tauri:
-    needs: Bump version on merge to release
     permissions:
       contents: write
     strategy:
