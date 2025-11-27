@@ -24,6 +24,11 @@ impl PageDiscovery {
         }
     }
 
+    //TODO:
+    //Not cleaning urls properly, eg
+    //http://google.com/terms?hl=sv&fg=1#footnote-country-version
+    //http://google.com/terms?hl=sv&fg=1#footnote-liability
+
     /// ONLY handles HTTP crawling - NO business logic
     pub async fn discover(
         &self,
@@ -65,7 +70,14 @@ impl PageDiscovery {
             };
 
             let document = Html::parse_document(&body);
-            let links = self.extract_links(&document, &url)?;
+            let links: Vec<Url> = self
+                .extract_links(&document, &url)?
+                .into_iter()
+                .map(|mut u| {
+                    u.set_fragment(None);
+                    u
+                })
+                .collect();
 
             for link in links {
                 if link.host_str() == Some(base_host)
