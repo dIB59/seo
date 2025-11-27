@@ -15,8 +15,8 @@ mod repository;
 mod service;
 
 //TODO:
-//implement broken links
-//if internal link returns 404 it is broken
+//-implement broken links, if internal link returns 404 it is broken
+//-implement pagination for get all jobs
 
 fn main() {
     env_logger::builder()
