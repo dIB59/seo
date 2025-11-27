@@ -160,6 +160,7 @@ impl JobProcessor {
 
         // 6. Analyze pages
         let mut all_issues = Vec::new();
+        let mut analyzed_page_data = Vec::new();
         let mut analyzed_count = 0;
 
         log::info!("Starting page analysis for job {}", job.id);
@@ -188,6 +189,7 @@ impl JobProcessor {
                         .context("Unable to insert SEO issues")?;
 
                     all_issues.extend(issues);
+                    analyzed_page_data.push(page);
                     analyzed_count += 1;
 
                     // Update progress
@@ -209,10 +211,9 @@ impl JobProcessor {
         }
 
         log::info!("Completed page analysis for job {}", job.id);
-
         // 7. Generate summary
         self.summary_db
-            .update_from_issues(&analysis_result_id, &all_issues, total_pages)
+            .generate_summary(&analysis_result_id, &all_issues, &analyzed_page_data)
             .await
             .context("Unable to update issues fpr analysis")?;
 
