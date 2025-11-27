@@ -6,6 +6,7 @@ on:
 
 jobs:
   publish-tauri:
+    needs: prepare
     permissions:
       contents: write
     strategy:
@@ -95,6 +96,6 @@ jobs:
           tagName: app-v__VERSION__
           releaseName: "App v__VERSION__"
           releaseBody: "See the assets to download this version and install."
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
