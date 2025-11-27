@@ -1,5 +1,4 @@
 //! Application layer - coordinates services
-
 use crate::domain::models::{
     AnalysisJob, AnalysisStatus, JobStatus, PageAnalysisData, ResourceStatus, SeoIssue,
 };
@@ -8,7 +7,10 @@ use crate::{
     service::{PageDiscovery, ResourceChecker},
 };
 use anyhow::{Context, Result};
+use dashmap::DashMap;
 use sqlx::SqlitePool;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 use url::Url;
@@ -22,12 +24,10 @@ pub struct JobProcessor {
     summary_db: SummaryRepository,
     discovery: PageDiscovery,
     resource_checker: ResourceChecker,
+    cancel_map: Arc<DashMap<i64, Arc<AtomicBool>>>,
 }
 
 impl JobProcessor {
-    //TODO:
-    //Add Discovering stage
-    //Add analyzing stage
     pub fn new(pool: SqlitePool) -> Self {
         Self {
             job_db: JobRepository::new(pool.clone()),
@@ -38,7 +38,24 @@ impl JobProcessor {
             summary_db: SummaryRepository::new(pool.clone()),
             discovery: PageDiscovery::new(),
             resource_checker: ResourceChecker::new(),
+            cancel_map: Arc::new(DashMap::with_capacity(10)),
         }
+    }
+
+    fn cancel_flag(&self, job_id: i64) -> Arc<AtomicBool> {
+        self.cancel_map
+            .entry(job_id)
+            .or_insert_with(|| Arc::new(AtomicBool::new(false)))
+            .clone()
+    }
+
+    pub async fn cancel(&self, job_id: i64) -> Result<()> {
+        self.cancel_flag(job_id).store(true, Ordering::Relaxed);
+        self.job_db.update_status(job_id, JobStatus::Failed).await
+    }
+
+    fn is_cancelled(&self, job_id: i64) -> bool {
+        self.cancel_flag(job_id).load(Ordering::Relaxed)
     }
 
     pub async fn run(&self) -> Result<()> {
@@ -68,6 +85,8 @@ impl JobProcessor {
 
     async fn process_job(&self, mut job: AnalysisJob) -> Result<String> {
         log::info!("Processing job {} for URL: {}", job.id, job.url);
+        //generate cancel flag for current job
+        let cancel_flag = self.cancel_flag(job.id);
 
         // 1. Update status
         job.status = JobStatus::Processing;
@@ -109,10 +128,14 @@ impl JobProcessor {
             .link_to_result(job.id, &analysis_result_id)
             .await
             .context("Unable to link job to result")?;
-
-        self.job_db
-            .update_status(job.id, JobStatus::Processing)
-            .await?;
+        log::info!(
+            "{:?} {}",
+            self.job_db.get_progress(job.id).await.map(|s| s.job_status),
+            self.is_cancelled(job.id)
+        );
+        if self.is_cancelled(job.id) {
+            return Ok(analysis_result_id);
+        }
 
         // 5. Discover pages
         let pages = self
@@ -121,6 +144,7 @@ impl JobProcessor {
                 start_url.clone(),
                 settings.max_pages,
                 settings.delay_between_requests,
+                cancel_flag.as_ref(),
             )
             .await
             .context("Unable to discover pages")?;
@@ -134,6 +158,7 @@ impl JobProcessor {
 
         // 6. Analyze pages
         let mut all_issues = Vec::new();
+        let mut analyzed_page_data = Vec::new();
         let mut analyzed_count = 0;
 
         log::info!("Starting page analysis for job {}", job.id);
@@ -162,6 +187,7 @@ impl JobProcessor {
                         .context("Unable to insert SEO issues")?;
 
                     all_issues.extend(issues);
+                    analyzed_page_data.push(page);
                     analyzed_count += 1;
 
                     // Update progress
@@ -183,23 +209,37 @@ impl JobProcessor {
         }
 
         log::info!("Completed page analysis for job {}", job.id);
-
         // 7. Generate summary
         self.summary_db
-            .update_from_issues(&analysis_result_id, &all_issues, total_pages)
+            .generate_summary(&analysis_result_id, &all_issues, &analyzed_page_data)
             .await
             .context("Unable to update issues fpr analysis")?;
 
-        // 8. Finalize
-        self.results_db
-            .finalize(&analysis_result_id, AnalysisStatus::Completed)
-            .await
-            .context("Unable to finalize Analysis Results")?;
+        match self.is_cancelled(job.id) {
+            true => {
+                self.results_db
+                    .finalize(&analysis_result_id, AnalysisStatus::Error)
+                    .await
+                    .context("Unable to finalize Analysis Results")?;
 
-        self.job_db
-            .update_status(job.id, JobStatus::Completed)
-            .await
-            .context("Unable to update job status")?;
+                self.job_db
+                    .update_status(job.id, JobStatus::Failed)
+                    .await
+                    .context("Unable to update job status")?;
+            }
+            false => {
+                self.results_db
+                    .finalize(&analysis_result_id, AnalysisStatus::Completed)
+                    .await
+                    .context("Unable to finalize Analysis Results")?;
+
+                self.job_db
+                    .update_status(job.id, JobStatus::Completed)
+                    .await
+                    .context("Unable to update job status")?;
+            }
+        }
+        // 8. Finalize
 
         log::info!("Job {} completed", job.id);
         Ok(analysis_result_id)
