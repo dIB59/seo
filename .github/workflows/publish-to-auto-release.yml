@@ -6,7 +6,7 @@ on:
 
 jobs:
   publish-tauri:
-    needs: prepare
+    needs: Bump version on merge to release
     permissions:
       contents: write
     strategy:
