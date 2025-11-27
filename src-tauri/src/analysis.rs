@@ -98,7 +98,7 @@ pub async fn get_all_jobs(db: State<'_, DbState>) -> Result<Vec<AnalysisProgress
     let repository = JobRepository::new(pool.clone());
 
     let jobs = repository.get_all().await.map_err(CommandError::from)?;
-    log::info!("{:?}", jobs.first());
+    log::trace!("{:?}", jobs.first());
 
     Ok(jobs)
 }
@@ -111,7 +111,7 @@ pub async fn cancel_analysis(
     job_id: i64,
     job_processor: State<'_, Arc<JobProcessor>>,
 ) -> Result<(), CommandError> {
-    log::info!("Cancelling analysis job: {}", job_id);
+    log::trace!("Cancelling analysis job: {}", job_id);
     job_processor.cancel(job_id).await.map_err(CommandError)
 }
 
@@ -120,7 +120,7 @@ pub async fn get_result(
     job_id: i64,
     db: State<'_, DbState>,
 ) -> Result<CompleteAnalysisResult, CommandError> {
-    log::info!("Getting result ID for job: {}", job_id);
+    log::trace!("Getting result ID for job: {}", job_id);
 
     let pool = &db.0;
     let repository = ResultsRepository::new(pool.clone());
