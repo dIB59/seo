@@ -1,0 +1,56 @@
+name: Bump version on merge to release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [release]
+
+jobs:
+  bump-and-sync:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write          # push commits
+
+    steps:
+      # ---------- checkout ----------
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      # ---------- node ----------
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # ---------- cargo tooling ----------
+      - name: Install cargo-edit
+        run: cargo install cargo-edit --quiet
+
+      # ---------- bump ----------
+      - name: Bump patch version
+        run: npm version patch --no-git-tag-version   # or `minor`
+
+      - name: Sync version into Tauri files
+        run: |
+          VERSION=$(jq -r .version package.json)
+          jq --arg v "$VERSION" '.version = $v' src-tauri/tauri.conf.json > tmp && mv tmp src-tauri/tauri.conf.json
+          cd src-tauri && cargo set-version "$VERSION"
+
+      # ---------- commit & push to release ----------
+      - name: Commit & push bump
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json src-tauri/Cargo.toml src-tauri/tauri.conf.json
+          git commit -m "chore: bump version to $(jq -r .version package.json)"
+          git push origin HEAD:release
+
+      # ---------- merge release → main ----------
+      - name: Merge release back into main
+        run: |
+          git fetch origin main
+          git checkout main
+          git merge --no-ff origin/release -m "chore: sync release into main"
+          git push origin main
