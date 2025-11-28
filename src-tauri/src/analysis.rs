@@ -103,9 +103,6 @@ pub async fn get_all_jobs(db: State<'_, DbState>) -> Result<Vec<AnalysisProgress
     Ok(jobs)
 }
 
-//TODO:
-//FIx cancel not cancelling properly
-
 #[tauri::command]
 pub async fn cancel_analysis(
     job_id: i64,
@@ -130,4 +127,3 @@ pub async fn get_result(
         .await
         .map_err(CommandError::from)
 }
-
