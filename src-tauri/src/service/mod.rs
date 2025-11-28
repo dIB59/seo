@@ -24,11 +24,6 @@ impl PageDiscovery {
         }
     }
 
-    //TODO:
-    //Not cleaning urls properly, eg
-    //http://google.com/terms?hl=sv&fg=1#footnote-country-version
-    //http://google.com/terms?hl=sv&fg=1#footnote-liability
-
     /// ONLY handles HTTP crawling - NO business logic
     pub async fn discover(
         &self,
@@ -154,4 +149,3 @@ impl ResourceChecker {
         Ok(status)
     }
 }
-
