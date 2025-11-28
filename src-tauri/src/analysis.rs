@@ -16,7 +16,7 @@ use crate::{
 pub struct AnalysisJobResponse {
     pub job_id: i64,
     pub url: String,
-    pub status: String,
+    pub status: JobStatus,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -68,7 +68,7 @@ pub async fn start_analysis(
     Ok(AnalysisJobResponse {
         job_id,
         url,
-        status: "queued".to_string(),
+        status: JobStatus::Queued,
     })
 }
 
@@ -89,7 +89,8 @@ pub async fn get_analysis_progress(
 
     Ok(progress)
 }
-
+//TODO:
+//Implement pagination
 #[tauri::command]
 pub async fn get_all_jobs(db: State<'_, DbState>) -> Result<Vec<AnalysisProgress>, CommandError> {
     log::info!("Fetching all analysis jobs");
