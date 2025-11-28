@@ -172,6 +172,42 @@ function StatItem({
 	)
 }
 
+function StatItemError({
+	icon: Icon,
+	label,
+	value,
+	subValue,
+}: {
+	icon: React.ComponentType<{ className?: string }>
+	label: string
+	value: React.ReactNode
+	subValue?: string
+}) {
+	return (
+		<div
+			className="flex items-center gap-2 p-2 rounded-lg bg-card border-l-4"
+			style={{ borderLeftColor: "red" }}
+		>
+			<Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+			<div className="min-w-0 flex-1">
+				{/* value is the only red touch – uses the raw variable */}
+				<p
+					className="text-sm font-semibold truncate"
+					style={{ color: 'hsl(var(--destructive))' }}
+				>
+					{value}
+				</p>
+
+				{/* label & sub-value stay on the neutral scale */}
+				<p className="text-[10px] text-muted-foreground truncate">{label}</p>
+				{subValue && (
+					<p className="text-[10px] text-muted-foreground">{subValue}</p>
+				)}
+			</div>
+		</div>
+	)
+}
+
 function HealthIndicator({ label, active }: { label: string; active: boolean }) {
 	return (
 		<div className="flex flex-col items-center gap-1 p-2 rounded-lg bg-muted/50">
@@ -374,11 +410,52 @@ function HealthyPageRow({ page, onClick }: { page: PageAnalysisData; onClick: ()
 	)
 }
 
+/* ------------------------------------------------------------------ */
+/* Public wrapper                                                     */
+/* ------------------------------------------------------------------ */
+function PageDetailModal({
+	page,
+	open,
+	onClose,
+}: { page: PageAnalysisData | null; open: boolean; onClose: () => void }) {
+	if (!page) return null
+
+	return isBroken(page) ? (
+		<BrokenPageModal page={page} open={open} onClose={onClose} />
+	) : (
+		<HealthyPageModal page={page} open={open} onClose={onClose} />
+	)
+}
+
 // ============================================================================
 // PAGE DETAIL MODAL
 // ============================================================================
+function BrokenPageModal({ page, open, onClose }: { page: PageAnalysisData; open: boolean; onClose: () => void }) {
+	return (
+		<Dialog open={open} onOpenChange={onClose}>
+			<DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden grid">
+				<DialogHeader className="bg-destructive/5 rounded-t-lg -mx-6 -mt-6 px-6 py-4 truncate">
+					<DialogTitle className="truncate pr-8 text-destructive">{page.url}</DialogTitle>
+					<p className="text-sm text-muted-foreground truncate">{page.title || "No title"}</p>
+				</DialogHeader>
 
-function PageDetailModal({
+				{/* scrollable body */}
+				<div className="overflow-auto">
+					<h4 className="text-sm font-medium mb-3">Content Metrics</h4>
+					<div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+						<StatItemError icon={BarChart3} label="Status" value={page.status_code} />
+						<StatItemError icon={Clock} label="Load Time" value={`${page.load_time.toFixed(2)}s`} />
+						<StatItemError icon={FileCode} label="Content Size" value={`${(page.content_size / 1024).toFixed(1)}KB`} />
+						<StatItemError icon={Link2} label="Links" value={`${page.internal_links}/${page.external_links}`} />
+					</div>
+				</div>
+			</DialogContent>
+		</Dialog>
+	)
+}
+
+
+function HealthyPageModal({
 	page,
 	open,
 	onClose,
@@ -388,7 +465,7 @@ function PageDetailModal({
 	return (
 		<Dialog open={open} onOpenChange={onClose}>
 			<DialogContent className="max-w-3xl max-h-[90vh] overflow-auto">
-				<DialogHeader>
+				<DialogHeader className="truncate">
 					<DialogTitle className="truncate pr-8">{page.url}</DialogTitle>
 					<p className="text-sm text-muted-foreground truncate">{page.title || "No title"}</p>
 				</DialogHeader>
