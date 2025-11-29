@@ -5,6 +5,8 @@ use scraper::{Html, Selector};
 use serde::Serialize;
 use url::Url;
 
+use crate::application::PageEdge;
+
 // ====== Enums ======
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -92,9 +94,6 @@ pub struct AnalysisSummary {
     pub avg_load_time: f64,
     pub total_words: i64,
     pub total_issues: i64,
-    // pub critical_issues: i64,
-    // pub warning_issues: i64,
-    // pub suggestion_issues: i64,
 }
 
 #[derive(Debug, Clone)]
@@ -181,19 +180,18 @@ pub struct PageAnalysisData {
     pub lighthouse_accessibility: Option<f64>,
     pub lighthouse_best_practices: Option<f64>,
     pub lighthouse_seo: Option<f64>,
+    pub links: Vec<PageEdge>,
 }
 
 impl PageAnalysisData {
     /// Rich factory: parses HTML and performs initial analysis
-    pub fn analyze(
+    pub fn build_from_parsed(
         url: String,
-        html: &str,
+        document: Html,
         load_time: f64,
         status_code: i64,
         content_size: i64,
     ) -> (Self, Vec<SeoIssue>) {
-        let document = Html::parse_document(html);
-
         let page = Self {
             analysis_id: String::new(),
             url: url.clone(),
@@ -218,9 +216,10 @@ impl PageAnalysisData {
             lighthouse_accessibility: None,
             lighthouse_best_practices: None,
             lighthouse_seo: None,
+            links: Vec::new(),
         };
 
-        let issues = page.generate_issues();
+        let issues = page.generate_issues(); // your other rules
         (page, issues)
     }
 
@@ -243,7 +242,7 @@ impl PageAnalysisData {
                     .to_string(),
             });
         } else if let Some(title) = &self.title {
-            if title.len() < 30 {
+            if title.len() < 5 {
                 issues.push(SeoIssue {
                     page_id: page_id.clone(),
                     issue_type: IssueType::Warning,

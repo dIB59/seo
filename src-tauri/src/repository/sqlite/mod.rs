@@ -1,6 +1,6 @@
 //! SQLite repository implementations - no extra interfaces
 
-use crate::{analysis::AnalysisSettingsRequest, domain::models::*};
+use crate::{analysis::AnalysisSettingsRequest, application::PageEdge, domain::models::*};
 use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use uuid::Uuid;
@@ -371,50 +371,96 @@ impl ResultsRepository {
             })
             .collect();
 
-        let pages_rows = sqlx::query!(
+        let rows = sqlx::query!(
             r#"
-            SELECT id, analysis_id, url, title, meta_description, meta_keywords,
-                   canonical_url, h1_count, h2_count, h3_count, word_count,
-                   image_count, images_without_alt, internal_links, external_links,
-                   load_time, status_code, content_size, mobile_friendly,
-                   has_structured_data, lighthouse_performance,
-                   lighthouse_accessibility, lighthouse_best_practices,
-                   lighthouse_seo, created_at
-            FROM page_analysis
-            WHERE analysis_id = ?
-            "#,
+    SELECT 
+       pa.id,
+       pa.analysis_id,
+       pa.url,
+       pa.title,
+       pa.meta_description,
+       pa.meta_keywords,
+       pa.canonical_url,
+       pa.h1_count,
+       pa.h2_count,
+       pa.h3_count,
+       pa.word_count,
+       pa.image_count,
+       pa.images_without_alt,
+       pa.internal_links,
+       pa.external_links,
+       pa.load_time,
+       pa.status_code     AS page_status,
+       pa.content_size,
+       pa.mobile_friendly,
+       pa.has_structured_data,
+       pa.lighthouse_performance,
+       pa.lighthouse_accessibility,
+       pa.lighthouse_best_practices,
+       pa.lighthouse_seo,
+       pa.created_at,
+
+       GROUP_CONCAT(pe.to_url)        AS edge_urls,
+       GROUP_CONCAT(CAST(pe.status_code as TEXT))   AS edge_statuses
+
+FROM page_analysis pa
+LEFT JOIN page_edge pe ON pe.from_page_id = pa.id
+WHERE pa.analysis_id = ?
+GROUP BY pa.id
+ORDER BY pa.id;
+    "#,
             analysis_result_row.id
         )
         .fetch_all(&self.pool)
-        .await
-        .context("Failed to fetch page analyses for analysis result")?;
+        .await?;
 
-        let pages: Vec<PageAnalysisData> = pages_rows
+        let pages: Vec<PageAnalysisData> = rows
             .into_iter()
-            .map(|row| PageAnalysisData {
-                analysis_id: row.analysis_id,
-                url: row.url,
-                title: row.title,
-                meta_description: row.meta_description,
-                meta_keywords: row.meta_keywords,
-                canonical_url: row.canonical_url,
-                h1_count: row.h1_count,
-                h2_count: row.h2_count,
-                h3_count: row.h3_count,
-                word_count: row.word_count,
-                image_count: row.image_count,
-                images_without_alt: row.images_without_alt,
-                internal_links: row.internal_links,
-                external_links: row.external_links,
-                load_time: row.load_time,
-                status_code: row.status_code,
-                content_size: row.content_size,
-                mobile_friendly: row.mobile_friendly,
-                has_structured_data: row.has_structured_data,
-                lighthouse_performance: row.lighthouse_performance,
-                lighthouse_accessibility: row.lighthouse_accessibility,
-                lighthouse_best_practices: row.lighthouse_best_practices,
-                lighthouse_seo: row.lighthouse_seo,
+            .map(|r| {
+                let links: Vec<PageEdge> = match (r.edge_urls, r.edge_statuses) {
+                    (Some(urls), Some(sts)) => {
+                        let url_vec: Vec<_> = urls.split(',').map(str::to_owned).collect();
+                        let status_vec: Vec<u16> =
+                            sts.split(',').filter_map(|s| s.parse().ok()).collect();
+
+                        url_vec
+                            .into_iter()
+                            .zip(status_vec)
+                            .map(|(u, s)| PageEdge {
+                                from_page_id: r.id.clone().unwrap(),
+                                to_url: u,
+                                status_code: s,
+                            })
+                            .collect()
+                    }
+                    _ => Vec::new(),
+                };
+                PageAnalysisData {
+                    analysis_id: r.analysis_id,
+                    url: r.url,
+                    title: r.title,
+                    meta_description: r.meta_description,
+                    meta_keywords: r.meta_keywords,
+                    canonical_url: r.canonical_url,
+                    h1_count: r.h1_count,
+                    h2_count: r.h2_count,
+                    h3_count: r.h3_count,
+                    word_count: r.word_count,
+                    image_count: r.image_count,
+                    images_without_alt: r.images_without_alt,
+                    internal_links: r.internal_links,
+                    external_links: r.external_links,
+                    load_time: r.load_time,
+                    status_code: r.page_status,
+                    content_size: r.content_size,
+                    mobile_friendly: r.mobile_friendly,
+                    has_structured_data: r.has_structured_data,
+                    lighthouse_performance: r.lighthouse_performance,
+                    lighthouse_accessibility: r.lighthouse_accessibility,
+                    lighthouse_best_practices: r.lighthouse_best_practices,
+                    lighthouse_seo: r.lighthouse_seo,
+                    links,
+                }
             })
             .collect();
 
@@ -498,6 +544,21 @@ impl PageRepository {
         .context("Failed to insert page analysis")?;
 
         Ok(id)
+    }
+
+    pub(crate) async fn insert_edges_batch(&self, edges: &[PageEdge]) -> Result<()> {
+        if edges.is_empty() {
+            return Ok(());
+        }
+        let mut qb =
+            sqlx::QueryBuilder::new("INSERT INTO page_edge (from_page_id, to_url, status_code) ");
+        qb.push_values(edges, |mut b, edge| {
+            b.push_bind(&edge.from_page_id)
+                .push_bind(&edge.to_url)
+                .push_bind(edge.status_code as i32);
+        });
+        qb.build().execute(&self.pool).await?;
+        Ok(())
     }
 }
 
@@ -611,4 +672,3 @@ impl SummaryRepository {
         Ok(())
     }
 }
-
