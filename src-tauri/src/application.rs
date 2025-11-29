@@ -371,10 +371,3 @@ impl PageEdge {
             && base_url.port() == target_url.port()
     }
 }
-
-/// In-memory helper used only while we are still inside `process_job`.
-#[derive(Debug, Default)]
-struct LinkGraph {
-    nodes: HashMap<String, /* page_id */ String>, // url -> page_id
-    edges: Vec<PageEdge>,
-}

@@ -40,7 +40,10 @@ impl JobRepository {
     pub async fn get_pending_jobs(&self) -> Result<Vec<AnalysisJob>> {
         let rows = sqlx::query!(
             "SELECT id, url, settings_id, created_at, status, result_id \
-             FROM analysis_jobs WHERE status = 'queued' ORDER BY created_at ASC"
+             FROM analysis_jobs \
+             WHERE status IN ('queued', 'processing') \
+             ORDER BY created_at ASC
+             "
         )
         .fetch_all(&self.pool)
         .await
