@@ -1,19 +1,31 @@
 //! Application layer - coordinates services
 use crate::domain::models::{
-    AnalysisJob, AnalysisStatus, JobStatus, PageAnalysisData, ResourceStatus, SeoIssue,
+    AnalysisJob, AnalysisStatus, IssueType, JobStatus, PageAnalysisData, ResourceStatus, SeoIssue,
 };
+
 use crate::{
     repository::sqlite::*,
     service::{PageDiscovery, ResourceChecker},
 };
 use anyhow::{Context, Result};
 use dashmap::DashMap;
+use reqwest::Client;
+use scraper::{Html, Selector};
+use serde::Serialize;
 use sqlx::SqlitePool;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 use tokio::time::sleep;
 use url::Url;
+
+fn assert_send_static<F>(f: F) -> F
+where
+    F: std::future::Future + Send + 'static,
+{
+    f
+}
 
 pub struct JobProcessor {
     job_db: JobRepository,
@@ -85,7 +97,6 @@ impl JobProcessor {
 
     async fn process_job(&self, mut job: AnalysisJob) -> Result<String> {
         log::info!("Processing job {} for URL: {}", job.id, job.url);
-        //generate cancel flag for current job
         let cancel_flag = self.cancel_flag(job.id);
 
         // 1. Update status
@@ -128,11 +139,7 @@ impl JobProcessor {
             .link_to_result(job.id, &analysis_result_id)
             .await
             .context("Unable to link job to result")?;
-        log::info!(
-            "{:?} {}",
-            self.job_db.get_progress(job.id).await.map(|s| s.job_status),
-            self.is_cancelled(job.id)
-        );
+
         if self.is_cancelled(job.id) {
             return Ok(analysis_result_id);
         }
@@ -156,17 +163,22 @@ impl JobProcessor {
             .await
             .context("Unable to update Analysis Results progress")?;
 
-        // 6. Analyze pages
+        // 6. Analyse pages + build link graph
         let mut all_issues = Vec::new();
         let mut analyzed_page_data = Vec::new();
         let mut analyzed_count = 0;
+
+        // url  -> page_id   (so we can resolve edges later)
+        let mut url_to_id: HashMap<String, String> = HashMap::with_capacity(pages.len());
+
+        // all edges we collect
+        let mut edges: Vec<PageEdge> = Vec::new();
 
         log::info!("Starting page analysis for job {}", job.id);
 
         for page_url in pages {
             match self.analyze_page(&page_url).await {
-                Ok((mut page, mut issues)) => {
-                    log::debug!("Number of issues for this page {}", issues.len());
+                Ok((mut page, mut issues, html_str)) => {
                     page.analysis_id = analysis_result_id.clone();
 
                     let page_id = self
@@ -175,22 +187,48 @@ impl JobProcessor {
                         .await
                         .context("Unable to insert page analysis data")?;
 
-                    for issue in &mut issues {
-                        log::trace!("Found issue on {}: {}", page_url, issue.description);
-                        issue.page_id = page_id.clone();
+                    // remember mapping
+                    url_to_id.insert(page_url.to_string(), page_id.clone());
+
+                    // we already have page.html and page.status_code from analyze_page
+                    let targets = Self::extract_links(&html_str, &page_url);
+                    for tgt in targets {
+                        let edge = PageEdge {
+                            from_page_id: page_id.clone(),
+                            to_url: tgt.clone(),
+                            status_code: page.status_code.unwrap_or(408) as u16, // status of *this* page
+                        };
+
+                        edges.push(edge.clone());
+                        log::info!("{:?}", edge);
+
+                        if edge.status_code >= 400 {
+                            dbg!(&edge);
+                            issues.push(SeoIssue {
+                                page_id: page_id.to_string(),
+                                issue_type: IssueType::Critical,
+                                description: format!(
+                                    "Broken link: {} returned {}",
+                                    tgt, edge.status_code
+                                ),
+                                title: "Broken Link".to_string(),
+                                page_url: page.url.clone(),
+                                element: None,
+                                line_number: None,
+                                recommendation: "Remove broken Link from the page".to_string(),
+                            });
+                        }
                     }
 
-                    self.issues_db
-                        .insert_batch(&issues)
-                        .await
-                        .inspect_err(|e| log::error!("{}", e))
-                        .context("Unable to insert SEO issues")?;
-
+                    for issue in &mut issues {
+                        issue.page_id = page_id.clone();
+                    }
+                    self.issues_db.insert_batch(&issues).await?;
                     all_issues.extend(issues);
                     analyzed_page_data.push(page);
                     analyzed_count += 1;
 
-                    // Update progress
+                    // progress
                     let progress = (analyzed_count as f64 / total_pages as f64) * 100.0;
                     self.results_db
                         .update_progress(
@@ -202,64 +240,134 @@ impl JobProcessor {
                         .await?;
                 }
                 Err(e) => {
-                    log::warn!("Error analyzing {}: {}", page_url, e);
+                    log::warn!("Error analysing {}: {}", page_url, e);
                     continue;
                 }
             }
         }
 
+        // ---- persist edges ----
+        if !edges.is_empty() {
+            self.page_db.insert_edges_batch(&edges).await?;
+        }
+
         log::info!("Completed page analysis for job {}", job.id);
+
         // 7. Generate summary
         self.summary_db
             .generate_summary(&analysis_result_id, &all_issues, &analyzed_page_data)
             .await
-            .context("Unable to update issues fpr analysis")?;
+            .context("Unable to update issues for analysis")?;
 
-        match self.is_cancelled(job.id) {
-            true => {
-                self.results_db
-                    .finalize(&analysis_result_id, AnalysisStatus::Error)
-                    .await
-                    .context("Unable to finalize Analysis Results")?;
+        // 8. Finalise
+        let final_status = if self.is_cancelled(job.id) {
+            self.results_db
+                .finalize(&analysis_result_id, AnalysisStatus::Error)
+                .await?;
+            self.job_db.update_status(job.id, JobStatus::Failed).await?;
+            AnalysisStatus::Error
+        } else {
+            self.results_db
+                .finalize(&analysis_result_id, AnalysisStatus::Completed)
+                .await?;
+            self.job_db
+                .update_status(job.id, JobStatus::Completed)
+                .await?;
+            AnalysisStatus::Completed
+        };
 
-                self.job_db
-                    .update_status(job.id, JobStatus::Failed)
-                    .await
-                    .context("Unable to update job status")?;
-            }
-            false => {
-                self.results_db
-                    .finalize(&analysis_result_id, AnalysisStatus::Completed)
-                    .await
-                    .context("Unable to finalize Analysis Results")?;
-
-                self.job_db
-                    .update_status(job.id, JobStatus::Completed)
-                    .await
-                    .context("Unable to update job status")?;
-            }
-        }
-        // 8. Finalize
-
-        log::info!("Job {} completed", job.id);
+        log::info!("Job {} completed with status {:?}", job.id, final_status);
         Ok(analysis_result_id)
     }
 
-    async fn analyze_page(&self, url: &Url) -> Result<(PageAnalysisData, Vec<SeoIssue>)> {
+    async fn analyze_page(&self, url: &Url) -> Result<(PageAnalysisData, Vec<SeoIssue>, String)> {
+        let client = Client::new();
         let start = std::time::Instant::now();
 
-        let response = reqwest::get(url.as_str()).await?;
+        // 1.  Fetch the page
+        let response = client.get(url.as_str()).send().await?;
         let status_code = response.status().as_u16() as i64;
         let content_size = response.content_length().unwrap_or(0) as i64;
         let html = response.text().await?;
         let load_time = start.elapsed().as_secs_f64();
 
-        Ok(PageAnalysisData::analyze(
-            url.to_string(),
-            &html,
+        // 2.  Parse once
+        let document = Html::parse_document(&html);
+        let base_url = url.clone();
+        let selector = Selector::parse("a[href]").unwrap();
+        for anchor in document.select(&selector) {
+            let href = match anchor.value().attr("href") {
+                Some(h) => h,
+                None => continue,
+            };
+            let target = match base_url.join(href) {
+                Ok(u) => u,
+                Err(_) => continue,
+            };
+            let text = anchor
+                .text()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .trim()
+                .to_string();
+            let nofollow = anchor
+                .value()
+                .attr("rel")
+                .map_or(false, |r| r.contains("nofollow"));
+            let is_internal = target.domain() == base_url.domain();
+        }
+
+        // 5.  Build the data object and issues
+        let (mut page, mut issues) = PageAnalysisData::build_from_parsed(
+            base_url.to_string(),
+            document.clone(),
             load_time,
             status_code,
             content_size,
-        ))
+        );
+
+        Ok((page, issues, html))
+    }
+
+    /// Extract every absolute link (`<a href="…">`) from the given HTML.
+    /// The returned strings are already resolved against `base`.
+    fn extract_links(html: &str, base: &Url) -> Vec<String> {
+        // `Selector::parse` is expensive (allocations + regex compilation), so we
+        // keep the parsed selector in a `std::sync::OnceLock` to pay that cost
+        // exactly once per process and reuse it on every call.
+        // TODO:
+        // TEST IF THIS MAKES A DIFFERENCE OR NOT
+        static A: OnceLock<Selector> = OnceLock::new();
+        let selector = A.get_or_init(|| Selector::parse("a[href]").unwrap());
+        Html::parse_document(html)
+            .select(&selector)
+            .filter_map(|a| a.value().attr("href"))
+            .filter_map(|raw| base.join(raw).ok())
+            .map(|u| u.into())
+            .collect()
+    }
+}
+
+/// A light-weight edge we can persist.
+#[derive(Debug, Clone, Serialize)]
+pub struct PageEdge {
+    pub from_page_id: String, // FK to the row you already insert in `page_db`
+    pub to_url: String,       // absolute URL
+    pub status_code: u16,     // what we saw when we hit that URL
+}
+
+impl PageEdge {
+    pub fn is_internal(&self, base: &str) -> bool {
+        let base_url = match Url::parse(base) {
+            Ok(u) => u,
+            Err(_) => return false,
+        };
+        let target_url = match Url::parse(&self.to_url) {
+            Ok(u) => u,
+            Err(_) => return false,
+        };
+        base_url.scheme() == target_url.scheme()
+            && base_url.host_str() == target_url.host_str()
+            && base_url.port() == target_url.port()
     }
 }
