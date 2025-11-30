@@ -15,8 +15,16 @@ mod repository;
 mod service;
 
 //TODO:
-//-implement broken links, if internal link returns 404 it is broken
 //-implement pagination for get all jobs
+//-remove AnalysisStatus from result, is should just be job status, maybe pages should have one
+//-create custom issue rules to define what an issue is
+//-search in pages table
+//-create proper report
+//-add pausing job
+//-fix when app quits while job is being processed
+//-Explain what the elements in the issues are
+//-add abiity to delete job
+//-when on page, you can press on the link to go to that page, that does not work
 
 fn main() {
     env_logger::builder()
