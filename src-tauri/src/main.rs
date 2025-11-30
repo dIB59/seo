@@ -25,6 +25,7 @@ mod service;
 //-Explain what the elements in the issues are
 //-add abiity to delete job
 //-when on page, you can press on the link to go to that page, that does not work
+//-xml file path not found due to redirection
 
 fn main() {
     env_logger::builder()

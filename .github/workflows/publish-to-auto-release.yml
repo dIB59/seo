@@ -6,8 +6,6 @@ on:
     workflows: ["Bump version on merge to release"] # exact name of first workflow
     types:
       - completed
-  push:
-    branches: [release]
 
 jobs:
   publish-tauri:
