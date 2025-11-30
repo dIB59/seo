@@ -22,6 +22,9 @@ mod service;
 //-create proper report
 //-add pausing job
 //-fix when app quits while job is being processed
+//-Explain what the elements in the issues are
+//-add abiity to delete job
+//-when on page, you can press on the link to go to that page, that does not work
 
 fn main() {
     env_logger::builder()
