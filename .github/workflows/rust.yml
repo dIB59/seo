@@ -1,25 +1,45 @@
-name: Rust
+name: Rust backend CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  rust-tests:
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Build (src-tauri)
-        working-directory: src-tauri
-        run: cargo build --verbose
+      - name: Cache Cargo registry & target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          # prefer src-tauri/Cargo.lock if present, otherwise use a repo-wide fallback
+          key: ${{ runner.os }}-cargo-src-tauri-${{ hashFiles('src-tauri/Cargo.lock', '**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
-      - name: Run tests (src-tauri)
+      - name: Setup Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: clippy, rustfmt
+
+      - name: Show Rust version
+        run: rustc --version
+
+      - name: Run backend tests (src-tauri)
         working-directory: src-tauri
-        run: cargo test --verbose
+        run: |
+          # run the tests for the crate in src-tauri
+          cargo test --verbose
