@@ -1,0 +1,176 @@
+{
+  "db_name": "SQLite",
+  "query": "\n    SELECT \n       pa.id,\n       pa.analysis_id,\n       pa.url,\n       pa.title,\n       pa.meta_description,\n       pa.meta_keywords,\n       pa.canonical_url,\n       pa.h1_count,\n       pa.h2_count,\n       pa.h3_count,\n       pa.word_count,\n       pa.image_count,\n       pa.images_without_alt,\n       pa.internal_links,\n       pa.external_links,\n       pa.load_time,\n       pa.status_code     AS page_status,\n       pa.content_size,\n       pa.mobile_friendly,\n       pa.has_structured_data,\n       pa.lighthouse_performance,\n       pa.lighthouse_accessibility,\n       pa.lighthouse_best_practices,\n       pa.lighthouse_seo,\n       pa.created_at,\n\n       GROUP_CONCAT(pe.to_url)        AS edge_urls,\n       GROUP_CONCAT(CAST(pe.status_code as TEXT))   AS edge_statuses\n\nFROM page_analysis pa\nLEFT JOIN page_edge pe ON pe.from_page_id = pa.id\nWHERE pa.analysis_id = ?\nGROUP BY pa.id\nORDER BY pa.id;\n    ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "analysis_id",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "url",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "title",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "meta_description",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "meta_keywords",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "canonical_url",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "h1_count",
+        "ordinal": 7,
+        "type_info": "Int64"
+      },
+      {
+        "name": "h2_count",
+        "ordinal": 8,
+        "type_info": "Int64"
+      },
+      {
+        "name": "h3_count",
+        "ordinal": 9,
+        "type_info": "Int64"
+      },
+      {
+        "name": "word_count",
+        "ordinal": 10,
+        "type_info": "Int64"
+      },
+      {
+        "name": "image_count",
+        "ordinal": 11,
+        "type_info": "Int64"
+      },
+      {
+        "name": "images_without_alt",
+        "ordinal": 12,
+        "type_info": "Int64"
+      },
+      {
+        "name": "internal_links",
+        "ordinal": 13,
+        "type_info": "Int64"
+      },
+      {
+        "name": "external_links",
+        "ordinal": 14,
+        "type_info": "Int64"
+      },
+      {
+        "name": "load_time",
+        "ordinal": 15,
+        "type_info": "Float"
+      },
+      {
+        "name": "page_status",
+        "ordinal": 16,
+        "type_info": "Int64"
+      },
+      {
+        "name": "content_size",
+        "ordinal": 17,
+        "type_info": "Int64"
+      },
+      {
+        "name": "mobile_friendly",
+        "ordinal": 18,
+        "type_info": "Bool"
+      },
+      {
+        "name": "has_structured_data",
+        "ordinal": 19,
+        "type_info": "Bool"
+      },
+      {
+        "name": "lighthouse_performance",
+        "ordinal": 20,
+        "type_info": "Float"
+      },
+      {
+        "name": "lighthouse_accessibility",
+        "ordinal": 21,
+        "type_info": "Float"
+      },
+      {
+        "name": "lighthouse_best_practices",
+        "ordinal": 22,
+        "type_info": "Float"
+      },
+      {
+        "name": "lighthouse_seo",
+        "ordinal": 23,
+        "type_info": "Float"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 24,
+        "type_info": "Text"
+      },
+      {
+        "name": "edge_urls",
+        "ordinal": 25,
+        "type_info": "Text"
+      },
+      {
+        "name": "edge_statuses",
+        "ordinal": 26,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "9b4e30b51e7afa112433992ced4f7828391b117395fce56d9533c246409a3757"
+}
