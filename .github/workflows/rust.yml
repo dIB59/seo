@@ -16,6 +16,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install system packages required by glib
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pkg-config libglib2.0-dev
+
       - name: Cache Cargo registry & target
         uses: actions/cache@v4
         with:
@@ -23,7 +28,6 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             src-tauri/target
-          # prefer src-tauri/Cargo.lock if present, otherwise use a repo-wide fallback
           key: ${{ runner.os }}-cargo-src-tauri-${{ hashFiles('src-tauri/Cargo.lock', '**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
@@ -37,14 +41,7 @@ jobs:
 
       - name: Show Rust version
         run: rustc --version
-      
-      - name: install dependencies (ubuntu only)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Run backend tests (src-tauri)
         working-directory: src-tauri
-        run: |
-          # run the tests for the crate in src-tauri
-          cargo test --verbose
+        run: cargo test --verbose
