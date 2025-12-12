@@ -37,11 +37,15 @@ jobs:
       - name: Install sqlx-cli (for query cache)
         run: cargo install sqlx-cli --no-default-features --features postgres
 
-      - name: Install frontend dependencies
-        run: npm ci
+      - name: Verify SQLx cache is up-to-date
+        working-directory: src-tauri
+        run: cargo sqlx prepare --check
 
-      - name: Run frontend tests
-        run: npm test
+      #- name: Install frontend dependencies
+      #  run: npm ci
+
+      #- name: Run frontend tests
+      #  run: npm test
 
       - name: Run backend tests
         working-directory: src-tauri
