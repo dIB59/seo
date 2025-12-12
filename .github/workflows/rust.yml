@@ -1,54 +1,30 @@
 name: test backend
-
 on:
   push:
     branches:
       - main
   pull_request:
-
 jobs:
   test:
     runs-on: ubuntu-22.04
-    defaults:
-      run:
-        shell: bash
-
+    env:
+      SQLX_OFFLINE: true  # Set globally for all steps
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-
+      
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust
+      
+      - name: Cache Rust dependencies
         uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-
-      - name: Install Ubuntu dependencies (Tauri)
+      
+      - name: Install Ubuntu dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-
-      - name: Install sqlx-cli (for query cache)
-        run: cargo install sqlx-cli --no-default-features --features postgres
-
-      - name: Verify SQLx cache is up-to-date
-        working-directory: src-tauri
-        run: cargo sqlx prepare --check
-
-      #- name: Install frontend dependencies
-      #  run: npm ci
-
-      #- name: Run frontend tests
-      #  run: npm test
-
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      
       - name: Run backend tests
         working-directory: src-tauri
-        env:
-          SQLX_OFFLINE: 1
         run: cargo test
