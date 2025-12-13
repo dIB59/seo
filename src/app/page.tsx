@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import useSWR from "swr"
-import { Search, RefreshCw } from "lucide-react"
+import { Search, RefreshCw, Settings } from "lucide-react"
 import { Button } from "@/src/components/ui/button"
 import { UrlInputForm } from "@/src/components/url-input-form"
 import { JobList } from "@/src/components/job-list"
@@ -80,18 +80,26 @@ export default function Home() {
 						<p className="text-sm text-muted-foreground">Analyze websites for SEO issues and recommendations</p>
 					</div>
 				</div>
-				<Button variant="ghost" size="sm" onClick={() => mutate()} disabled={isValidating}>
-					<RefreshCw className={`h-4 w-4 mr-2 ${isValidating ? "animate-spin" : ""}`} />
-					Refresh
-				</Button>
+				<div className="flex gap-2">
+					<Button variant="ghost" size="sm" onClick={() => mutate()} disabled={isValidating}>
+						<RefreshCw className={`h-4 w-4 mr-2 ${isValidating ? "animate-spin" : ""}`} />
+						Refresh
+					</Button>
+					<Button variant="outline" size="sm" onClick={() => window.dispatchEvent(new CustomEvent("open-settings-dialog"))}>
+						<Settings className="h-4 w-4 mr-2" />
+						Settings
+					</Button>
+				</div>
 			</div>
 
 			{/* Error Message */}
-			{error && (
-				<div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-					<p className="text-sm text-destructive">{error}</p>
-				</div>
-			)}
+			{
+				error && (
+					<div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+						<p className="text-sm text-destructive">{error}</p>
+					</div>
+				)
+			}
 
 			{/* URL Input Form */}
 			<div className="mb-8">
@@ -106,6 +114,6 @@ export default function Home() {
 				</div>
 				<JobList jobs={jobs} onViewResult={handleViewResult} onCancel={handleCancel} />
 			</div>
-		</main>
+		</main >
 	)
 }

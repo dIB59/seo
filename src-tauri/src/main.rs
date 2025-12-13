@@ -7,10 +7,12 @@ use crate::db::DbState;
 
 mod analysis;
 mod application;
+mod commands;
 mod db;
 mod domain;
 mod error;
 mod extractor;
+mod gemini;
 mod repository;
 mod service;
 
@@ -32,6 +34,8 @@ fn main() {
         .filter_level(log::LevelFilter::Info)
         .init();
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             // block on async init so the pool is available before commands run
             let pool = tauri::async_runtime::block_on(async {
@@ -56,6 +60,11 @@ fn main() {
             analysis::get_all_jobs,
             analysis::cancel_analysis,
             analysis::get_result,
+            commands::get_gemini_insights,
+            commands::get_gemini_api_key,
+            commands::set_gemini_api_key,
+            commands::get_gemini_system_prompt,
+            commands::set_gemini_system_prompt,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
