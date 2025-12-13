@@ -49,3 +49,30 @@ pub async fn init_db(app: &AppHandle) -> Result<SqlitePool> {
 
     Ok(pool)
 }
+
+/// Get a setting value from the database
+pub async fn get_setting(pool: &SqlitePool, key: &str) -> Result<Option<String>> {
+    let result = sqlx::query_scalar::<_, String>("SELECT value FROM settings WHERE key = ?")
+        .bind(key)
+        .fetch_optional(pool)
+        .await
+        .context("Failed to get setting from database")?;
+    
+    Ok(result)
+}
+
+/// Set a setting value in the database
+pub async fn set_setting(pool: &SqlitePool, key: &str, value: &str) -> Result<()> {
+    sqlx::query(
+        "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP"
+    )
+    .bind(key)
+    .bind(value)
+    .bind(value)
+    .execute(pool)
+    .await
+    .context("Failed to set setting in database")?;
+    
+    Ok(())
+}
