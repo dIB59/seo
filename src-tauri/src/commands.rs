@@ -20,6 +20,18 @@ pub async fn get_gemini_insights(
     sitemap_found: bool,
     robots_txt_found: bool,
 ) -> Result<String, String> {
+    // Check if AI is enabled globally
+    let enabled = get_setting(&db.0, "gemini_enabled")
+        .await
+        .map_err(|e| format!("Failed to check AI settings: {}", e))?;
+
+    if let Some(val) = enabled {
+        if val == "false" {
+            log::info!("AI analysis skipped (disabled by user)");
+            return Ok("".to_string());
+        }
+    }
+
     let request = GeminiRequest {
         url,
         seo_score,
@@ -39,6 +51,23 @@ pub async fn get_gemini_insights(
     generate_gemini_analysis(&db.0, request)
         .await
         .map_err(|e| format!("Failed to generate AI insights: {}", e))
+}
+
+#[command]
+pub async fn get_gemini_enabled(db: State<'_, DbState>) -> Result<bool, String> {
+    let val = get_setting(&db.0, "gemini_enabled")
+        .await
+        .map_err(|e| format!("Failed to check AI settings: {}", e))?;
+    
+    // Default to true if not set
+    Ok(val.map(|v| v != "false").unwrap_or(true))
+}
+
+#[command]
+pub async fn set_gemini_enabled(db: State<'_, DbState>, enabled: bool) -> Result<(), String> {
+    set_setting(&db.0, "gemini_enabled", if enabled { "true" } else { "false" })
+        .await
+        .map_err(|e| format!("Failed to update AI settings: {}", e))
 }
 
 #[command]

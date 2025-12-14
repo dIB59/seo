@@ -71,6 +71,8 @@ fn main() {
             commands::set_gemini_context_options,
             commands::get_gemini_prompt_blocks,
             commands::set_gemini_prompt_blocks,
+            commands::get_gemini_enabled,
+            commands::set_gemini_enabled,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

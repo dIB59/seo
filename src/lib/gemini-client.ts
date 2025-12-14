@@ -29,6 +29,13 @@ export async function generateGeminiAnalysis(
     result: CompleteAnalysisResult
 ): Promise<string | null> {
     try {
+        // Check if AI is enabled first
+        const isEnabled = await invoke<boolean>("get_gemini_enabled")
+        if (!isEnabled) {
+            console.log("AI analysis skipped (disabled in settings)")
+            return null
+        }
+
         // Check for API key
         const apiKey = await getStoredApiKey()
 
