@@ -149,3 +149,33 @@ impl ResourceChecker {
         Ok(status)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_links() {
+        let discovery = PageDiscovery::new();
+        let base_url = Url::parse("https://example.com").unwrap();
+        let html = r##"
+            <html>
+                <body>
+                    <a href="/relative">Relative</a>
+                    <a href="https://other.com/absolute">Absolute</a>
+                    <a href="#fragment">Fragment</a>
+                    <a>No Href</a>
+                </body>
+            </html>
+        "##;
+        let document = Html::parse_document(html);
+        let links = discovery.extract_links(&document, &base_url).unwrap();
+
+        // Should return 3 links (relative resolved, absolute, and fragment one resolved)
+        assert_eq!(links.len(), 3);
+        
+        assert!(links.contains(&Url::parse("https://example.com/relative").unwrap()));
+        assert!(links.contains(&Url::parse("https://other.com/absolute").unwrap()));
+        assert!(links.contains(&Url::parse("https://example.com/#fragment").unwrap()));
+    }
+}

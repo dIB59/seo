@@ -60,27 +60,13 @@ pub async fn generate_gemini_analysis(pool: &SqlitePool, request: GeminiRequest)
     let blocks: Vec<PromptBlock> = serde_json::from_str(&blocks_json)
         .unwrap_or_default();
 
-    // Helper closure for variable substitution
-    let replace_vars = |text: &str| -> String {
-        text.replace("{url}", &request.url)
-            .replace("{score}", &request.seo_score.to_string())
-            .replace("{pages_count}", &request.pages_count.to_string())
-            .replace("{total_issues}", &request.total_issues.to_string())
-            .replace("{critical_issues}", &request.critical_issues.to_string())
-            .replace("{warning_issues}", &request.warning_issues.to_string())
-            .replace("{suggestion_issues}", &request.suggestion_issues.to_string())
-            .replace("{top_issues}", &request.top_issues.join("\n"))
-            .replace("{avg_load_time}", &format!("{:.2}", request.avg_load_time))
-            .replace("{total_words}", &request.total_words.to_string())
-            .replace("{ssl_certificate}", if request.ssl_certificate { "Yes" } else { "No" })
-            .replace("{sitemap_found}", if request.sitemap_found { "Yes" } else { "No" })
-            .replace("{robots_txt_found}", if request.robots_txt_found { "Yes" } else { "No" })
-    };
+    // Helper closure for variable substitution is replaced by public helper
+
 
     // Build the requirements/data part of the prompt by processing blocks
     let mut requirements_parts = Vec::new();
     for block in blocks {
-        let processed_content = replace_vars(&block.content);
+        let processed_content = replace_prompt_vars(&block.content, &request);
         requirements_parts.push(processed_content);
     }
     
@@ -90,7 +76,7 @@ pub async fn generate_gemini_analysis(pool: &SqlitePool, request: GeminiRequest)
     }
 
     let requirements_text = requirements_parts.join("\n\n");
-    let persona_text = replace_vars(&persona);
+    let persona_text = replace_prompt_vars(&persona, &request);
 
     // Assemble the final prompt
     let prompt = format!("{}\n\nAnalyze the following SEO audit results:\n\n{}", persona_text, requirements_text);
@@ -143,4 +129,54 @@ pub async fn generate_gemini_analysis(pool: &SqlitePool, request: GeminiRequest)
     }
 
     Ok(text)
+}
+
+/// Helper to substitute variables in prompt templates
+pub fn replace_prompt_vars(text: &str, request: &GeminiRequest) -> String {
+    text.replace("{url}", &request.url)
+        .replace("{score}", &request.seo_score.to_string())
+        .replace("{pages_count}", &request.pages_count.to_string())
+        .replace("{total_issues}", &request.total_issues.to_string())
+        .replace("{critical_issues}", &request.critical_issues.to_string())
+        .replace("{warning_issues}", &request.warning_issues.to_string())
+        .replace("{suggestion_issues}", &request.suggestion_issues.to_string())
+        .replace("{top_issues}", &request.top_issues.join("\n"))
+        .replace("{avg_load_time}", &format!("{:.2}", request.avg_load_time))
+        .replace("{total_words}", &request.total_words.to_string())
+        .replace("{ssl_certificate}", if request.ssl_certificate { "Yes" } else { "No" })
+        .replace("{sitemap_found}", if request.sitemap_found { "Yes" } else { "No" })
+        .replace("{robots_txt_found}", if request.robots_txt_found { "Yes" } else { "No" })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_replace_prompt_vars() {
+        let request = GeminiRequest {
+            analysis_id: "test".into(),
+            url: "https://example.com".into(),
+            seo_score: 85,
+            pages_count: 5,
+            total_issues: 10,
+            critical_issues: 2,
+            warning_issues: 3,
+            suggestion_issues: 5,
+            top_issues: vec!["Issue 1".into(), "Issue 2".into()],
+            avg_load_time: 1.23,
+            total_words: 1000,
+            ssl_certificate: true,
+            sitemap_found: false,
+            robots_txt_found: true,
+        };
+
+        let template = "Analyze {url} with score {score}. Top issues:\n{top_issues}";
+        let result = replace_prompt_vars(template, &request);
+
+        assert!(result.contains("https://example.com"));
+        assert!(result.contains("85"));
+        assert!(result.contains("Issue 1"));
+        assert!(result.contains("Issue 2"));
+    }
 }

@@ -468,3 +468,124 @@ pub struct SeoIssue {
     pub line_number: Option<i64>,
     pub recommendation: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_job_status_strings() {
+        assert_eq!(JobStatus::Queued.as_str(), "queued");
+        assert_eq!(JobStatus::Failed.as_str(), "failed");
+    }
+
+    #[test]
+    fn test_issue_type_serialization() {
+       let critical = IssueType::Critical;
+       assert_eq!(critical.as_str(), "critical");
+    }
+
+    #[test]
+    fn test_generate_issues_missing_title() {
+        let page = PageAnalysisData {
+            analysis_id: "1".into(),
+            url: "http://example.com".into(),
+            title: None, // Missing
+            meta_description: Some("desc".into()),
+            meta_keywords: None,
+            canonical_url: None,
+            h1_count: 1,
+            h2_count: 0,
+            h3_count: 0,
+            word_count: 500,
+            image_count: 1,
+            images_without_alt: 0,
+            internal_links: 0,
+            external_links: 0,
+            load_time: 0.5,
+            status_code: Some(200),
+            content_size: 1000,
+            mobile_friendly: true,
+            has_structured_data: true,
+            lighthouse_performance: None,
+            lighthouse_accessibility: None,
+            lighthouse_best_practices: None,
+            lighthouse_seo: None,
+            links: vec![],
+        };
+
+        let issues = page.generate_issues();
+        assert!(issues.iter().any(|i| i.title == "Missing Title Tag"));
+    }
+
+    #[test]
+    fn test_generate_issues_short_content() {
+         let page = PageAnalysisData {
+            analysis_id: "1".into(),
+            url: "http://example.com".into(),
+            title: Some("A Very Good Title For SEO Purposes".into()),
+            meta_description: Some("desc".into()),
+            meta_keywords: None,
+            canonical_url: None,
+            h1_count: 1,
+            h2_count: 0,
+            h3_count: 0,
+            word_count: 50, // Too short
+            image_count: 1,
+            images_without_alt: 0,
+            internal_links: 0,
+            external_links: 0,
+            load_time: 0.5,
+            status_code: Some(200),
+            content_size: 1000,
+            mobile_friendly: true,
+            has_structured_data: true,
+            lighthouse_performance: None,
+            lighthouse_accessibility: None,
+            lighthouse_best_practices: None,
+            lighthouse_seo: None,
+            links: vec![],
+        };
+
+        let issues = page.generate_issues();
+        assert!(issues.iter().any(|i| i.title == "Thin Content"));
+    }
+
+    #[test]
+    fn test_build_from_parsed() {
+        let html = r#"
+        <html>
+            <head>
+                <title>Test Page</title>
+                <meta name="description" content="A test page description.">
+            </head>
+            <body>
+                <h1>Main Heading</h1>
+                <h2>Subheading</h2>
+                <p>some content here with enough words to be counted.</p>
+                <img src="img1.jpg" alt="Description">
+                <img src="img2.jpg"> <!-- Missing alt -->
+                <a href="/internal">Internal</a>
+                <a href="https://external.com">External</a>
+            </body>
+        </html>
+        "#;
+        let document = Html::parse_document(html);
+        let url = "https://example.com/page".to_string();
+        
+        let (page, issues) = PageAnalysisData::build_from_parsed(url.clone(), document, 0.5, 200, 500);
+
+        assert_eq!(page.title, Some("Test Page".to_string()));
+        assert_eq!(page.meta_description, Some("A test page description.".to_string()));
+        assert_eq!(page.h1_count, 1);
+        assert_eq!(page.h2_count, 1);
+        assert_eq!(page.image_count, 2);
+        assert_eq!(page.images_without_alt, 1); // img2 missing alt
+        assert_eq!(page.internal_links, 1);
+        assert_eq!(page.external_links, 1);
+        
+        // Issues should be generated too
+        assert!(!issues.is_empty()); 
+        assert!(issues.iter().any(|i| i.title == "Images Missing Alt Text"));
+    }
+}
