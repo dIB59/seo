@@ -40,6 +40,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu"
+import { Switch } from "@/src/components/ui/switch"
 
 const DEFAULT_PERSONA = "You are an expert SEO consultant. Your tone is professional, encouraging, and data-driven."
 
@@ -114,6 +115,7 @@ export function SettingsDialog() {
     const [apiKey, setApiKey] = useState("")
     const [persona, setPersona] = useState(DEFAULT_PERSONA)
     const [blocks, setBlocks] = useState<PromptBlock[]>([])
+    const [aiEnabled, setAiEnabled] = useState(true)
     const [isLoading, setIsLoading] = useState(false)
 
     const sensors = useSensors(
@@ -140,14 +142,16 @@ export function SettingsDialog() {
 
     const loadSettings = async () => {
         try {
-            const [key, savedPersona, savedBlocks] = await Promise.all([
+            const [key, savedPersona, savedBlocks, enabled] = await Promise.all([
                 invoke<string | null>("get_gemini_api_key"),
                 invoke<string | null>("get_gemini_persona"),
-                invoke<string | null>("get_gemini_prompt_blocks")
+                invoke<string | null>("get_gemini_prompt_blocks"),
+                invoke<boolean>("get_gemini_enabled")
             ])
 
             if (key) setApiKey(key)
             setPersona(savedPersona || DEFAULT_PERSONA)
+            setAiEnabled(enabled)
 
             if (savedBlocks) {
                 try {
@@ -193,7 +197,8 @@ export function SettingsDialog() {
         try {
             await Promise.all([
                 invoke("set_gemini_persona", { persona: persona.trim() }),
-                invoke("set_gemini_prompt_blocks", { blocks: JSON.stringify(blocks) })
+                invoke("set_gemini_prompt_blocks", { blocks: JSON.stringify(blocks) }),
+                invoke("set_gemini_enabled", { enabled: aiEnabled })
             ])
             toast.success("AI settings saved successfully")
         } catch (error) {
@@ -206,6 +211,7 @@ export function SettingsDialog() {
 
     const handleResetDefaults = () => {
         setPersona(DEFAULT_PERSONA)
+        setAiEnabled(true)
         setBlocks([
             { id: "intro", type: "text", content: "Please provide:\n1. A brief executive summary...\n\nData to include:" },
             ...VARIABLE_OPTIONS.map(v => ({ id: v.id, type: "variable" as const, content: v.template }))
@@ -264,12 +270,23 @@ export function SettingsDialog() {
 
                 <Tabs defaultValue="general" className="w-full">
                     <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="general">API Configuration</TabsTrigger>
+                        <TabsTrigger value="general">Generic Settings</TabsTrigger>
                         <TabsTrigger value="prompt">Prompt Builder</TabsTrigger>
                     </TabsList>
 
-                    <TabsContent value="general" className="py-4 space-y-4">
-                        <div className="grid gap-2">
+                    <TabsContent value="general" className="py-4 space-y-6">
+                        {/* Enable Toggle */}
+                        <div className="flex items-center justify-between space-x-2 border p-3 rounded-lg bg-secondary/20">
+                            <div className="flex flex-col space-y-1">
+                                <Label htmlFor="ai-mode" className="font-semibold">Enable AI Analysis</Label>
+                                <span className="text-xs text-muted-foreground">
+                                    When enabled, generates AI insights using Gemini Flash. Disabling skips this step.
+                                </span>
+                            </div>
+                            <Switch id="ai-mode" checked={aiEnabled} onCheckedChange={setAiEnabled} />
+                        </div>
+
+                        <div className={`grid gap-2 transition-opacity ${!aiEnabled ? 'opacity-50 pointer-events-none' : ''}`}>
                             <Label htmlFor="apiKey">Gemini API Key</Label>
                             <div className="flex gap-2">
                                 <Input
@@ -287,6 +304,17 @@ export function SettingsDialog() {
                                 Get your free API key at <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-primary hover:underline">Google AI Studio</a>.
                             </p>
                         </div>
+
+                        {/* Persona Input (Moved here) */}
+                        <div className={`grid gap-2 transition-opacity ${!aiEnabled ? 'opacity-50 pointer-events-none' : ''}`}>
+                            <Label htmlFor="persona">AI Role & Tone</Label>
+                            <Input
+                                id="persona"
+                                value={persona}
+                                onChange={(e) => setPersona(e.target.value)}
+                                placeholder="e.g. You are a strict SEO auditor..."
+                            />
+                        </div>
                     </TabsContent>
 
                     <TabsContent value="prompt" className="py-4 space-y-4">
@@ -299,16 +327,7 @@ export function SettingsDialog() {
                             </Button>
                         </div>
 
-                        {/* Persona Input (remains global) */}
-                        <div className="grid gap-2 mb-6">
-                            <Label htmlFor="persona">AI Role & Tone</Label>
-                            <Input
-                                id="persona"
-                                value={persona}
-                                onChange={(e) => setPersona(e.target.value)}
-                                placeholder="e.g. You are a strict SEO auditor..."
-                            />
-                        </div>
+
 
                         {/* Prompt Blocks List - DRAGGABLE */}
                         <div className="space-y-3">
