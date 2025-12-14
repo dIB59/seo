@@ -256,9 +256,9 @@ export function SettingsDialog() {
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Settings</DialogTitle>
+                    <DialogTitle>AI Analysis Configuration</DialogTitle>
                     <DialogDescription>
-                        Configure your AI settings and API access.
+                        Configure Gemini AI API keys, expert persona, and prompt structure.
                     </DialogDescription>
                 </DialogHeader>
 

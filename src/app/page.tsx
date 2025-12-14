@@ -87,7 +87,7 @@ export default function Home() {
 					</Button>
 					<Button variant="outline" size="sm" onClick={() => window.dispatchEvent(new CustomEvent("open-settings-dialog"))}>
 						<Settings className="h-4 w-4 mr-2" />
-						Settings
+						AI Configuration
 					</Button>
 				</div>
 			</div>
