@@ -59,6 +59,7 @@ export async function generateGeminiAnalysis(
 
         // Call secure Tauri backend command
         const insights = await invoke<string>("get_gemini_insights", {
+            analysisId: analysis.id,
             url: analysis.url,
             seoScore: summary.seo_score,
             pagesCount: pages.length,

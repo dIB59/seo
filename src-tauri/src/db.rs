@@ -76,3 +76,30 @@ pub async fn set_setting(pool: &SqlitePool, key: &str, value: &str) -> Result<()
     
     Ok(())
 }
+
+/// Get cached AI insights for an analysis
+pub async fn get_ai_insights(pool: &SqlitePool, analysis_id: &str) -> Result<Option<String>> {
+    let result = sqlx::query_scalar::<_, String>("SELECT insights FROM analysis_ai_insights WHERE analysis_id = ?")
+        .bind(analysis_id)
+        .fetch_optional(pool)
+        .await
+        .context("Failed to get ai insights from database")?;
+    
+    Ok(result)
+}
+
+/// Save AI insights to the database
+pub async fn save_ai_insights(pool: &SqlitePool, analysis_id: &str, insights: &str) -> Result<()> {
+    sqlx::query(
+        "INSERT INTO analysis_ai_insights (analysis_id, insights, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT(analysis_id) DO UPDATE SET insights = ?, created_at = CURRENT_TIMESTAMP"
+    )
+    .bind(analysis_id)
+    .bind(insights)
+    .bind(insights)
+    .execute(pool)
+    .await
+    .context("Failed to save ai insights to database")?;
+    
+    Ok(())
+}

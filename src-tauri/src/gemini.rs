@@ -15,6 +15,7 @@ pub struct PromptBlock {
 
 #[derive(Serialize, Deserialize)]
 pub struct GeminiRequest {
+    pub analysis_id: String, // Added for caching
     pub url: String,
     pub seo_score: i32,
     pub pages_count: i32,
@@ -32,6 +33,12 @@ pub struct GeminiRequest {
 
 /// Generate AI-powered SEO analysis using Google Gemini API
 pub async fn generate_gemini_analysis(pool: &SqlitePool, request: GeminiRequest) -> Result<String> {
+    // 1. Check cache first
+    if let Ok(Some(cached_insights)) = db::get_ai_insights(pool, &request.analysis_id).await {
+        log::info!("Using cached AI insights for analysis {}", request.analysis_id);
+        return Ok(cached_insights);
+    }
+
     // Get API key from database
     let api_key = match db::get_setting(pool, "gemini_api_key").await? {
         Some(key) if !key.is_empty() => key,
@@ -90,7 +97,7 @@ pub async fn generate_gemini_analysis(pool: &SqlitePool, request: GeminiRequest)
 
     // Prepare API request
     let api_url = format!(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={}",
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={}",
         api_key
     );
 
@@ -129,6 +136,11 @@ pub async fn generate_gemini_analysis(pool: &SqlitePool, request: GeminiRequest)
         .as_str()
         .context("Failed to extract text from Gemini response")?
         .to_string();
+
+    // 2. Save to cache
+    if let Err(e) = db::save_ai_insights(pool, &request.analysis_id, &text).await {
+        log::error!("Failed to save AI insights to cache: {}", e);
+    }
 
     Ok(text)
 }
