@@ -36,17 +36,17 @@
       {
         "name": "started_at",
         "ordinal": 6,
-        "type_info": "Datetime"
+        "type_info": "Text"
       },
       {
         "name": "created_at",
         "ordinal": 7,
-        "type_info": "Datetime"
+        "type_info": "Text"
       },
       {
         "name": "completed_at",
         "ordinal": 8,
-        "type_info": "Datetime"
+        "type_info": "Text"
       },
       {
         "name": "sitemap_found",
@@ -74,7 +74,7 @@
       false,
       false,
       false,
-      true,
+      false,
       true,
       true,
       false,

@@ -63,8 +63,14 @@ fn main() {
             commands::get_gemini_insights,
             commands::get_gemini_api_key,
             commands::set_gemini_api_key,
-            commands::get_gemini_system_prompt,
-            commands::set_gemini_system_prompt,
+            commands::get_gemini_persona,
+            commands::set_gemini_persona,
+            commands::get_gemini_requirements,
+            commands::set_gemini_requirements,
+            commands::get_gemini_context_options,
+            commands::set_gemini_context_options,
+            commands::get_gemini_prompt_blocks,
+            commands::set_gemini_prompt_blocks,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
