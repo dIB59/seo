@@ -1,6 +1,7 @@
-//! SQLite repository implementations - no extra interfaces
-
-use crate::{analysis::AnalysisSettingsRequest, application::PageEdge, domain::models::*};
+use crate::{
+    commands::analysis::AnalysisSettingsRequest, domain::models::*,
+    service::job_processor::PageEdge,
+};
 use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use uuid::Uuid;

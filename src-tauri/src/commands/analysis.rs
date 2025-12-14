@@ -5,11 +5,11 @@ use tauri::State;
 use url::Url;
 
 use crate::{
-    application::JobProcessor,
     db::DbState,
     domain::models::{AnalysisProgress, CompleteAnalysisResult, JobStatus},
     error::CommandError,
     repository::sqlite::{JobRepository, ResultsRepository},
+    service::JobProcessor,
 };
 
 #[derive(Debug, serde::Serialize)]
