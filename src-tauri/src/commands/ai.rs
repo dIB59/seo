@@ -1,8 +1,7 @@
 use tauri::{command, State};
 
-use crate::analysis;
 use crate::db::{get_setting, set_setting, DbState};
-use crate::gemini::{generate_gemini_analysis, GeminiRequest};
+use crate::service::{generate_gemini_analysis, GeminiRequest};
 
 #[command]
 pub async fn get_gemini_insights(

@@ -5,7 +5,7 @@ use scraper::{Html, Selector};
 use serde::Serialize;
 use url::Url;
 
-use crate::application::PageEdge;
+use crate::service::job_processor::PageEdge;
 
 // ====== Enums ======
 
