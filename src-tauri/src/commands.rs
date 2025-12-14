@@ -1,11 +1,13 @@
 use tauri::{command, State};
 
-use crate::db::{DbState, get_setting, set_setting};
+use crate::analysis;
+use crate::db::{get_setting, set_setting, DbState};
 use crate::gemini::{generate_gemini_analysis, GeminiRequest};
 
 #[command]
 pub async fn get_gemini_insights(
     db: State<'_, DbState>,
+    analysis_id: String,
     url: String,
     seo_score: i32,
     pages_count: i32,
@@ -21,6 +23,7 @@ pub async fn get_gemini_insights(
     robots_txt_found: bool,
 ) -> Result<String, String> {
     // Check if AI is enabled globally
+    log::info!("Analysis Id for AI insight: {:?}", analysis_id);
     let enabled = get_setting(&db.0, "gemini_enabled")
         .await
         .map_err(|e| format!("Failed to check AI settings: {}", e))?;
@@ -33,6 +36,7 @@ pub async fn get_gemini_insights(
     }
 
     let request = GeminiRequest {
+        analysis_id,
         url,
         seo_score,
         pages_count,
@@ -58,16 +62,20 @@ pub async fn get_gemini_enabled(db: State<'_, DbState>) -> Result<bool, String> 
     let val = get_setting(&db.0, "gemini_enabled")
         .await
         .map_err(|e| format!("Failed to check AI settings: {}", e))?;
-    
+
     // Default to true if not set
     Ok(val.map(|v| v != "false").unwrap_or(true))
 }
 
 #[command]
 pub async fn set_gemini_enabled(db: State<'_, DbState>, enabled: bool) -> Result<(), String> {
-    set_setting(&db.0, "gemini_enabled", if enabled { "true" } else { "false" })
-        .await
-        .map_err(|e| format!("Failed to update AI settings: {}", e))
+    set_setting(
+        &db.0,
+        "gemini_enabled",
+        if enabled { "true" } else { "false" },
+    )
+    .await
+    .map_err(|e| format!("Failed to update AI settings: {}", e))
 }
 
 #[command]
@@ -106,7 +114,10 @@ pub async fn get_gemini_requirements(db: State<'_, DbState>) -> Result<Option<St
 }
 
 #[command]
-pub async fn set_gemini_requirements(db: State<'_, DbState>, requirements: String) -> Result<(), String> {
+pub async fn set_gemini_requirements(
+    db: State<'_, DbState>,
+    requirements: String,
+) -> Result<(), String> {
     set_setting(&db.0, "gemini_requirements", &requirements)
         .await
         .map_err(|e| format!("Failed to set requirements: {}", e))
@@ -120,7 +131,10 @@ pub async fn get_gemini_context_options(db: State<'_, DbState>) -> Result<Option
 }
 
 #[command]
-pub async fn set_gemini_context_options(db: State<'_, DbState>, options: String) -> Result<(), String> {
+pub async fn set_gemini_context_options(
+    db: State<'_, DbState>,
+    options: String,
+) -> Result<(), String> {
     set_setting(&db.0, "gemini_context_options", &options)
         .await
         .map_err(|e| format!("Failed to set context options: {}", e))
@@ -134,7 +148,10 @@ pub async fn get_gemini_prompt_blocks(db: State<'_, DbState>) -> Result<Option<S
 }
 
 #[command]
-pub async fn set_gemini_prompt_blocks(db: State<'_, DbState>, blocks: String) -> Result<(), String> {
+pub async fn set_gemini_prompt_blocks(
+    db: State<'_, DbState>,
+    blocks: String,
+) -> Result<(), String> {
     set_setting(&db.0, "gemini_prompt_blocks", &blocks)
         .await
         .map_err(|e| format!("Failed to set prompt blocks: {}", e))

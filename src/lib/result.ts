@@ -1,4 +1,3 @@
-import { log } from "node:console";
 import { logger } from "./logger";
 
 export class Result<T, E = string> {
