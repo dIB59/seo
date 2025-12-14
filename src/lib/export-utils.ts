@@ -3,6 +3,7 @@ import type { CompleteAnalysisResult } from "@/src/lib/types"
 import { generateReport, generateCSV } from "@/src/lib/report-generator"
 import { save } from "@tauri-apps/plugin-dialog"
 import { writeTextFile, writeFile } from "@tauri-apps/plugin-fs"
+
 import { toast } from "sonner"
 
 // ============================================================================
@@ -32,13 +33,6 @@ function formatDate(date: Date = new Date()): string {
 }
 
 /**
- * Check if we're running in a Tauri environment
- */
-function isTauriEnvironment(): boolean {
-    return typeof window !== "undefined" && "__TAURI__" in window
-}
-
-/**
  * Save file using Tauri's save dialog (if available) or browser download
  */
 async function saveFile(
@@ -46,12 +40,6 @@ async function saveFile(
     defaultFilename: string,
     filters?: { name: string; extensions: string[] }[]
 ): Promise<void> {
-    // If not in Tauri environment, use browser download directly
-    if (!isTauriEnvironment()) {
-        fallbackDownload(content, defaultFilename)
-        return
-    }
-
     try {
         const filePath = await save({
             defaultPath: defaultFilename,
@@ -74,12 +62,17 @@ async function saveFile(
     } catch (error: any) {
         // Check for common cancellation errors
         const errorMessage = String(error)
+        const errorString = JSON.stringify(error, Object.getOwnPropertyNames(error))
+
         if (
             errorMessage.includes("cancelled") ||
             errorMessage.includes("-999") ||
+            errorMessage.includes("NSURLErrorDomain") ||
+            errorMessage.includes("Operation couldn't be completed") ||
+            errorString.includes("-999") ||
             (typeof error === 'object' && error !== null && 'code' in error && error.code === -999)
         ) {
-            toast.info("File save was cancelled")
+            toast.info("Save cancelled")
             console.log("Save cancelled by user (caught error)")
             return
         }
@@ -127,13 +120,21 @@ function fallbackDownload(content: string | Uint8Array<ArrayBuffer>, filename: s
 // ============================================================================
 
 import { generateGeminiAnalysis } from "@/src/lib/gemini-client"
+import { invoke } from "@tauri-apps/api/core"
 
 export async function generatePDF(result: CompleteAnalysisResult): Promise<void> {
     const { analysis, summary, pages, issues } = result
 
-    //Generate AI-powered recommendations
-    toast.info("Generating AI-powered insights...")
-    const aiInsights = await generateGeminiAnalysis(result)
+    // Generate AI-powered recommendations if enabled
+    const aiEnabled = await invoke<boolean>("get_gemini_enabled")
+    let aiInsights: string | null = null
+
+    if (aiEnabled) {
+        toast.info("Generating AI-powered insights...")
+        aiInsights = await generateGeminiAnalysis(result)
+    } else {
+        toast.info("AI analysis skipped (disabled in settings)")
+    }
 
     const pdf = new jsPDF()
     const pageWidth = pdf.internal.pageSize.getWidth()
