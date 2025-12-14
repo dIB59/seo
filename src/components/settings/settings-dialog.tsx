@@ -192,18 +192,30 @@ export function SettingsDialog() {
         }
     }
 
-    const handleSavePromptSettings = async () => {
+    const handleSaveGenericSettings = async () => {
         setIsLoading(true)
         try {
             await Promise.all([
                 invoke("set_gemini_persona", { persona: persona.trim() }),
-                invoke("set_gemini_prompt_blocks", { blocks: JSON.stringify(blocks) }),
                 invoke("set_gemini_enabled", { enabled: aiEnabled })
             ])
-            toast.success("AI settings saved successfully")
+            toast.success("Configuration saved successfully")
+        } catch (error) {
+            console.error("Error saving generic settings:", error)
+            toast.error("Failed to save configuration")
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    const handleSavePromptSettings = async () => {
+        setIsLoading(true)
+        try {
+            await invoke("set_gemini_prompt_blocks", { blocks: JSON.stringify(blocks) })
+            toast.success("Prompt layout saved successfully")
         } catch (error) {
             console.error("Error saving prompt settings:", error)
-            toast.error("Failed to save AI settings")
+            toast.error("Failed to save prompt layout")
         } finally {
             setIsLoading(false)
         }
@@ -271,7 +283,7 @@ export function SettingsDialog() {
                 <Tabs defaultValue="general" className="w-full">
                     <TabsList className="grid w-full grid-cols-2">
                         <TabsTrigger value="general">Generic Settings</TabsTrigger>
-                        <TabsTrigger value="prompt">Prompt Builder</TabsTrigger>
+                        <TabsTrigger value="prompt" disabled={!aiEnabled}>Prompt Builder</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="general" className="py-4 space-y-6">
@@ -315,9 +327,15 @@ export function SettingsDialog() {
                                 placeholder="e.g. You are a strict SEO auditor..."
                             />
                         </div>
+
+                        <div className="flex justify-end pt-4">
+                            <Button onClick={handleSaveGenericSettings} disabled={isLoading}>
+                                Save Configuration
+                            </Button>
+                        </div>
                     </TabsContent>
 
-                    <TabsContent value="prompt" className="py-4 space-y-4">
+                    <TabsContent value="prompt" className={`py-4 space-y-4 transition-opacity ${!aiEnabled ? 'opacity-50 pointer-events-none' : ''}`}>
                         <div className="flex justify-between items-center mb-2">
                             <div className="text-xs text-muted-foreground">
                                 Build your prompt by arranging blocks. The AI reads them top-to-bottom.
