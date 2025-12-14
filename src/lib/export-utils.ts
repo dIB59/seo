@@ -71,7 +71,19 @@ async function saveFile(
             toast.info("File save was cancelled")
             console.log("Save cancelled by user")
         }
-    } catch (error) {
+    } catch (error: any) {
+        // Check for common cancellation errors
+        const errorMessage = String(error)
+        if (
+            errorMessage.includes("cancelled") ||
+            errorMessage.includes("-999") ||
+            (typeof error === 'object' && error !== null && 'code' in error && error.code === -999)
+        ) {
+            toast.info("File save was cancelled")
+            console.log("Save cancelled by user (caught error)")
+            return
+        }
+
         console.error("Error saving file:", error)
         toast.error("Failed to save file. Using browser download instead.")
         // Fallback to browser download if Tauri API fails
