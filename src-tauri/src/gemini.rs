@@ -6,6 +6,13 @@ use sqlx::SqlitePool;
 
 use crate::db;
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct PromptBlock {
+    pub id: String,
+    pub r#type: String, // "text" or "variable"
+    pub content: String,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct GeminiRequest {
     pub url: String,
@@ -33,52 +40,53 @@ pub async fn generate_gemini_analysis(pool: &SqlitePool, request: GeminiRequest)
         }
     };
 
-    // Get system prompt from database, or use default if missing
-    let system_prompt_template = match db::get_setting(pool, "gemini_system_prompt").await? {
-        Some(prompt) if !prompt.is_empty() => prompt,
-        _ => r#"You are an expert SEO consultant. Analyze the following SEO audit results and provide actionable recommendations.
-
-Website: {url}
-SEO Score: {score}/100
-Pages Analyzed: {pages_count}
-Total Issues: {total_issues}
-- Critical: {critical_issues}
-- Warnings: {warning_issues}
-- Suggestions: {suggestion_issues}
-
-Top Issues Found:
-{top_issues}
-
-Site Metrics:
-- Average Load Time: {avg_load_time}s
-- Total Words: {total_words}
-- SSL Certificate: {ssl_certificate}
-- Sitemap Found: {sitemap_found}
-- Robots.txt Found: {robots_txt_found}
-
-Please provide:
-1. A brief executive summary of the site's SEO health (2-3 sentences)
-2. Top 5 priority actions the site owner should take, ranked by impact
-3. Expected outcomes if these recommendations are implemented
-
-Keep your response concise, actionable, and professional. Format for a PDF report."#.to_string(),
+    // Get persona from database
+    let persona = match db::get_setting(pool, "gemini_persona").await? {
+        Some(p) if !p.is_empty() => p,
+        _ => "You are an expert SEO consultant. Your tone is professional, encouraging, and data-driven.".to_string(),
     };
 
-    // Replace placeholders in the prompt
-    let prompt = system_prompt_template
-        .replace("{url}", &request.url)
-        .replace("{score}", &request.seo_score.to_string())
-        .replace("{pages_count}", &request.pages_count.to_string())
-        .replace("{total_issues}", &request.total_issues.to_string())
-        .replace("{critical_issues}", &request.critical_issues.to_string())
-        .replace("{warning_issues}", &request.warning_issues.to_string())
-        .replace("{suggestion_issues}", &request.suggestion_issues.to_string())
-        .replace("{top_issues}", &request.top_issues.join("\n"))
-        .replace("{avg_load_time}", &format!("{:.2}", request.avg_load_time))
-        .replace("{total_words}", &request.total_words.to_string())
-        .replace("{ssl_certificate}", if request.ssl_certificate { "Yes" } else { "No" })
-        .replace("{sitemap_found}", if request.sitemap_found { "Yes" } else { "No" })
-        .replace("{robots_txt_found}", if request.robots_txt_found { "Yes" } else { "No" });
+    // Get prompt blocks from database
+    let blocks_json = db::get_setting(pool, "gemini_prompt_blocks").await?
+        .unwrap_or_else(|| "[]".to_string());
+    
+    let blocks: Vec<PromptBlock> = serde_json::from_str(&blocks_json)
+        .unwrap_or_default();
+
+    // Helper closure for variable substitution
+    let replace_vars = |text: &str| -> String {
+        text.replace("{url}", &request.url)
+            .replace("{score}", &request.seo_score.to_string())
+            .replace("{pages_count}", &request.pages_count.to_string())
+            .replace("{total_issues}", &request.total_issues.to_string())
+            .replace("{critical_issues}", &request.critical_issues.to_string())
+            .replace("{warning_issues}", &request.warning_issues.to_string())
+            .replace("{suggestion_issues}", &request.suggestion_issues.to_string())
+            .replace("{top_issues}", &request.top_issues.join("\n"))
+            .replace("{avg_load_time}", &format!("{:.2}", request.avg_load_time))
+            .replace("{total_words}", &request.total_words.to_string())
+            .replace("{ssl_certificate}", if request.ssl_certificate { "Yes" } else { "No" })
+            .replace("{sitemap_found}", if request.sitemap_found { "Yes" } else { "No" })
+            .replace("{robots_txt_found}", if request.robots_txt_found { "Yes" } else { "No" })
+    };
+
+    // Build the requirements/data part of the prompt by processing blocks
+    let mut requirements_parts = Vec::new();
+    for block in blocks {
+        let processed_content = replace_vars(&block.content);
+        requirements_parts.push(processed_content);
+    }
+    
+    // If no blocks specificed (e.g. migration failed or empty), fallback to sensible default (legacy behavior support)
+    if requirements_parts.is_empty() {
+        requirements_parts.push(format!("Website: {}\nSEO Score: {}/100", request.url, request.seo_score));
+    }
+
+    let requirements_text = requirements_parts.join("\n\n");
+    let persona_text = replace_vars(&persona);
+
+    // Assemble the final prompt
+    let prompt = format!("{}\n\nAnalyze the following SEO audit results:\n\n{}", persona_text, requirements_text);
 
     // Prepare API request
     let api_url = format!(

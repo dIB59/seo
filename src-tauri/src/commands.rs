@@ -56,15 +56,57 @@ pub async fn set_gemini_api_key(db: State<'_, DbState>, api_key: String) -> Resu
 }
 
 #[command]
-pub async fn get_gemini_system_prompt(db: State<'_, DbState>) -> Result<Option<String>, String> {
-    get_setting(&db.0, "gemini_system_prompt")
+pub async fn get_gemini_persona(db: State<'_, DbState>) -> Result<Option<String>, String> {
+    get_setting(&db.0, "gemini_persona")
         .await
-        .map_err(|e| format!("Failed to get system prompt: {}", e))
+        .map_err(|e| format!("Failed to get persona: {}", e))
 }
 
 #[command]
-pub async fn set_gemini_system_prompt(db: State<'_, DbState>, prompt: String) -> Result<(), String> {
-    set_setting(&db.0, "gemini_system_prompt", &prompt)
+pub async fn set_gemini_persona(db: State<'_, DbState>, persona: String) -> Result<(), String> {
+    set_setting(&db.0, "gemini_persona", &persona)
         .await
-        .map_err(|e| format!("Failed to set system prompt: {}", e))
+        .map_err(|e| format!("Failed to set persona: {}", e))
+}
+
+#[command]
+pub async fn get_gemini_requirements(db: State<'_, DbState>) -> Result<Option<String>, String> {
+    get_setting(&db.0, "gemini_requirements")
+        .await
+        .map_err(|e| format!("Failed to get requirements: {}", e))
+}
+
+#[command]
+pub async fn set_gemini_requirements(db: State<'_, DbState>, requirements: String) -> Result<(), String> {
+    set_setting(&db.0, "gemini_requirements", &requirements)
+        .await
+        .map_err(|e| format!("Failed to set requirements: {}", e))
+}
+
+#[command]
+pub async fn get_gemini_context_options(db: State<'_, DbState>) -> Result<Option<String>, String> {
+    get_setting(&db.0, "gemini_context_options")
+        .await
+        .map_err(|e| format!("Failed to get context options: {}", e))
+}
+
+#[command]
+pub async fn set_gemini_context_options(db: State<'_, DbState>, options: String) -> Result<(), String> {
+    set_setting(&db.0, "gemini_context_options", &options)
+        .await
+        .map_err(|e| format!("Failed to set context options: {}", e))
+}
+
+#[command]
+pub async fn get_gemini_prompt_blocks(db: State<'_, DbState>) -> Result<Option<String>, String> {
+    get_setting(&db.0, "gemini_prompt_blocks")
+        .await
+        .map_err(|e| format!("Failed to get prompt blocks: {}", e))
+}
+
+#[command]
+pub async fn set_gemini_prompt_blocks(db: State<'_, DbState>, blocks: String) -> Result<(), String> {
+    set_setting(&db.0, "gemini_prompt_blocks", &blocks)
+        .await
+        .map_err(|e| format!("Failed to set prompt blocks: {}", e))
 }
