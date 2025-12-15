@@ -32,7 +32,11 @@ pub struct GeminiRequest {
 }
 
 /// Generate AI-powered SEO analysis using Google Gemini API
-pub async fn generate_gemini_analysis(pool: &SqlitePool, request: GeminiRequest) -> Result<String> {
+pub async fn generate_gemini_analysis(
+    pool: &SqlitePool,
+    request: GeminiRequest,
+    api_base_url: Option<String>,
+) -> Result<String> {
     // 1. Check cache first
     if let Ok(Some(cached_insights)) = db::get_ai_insights(pool, &request.analysis_id).await {
         log::info!("Using cached AI insights for analysis {}", request.analysis_id);
@@ -82,9 +86,10 @@ pub async fn generate_gemini_analysis(pool: &SqlitePool, request: GeminiRequest)
     let prompt = format!("{}\n\nAnalyze the following SEO audit results:\n\n{}", persona_text, requirements_text);
 
     // Prepare API request
+    let base = api_base_url.as_deref().unwrap_or("https://generativelanguage.googleapis.com");
     let api_url = format!(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={}",
-        api_key
+        "{}/v1beta/models/gemini-2.0-flash:generateContent?key={}",
+        base, api_key
     );
 
     let request_body = json!({
@@ -178,5 +183,57 @@ mod tests {
         assert!(result.contains("85"));
         assert!(result.contains("Issue 1"));
         assert!(result.contains("Issue 2"));
+    }
+
+    #[tokio::test]
+    async fn test_gemini_integration() {
+        // 1. Setup DB with API Key
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+             .max_connections(1)
+             .connect("sqlite::memory:")
+             .await
+             .unwrap();
+        sqlx::migrate!().run(&pool).await.unwrap();
+        db::set_setting(&pool, "gemini_api_key", "test_key").await.unwrap();
+
+        // 2. Mock Gemini API
+        let mut server = mockito::Server::new_async().await;
+        let mock = server.mock("POST", "/v1beta/models/gemini-2.0-flash:generateContent?key=test_key")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(json!({
+                "candidates": [{
+                    "content": {
+                        "parts": [{ "text": "AI Analysis Result" }]
+                    }
+                }]
+            }).to_string())
+            .create_async().await;
+
+        // 3. Make Request
+        let request = GeminiRequest {
+            analysis_id: "integration_test".into(),
+            url: "https://test.com".into(),
+            seo_score: 50,
+            pages_count: 5,
+            total_issues: 2,
+            critical_issues: 1,
+            warning_issues: 1,
+            suggestion_issues: 0,
+            top_issues: vec!["Fix this".into()],
+            avg_load_time: 1.0,
+            total_words: 500,
+            ssl_certificate: true,
+            sitemap_found: true,
+            robots_txt_found: true,
+        };
+
+        let result = generate_gemini_analysis(&pool, request, Some(server.url()))
+            .await
+            .unwrap();
+
+        // 4. Verify
+        assert_eq!(result, "AI Analysis Result");
+        mock.assert_async().await;
     }
 }
