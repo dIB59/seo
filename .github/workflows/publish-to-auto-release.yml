@@ -6,8 +6,6 @@ on:
     workflows: ["Bump version on merge to release"] # exact name of first workflow
     types:
       - completed
-  push:
-    branches: [release]
 
 jobs:
   publish-tauri:
@@ -93,6 +91,29 @@ jobs:
 
       - name: install frontend dependencies
         run: npm ci
+
+      - name: generate release notes from merged PRs
+        id: release_notes
+        run: |
+          # Get the latest tag
+          LATEST_TAG=$(git describe --tags --abbrev=0)
+
+          echo "Latest tag: $LATEST_TAG"
+
+          # Get merged PRs since the latest tag
+          NOTES=$(gh pr list \
+            --state merged \
+            --base main \
+            --search "merged:>$LATEST_TAG" \
+            --json number,title,author,url \
+            --jq '.[] | "- #\(.number) \(.title) (by @\(.author.login)) \(.url)"' \
+            | sed ':a;N;$!ba;s/\n/\n/g')
+
+          # Save to environment variable
+          echo "RELEASE_NOTES<<EOF" >> $GITHUB_ENV
+          echo "$NOTES" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+        shell: bash
 
       - uses: tauri-apps/tauri-action@v0
         env:
