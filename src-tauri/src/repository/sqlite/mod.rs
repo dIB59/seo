@@ -682,7 +682,11 @@ mod tests {
     use super::*;
 
     async fn setup_db() -> SqlitePool {
-        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
         // Adjust path if necessary, but default often works for crate root
         sqlx::migrate!().run(&pool).await.unwrap();
         pool
@@ -818,5 +822,37 @@ mod tests {
 
         let finalized = results_repo.get_result_by_job_id(job_id).await.unwrap();
         assert_eq!(finalized.analysis.status, JobStatus::Completed); // check mapper logic if it matches enum
+    }
+
+    #[tokio::test]
+    async fn test_job_queries() {
+        let pool = setup_db().await;
+        let job_repo = JobRepository::new(pool.clone());
+        let results_repo = ResultsRepository::new(pool.clone());
+        let summary_repo = SummaryRepository::new(pool.clone());
+
+        let settings = AnalysisSettingsRequest::default();
+        let job_id_1 = job_repo.create_with_settings("https://job1.test", &settings).await.unwrap();
+        let job_id_2 = job_repo.create_with_settings("https://job2.test", &settings).await.unwrap();
+
+        // job 1 has result
+        let result_id = results_repo.create("https://job1.test", false, false, false).await.unwrap();
+        results_repo.update_progress(&result_id, 33.0, 1, 3).await.unwrap();
+        // ensure summary exists for join
+        summary_repo.generate_summary(&result_id, &[], &[]).await.unwrap();
+        job_repo.link_to_result(job_id_1, &result_id).await.unwrap();
+
+        // Test get_progress
+        let progress = job_repo.get_progress(job_id_1).await.unwrap();
+        assert_eq!(progress.job_id, job_id_1);
+        assert_eq!(progress.progress, Some(33.0));
+        assert_eq!(progress.analyzed_pages, Some(1));
+
+        // Test get_all
+        let all_jobs = job_repo.get_all().await.unwrap();
+        assert!(all_jobs.len() >= 2);
+        
+        let job_1_progress = all_jobs.iter().find(|j| j.job_id == job_id_1).unwrap();
+        assert_eq!(job_1_progress.progress, Some(33.0));
     }
 }

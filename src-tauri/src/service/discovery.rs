@@ -178,4 +178,15 @@ mod tests {
         assert!(links.contains(&Url::parse("https://other.com/absolute").unwrap()));
         assert!(links.contains(&Url::parse("https://example.com/#fragment").unwrap()));
     }
+
+    #[test]
+    fn test_check_ssl_certificate() {
+        let checker = ResourceChecker::new();
+        
+        let https_url = Url::parse("https://secure.com").unwrap();
+        assert!(checker.check_ssl_certificate(&https_url));
+
+        let http_url = Url::parse("http://insecure.com").unwrap();
+        assert!(!checker.check_ssl_certificate(&http_url));
+    }
 }
