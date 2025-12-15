@@ -592,4 +592,65 @@ mod tests {
         assert!(!issues.is_empty()); 
         assert!(issues.iter().any(|i| i.title == "Images Missing Alt Text"));
     }
+
+    // ===== Edge case tests for issue generation =====
+
+    #[test]
+    fn test_no_issues_for_good_page() {
+        let page = PageAnalysisData::default_test_instance();
+        let issues = page.generate_issues();
+        
+        assert!(issues.is_empty(), "A well-configured page should generate no issues, got: {:?}", 
+            issues.iter().map(|i| &i.title).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn test_title_exactly_at_short_boundary() {
+        let mut page = PageAnalysisData::default_test_instance();
+        page.title = Some("1234".to_string()); // 4 chars - should trigger "too short"
+
+        let issues = page.generate_issues();
+        assert!(issues.iter().any(|i| i.title == PageAnalysisData::ISSUE_TITLE_TOO_SHORT),
+            "Title with 4 chars should be too short");
+    }
+
+    #[test]
+    fn test_title_exactly_at_short_threshold() {
+        let mut page = PageAnalysisData::default_test_instance();
+        page.title = Some("12345".to_string()); // 5 chars - should NOT trigger
+
+        let issues = page.generate_issues();
+        assert!(!issues.iter().any(|i| i.title == PageAnalysisData::ISSUE_TITLE_TOO_SHORT),
+            "Title with exactly 5 chars should not be flagged as too short");
+    }
+
+    #[test]
+    fn test_title_too_long() {
+        let mut page = PageAnalysisData::default_test_instance();
+        page.title = Some("A".repeat(61)); // 61 chars - should trigger
+
+        let issues = page.generate_issues();
+        assert!(issues.iter().any(|i| i.title == PageAnalysisData::ISSUE_TITLE_TOO_LONG),
+            "Title with 61 chars should be too long");
+    }
+
+    #[test]
+    fn test_slow_load_boundary() {
+        let mut page = PageAnalysisData::default_test_instance();
+        page.load_time = 3.01; // Just above 3.0
+
+        let issues = page.generate_issues();
+        assert!(issues.iter().any(|i| i.title == PageAnalysisData::ISSUE_SLOW_LOAD),
+            "Load time > 3.0s should trigger slow load issue");
+    }
+
+    #[test]
+    fn test_multiple_h1_warning() {
+        let mut page = PageAnalysisData::default_test_instance();
+        page.h1_count = 3;
+
+        let issues = page.generate_issues();
+        assert!(issues.iter().any(|i| i.title == PageAnalysisData::ISSUE_MULTIPLE_H1),
+            "Multiple H1 tags should generate warning");
+    }
 }
