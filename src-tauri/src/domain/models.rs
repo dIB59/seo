@@ -223,6 +223,16 @@ impl PageAnalysisData {
         (page, issues)
     }
 
+    pub const ISSUE_MISSING_TITLE: &'static str = "Missing Title Tag";
+    pub const ISSUE_TITLE_TOO_SHORT: &'static str = "Title Too Short";
+    pub const ISSUE_TITLE_TOO_LONG: &'static str = "Title Too Long";
+    pub const ISSUE_MISSING_DESC: &'static str = "Missing Meta Description";
+    pub const ISSUE_MISSING_H1: &'static str = "Missing H1 Tag";
+    pub const ISSUE_MULTIPLE_H1: &'static str = "Multiple H1 Tags";
+    pub const ISSUE_THIN_CONTENT: &'static str = "Thin Content";
+    pub const ISSUE_IMG_MISSING_ALT: &'static str = "Images Missing Alt Text";
+    pub const ISSUE_SLOW_LOAD: &'static str = "Slow Page Load";
+
     /// Rich behavior: validates itself and generates SEO issues
     pub fn generate_issues(&self) -> Vec<SeoIssue> {
         let mut issues = Vec::new();
@@ -233,7 +243,7 @@ impl PageAnalysisData {
             issues.push(SeoIssue {
                 page_id: page_id.clone(),
                 issue_type: IssueType::Critical,
-                title: "Missing Title Tag".to_string(),
+                title: Self::ISSUE_MISSING_TITLE.to_string(),
                 description: "Page has no title tag".to_string(),
                 page_url: self.url.clone(),
                 element: Some("title".to_string()),
@@ -246,7 +256,7 @@ impl PageAnalysisData {
                 issues.push(SeoIssue {
                     page_id: page_id.clone(),
                     issue_type: IssueType::Warning,
-                    title: "Title Too Short".to_string(),
+                    title: Self::ISSUE_TITLE_TOO_SHORT.to_string(),
                     description: format!("Title is only {} characters", title.len()),
                     page_url: self.url.clone(),
                     element: Some("title".to_string()),
@@ -258,7 +268,7 @@ impl PageAnalysisData {
                 issues.push(SeoIssue {
                     page_id: page_id.clone(),
                     issue_type: IssueType::Suggestion,
-                    title: "Title Too Long".to_string(),
+                    title: Self::ISSUE_TITLE_TOO_LONG.to_string(),
                     description: format!("Title is {} characters", title.len()),
                     page_url: self.url.clone(),
                     element: Some("title".to_string()),
@@ -273,7 +283,7 @@ impl PageAnalysisData {
             issues.push(SeoIssue {
                 page_id: page_id.clone(),
                 issue_type: IssueType::Warning,
-                title: "Missing Meta Description".to_string(),
+                title: Self::ISSUE_MISSING_DESC.to_string(),
                 description: "Page has no meta description".to_string(),
                 page_url: self.url.clone(),
                 element: Some("meta[name=description]".to_string()),
@@ -288,7 +298,7 @@ impl PageAnalysisData {
             issues.push(SeoIssue {
                 page_id: page_id.clone(),
                 issue_type: IssueType::Critical,
-                title: "Missing H1 Tag".to_string(),
+                title: Self::ISSUE_MISSING_H1.to_string(),
                 description: "Page has no H1 heading".to_string(),
                 page_url: self.url.clone(),
                 element: Some("h1".to_string()),
@@ -299,7 +309,7 @@ impl PageAnalysisData {
             issues.push(SeoIssue {
                 page_id: page_id.clone(),
                 issue_type: IssueType::Warning,
-                title: "Multiple H1 Tags".to_string(),
+                title: Self::ISSUE_MULTIPLE_H1.to_string(),
                 description: format!("Page has {} H1 tags", self.h1_count),
                 page_url: self.url.clone(),
                 element: Some("h1".to_string()),
@@ -313,7 +323,7 @@ impl PageAnalysisData {
             issues.push(SeoIssue {
                 page_id: page_id.clone(),
                 issue_type: IssueType::Warning,
-                title: "Thin Content".to_string(),
+                title: Self::ISSUE_THIN_CONTENT.to_string(),
                 description: format!("Page only has {} words", self.word_count),
                 page_url: self.url.clone(),
                 element: None,
@@ -327,7 +337,7 @@ impl PageAnalysisData {
             issues.push(SeoIssue {
                 page_id: page_id.clone(),
                 issue_type: IssueType::Warning,
-                title: "Images Missing Alt Text".to_string(),
+                title: Self::ISSUE_IMG_MISSING_ALT.to_string(),
                 description: format!(
                     "{} of {} images lack alt attribute",
                     self.images_without_alt, self.image_count
@@ -344,7 +354,7 @@ impl PageAnalysisData {
             issues.push(SeoIssue {
                 page_id: page_id.clone(),
                 issue_type: IssueType::Warning,
-                title: "Slow Page Load".to_string(),
+                title: Self::ISSUE_SLOW_LOAD.to_string(),
                 description: format!("Page loads in {:.2} seconds", self.load_time),
                 page_url: self.url.clone(),
                 element: None,
@@ -355,6 +365,37 @@ impl PageAnalysisData {
         }
 
         issues
+    }
+
+    /// Helper for testing: Creates a valid 'good' page instance to minimize boilerplate in tests
+    #[cfg(test)]
+    pub fn default_test_instance() -> Self {
+        Self {
+            analysis_id: "test".into(),
+            url: "https://example.com".into(),
+            title: Some("Valid Page Title Length".into()),
+            meta_description: Some("Valid description".into()),
+            meta_keywords: None,
+            canonical_url: None,
+            h1_count: 1,
+            h2_count: 1,
+            h3_count: 1,
+            word_count: 500, // Good length
+            image_count: 1,
+            images_without_alt: 0, // Good
+            internal_links: 5,
+            external_links: 2,
+            load_time: 0.5, // Fast
+            status_code: Some(200),
+            content_size: 1024,
+            mobile_friendly: true,
+            has_structured_data: true,
+            lighthouse_performance: None,
+            lighthouse_accessibility: None,
+            lighthouse_best_practices: None,
+            lighthouse_seo: None,
+            links: Vec::new(),
+        }
     }
 
     // ====== PRIVATE parsing helpers ======
@@ -482,105 +523,35 @@ mod tests {
 
     #[test]
     fn test_generate_issues_missing_title() {
-        let page = PageAnalysisData {
-            analysis_id: "1".into(),
-            url: "http://example.com".into(),
-            title: None, // Missing
-            meta_description: Some("desc".into()),
-            meta_keywords: None,
-            canonical_url: None,
-            h1_count: 1,
-            h2_count: 0,
-            h3_count: 0,
-            word_count: 500,
-            image_count: 1,
-            images_without_alt: 0,
-            internal_links: 0,
-            external_links: 0,
-            load_time: 0.5,
-            status_code: Some(200),
-            content_size: 1000,
-            mobile_friendly: true,
-            has_structured_data: true,
-            lighthouse_performance: None,
-            lighthouse_accessibility: None,
-            lighthouse_best_practices: None,
-            lighthouse_seo: None,
-            links: vec![],
-        };
+        let mut page = PageAnalysisData::default_test_instance();
+        page.title = None; // Inject failure
 
         let issues = page.generate_issues();
-        assert!(issues.iter().any(|i| i.title == "Missing Title Tag"));
+        assert!(issues.iter().any(|i| i.title == PageAnalysisData::ISSUE_MISSING_TITLE));
     }
 
     #[test]
     fn test_generate_issues_short_content() {
-         let page = PageAnalysisData {
-            analysis_id: "1".into(),
-            url: "http://example.com".into(),
-            title: Some("A Very Good Title For SEO Purposes".into()),
-            meta_description: Some("desc".into()),
-            meta_keywords: None,
-            canonical_url: None,
-            h1_count: 1,
-            h2_count: 0,
-            h3_count: 0,
-            word_count: 50, // Too short
-            image_count: 1,
-            images_without_alt: 0,
-            internal_links: 0,
-            external_links: 0,
-            load_time: 0.5,
-            status_code: Some(200),
-            content_size: 1000,
-            mobile_friendly: true,
-            has_structured_data: true,
-            lighthouse_performance: None,
-            lighthouse_accessibility: None,
-            lighthouse_best_practices: None,
-            lighthouse_seo: None,
-            links: vec![],
-        };
+         let mut page = PageAnalysisData::default_test_instance();
+         page.word_count = 50; // Inject failure
 
         let issues = page.generate_issues();
-        assert!(issues.iter().any(|i| i.title == "Thin Content"));
+        assert!(issues.iter().any(|i| i.title == PageAnalysisData::ISSUE_THIN_CONTENT));
     }
 
     #[test]
     fn test_generate_multiple_issues() {
         // A page with multiple problems: no title, thin content, slow load
-        let page = PageAnalysisData {
-            analysis_id: "1".into(),
-            url: "http://example.com/bad".into(),
-            title: None, // Critical: Missing Title
-            meta_description: Some("desc".into()),
-            meta_keywords: None,
-            canonical_url: None,
-            h1_count: 1,
-            h2_count: 0,
-            h3_count: 0,
-            word_count: 50, // Warning: Thin content
-            image_count: 1,
-            images_without_alt: 0,
-            internal_links: 0,
-            external_links: 0,
-            load_time: 5.0, // Warning: Slow load
-            status_code: Some(200),
-            content_size: 1000,
-            mobile_friendly: true,
-            has_structured_data: true,
-            lighthouse_performance: None,
-            lighthouse_accessibility: None,
-            lighthouse_best_practices: None,
-            lighthouse_seo: None,
-            links: vec![],
-        };
+        let mut page = PageAnalysisData::default_test_instance();
+        page.title = None;
+        page.word_count = 50;
+        page.load_time = 5.0;
 
         let issues = page.generate_issues();
         
-        assert!(issues.iter().any(|i| i.title == "Missing Title Tag"));
-        assert!(issues.iter().any(|i| i.title == "Thin Content"));
-        assert!(issues.iter().any(|i| i.title == "Slow Page Load"));
+        assert!(issues.iter().any(|i| i.title == PageAnalysisData::ISSUE_MISSING_TITLE));
+        assert!(issues.iter().any(|i| i.title == PageAnalysisData::ISSUE_THIN_CONTENT));
+        assert!(issues.iter().any(|i| i.title == PageAnalysisData::ISSUE_SLOW_LOAD));
         assert_eq!(issues.len(), 3);
     }
 
