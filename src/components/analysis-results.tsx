@@ -42,8 +42,9 @@ import {
 	DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu"
 import { cn } from "@/src/lib/utils"
-import type { CompleteAnalysisResult, SeoIssue, PageAnalysisData } from "@/src/lib/types"
+import type { CompleteAnalysisResult, SeoIssue, PageAnalysisData, PageDetailData } from "@/src/lib/types"
 import { generatePDF, downloadTextReport, downloadCSVReport } from "@/src/lib/export-utils"
+import { PageDetailView } from "@/src/components/page-detail-view"
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -746,7 +747,7 @@ function IssuesTab({ issues }: { issues: SeoIssue[] }) {
 function PagesTab({
 	pages,
 	onSelectPage,
-}: { pages: PageAnalysisData[]; onSelectPage: (page: PageAnalysisData) => void }) {
+}: { pages: PageAnalysisData[]; onSelectPage: (index: number) => void }) {
 	return (
 		<Card>
 			<Table>
@@ -765,7 +766,7 @@ function PagesTab({
 				</TableHeader>
 				<TableBody>
 					{pages.map((page, idx) => (
-						<PageDetailRow key={idx} page={page} onClick={() => onSelectPage(page)} />
+						<PageDetailRow key={idx} page={page} onClick={() => onSelectPage(idx)} />
 					))}
 				</TableBody>
 			</Table>
@@ -820,11 +821,13 @@ function OverviewTab({ issues, pages }: { issues: SeoIssue[]; pages: PageAnalysi
 interface AnalysisResultsProps {
 	result: CompleteAnalysisResult
 	onBack: () => void
+	onSelectPage?: (index: number) => void
 }
 
-export function AnalysisResults({ result, onBack }: AnalysisResultsProps) {
+export function AnalysisResults({ result, onBack, onSelectPage }: AnalysisResultsProps) {
 	const { analysis, pages, issues, summary } = result
-	const [selectedPage, setSelectedPage] = useState<PageAnalysisData | null>(null)
+	// State for selected page removed - handled by router
+
 
 	const handleDownloadPDF = async () => {
 		await generatePDF(result)
@@ -837,6 +840,9 @@ export function AnalysisResults({ result, onBack }: AnalysisResultsProps) {
 	const handleDownloadCSV = async () => {
 		await downloadCSVReport(result)
 	}
+
+	// Conditional rendering for Page Detail View removed - handled by routing
+
 
 	return (
 		<div className="space-y-6">
@@ -912,8 +918,15 @@ export function AnalysisResults({ result, onBack }: AnalysisResultsProps) {
 					<IssuesTab issues={issues} />
 				</TabsContent>
 
-				<TabsContent value="pages" className="mt-4">
-					<PagesTab pages={pages} onSelectPage={setSelectedPage} />
+				<TabsContent value="pages">
+					<PagesTab
+						pages={pages}
+						onSelectPage={(index) => {
+							if (onSelectPage) {
+								onSelectPage(index)
+							}
+						}}
+					/>
 				</TabsContent>
 
 				<TabsContent value="overview" className="mt-4">
@@ -921,8 +934,6 @@ export function AnalysisResults({ result, onBack }: AnalysisResultsProps) {
 				</TabsContent>
 			</Tabs>
 
-			{/* Page Detail Modal */}
-			<PageDetailModal page={selectedPage} open={!!selectedPage} onClose={() => setSelectedPage(null)} />
 		</div>
 	)
 }

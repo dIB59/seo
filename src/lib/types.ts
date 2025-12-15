@@ -94,3 +94,31 @@ export interface CompleteAnalysisResult {
   issues: SeoIssue[]
   summary: AnalysisSummary
 }
+
+// ============================================================================
+// Extended types for detailed page view (backend will populate these)
+// ============================================================================
+
+export interface HeadingElement {
+  tag: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'
+  text: string
+}
+
+export interface ImageElement {
+  src: string
+  alt: string | null
+}
+
+export interface LinkElement {
+  href: string
+  text: string
+  is_internal: boolean
+  status_code: number | null
+}
+
+// Extended page data with detailed elements
+export interface PageDetailData extends PageAnalysisData {
+  headings?: HeadingElement[]
+  images?: ImageElement[]
+  links?: LinkElement[]
+}
