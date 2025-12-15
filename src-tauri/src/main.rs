@@ -12,6 +12,8 @@ mod error;
 mod extractor;
 mod repository;
 mod service;
+#[cfg(test)]
+mod test_utils;
 
 //TODO:
 //-implement pagination for get all jobs

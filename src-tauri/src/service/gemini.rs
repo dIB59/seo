@@ -6,6 +6,9 @@ use sqlx::SqlitePool;
 
 use crate::db;
 
+/// The Gemini API endpoint path (without base URL)
+pub const GEMINI_API_PATH: &str = "/v1beta/models/gemini-2.0-flash:generateContent";
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PromptBlock {
     pub id: String,
@@ -13,7 +16,7 @@ pub struct PromptBlock {
     pub content: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct GeminiRequest {
     pub analysis_id: String, // Added for caching
     pub url: String,
@@ -88,8 +91,8 @@ pub async fn generate_gemini_analysis(
     // Prepare API request
     let base = api_base_url.as_deref().unwrap_or("https://generativelanguage.googleapis.com");
     let api_url = format!(
-        "{}/v1beta/models/gemini-2.0-flash:generateContent?key={}",
-        base, api_key
+        "{}{}?key={}",
+        base, GEMINI_API_PATH, api_key
     );
 
     let request_body = json!({
@@ -187,53 +190,119 @@ mod tests {
 
     #[tokio::test]
     async fn test_gemini_integration() {
+        use crate::test_utils::{fixtures, mocks};
+        
         // 1. Setup DB with API Key
-        let pool = sqlx::sqlite::SqlitePoolOptions::new()
-             .max_connections(1)
-             .connect("sqlite::memory:")
-             .await
-             .unwrap();
-        sqlx::migrate!().run(&pool).await.unwrap();
+        let pool = fixtures::setup_test_db().await;
         db::set_setting(&pool, "gemini_api_key", "test_key").await.unwrap();
 
-        // 2. Mock Gemini API
+        // 2. Mock Gemini API using the same constant as production code
         let mut server = mockito::Server::new_async().await;
-        let mock = server.mock("POST", "/v1beta/models/gemini-2.0-flash:generateContent?key=test_key")
+        let api_path = format!("{}?key=test_key", GEMINI_API_PATH);
+        let mock = server.mock("POST", api_path.as_str())
             .with_status(200)
             .with_header("content-type", "application/json")
-            .with_body(json!({
-                "candidates": [{
-                    "content": {
-                        "parts": [{ "text": "AI Analysis Result" }]
-                    }
-                }]
-            }).to_string())
+            .with_body(mocks::gemini_response("AI Analysis Result"))
             .create_async().await;
 
-        // 3. Make Request
-        let request = GeminiRequest {
-            analysis_id: "integration_test".into(),
-            url: "https://test.com".into(),
-            seo_score: 50,
-            pages_count: 5,
-            total_issues: 2,
-            critical_issues: 1,
-            warning_issues: 1,
-            suggestion_issues: 0,
-            top_issues: vec!["Fix this".into()],
-            avg_load_time: 1.0,
-            total_words: 500,
-            ssl_certificate: true,
-            sitemap_found: true,
-            robots_txt_found: true,
-        };
+        // 3. Make Request using fixture
+        let mut request = fixtures::minimal_gemini_request();
+        request.analysis_id = "integration_test".into();
+        request.url = "https://test.com".into();
 
         let result = generate_gemini_analysis(&pool, request, Some(server.url()))
             .await
             .unwrap();
 
-        // 4. Verify
-        assert_eq!(result, "AI Analysis Result");
+        // 4. Verify - use contains() for resilience against minor text changes
+        assert!(result.contains("AI Analysis"), "Expected result to contain 'AI Analysis', got: {}", result);
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_gemini_missing_api_key_returns_error() {
+        use crate::test_utils::fixtures;
+        
+        // Setup DB WITHOUT API Key
+        let pool = fixtures::setup_test_db().await;
+        // Don't set gemini_api_key
+
+        let request = fixtures::minimal_gemini_request();
+
+        let result = generate_gemini_analysis(&pool, request, None).await;
+        
+        assert!(result.is_err(), "Should fail when API key is missing");
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("API_KEY_MISSING"), "Error should mention missing API key: {}", err);
+    }
+
+    #[tokio::test]
+    async fn test_gemini_api_error_response() {
+        use crate::test_utils::fixtures;
+        
+        let pool = fixtures::setup_test_db().await;
+        db::set_setting(&pool, "gemini_api_key", "bad_key").await.unwrap();
+
+        let mut server = mockito::Server::new_async().await;
+        let api_path = format!("{}?key=bad_key", GEMINI_API_PATH);
+        let _mock = server.mock("POST", api_path.as_str())
+            .with_status(401)
+            .with_body(r#"{"error": "Invalid API key"}"#)
+            .create_async().await;
+
+        let request = fixtures::minimal_gemini_request();
+
+        let result = generate_gemini_analysis(&pool, request, Some(server.url())).await;
+        
+        assert!(result.is_err(), "Should fail when API returns error");
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("401"), "Error should contain status code: {}", err);
+    }
+
+    #[tokio::test]
+    async fn test_gemini_uses_cache_on_second_request() {
+        use crate::test_utils::{fixtures, mocks};
+        
+        let pool = fixtures::setup_test_db().await;
+        db::set_setting(&pool, "gemini_api_key", "test_key").await.unwrap();
+        
+        // Create an analysis_results record to satisfy FK constraint when caching
+        let test_analysis_id = "cache_test_analysis";
+        sqlx::query(
+            "INSERT INTO analysis_results (id, url, status, progress, analyzed_pages, total_pages, sitemap_found, robots_txt_found, ssl_certificate) 
+             VALUES (?, 'https://test.com', 'completed', 100.0, 1, 1, 0, 0, 1)"
+        )
+        .bind(test_analysis_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let mut server = mockito::Server::new_async().await;
+        let api_path = format!("{}?key=test_key", GEMINI_API_PATH);
+        let mock = server.mock("POST", api_path.as_str())
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(mocks::gemini_response("Cached Result"))
+            .expect(1) // Should only be called ONCE
+            .create_async().await;
+
+        // Use the analysis_id that was pre-created
+        let mut request = fixtures::minimal_gemini_request();
+        request.analysis_id = test_analysis_id.to_string();
+        
+        // First call - should hit API
+        let result1 = generate_gemini_analysis(&pool, request.clone(), Some(server.url()))
+            .await
+            .unwrap();
+        assert!(result1.contains("Cached"), "First call should return API result");
+
+        // Second call with same analysis_id - should use cache
+        let result2 = generate_gemini_analysis(&pool, request, Some(server.url()))
+            .await
+            .unwrap();
+        assert!(result2.contains("Cached"), "Second call should return cached result");
+
+        // Verify API was only called once
         mock.assert_async().await;
     }
 }

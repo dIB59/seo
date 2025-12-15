@@ -680,28 +680,15 @@ impl SummaryRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    async fn setup_db() -> SqlitePool {
-        let pool = sqlx::sqlite::SqlitePoolOptions::new()
-            .max_connections(1)
-            .connect("sqlite::memory:")
-            .await
-            .unwrap();
-        // Adjust path if necessary, but default often works for crate root
-        sqlx::migrate!().run(&pool).await.unwrap();
-        pool
-    }
+    use crate::test_utils::fixtures;
 
     #[tokio::test]
     async fn test_job_lifecycle() {
-        let pool = setup_db().await;
+        let pool = fixtures::setup_test_db().await;
         let repo = JobRepository::new(pool.clone());
 
-        let settings = AnalysisSettingsRequest {
-            max_pages: 5,
-            delay_between_requests: 100,
-            ..Default::default()
-        };
+        // Use shared fixture helper
+        let settings = fixtures::settings_with_max_pages(5);
 
         // 1. Create
         let job_id = repo
@@ -711,7 +698,7 @@ mod tests {
 
         // 2. Verify Pending
         let pending = repo.get_pending_jobs().await.expect("Failed to get pending");
-        assert_eq!(pending.len(), 1);
+        assert_eq!(pending.len(), 1, "Should have one pending job");
         assert_eq!(pending[0].id, job_id);
         assert_eq!(pending[0].status, JobStatus::Queued);
 
@@ -729,38 +716,35 @@ mod tests {
             .expect("Update status failed");
         
         let pending_final = repo.get_pending_jobs().await.unwrap();
-        assert!(pending_final.is_empty());
+        assert!(pending_final.is_empty(), "Completed jobs should not appear in pending");
     }
 
     #[tokio::test]
     async fn test_settings_persistence() {
-        let pool = setup_db().await;
+        let pool = fixtures::setup_test_db().await;
         let job_repo = JobRepository::new(pool.clone());
         let settings_repo = SettingsRepository::new(pool.clone());
 
-        let settings = AnalysisSettingsRequest {
-            max_pages: 42,
-            ..Default::default()
-        };
+        let settings = fixtures::settings_with_max_pages(42);
 
         // Creating a job also creates settings
-        let job_id = job_repo.create_with_settings("https://settings.test", &settings).await.unwrap();
+        let _job_id = job_repo.create_with_settings("https://settings.test", &settings).await.unwrap();
         
         let pending = job_repo.get_pending_jobs().await.unwrap();
         let settings_id = pending[0].settings_id;
 
         let retrieved = settings_repo.get_by_id(settings_id).await.unwrap();
-        assert_eq!(retrieved.max_pages, 42);
+        assert_eq!(retrieved.max_pages, 42, "Settings should persist correctly");
     }
 
     #[tokio::test]
     async fn test_results_and_pages() {
-        let pool = setup_db().await;
+        let pool = fixtures::setup_test_db().await;
         let results_repo = ResultsRepository::new(pool.clone());
         let page_repo = PageRepository::new(pool.clone());
         let job_repo = JobRepository::new(pool.clone());
         
-        let settings = AnalysisSettingsRequest::default();
+        let settings = fixtures::default_settings();
         let job_id = job_repo.create_with_settings("https://result.test", &settings).await.unwrap();
 
         // 1. Create Result
@@ -826,14 +810,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_job_queries() {
-        let pool = setup_db().await;
+        let pool = fixtures::setup_test_db().await;
         let job_repo = JobRepository::new(pool.clone());
         let results_repo = ResultsRepository::new(pool.clone());
         let summary_repo = SummaryRepository::new(pool.clone());
 
-        let settings = AnalysisSettingsRequest::default();
+        let settings = fixtures::default_settings();
         let job_id_1 = job_repo.create_with_settings("https://job1.test", &settings).await.unwrap();
-        let job_id_2 = job_repo.create_with_settings("https://job2.test", &settings).await.unwrap();
+        let _job_id_2 = job_repo.create_with_settings("https://job2.test", &settings).await.unwrap();
 
         // job 1 has result
         let result_id = results_repo.create("https://job1.test", false, false, false).await.unwrap();

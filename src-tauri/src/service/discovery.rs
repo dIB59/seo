@@ -184,9 +184,73 @@ mod tests {
         let checker = ResourceChecker::new();
         
         let https_url = Url::parse("https://secure.com").unwrap();
-        assert!(checker.check_ssl_certificate(&https_url));
+        assert!(checker.check_ssl_certificate(&https_url), "HTTPS should be detected as SSL");
 
         let http_url = Url::parse("http://insecure.com").unwrap();
-        assert!(!checker.check_ssl_certificate(&http_url));
+        assert!(!checker.check_ssl_certificate(&http_url), "HTTP should not be detected as SSL");
+    }
+
+    // ===== Integration tests for ResourceChecker using mock server =====
+
+    #[tokio::test]
+    async fn test_check_robots_txt_found() {
+        let mut server = mockito::Server::new_async().await;
+        let _mock = server.mock("GET", "/robots.txt")
+            .with_status(200)
+            .with_body("User-agent: *\nDisallow:")
+            .create_async().await;
+
+        let checker = ResourceChecker::new();
+        let base_url = Url::parse(&server.url()).unwrap();
+        
+        let status = checker.check_robots_txt(base_url).await.unwrap();
+        assert!(status.exists(), "robots.txt should be detected as found");
+        assert!(matches!(status, ResourceStatus::Found(_)));
+    }
+
+    #[tokio::test]
+    async fn test_check_robots_txt_not_found() {
+        let mut server = mockito::Server::new_async().await;
+        let _mock = server.mock("GET", "/robots.txt")
+            .with_status(404)
+            .create_async().await;
+
+        let checker = ResourceChecker::new();
+        let base_url = Url::parse(&server.url()).unwrap();
+        
+        let status = checker.check_robots_txt(base_url).await.unwrap();
+        assert!(!status.exists(), "robots.txt should be detected as not found");
+        assert!(matches!(status, ResourceStatus::NotFound));
+    }
+
+    #[tokio::test]
+    async fn test_check_sitemap_xml_found() {
+        let mut server = mockito::Server::new_async().await;
+        let _mock = server.mock("GET", "/sitemap.xml")
+            .with_status(200)
+            .with_body("<urlset></urlset>")
+            .create_async().await;
+
+        let checker = ResourceChecker::new();
+        let base_url = Url::parse(&server.url()).unwrap();
+        
+        let status = checker.check_sitemap_xml(base_url).await.unwrap();
+        assert!(status.exists(), "sitemap.xml should be detected as found");
+    }
+
+    #[tokio::test]
+    async fn test_check_resource_unauthorized() {
+        let mut server = mockito::Server::new_async().await;
+        let _mock = server.mock("GET", "/robots.txt")
+            .with_status(401)
+            .create_async().await;
+
+        let checker = ResourceChecker::new();
+        let base_url = Url::parse(&server.url()).unwrap();
+        
+        let status = checker.check_robots_txt(base_url).await.unwrap();
+        // Unauthorized still means the resource "exists" (it's just protected)
+        assert!(status.exists(), "Unauthorized should still count as exists");
+        assert!(matches!(status, ResourceStatus::Unauthorized(_)));
     }
 }

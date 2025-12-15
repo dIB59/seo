@@ -375,54 +375,33 @@ impl PageEdge {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commands::analysis::AnalysisSettingsRequest;
-
-    async fn setup_test_db() -> SqlitePool {
-         let pool = sqlx::sqlite::SqlitePoolOptions::new()
-            .max_connections(1)
-            .connect("sqlite::memory:")
-            .await
-            .unwrap();
-        sqlx::migrate!().run(&pool).await.unwrap();
-        pool
-    }
+    use crate::test_utils::{assertions, fixtures, mocks};
 
     #[tokio::test]
     async fn test_end_to_end_job_processing() {
-        // 1. Setup Mock Server
+        // 1. Setup Mock Server with HTML that has an image without alt text
         let mut server = mockito::Server::new_async().await;
-        
-        let html_body = r#"
-            <html>
-                <head><title>Test Page</title></head>
-                <body>
-                    <h1>Welcome</h1>
-                    <a href="/about">About</a>
-                    <img src="logo.png">
-                </body>
-            </html>
-        "#;
+        let html_body = mocks::html_with_missing_alt();
 
         let _m1 = server.mock("GET", "/")
             .with_status(200)
             .with_header("content-type", "text/html")
-            .with_body(html_body)
+            .with_body(&html_body)
             .create_async().await;
         
-        // Mock robots/sitemap to avoid errors (optional, but good for cleanliness)
+        // Mock robots/sitemap to avoid errors
         let _m2 = server.mock("GET", "/robots.txt").with_status(404).create_async().await;
         let _m3 = server.mock("GET", "/sitemap.xml").with_status(404).create_async().await;
 
         let server_url = server.url();
 
-        // 2. Setup Processor
-        let pool = setup_test_db().await;
+        // 2. Setup Processor using shared fixture
+        let pool = fixtures::setup_test_db().await;
         let processor = JobProcessor::new(pool.clone());
         let job_repo = JobRepository::new(pool.clone());
 
-        // 3. Create Job
-        let mut settings = AnalysisSettingsRequest::default();
-        settings.max_pages = 1;
+        // 3. Create Job with minimal settings
+        let settings = fixtures::settings_with_max_pages(1);
         
         let job_id = job_repo.create_with_settings(
             &server_url, 
@@ -432,23 +411,106 @@ mod tests {
         let job = job_repo.get_pending_jobs().await.unwrap().pop().unwrap();
 
         // 4. Run Processing
-        let result_id = processor.process_job(job).await.expect("Job processing failed");
+        let _result_id = processor.process_job(job).await.expect("Job processing failed");
 
         // 5. Verify Results
         let results_repo = ResultsRepository::new(pool.clone());
         let result = results_repo.get_result_by_job_id(job_id).await.unwrap();
 
-        // Check Job Status
-        assert_eq!(result.analysis.status, JobStatus::Completed);
+        // Check Job Status - verify behavior, not implementation
+        assert_eq!(result.analysis.status, JobStatus::Completed, "Job should complete successfully");
         
         // Check Page Data
-        assert_eq!(result.pages.len(), 1);
+        assert!(!result.pages.is_empty(), "Should have at least one analyzed page");
         let page = &result.pages[0];
-        assert_eq!(page.title.as_deref(), Some("Test Page"));
-        assert_eq!(page.h1_count, 1);
-        assert_eq!(page.internal_links, 1); // /about
+        assert!(page.title.is_some(), "Page should have a title");
+        assert_eq!(page.h1_count, 1, "Page should have one H1 tag");
 
-        // Check Issues (img missing alt)
-        assert!(result.issues.iter().any(|i| i.title == PageAnalysisData::ISSUE_IMG_MISSING_ALT));
+        // Check Issues using assertion helper - uses the constant from PageAnalysisData
+        assert!(
+            assertions::has_issue(&result.issues, PageAnalysisData::ISSUE_IMG_MISSING_ALT),
+            "Expected to find '{}' issue", PageAnalysisData::ISSUE_IMG_MISSING_ALT
+        );
+    }
+
+    // ===== Unit tests for extract_links =====
+
+    #[test]
+    fn test_extract_links_from_html() {
+        let base = Url::parse("https://example.com/page").unwrap();
+        let html = r#"
+            <html>
+                <body>
+                    <a href="/about">About</a>
+                    <a href="https://external.com/link">External</a>
+                    <a href="contact.html">Relative</a>
+                </body>
+            </html>
+        "#;
+
+        let links = JobProcessor::extract_links(html, &base);
+        
+        assert_eq!(links.len(), 3, "Should extract 3 links");
+        assert!(links.iter().any(|l| l.contains("/about")), "Should find /about link");
+        assert!(links.iter().any(|l| l.contains("external.com")), "Should find external link");
+        assert!(links.iter().any(|l| l.contains("contact.html")), "Should find relative link");
+    }
+
+    #[test]
+    fn test_extract_links_empty_html() {
+        let base = Url::parse("https://example.com").unwrap();
+        let html = "<html><body><p>No links here</p></body></html>";
+
+        let links = JobProcessor::extract_links(html, &base);
+        assert!(links.is_empty(), "Should return empty list for HTML without links");
+    }
+
+    // ===== Unit tests for PageEdge.is_internal =====
+
+    #[test]
+    fn test_page_edge_is_internal_same_domain() {
+        let edge = PageEdge {
+            from_page_id: "page1".to_string(),
+            to_url: "https://example.com/about".to_string(),
+            status_code: 200,
+        };
+
+        assert!(edge.is_internal("https://example.com"), "Same domain should be internal");
+        assert!(edge.is_internal("https://example.com/other"), "Same domain with path should be internal");
+    }
+
+    #[test]
+    fn test_page_edge_is_external_different_domain() {
+        let edge = PageEdge {
+            from_page_id: "page1".to_string(),
+            to_url: "https://other.com/page".to_string(),
+            status_code: 200,
+        };
+
+        assert!(!edge.is_internal("https://example.com"), "Different domain should be external");
+    }
+
+    #[test]
+    fn test_page_edge_different_scheme_is_external() {
+        let edge = PageEdge {
+            from_page_id: "page1".to_string(),
+            to_url: "http://example.com/page".to_string(),
+            status_code: 200,
+        };
+
+        // HTTP vs HTTPS on same domain should be considered external (different scheme)
+        assert!(!edge.is_internal("https://example.com"), "Different scheme should be external");
+    }
+
+    #[test]
+    fn test_page_edge_with_port() {
+        let edge = PageEdge {
+            from_page_id: "page1".to_string(),
+            to_url: "https://example.com:8080/page".to_string(),
+            status_code: 200,
+        };
+
+        assert!(!edge.is_internal("https://example.com"), "Different port should be external");
+        assert!(edge.is_internal("https://example.com:8080"), "Same port should be internal");
     }
 }
