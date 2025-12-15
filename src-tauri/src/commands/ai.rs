@@ -51,7 +51,7 @@ pub async fn get_gemini_insights(
         robots_txt_found,
     };
 
-    generate_gemini_analysis(&db.0, request)
+    generate_gemini_analysis(&db.0, request, None)
         .await
         .map_err(|e| format!("Failed to generate AI insights: {}", e))
 }

@@ -95,7 +95,7 @@ impl JobProcessor {
         }
     }
 
-    async fn process_job(&self, mut job: AnalysisJob) -> Result<String> {
+    pub(crate) async fn process_job(&self, mut job: AnalysisJob) -> Result<String> {
         log::info!("Processing job {} for URL: {}", job.id, job.url);
         let cancel_flag = self.cancel_flag(job.id);
 
@@ -369,5 +369,86 @@ impl PageEdge {
         base_url.scheme() == target_url.scheme()
             && base_url.host_str() == target_url.host_str()
             && base_url.port() == target_url.port()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::commands::analysis::AnalysisSettingsRequest;
+
+    async fn setup_test_db() -> SqlitePool {
+         let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!().run(&pool).await.unwrap();
+        pool
+    }
+
+    #[tokio::test]
+    async fn test_end_to_end_job_processing() {
+        // 1. Setup Mock Server
+        let mut server = mockito::Server::new_async().await;
+        
+        let html_body = r#"
+            <html>
+                <head><title>Test Page</title></head>
+                <body>
+                    <h1>Welcome</h1>
+                    <a href="/about">About</a>
+                    <img src="logo.png">
+                </body>
+            </html>
+        "#;
+
+        let _m1 = server.mock("GET", "/")
+            .with_status(200)
+            .with_header("content-type", "text/html")
+            .with_body(html_body)
+            .create_async().await;
+        
+        // Mock robots/sitemap to avoid errors (optional, but good for cleanliness)
+        let _m2 = server.mock("GET", "/robots.txt").with_status(404).create_async().await;
+        let _m3 = server.mock("GET", "/sitemap.xml").with_status(404).create_async().await;
+
+        let server_url = server.url();
+
+        // 2. Setup Processor
+        let pool = setup_test_db().await;
+        let processor = JobProcessor::new(pool.clone());
+        let job_repo = JobRepository::new(pool.clone());
+
+        // 3. Create Job
+        let mut settings = AnalysisSettingsRequest::default();
+        settings.max_pages = 1;
+        
+        let job_id = job_repo.create_with_settings(
+            &server_url, 
+            &settings
+        ).await.unwrap();
+
+        let job = job_repo.get_pending_jobs().await.unwrap().pop().unwrap();
+
+        // 4. Run Processing
+        let result_id = processor.process_job(job).await.expect("Job processing failed");
+
+        // 5. Verify Results
+        let results_repo = ResultsRepository::new(pool.clone());
+        let result = results_repo.get_result_by_job_id(job_id).await.unwrap();
+
+        // Check Job Status
+        assert_eq!(result.analysis.status, JobStatus::Completed);
+        
+        // Check Page Data
+        assert_eq!(result.pages.len(), 1);
+        let page = &result.pages[0];
+        assert_eq!(page.title.as_deref(), Some("Test Page"));
+        assert_eq!(page.h1_count, 1);
+        assert_eq!(page.internal_links, 1); // /about
+
+        // Check Issues (img missing alt)
+        assert!(result.issues.iter().any(|i| i.title == PageAnalysisData::ISSUE_IMG_MISSING_ALT));
     }
 }
