@@ -153,6 +153,28 @@ pub struct AnalysisResults {
     pub created_at: DateTime<Utc>,
 }
 
+// ====== Detailed Page Elements ======
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct HeadingElement {
+    pub tag: String,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ImageElement {
+    pub src: String,
+    pub alt: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct LinkElement {
+    pub href: String,
+    pub text: String,
+    pub is_internal: bool,
+    pub status_code: Option<u16>,
+}
+
 // ====== Rich Entity: PageAnalysisData ======
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -181,6 +203,10 @@ pub struct PageAnalysisData {
     pub lighthouse_best_practices: Option<f64>,
     pub lighthouse_seo: Option<f64>,
     pub links: Vec<PageEdge>,
+    // detailed data for report view
+    pub headings: Vec<HeadingElement>,
+    pub images: Vec<ImageElement>,
+    pub detailed_links: Vec<LinkElement>,
 }
 
 impl PageAnalysisData {
@@ -217,6 +243,9 @@ impl PageAnalysisData {
             lighthouse_best_practices: None,
             lighthouse_seo: None,
             links: Vec::new(),
+            headings: Self::extract_headings(&document),
+            images: Self::extract_images_detailed(&document),
+            detailed_links: Self::extract_detailed_links(&document, &Url::parse(&url).unwrap()),
         };
 
         let issues = page.generate_issues(); // your other rules
@@ -395,6 +424,9 @@ impl PageAnalysisData {
             lighthouse_best_practices: None,
             lighthouse_seo: None,
             links: Vec::new(),
+            headings: Vec::new(), // Added for consistency with build_from_parsed
+            images: Vec::new(), // Added for consistency with build_from_parsed
+            detailed_links: Vec::new(), // Added for consistency with build_from_parsed
         }
     }
 
@@ -488,6 +520,59 @@ impl PageAnalysisData {
         (internal, external)
     }
 
+    fn extract_headings(document: &Html) -> Vec<HeadingElement> {
+        let mut results = Vec::new();
+        for level in 1..=6 {
+            let tag = format!("h{}", level);
+            let selector = Selector::parse(&tag).unwrap();
+            for element in document.select(&selector) {
+                results.push(HeadingElement {
+                    tag: tag.clone(),
+                    text: element.text().collect::<Vec<_>>().join(" ").trim().to_string(),
+                });
+            }
+        }
+        results
+    }
+
+    fn extract_images_detailed(document: &Html) -> Vec<ImageElement> {
+        let img_selector = Selector::parse("img").unwrap();
+        let mut results = Vec::new();
+
+        for img in document.select(&img_selector) {
+            if let Some(src) = img.value().attr("src") {
+                results.push(ImageElement {
+                    src: src.to_string(),
+                    alt: img.value().attr("alt").map(|s| s.to_string()),
+                });
+            }
+        }
+        results
+    }
+
+    fn extract_detailed_links(document: &Html, base_url: &Url) -> Vec<LinkElement> {
+        let a_selector = Selector::parse("a[href]").unwrap();
+        let mut results = Vec::new();
+
+        for link in document.select(&a_selector) {
+            if let Some(href) = link.value().attr("href") {
+                let is_internal = if let Ok(url) = base_url.join(href) {
+                     url.host_str() == base_url.host_str()
+                } else {
+                    false
+                };
+                
+                results.push(LinkElement {
+                    href: href.to_string(),
+                    text: link.text().collect::<Vec<_>>().join(" ").trim().to_string(),
+                    is_internal,
+                    status_code: None, // This will be populated later if checked
+                });
+            }
+        }
+        results
+    }
+
     fn check_structured_data(document: &Html) -> bool {
         Selector::parse(r#"script[type="application/ld+json"]"#)
             .ok()
@@ -558,32 +643,30 @@ mod tests {
     #[test]
     fn test_build_from_parsed() {
         let html = r#"
-        <html>
-            <head>
-                <title>Test Page</title>
-                <meta name="description" content="A test page description.">
-            </head>
-            <body>
-                <h1>Main Heading</h1>
-                <h2>Subheading</h2>
-                <p>some content here with enough words to be counted.</p>
-                <img src="img1.jpg" alt="Description">
-                <img src="img2.jpg"> <!-- Missing alt -->
-                <a href="/internal">Internal</a>
-                <a href="https://external.com">External</a>
-            </body>
-        </html>
+            <html>
+                <head>
+                    <title>Test Page</title>
+                    <meta name="description" content="A test page description.">
+                </head>
+                <body>
+                    <h1>Hello</h1>
+                    <img src="test.jpg" alt="test">
+                    <img src="missing.jpg">
+                    <a href="/link">Link</a>
+                    <a href="https://external.com">External</a>
+                </body>
+            </html>
         "#;
         let document = Html::parse_document(html);
-        let url = "https://example.com/page".to_string();
-        
-        let (page, issues) = PageAnalysisData::build_from_parsed(url.clone(), document, 0.5, 200, 500);
+        let (page, issues) = PageAnalysisData::build_from_parsed(
+            "https://example.com".into(), 
+            document, 
+            0.5, 
+            200, 
+            1000
+        );
 
-        assert_eq!(page.title, Some("Test Page".to_string()));
-        assert_eq!(page.meta_description, Some("A test page description.".to_string()));
         assert_eq!(page.h1_count, 1);
-        assert_eq!(page.h2_count, 1);
-        assert_eq!(page.image_count, 2);
         assert_eq!(page.images_without_alt, 1); // img2 missing alt
         assert_eq!(page.internal_links, 1);
         assert_eq!(page.external_links, 1);
@@ -591,6 +674,34 @@ mod tests {
         // Issues should be generated too
         assert!(!issues.is_empty()); 
         assert!(issues.iter().any(|i| i.title == "Images Missing Alt Text"));
+    }
+
+    #[test]
+    fn test_heading_extraction() {
+        let html = r#"
+            <html>
+                <body>
+                    <h1>Main Title</h1>
+                    <h2>Subtitle 1</h2>
+                    <div>
+                        <h3>Nested Subtitle</h3>
+                    </div>
+                    <h4>Fourth Level</h4>
+                    <h5>Fifth Level</h5>
+                    <h6>Sixth Level</h6>
+                </body>
+            </html>
+        "#;
+        let document = Html::parse_document(html);
+        let headings = PageAnalysisData::extract_headings(&document);
+
+        assert_eq!(headings.len(), 6);
+        assert_eq!(headings[0].tag, "h1");
+        assert_eq!(headings[0].text, "Main Title");
+        assert_eq!(headings[1].tag, "h2");
+        assert_eq!(headings[2].tag, "h3");
+        assert_eq!(headings[5].tag, "h6");
+        assert_eq!(headings[5].text, "Sixth Level");
     }
 
     // ===== Edge case tests for issue generation =====

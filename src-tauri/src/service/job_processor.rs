@@ -304,17 +304,17 @@ impl JobProcessor {
                 Ok(u) => u,
                 Err(_) => continue,
             };
-            let text = anchor
-                .text()
-                .collect::<Vec<_>>()
-                .join(" ")
-                .trim()
-                .to_string();
-            let nofollow = anchor
+             let _text = anchor.text().collect::<String>();
+            // check for nofollow
+            let _nofollow = anchor
                 .value()
                 .attr("rel")
-                .map_or(false, |r| r.contains("nofollow"));
-            let is_internal = target.domain() == base_url.domain();
+                .map(|r| r.contains("nofollow"))
+                .unwrap_or(false);
+
+            let _is_internal = target.domain() == base_url.domain();
+            // TODO: check status code
+            let _status_code = 0;
         }
 
         // 5.  Build the data object and issues
