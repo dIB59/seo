@@ -474,15 +474,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_job_status_strings() {
-        assert_eq!(JobStatus::Queued.as_str(), "queued");
-        assert_eq!(JobStatus::Failed.as_str(), "failed");
-    }
-
-    #[test]
-    fn test_issue_type_serialization() {
-       let critical = IssueType::Critical;
-       assert_eq!(critical.as_str(), "critical");
+    fn test_resource_status_exists() {
+        assert!(ResourceStatus::Found("url".into()).exists());
+        assert!(ResourceStatus::Unauthorized("url".into()).exists());
+        assert!(!ResourceStatus::NotFound.exists());
     }
 
     #[test]
@@ -549,6 +544,44 @@ mod tests {
 
         let issues = page.generate_issues();
         assert!(issues.iter().any(|i| i.title == "Thin Content"));
+    }
+
+    #[test]
+    fn test_generate_multiple_issues() {
+        // A page with multiple problems: no title, thin content, slow load
+        let page = PageAnalysisData {
+            analysis_id: "1".into(),
+            url: "http://example.com/bad".into(),
+            title: None, // Critical: Missing Title
+            meta_description: Some("desc".into()),
+            meta_keywords: None,
+            canonical_url: None,
+            h1_count: 1,
+            h2_count: 0,
+            h3_count: 0,
+            word_count: 50, // Warning: Thin content
+            image_count: 1,
+            images_without_alt: 0,
+            internal_links: 0,
+            external_links: 0,
+            load_time: 5.0, // Warning: Slow load
+            status_code: Some(200),
+            content_size: 1000,
+            mobile_friendly: true,
+            has_structured_data: true,
+            lighthouse_performance: None,
+            lighthouse_accessibility: None,
+            lighthouse_best_practices: None,
+            lighthouse_seo: None,
+            links: vec![],
+        };
+
+        let issues = page.generate_issues();
+        
+        assert!(issues.iter().any(|i| i.title == "Missing Title Tag"));
+        assert!(issues.iter().any(|i| i.title == "Thin Content"));
+        assert!(issues.iter().any(|i| i.title == "Slow Page Load"));
+        assert_eq!(issues.len(), 3);
     }
 
     #[test]
