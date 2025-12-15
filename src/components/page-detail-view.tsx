@@ -626,7 +626,7 @@ export function PageDetailView({
                 </TabsContent>
 
                 <TabsContent value="links">
-                    <LinksTab links={page.links || []} />
+                    <LinksTab links={page.detailed_links || []} />
                 </TabsContent>
             </Tabs>
 

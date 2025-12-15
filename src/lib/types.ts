@@ -120,5 +120,5 @@ export interface LinkElement {
 export interface PageDetailData extends PageAnalysisData {
   headings?: HeadingElement[]
   images?: ImageElement[]
-  links?: LinkElement[]
+  detailed_links?: LinkElement[]
 }
