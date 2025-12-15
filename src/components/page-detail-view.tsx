@@ -39,6 +39,12 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/src/components/ui/popover"
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/src/components/ui/tooltip"
 import { cn } from "@/src/lib/utils"
 import type { PageDetailData, HeadingElement, ImageElement, LinkElement } from "@/src/lib/types"
 
@@ -136,7 +142,18 @@ function MetaTab({ page }: { page: PageDetailData }) {
                                 </TableCell>
                                 <TableCell>
                                     {value ? (
-                                        <span className="text-sm">{value}</span>
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <span className="text-sm truncate block max-w-[400px] cursor-default">
+                                                        {value}
+                                                    </span>
+                                                </TooltipTrigger>
+                                                <TooltipContent className="max-w-md">
+                                                    <p className="break-words">{value}</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
                                     ) : (
                                         <span className="text-muted-foreground italic">Not set</span>
                                     )}
@@ -200,8 +217,23 @@ function HeadingsTab({ headings }: { headings: HeadingElement[] }) {
                                         {heading.tag}
                                     </Badge>
                                 </TableCell>
-                                <TableCell>
-                                    <span className="text-sm">{heading.text || <span className="text-muted-foreground italic">Empty</span>}</span>
+                                <TableCell className="max-w-[400px]">
+                                    {heading.text ? (
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <span className="text-sm truncate block cursor-default">
+                                                        {heading.text}
+                                                    </span>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p className="max-w-md break-words">{heading.text}</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    ) : (
+                                        <span className="text-muted-foreground italic">Empty</span>
+                                    )}
                                 </TableCell>
                                 <TableCell className="text-right">
                                     <CharLengthBadge length={heading.text.length} />
@@ -260,13 +292,33 @@ function ImagesTab({ images }: { images: ImageElement[] }) {
                         {images.map((image, idx) => (
                             <TableRow key={idx}>
                                 <TableCell className="max-w-[250px]">
-                                    <span className="text-sm truncate block font-mono text-muted-foreground">
-                                        {image.src}
-                                    </span>
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <span className="text-sm truncate block font-mono text-muted-foreground cursor-default">
+                                                    {image.src}
+                                                </span>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p className="max-w-md break-all font-mono text-xs">{image.src}</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
                                 </TableCell>
                                 <TableCell>
                                     {image.alt ? (
-                                        <span className="text-sm">{image.alt}</span>
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <span className="text-sm truncate block max-w-[300px] cursor-default">
+                                                        {image.alt}
+                                                    </span>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p className="max-w-md break-words">{image.alt}</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
                                     ) : (
                                         <span className="text-muted-foreground italic">Missing</span>
                                     )}
@@ -329,13 +381,33 @@ function LinksTab({ links }: { links: LinkElement[] }) {
                         {links.map((link, idx) => (
                             <TableRow key={idx}>
                                 <TableCell className="max-w-[250px]">
-                                    <span className="text-sm truncate block font-mono text-muted-foreground">
-                                        {link.href}
-                                    </span>
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <span className="text-sm truncate block font-mono text-muted-foreground cursor-default">
+                                                    {link.href}
+                                                </span>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p className="max-w-md break-all font-mono text-xs">{link.href}</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
                                 </TableCell>
                                 <TableCell>
                                     {link.text ? (
-                                        <span className="text-sm">{link.text}</span>
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <span className="text-sm truncate block max-w-[300px] cursor-default">
+                                                        {link.text}
+                                                    </span>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p className="max-w-md break-words">{link.text}</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
                                     ) : (
                                         <span className="text-muted-foreground italic">No text</span>
                                     )}
