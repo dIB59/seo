@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, url, settings_id, created_at, status, result_id FROM analysis_jobs WHERE status = 'queued' ORDER BY created_at ASC",
+  "query": "SELECT id, url, settings_id, created_at, status, result_id FROM analysis_jobs WHERE status IN ('queued', 'processing') ORDER BY created_at ASC\n             ",
   "describe": {
     "columns": [
       {
@@ -46,5 +46,5 @@
       true
     ]
   },
-  "hash": "cd83684270f65ff871ea1c0d130e9124d714770b1aa2b4d0612d0afd7da484fe"
+  "hash": "9a63f49c997d0ff3a2496ed8f75618584aa7a1a310e006c27a6fe7a092099964"
 }

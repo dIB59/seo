@@ -2,11 +2,12 @@
 
 import { useState } from "react"
 import useSWR from "swr"
-import { Search, RefreshCw } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Search, RefreshCw, Settings } from "lucide-react"
 import { Button } from "@/src/components/ui/button"
 import { UrlInputForm } from "@/src/components/url-input-form"
 import { JobList } from "@/src/components/job-list"
-import { AnalysisResults } from "@/src/components/analysis-results"
+// AnalysisResults import removed
 import { getAllJobs, startAnalysis, getResult, cancelAnalysis } from "@/src/lib/tauri"
 import type { AnalysisSettingsRequest, CompleteAnalysisResult } from "@/src/lib/types"
 import { logger } from "../lib/logger"
@@ -19,8 +20,9 @@ const fetchJobs = () =>
 	})
 
 export default function Home() {
+	const router = useRouter()
 	const [isLoading, setIsLoading] = useState(false)
-	const [selectedResult, setSelectedResult] = useState<CompleteAnalysisResult | null>(null)
+	// selectedResult state removed used for routing
 	const [error, setError] = useState<string | null>(null)
 
 
@@ -47,9 +49,10 @@ export default function Home() {
 	};
 
 	const handleViewResult = async (jobId: number) => {
-		const res = await getResult(jobId);
-		res.match(setSelectedResult, setError);
+		router.push(`/analysis?id=${jobId}`)
 	};
+	// Note: using window.location.href or router.push if I import router.
+	// Since "use client" is at top, I should import useRouter.
 
 	const handleCancel = async (jobId: number) => {
 		const res = await cancelAnalysis(jobId);
@@ -58,14 +61,6 @@ export default function Home() {
 			setError // void
 		);
 	};
-
-	if (selectedResult) {
-		return (
-			<main className="min-h-screen p-6 max-w-7xl mx-auto">
-				<AnalysisResults result={selectedResult} onBack={() => setSelectedResult(null)} />
-			</main>
-		)
-	}
 
 	return (
 		<main className="min-h-screen p-6 max-w-5xl mx-auto">
@@ -80,18 +75,26 @@ export default function Home() {
 						<p className="text-sm text-muted-foreground">Analyze websites for SEO issues and recommendations</p>
 					</div>
 				</div>
-				<Button variant="ghost" size="sm" onClick={() => mutate()} disabled={isValidating}>
-					<RefreshCw className={`h-4 w-4 mr-2 ${isValidating ? "animate-spin" : ""}`} />
-					Refresh
-				</Button>
+				<div className="flex gap-2">
+					<Button variant="ghost" size="sm" onClick={() => mutate()} disabled={isValidating}>
+						<RefreshCw className={`h-4 w-4 mr-2 ${isValidating ? "animate-spin" : ""}`} />
+						Refresh
+					</Button>
+					<Button variant="outline" size="sm" onClick={() => window.dispatchEvent(new CustomEvent("open-settings-dialog"))}>
+						<Settings className="h-4 w-4 mr-2" />
+						AI Configuration
+					</Button>
+				</div>
 			</div>
 
 			{/* Error Message */}
-			{error && (
-				<div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-					<p className="text-sm text-destructive">{error}</p>
-				</div>
-			)}
+			{
+				error && (
+					<div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+						<p className="text-sm text-destructive">{error}</p>
+					</div>
+				)
+			}
 
 			{/* URL Input Form */}
 			<div className="mb-8">
@@ -106,6 +109,6 @@ export default function Home() {
 				</div>
 				<JobList jobs={jobs} onViewResult={handleViewResult} onCancel={handleCancel} />
 			</div>
-		</main>
+		</main >
 	)
 }
