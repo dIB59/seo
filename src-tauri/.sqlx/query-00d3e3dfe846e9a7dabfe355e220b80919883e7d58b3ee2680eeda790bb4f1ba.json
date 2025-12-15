@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n    SELECT \n       pa.id,\n       pa.analysis_id,\n       pa.url,\n       pa.title,\n       pa.meta_description,\n       pa.meta_keywords,\n       pa.canonical_url,\n       pa.h1_count,\n       pa.h2_count,\n       pa.h3_count,\n       pa.word_count,\n       pa.image_count,\n       pa.images_without_alt,\n       pa.internal_links,\n       pa.external_links,\n       pa.load_time,\n       pa.status_code     AS page_status,\n       pa.content_size,\n       pa.mobile_friendly,\n       pa.has_structured_data,\n       pa.lighthouse_performance,\n       pa.lighthouse_accessibility,\n       pa.lighthouse_best_practices,\n       pa.lighthouse_seo,\n       pa.created_at,\n\n       GROUP_CONCAT(pe.to_url)        AS edge_urls,\n       GROUP_CONCAT(CAST(pe.status_code as TEXT))   AS edge_statuses\n\nFROM page_analysis pa\nLEFT JOIN page_edge pe ON pe.from_page_id = pa.id\nWHERE pa.analysis_id = ?\nGROUP BY pa.id\nORDER BY pa.id;\n    ",
+  "query": "\n    SELECT \n       pa.id,\n       pa.analysis_id,\n       pa.url,\n       pa.title,\n       pa.meta_description,\n       pa.meta_keywords,\n       pa.canonical_url,\n       pa.h1_count,\n       pa.h2_count,\n       pa.h3_count,\n       pa.word_count,\n       pa.image_count,\n       pa.images_without_alt,\n       pa.internal_links,\n       pa.external_links,\n       pa.load_time,\n       pa.status_code     AS page_status,\n       pa.content_size,\n       pa.mobile_friendly,\n       pa.has_structured_data,\n       pa.lighthouse_performance,\n       pa.lighthouse_accessibility,\n       pa.lighthouse_best_practices,\n       pa.lighthouse_seo,\n       pa.created_at,\n       pa.headings,\n       pa.images,\n       pa.links as detailed_links_json,\n\n       GROUP_CONCAT(pe.to_url)        AS edge_urls,\n       GROUP_CONCAT(CAST(pe.status_code as TEXT))   AS edge_statuses\n\nFROM page_analysis pa\nLEFT JOIN page_edge pe ON pe.from_page_id = pa.id\nWHERE pa.analysis_id = ?\nGROUP BY pa.id\nORDER BY pa.id;\n    ",
   "describe": {
     "columns": [
       {
@@ -129,13 +129,28 @@
         "type_info": "Text"
       },
       {
-        "name": "edge_urls",
+        "name": "headings",
         "ordinal": 25,
         "type_info": "Text"
       },
       {
-        "name": "edge_statuses",
+        "name": "images",
         "ordinal": 26,
+        "type_info": "Text"
+      },
+      {
+        "name": "detailed_links_json",
+        "ordinal": 27,
+        "type_info": "Text"
+      },
+      {
+        "name": "edge_urls",
+        "ordinal": 28,
+        "type_info": "Text"
+      },
+      {
+        "name": "edge_statuses",
+        "ordinal": 29,
         "type_info": "Text"
       }
     ],
@@ -169,8 +184,11 @@
       true,
       false,
       true,
+      true,
+      true,
+      true,
       true
     ]
   },
-  "hash": "9b4e30b51e7afa112433992ced4f7828391b117395fce56d9533c246409a3757"
+  "hash": "00d3e3dfe846e9a7dabfe355e220b80919883e7d58b3ee2680eeda790bb4f1ba"
 }
