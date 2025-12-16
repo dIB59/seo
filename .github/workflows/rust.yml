@@ -1,28 +1,40 @@
-name: backend CI
+name: Backend CI
 
 on:
   push:
     paths:
       - "src-tauri/**"
+      - ".github/workflows/rust.yml"
     branches: [main]
   pull_request:
     paths:
       - "src-tauri/**"
+      - ".github/workflows/rust.yml"
 
 env:
   SQLX_OFFLINE: "true"
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
 
 jobs:
-  lint:
-    name: Lint (fmt + clippy)
-    runs-on: ubuntu-22.04
-
+  check:
+    name: Check, Lint & Test
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: src-tauri
-
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -34,71 +46,81 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf
+      - name: Cache SQLx CLI
+        id: cache-sqlx
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/sqlx
+          key: ${{ runner.os }}-sqlx-cli-0.8.2
+
+      - name: Install SQLx CLI
+        if: steps.cache-sqlx.outputs.cache-hit != 'true'
+        run: cargo install sqlx-cli --version 0.8.2 --no-default-features --features sqlite --locked
 
       - name: Check formatting
         run: cargo fmt --all -- --check
 
       - name: Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy --all-targets --all-features --locked -- -D warnings
 
-  sqlx:
-    name: SQLx verification
-    runs-on: ubuntu-22.04
+      - name: Verify SQLx metadata
+        run: cargo sqlx prepare --check
 
-    defaults:
-      run:
-        working-directory: src-tauri
+      - name: Run tests
+        run: cargo test --locked --all-features
 
+      - name: Run doc tests
+        run: cargo test --doc --locked
+
+  security:
+    name: Security audit
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust
-        uses: swatinem/rust-cache@v2
+      - name: Cargo audit
+        uses: rustsec/audit-check@v2
         with:
-          workspaces: src-tauri
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install SQLx CLI
-        run: cargo install sqlx-cli --no-default-features --features sqlite
-
-      - name: Verify SQLx metadata is up-to-date
-        run: |
-          cargo sqlx prepare --check
-
-  test:
-    name: Tests
-    runs-on: ubuntu-22.04
-    needs: [lint, sqlx]
-
+  coverage:
+    name: Code coverage
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'pull_request'
     defaults:
       run:
         working-directory: src-tauri
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
 
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
 
-      - name: Run tests
-        run: cargo test --locked
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Generate coverage
+        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: src-tauri/lcov.info
+          fail_ci_if_error: false
