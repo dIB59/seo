@@ -513,4 +513,25 @@ mod tests {
         assert!(!edge.is_internal("https://example.com"), "Different port should be external");
         assert!(edge.is_internal("https://example.com:8080"), "Same port should be internal");
     }
+
+    #[test]
+    fn test_extract_links_discord_com() {
+        let base = Url::parse("https://discord.com/community/establishing-trust-with-connections-connection-details-and-linked-roles").unwrap();
+        let html = crate::test_utils::mocks::discord_html();
+
+        let links = JobProcessor::extract_links(&html, &base);
+
+        // We expect a significant number of links given the size of the file
+        assert!(!links.is_empty(), "Should extract links from Discord HTML");
+        
+        // Check for specific links we know exist/should exist
+        assert!(links.iter().any(|l| l.contains("/download")), "Should find /download link");
+        assert!(links.iter().any(|l| l.contains("/nitro")), "Should find /nitro link");
+        assert!(links.iter().any(|l| l.contains("/safety")), "Should find /safety link");
+        assert!(links.iter().any(|l| l.contains("support.discord.com")), "Should find support subdomain link");
+        assert!(links.iter().any(|l| l.contains("/developers")), "Should find /developers link");
+        
+        // Check that relative links were resolved correctly
+        assert!(links.iter().any(|l| l.starts_with("https://discord.com/")), "Links should be absolute");
+    }
 }
