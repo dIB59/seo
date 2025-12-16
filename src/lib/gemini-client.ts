@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core"
+import { execute } from "@/src/lib/tauri"
 import type { CompleteAnalysisResult } from "@/src/lib/types"
 import { toast } from "sonner"
 
@@ -7,7 +7,8 @@ import { toast } from "sonner"
  */
 async function getStoredApiKey(): Promise<string | null> {
     try {
-        const existingKey = await invoke<string | null>("get_gemini_api_key")
+        const existingKeyResult = await execute<string | null>("get_gemini_api_key")
+        const existingKey = existingKeyResult.expect("Failed to retrieve API key")
         return existingKey && existingKey.trim().length > 0 ? existingKey : null
     } catch (error) {
         console.error("Error checking API key:", error)
@@ -58,7 +59,7 @@ export async function generateGeminiAnalysis(
             .map(i => `- ${i.title} (${i.issue_type})`)
 
         // Call secure Tauri backend command
-        const insights = await invoke<string>("get_gemini_insights", {
+        const insightsResult = await execute<string>("get_gemini_insights", {
             analysisId: analysis.id,
             url: analysis.url,
             seoScore: summary.seo_score,
@@ -74,6 +75,7 @@ export async function generateGeminiAnalysis(
             sitemapFound: analysis.sitemap_found,
             robotsTxtFound: analysis.robots_txt_found,
         })
+        const insights = insightsResult.expect("Failed to generate AI insights")
 
         return insights
     } catch (error) {

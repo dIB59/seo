@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { invoke } from "@tauri-apps/api/core"
+import { execute } from "@/src/lib/tauri"
 import { toast } from "sonner"
 import {
     DndContext,
@@ -142,12 +142,17 @@ export function SettingsDialog() {
 
     const loadSettings = async () => {
         try {
-            const [key, savedPersona, savedBlocks, enabled] = await Promise.all([
-                invoke<string | null>("get_gemini_api_key"),
-                invoke<string | null>("get_gemini_persona"),
-                invoke<string | null>("get_gemini_prompt_blocks"),
-                invoke<boolean>("get_gemini_enabled")
+            const [keyRes, personaRes, blocksRes, enabledRes] = await Promise.all([
+                execute<string | null>("get_gemini_api_key"),
+                execute<string | null>("get_gemini_persona"),
+                execute<string | null>("get_gemini_prompt_blocks"),
+                execute<boolean>("get_gemini_enabled")
             ])
+
+            const key = keyRes.unwrapOr(null)
+            const savedPersona = personaRes.unwrapOr(null)
+            const savedBlocks = blocksRes.unwrapOr(null)
+            const enabled = enabledRes.unwrapOr(true)
 
             if (key) setApiKey(key)
             setPersona(savedPersona || DEFAULT_PERSONA)
@@ -182,7 +187,8 @@ export function SettingsDialog() {
 
         setIsLoading(true)
         try {
-            await invoke("set_gemini_api_key", { apiKey: apiKey.trim() })
+            const res = await execute("set_gemini_api_key", { apiKey: apiKey.trim() })
+            res.expect("Failed to save API key") // Throw if failed
             toast.success("API Key saved successfully")
         } catch (error) {
             console.error("Error saving API key:", error)
@@ -195,10 +201,16 @@ export function SettingsDialog() {
     const handleSaveGenericSettings = async () => {
         setIsLoading(true)
         try {
-            await Promise.all([
-                invoke("set_gemini_persona", { persona: persona.trim() }),
-                invoke("set_gemini_enabled", { enabled: aiEnabled })
+            const results = await Promise.all([
+                execute("set_gemini_persona", { persona: persona.trim() }),
+                execute("set_gemini_enabled", { enabled: aiEnabled })
             ])
+
+            // Check results
+            const [pRes, eRes] = results
+            pRes.expect("Failed to save persona")
+            eRes.expect("Failed to save AI enabled status")
+
             toast.success("Configuration saved successfully")
         } catch (error) {
             console.error("Error saving generic settings:", error)
@@ -211,7 +223,8 @@ export function SettingsDialog() {
     const handleSavePromptSettings = async () => {
         setIsLoading(true)
         try {
-            await invoke("set_gemini_prompt_blocks", { blocks: JSON.stringify(blocks) })
+            const res = await execute("set_gemini_prompt_blocks", { blocks: JSON.stringify(blocks) })
+            res.expect("Failed to save prompt blocks")
             toast.success("Prompt layout saved successfully")
         } catch (error) {
             console.error("Error saving prompt settings:", error)
