@@ -2,8 +2,12 @@ name: backend CI
 
 on:
   push:
+    paths:
+      - "src-tauri/**"
     branches: [main]
   pull_request:
+    paths:
+      - "src-tauri/**"
 
 env:
   SQLX_OFFLINE: "true"
@@ -94,43 +98,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf
+          sudo apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Run tests
         run: cargo test --locked
-
-  build:
-    name: Build (backend)
-    runs-on: ubuntu-22.04
-    needs: [test]
-
-    defaults:
-      run:
-        working-directory: src-tauri
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf
-
-      - name: Build backend
-        run: cargo build --locked --release
