@@ -119,7 +119,7 @@ function fallbackDownload(content: string | Uint8Array<ArrayBuffer>, filename: s
 // PDF GENERATION
 // ============================================================================
 
-import { generateGeminiAnalysis } from "@/src/lib/gemini-client"
+import { generateGeminiAnalysis } from "@/src/api/ai"
 import { execute } from "@/src/lib/tauri"
 
 export async function generatePDF(result: CompleteAnalysisResult): Promise<void> {
