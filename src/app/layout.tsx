@@ -11,7 +11,6 @@ const _geistMono = Geist_Mono({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "SEO Analyzer",
   description: "Analyze websites for SEO issues and get actionable recommendations",
-  generator: 'v0.app'
 }
 
 import { SettingsDialog } from "@/src/components/settings/settings-dialog"

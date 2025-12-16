@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
 import {
 	ArrowLeft,
 	FileText,
@@ -25,9 +24,6 @@ import {
 	ChevronRight,
 	ChevronDown,
 	Table as TableIcon,
-	Share2,
-	LayoutGrid,
-	List as ListIcon,
 	Network,
 } from "lucide-react"
 import { GraphView } from "@/src/components/graph-view"
@@ -47,10 +43,8 @@ import {
 	DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu"
 import { cn } from "@/src/lib/utils"
-import type { CompleteAnalysisResult, SeoIssue, PageAnalysisData, PageDetailData } from "@/src/lib/types"
+import type { CompleteAnalysisResult, SeoIssue, PageAnalysisData } from "@/src/lib/types"
 import { generatePDF, downloadTextReport, downloadCSVReport } from "@/src/lib/export-utils"
-import { PageDetailView } from "@/src/components/page-detail-view"
-import { CardDescription } from "@/src/components/ui/card" // Added CardDescription import
 
 // ============================================================================
 // UTILITY FUNCTIONS
