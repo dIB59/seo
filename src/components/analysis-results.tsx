@@ -25,7 +25,12 @@ import {
 	ChevronRight,
 	ChevronDown,
 	Table as TableIcon,
+	Share2,
+	LayoutGrid,
+	List as ListIcon,
+	Network,
 } from "lucide-react"
+import { GraphView } from "@/src/components/graph-view"
 import { Button } from "@/src/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/src/components/ui/tabs"
@@ -45,6 +50,7 @@ import { cn } from "@/src/lib/utils"
 import type { CompleteAnalysisResult, SeoIssue, PageAnalysisData, PageDetailData } from "@/src/lib/types"
 import { generatePDF, downloadTextReport, downloadCSVReport } from "@/src/lib/export-utils"
 import { PageDetailView } from "@/src/components/page-detail-view"
+import { CardDescription } from "@/src/components/ui/card" // Added CardDescription import
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -828,6 +834,12 @@ export function AnalysisResults({ result, onBack, onSelectPage }: AnalysisResult
 	const { analysis, pages, issues, summary } = result
 	// State for selected page removed - handled by router
 
+	const handlePageClick = (url: string) => {
+		const index = pages.findIndex(p => p.url === url);
+		if (index !== -1 && onSelectPage) {
+			onSelectPage(index);
+		}
+	};
 
 	const handleDownloadPDF = async () => {
 		await generatePDF(result)
@@ -911,6 +923,7 @@ export function AnalysisResults({ result, onBack, onSelectPage }: AnalysisResult
 							{pages.length}
 						</Badge>
 					</TabsTrigger>
+					<TabsTrigger value="graph" className="gap-2"><Network className="h-4 w-4" /> Graph</TabsTrigger>
 					<TabsTrigger value="overview">Overview</TabsTrigger>
 				</TabsList>
 
@@ -922,11 +935,13 @@ export function AnalysisResults({ result, onBack, onSelectPage }: AnalysisResult
 					<PagesTab
 						pages={pages}
 						onSelectPage={(index) => {
-							if (onSelectPage) {
-								onSelectPage(index)
-							}
+							if (onSelectPage) onSelectPage(index)
 						}}
 					/>
+				</TabsContent>
+
+				<TabsContent value="graph" className="h-[700px]">
+					<GraphView data={result} onNodeClick={handlePageClick} />
 				</TabsContent>
 
 				<TabsContent value="overview" className="mt-4">
@@ -934,6 +949,6 @@ export function AnalysisResults({ result, onBack, onSelectPage }: AnalysisResult
 				</TabsContent>
 			</Tabs>
 
-		</div>
+		</div >
 	)
 }
