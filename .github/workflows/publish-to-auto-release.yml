@@ -96,6 +96,8 @@ jobs:
 
       - name: generate release notes from merged PRs
         id: release_notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Get the latest tag
           LATEST_TAG=$(git describe --tags --abbrev=0)
