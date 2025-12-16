@@ -3,10 +3,9 @@
 import { useMemo, useRef, useState, useEffect } from "react"
 import dynamic from "next/dynamic"
 import { useTheme } from "next-themes"
-import type { CompleteAnalysisResult, PageAnalysisData } from "@/src/lib/types"
+import type { CompleteAnalysisResult } from "@/src/lib/types"
 import { Card } from "@/src/components/ui/card"
-import { Badge } from "@/src/components/ui/badge"
-import { ZoomIn, ZoomOut, Maximize, RotateCcw, Settings2 } from "lucide-react"
+import { ZoomIn, ZoomOut, RotateCcw, Settings2 } from "lucide-react"
 import { Button } from "@/src/components/ui/button"
 import { Slider } from "@/src/components/ui/slider"
 import { Popover, PopoverContent, PopoverTrigger } from "@/src/components/ui/popover"
@@ -43,7 +42,7 @@ export function GraphView({ data, onNodeClick }: GraphViewProps) {
     const { resolvedTheme } = useTheme()
     const theme = resolvedTheme || 'dark'
 
-    const fgRef = useRef<any>()
+    const fgRef = useRef<any>(null)
     const containerRef = useRef<HTMLDivElement>(null)
     const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
     const [chargeStrength, setChargeStrength] = useState(-400)
