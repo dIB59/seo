@@ -4,10 +4,12 @@ on:
   push:
     paths:
       - "src-tauri/**"
+      - ".github/workflows/rust.yml"
     branches: [main]
   pull_request:
     paths:
       - "src-tauri/**"
+      - ".github/workflows/rust.yml"
 
 env:
   SQLX_OFFLINE: "true"
