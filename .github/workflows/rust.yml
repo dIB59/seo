@@ -76,7 +76,6 @@ jobs:
   test:
     name: Tests
     runs-on: ubuntu-22.04
-    needs:
     defaults:
       run:
         working-directory: src-tauri
