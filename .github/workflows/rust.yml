@@ -1,30 +1,136 @@
-name: test backend
+name: backend CI
+
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
+
+env:
+  SQLX_OFFLINE: "true"
+
 jobs:
-  test:
+  lint:
+    name: Lint (fmt + clippy)
     runs-on: ubuntu-22.04
-    env:
-      SQLX_OFFLINE: true  # Set globally for all steps
+
+    defaults:
+      run:
+        working-directory: src-tauri
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-      
-      - name: Cache Rust dependencies
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust
         uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-      
-      - name: Install Ubuntu dependencies
+
+      - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-      
-      - name: Run backend tests
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  sqlx:
+    name: SQLx verification
+    runs-on: ubuntu-22.04
+
+    defaults:
+      run:
         working-directory: src-tauri
-        run: cargo test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install SQLx CLI
+        run: cargo install sqlx-cli --no-default-features --features sqlite
+
+      - name: Verify SQLx metadata is up-to-date
+        run: |
+          cargo sqlx prepare --check
+
+  test:
+    name: Tests
+    runs-on: ubuntu-22.04
+    needs: [lint, sqlx]
+
+    defaults:
+      run:
+        working-directory: src-tauri
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Run tests
+        run: cargo test --locked
+
+  build:
+    name: Build (backend)
+    runs-on: ubuntu-22.04
+    needs: [test]
+
+    defaults:
+      run:
+        working-directory: src-tauri
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Build backend
+        run: cargo build --locked --release
