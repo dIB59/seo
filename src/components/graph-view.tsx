@@ -73,8 +73,65 @@ export function GraphView({ data, onNodeClick }: GraphViewProps) {
         const nodes: GraphNode[] = []
         const links: GraphLink[] = []
         const nodeIds = new Set<string>()
+        const inDegree = new Map<string, number>()
+        const outDegree = new Map<string, number>()
 
-        // 1. Create nodes from Pages
+        // 0. First Pass: Collect IDs and Calculate Degrees
+        data.pages.forEach(page => {
+            const id = page.url
+            nodeIds.add(id)
+            if (!inDegree.has(id)) inDegree.set(id, 0)
+            if (!outDegree.has(id)) outDegree.set(id, 0)
+
+            if (page.detailed_links) {
+                page.detailed_links.forEach(link => {
+                    if (link.is_internal) {
+                        let targetId = link.href
+                        // Normalize target logic (mirrors the logic used later)
+                        // We assume specific normalization matches the second pass, 
+                        // but for counting incoming connections rigorously we should verify target existence.
+                        // However, we can just strictly count 'href' as target for now and filter later,
+                        // OR better: do the normalization check here.
+
+                        // Let's use a helper for normalization to be safe if we were extracting it, 
+                        // but for now let's just do it inline or trust that exact matches are most important.
+                        // Actually, to get ACCURATE in-degree for the VISUALIZED nodes, we must match the logic exactly.
+                        // So let's do this: 
+                        // 1. Collect all valid Node IDs first.
+                    }
+                })
+            }
+        })
+
+        // Optimized Pass approach:
+        // 1. Set of all page URLs (Potential Nodes)
+        const validUrls = new Set(data.pages.map(p => p.url))
+
+        // 2. Calculate connections
+        data.pages.forEach(page => {
+            if (page.detailed_links) {
+                let currentOut = 0
+                page.detailed_links.forEach(link => {
+                    if (link.is_internal) {
+                        let target = link.href
+                        // Normalization check
+                        if (!validUrls.has(target)) {
+                            if (target.endsWith('/') && validUrls.has(target.slice(0, -1))) target = target.slice(0, -1)
+                            else if (!target.endsWith('/') && validUrls.has(target + '/')) target = target + '/'
+                        }
+
+                        if (validUrls.has(target)) {
+                            // Valid internal link
+                            currentOut++
+                            inDegree.set(target, (inDegree.get(target) || 0) + 1)
+                        }
+                    }
+                })
+                outDegree.set(page.url, currentOut)
+            }
+        })
+
+        // 3. Create Nodes with topological insights
         data.pages.forEach((page) => {
             const issuesForPage = data.issues.filter(i => i.page_url === page.url)
             const isCritical = issuesForPage.some(i => i.issue_type === "Critical")
@@ -85,43 +142,65 @@ export function GraphView({ data, onNodeClick }: GraphViewProps) {
             else if (isCritical) color = "oklch(0.55 0.2 25)" // Critical (Red to Match Destructive)
             else if (isWarning) color = "oklch(0.75 0.15 85)" // Warning (Yellow)
 
-            // Normalize URL for ID
             const id = page.url
+            const incoming = inDegree.get(id) || 0
+            const outgoing = outDegree.get(id) || 0
+
+            // Sizing Logic: Base size + Logarithmic scaling based on In-degree
+            // Base = 2 (minimum visibility)
+            // Scaling: each connection adds weight, but diminishing returns.
+            // Example: 0 in -> 2
+            // Example: 10 in -> 2 + 10 * 0.5 ?? No that's huge. 
+            // Log: 2 + Math.log(10+1) * 2 ~= 2 + 2.3*2 = 6.6
+            // Example: 100 in -> 2 + Math.log(101) * 2 ~= 2 + 4.6*2 = 11.2 
+            // This seems reasonable.
+            const size = 2 + Math.log(incoming + 1) * 2
 
             nodes.push({
                 id,
                 name: page.url,
-                val: Math.max(1, Math.log(page.word_count || 1)) * 1, // Reduced multiplier from 2 to 1 for smaller circles
+                val: size,
                 color,
                 status: page.status_code,
                 title: page.title || "No Title",
-                issueCount: issuesForPage.length
-            })
-            nodeIds.add(id)
+                issueCount: issuesForPage.length,
+                // Add specific stats for tooltip if we extend the node type, 
+                // but we can just stuff it in 'name' or use a custom label generator.
+                // We'll update the GraphNode interface to include these stats?
+                // For now, let's keep it simple and just use 'val' for size.
+                // We will cast to 'any' in the nodeLabel prop if needed or just use the object.
+                inDegree: incoming,
+                outDegree: outgoing
+            } as any) // Casting as we're adding extra props for label
         })
 
-        // 2. Create edges from Detailed Links
+        // 4. Create Links
         data.pages.forEach((page) => {
             if (page.detailed_links) {
                 page.detailed_links.forEach(link => {
                     if (link.is_internal) {
-                        // Make sure target exists in our analyzed pages to avoid dangling edges
-                        // We try to match exact URL or with/without trailing slash
                         let targetId = link.href;
-                        if (!nodeIds.has(targetId)) {
-                            // Try typical normalizations
-                            if (targetId.endsWith('/') && nodeIds.has(targetId.slice(0, -1))) {
+                        // Use same normalization as above
+                        if (!validUrls.has(targetId)) {
+                            if (targetId.endsWith('/') && validUrls.has(targetId.slice(0, -1))) {
                                 targetId = targetId.slice(0, -1);
-                            } else if (!targetId.endsWith('/') && nodeIds.has(targetId + '/')) {
+                            } else if (!targetId.endsWith('/') && validUrls.has(targetId + '/')) {
                                 targetId = targetId + '/';
                             }
                         }
 
-                        if (nodeIds.has(targetId)) {
+                        if (validUrls.has(targetId)) {
+                            // Link Insight: 
+                            // If target has error (>=400), highlight the link as RED to show "Broken Path".
+                            const targetPage = data.pages.find(p => p.url === targetId)
+                            const isBrokenPath = targetPage && targetPage.status_code && targetPage.status_code >= 400
+
                             links.push({
                                 source: page.url,
                                 target: targetId,
-                                color: theme === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'
+                                color: isBrokenPath
+                                    ? 'oklch(0.55 0.2 25)' // Red for broken paths
+                                    : (theme === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)')
                             })
                         }
                     }
@@ -217,9 +296,9 @@ export function GraphView({ data, onNodeClick }: GraphViewProps) {
                     width={dimensions.width}
                     height={dimensions.height}
                     graphData={graphData}
-                    nodeLabel={(node: any) => `${node.name}\nStatus: ${node.status}\nIssues: ${node.issueCount}`}
+                    nodeLabel={(node: any) => `${node.name}\nStatus: ${node.status}\nIn-links: ${node.inDegree}\nOut-links: ${node.outDegree}\nIssues: ${node.issueCount}`}
                     nodeRelSize={8}
-                    linkColor={() => theme === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
+                    linkColor={(link: any) => link.color}
                     linkWidth={1}
                     linkDirectionalArrowLength={6}
                     linkDirectionalArrowRelPos={1}
