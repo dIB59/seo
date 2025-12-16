@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { invoke } from "@tauri-apps/api/core"
+import { execute } from "@/src/lib/tauri"
 import { toast } from "sonner"
 import {
     Dialog,
@@ -34,7 +34,8 @@ export function ApiKeyDialog() {
 
     const loadExistingKey = async () => {
         try {
-            const key = await invoke<string | null>("get_gemini_api_key")
+            const keyRes = await execute<string | null>("get_gemini_api_key")
+            const key = keyRes.unwrapOr(null)
             if (key) {
                 setApiKey(key)
             }
@@ -51,7 +52,8 @@ export function ApiKeyDialog() {
 
         setIsLoading(true)
         try {
-            await invoke("set_gemini_api_key", { apiKey: apiKey.trim() })
+            const res = await execute("set_gemini_api_key", { apiKey: apiKey.trim() })
+            res.expect("Failed to save API key")
             toast.success("API Key saved successfully")
             setOpen(false)
 

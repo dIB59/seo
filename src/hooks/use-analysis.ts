@@ -1,5 +1,5 @@
 import useSWR from "swr";
-import { getResult } from "@/src/lib/tauri";
+import { getResult } from "@/src/api/analysis";
 import { CompleteAnalysisResult } from "@/src/lib/types";
 
 // Helper for SWR

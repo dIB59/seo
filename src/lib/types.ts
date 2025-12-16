@@ -73,6 +73,7 @@ export interface PageAnalysisData {
   lighthouse_accessibility: number | null
   lighthouse_best_practices: number | null
   lighthouse_seo: number | null
+  detailed_links?: LinkElement[]
 }
 
 export type IssueType = "Critical" | "Warning" | "Suggestion"
