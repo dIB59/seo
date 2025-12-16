@@ -78,7 +78,7 @@ export function UrlInputForm({ onSubmit, isLoading }: UrlInputFormProps) {
                 onChange={(e) => setSettings({ ...settings, max_pages: Number.parseInt(e.target.value) || 100 })}
                 className="bg-background"
                 min={1}
-                max={1000}
+                max={10000}
               />
             </div>
             <div className="space-y-2">
