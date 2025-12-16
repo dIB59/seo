@@ -20,6 +20,10 @@ export class Result<T, E = string> {
 		if (this.isOk()) return this._value as T;
 		throw new Error(`unwrap on Err: ${this._error}`);
 	}
+	expect(msg: string): T {
+		if (this.isOk()) return this._value as T;
+		throw new Error(`${msg}: ${this._error}`);
+	}
 	unwrapOr(fb: T): T { return this.isOk() ? (this._value as T) : fb; }
 
 	/* combinators */

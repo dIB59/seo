@@ -3,20 +3,21 @@ import type { AnalysisProgress, AnalysisSettingsRequest, CompleteAnalysisResult 
 import { fromPromise } from "@/src/lib/result";
 
 
+
+export const execute = <T>(command: string, args?: Record<string, unknown>) =>
+	fromPromise(invoke<T>(command, args));
+
 export const startAnalysis = (url: string, settings: AnalysisSettingsRequest) =>
-	fromPromise(invoke<{ job_id: number }>("start_analysis", { url, settings }));
+	execute<{ job_id: number }>("start_analysis", { url, settings });
 
 export const getAllJobs = () =>
-	fromPromise(invoke<AnalysisProgress[]>("get_all_jobs"));
+	execute<AnalysisProgress[]>("get_all_jobs");
 
 export const getResult = (jobId: number) =>
-	fromPromise(invoke<CompleteAnalysisResult>("get_result", { jobId }));
+	execute<CompleteAnalysisResult>("get_result", { jobId });
 
-export const cancelAnalysis = (jobId: number) => {
-
-	const some = invoke<void>("cancel_analysis", { jobId });
-	return fromPromise(some)
-}
+export const cancelAnalysis = (jobId: number) =>
+	execute<void>("cancel_analysis", { jobId });
 
 export const getAnalysisProgress = (jobId: number) =>
-	fromPromise(invoke<AnalysisProgress>("get_analysis_progress", { jobId }));
+	execute<AnalysisProgress>("get_analysis_progress", { jobId });
