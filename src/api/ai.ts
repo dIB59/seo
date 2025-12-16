@@ -3,7 +3,7 @@ import type { CompleteAnalysisResult } from "@/src/lib/types"
 import { toast } from "sonner"
 
 /**
- * Get Gemini API key from database without prompting
+ * Get Gemini API key from database 
  */
 async function getStoredApiKey(): Promise<string | null> {
     try {
