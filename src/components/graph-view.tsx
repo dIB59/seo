@@ -1,7 +1,6 @@
 "use client"
 
 import { useMemo, useRef, useState, useEffect } from "react"
-import dynamic from "next/dynamic"
 import { useTheme } from "next-themes"
 import type { CompleteAnalysisResult } from "@/src/lib/types"
 import { Card } from "@/src/components/ui/card"
@@ -11,12 +10,6 @@ import { Slider } from "@/src/components/ui/slider"
 import { Popover, PopoverContent, PopoverTrigger } from "@/src/components/ui/popover"
 import { Label } from "@/src/components/ui/label"
 
-// Dynamically import ForceGraph2D as it uses window/canvas
-const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
-    ssr: false,
-    loading: () => <div className="h-[600px] w-full flex items-center justify-center bg-muted/10 animate-pulse">Loading Graph...</div>
-})
-
 interface GraphViewProps {
     data: CompleteAnalysisResult
     onNodeClick?: (url: string) => void
@@ -24,157 +17,84 @@ interface GraphViewProps {
 
 interface GraphNode {
     id: string
-    name: string
-    val: number
-    color: string
-    status: number | null
+    url: string
     title: string
+    status: number | null
     issueCount: number
+    inDegree: number
+    outDegree: number
+    color: string
 }
 
 interface GraphLink {
     source: string
     target: string
-    color: string
+    isBroken: boolean
 }
 
 export function GraphView({ data, onNodeClick }: GraphViewProps) {
     const { resolvedTheme } = useTheme()
     const theme = resolvedTheme || 'dark'
 
-    const fgRef = useRef<any>(null)
+    const canvasRef = useRef<HTMLCanvasElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
+    const cosmographRef = useRef<any>(null)
     const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
-    const [chargeStrength, setChargeStrength] = useState(-400)
-    const [linkDistance, setLinkDistance] = useState(70)
+    const [repulsion, setRepulsion] = useState(0.5)
+    const [linkDistance, setLinkDistance] = useState(2)
+    const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null)
+    const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
+    const [isLoading, setIsLoading] = useState(true)
 
     // Resize handler
     useEffect(() => {
         const updateDimensions = () => {
             if (containerRef.current) {
-                setDimensions({
-                    width: containerRef.current.clientWidth,
-                    height: containerRef.current.clientHeight
-                })
+                const width = containerRef.current.clientWidth
+                const height = containerRef.current.clientHeight
+                setDimensions({ width, height })
             }
         }
 
         window.addEventListener('resize', updateDimensions)
         updateDimensions()
-
-        // Initial delay to ensure container is rendered
         setTimeout(updateDimensions, 100)
 
         return () => window.removeEventListener('resize', updateDimensions)
     }, [])
 
-    const graphData = useMemo(() => {
+    const { nodes, links } = useMemo(() => {
         const nodes: GraphNode[] = []
         const links: GraphLink[] = []
         const inDegree = new Map<string, number>()
         const outDegree = new Map<string, number>()
 
-        // Helper to normalize URLs for matching
-        // Removes trailing slashes and ensures consistent comparison
         const normalizeUrl = (url: string) => {
             try {
-                // If it's a full URL, use URL object to normalize
                 const u = new URL(url)
                 return (u.origin + u.pathname).replace(/\/$/, "")
             } catch {
-                // If it's a relative path or invalid, just strip trailing slash
                 return url.replace(/\/$/, "")
             }
         }
 
-        // 1. First Pass: Collect all valid Node IDs (normalized) and their original forms
-        const validNormalizedUrls = new Map<string, string>() // normalized -> original
+        const validNormalizedUrls = new Map<string, string>()
 
         data.pages.forEach(page => {
             const normalized = normalizeUrl(page.url)
             validNormalizedUrls.set(normalized, page.url)
-
-            // Initialize degrees
             inDegree.set(page.url, 0)
             outDegree.set(page.url, 0)
         })
 
-        // 2. Calculate connections
         data.pages.forEach(page => {
             if (page.detailed_links) {
                 let currentOut = 0
                 page.detailed_links.forEach(link => {
                     if (link.is_internal) {
                         const targetNormalized = normalizeUrl(link.href)
-
-                        // Try to find a matching page
                         let targetOriginalUrl = validNormalizedUrls.get(targetNormalized)
 
-                        // If not found, try resolving against base if link is relative
-                        if (!targetOriginalUrl && !link.href.startsWith('http')) {
-                            try {
-                                const baseUrl = new URL(page.url)
-                                const absoluteUrl = new URL(link.href, baseUrl.origin).href
-                                targetOriginalUrl = validNormalizedUrls.get(normalizeUrl(absoluteUrl))
-                            } catch (e) {
-                                // ignore invalid urls
-                            }
-                        }
-
-                        if (targetOriginalUrl) {
-                            // Valid internal link found
-                            currentOut++
-                            inDegree.set(targetOriginalUrl, (inDegree.get(targetOriginalUrl) || 0) + 1)
-
-                            // Store link (we'll add it to links array in next pass or here)
-                            // Let's just collect stats here and build links in step 4
-                        }
-                    }
-                })
-                outDegree.set(page.url, currentOut)
-            }
-        })
-
-        // 3. Create Nodes with topological insights
-        data.pages.forEach((page) => {
-            const issuesForPage = data.issues.filter(i => i.page_url === page.url)
-            const isCritical = issuesForPage.some(i => i.issue_type === "Critical")
-            const isWarning = issuesForPage.some(i => i.issue_type === "Warning")
-
-            let color = "oklch(0.65 0.18 145)" // Success (Green)
-            if (page.status_code && page.status_code >= 400) color = "oklch(0.55 0.2 25)" // Destructive (Red)
-            else if (isCritical) color = "oklch(0.55 0.2 25)" // Critical (Red to Match Destructive)
-            else if (isWarning) color = "oklch(0.75 0.15 85)" // Warning (Yellow)
-
-            const id = page.url
-            const incoming = inDegree.get(id) || 0
-            const outgoing = outDegree.get(id) || 0
-
-            // Sizing Logic
-            const size = 2 + Math.log(incoming + 1) * 2
-
-            nodes.push({
-                id,
-                name: page.url,
-                val: size,
-                color,
-                status: page.status_code,
-                title: page.title || "No Title",
-                issueCount: issuesForPage.length,
-                inDegree: incoming,
-                outDegree: outgoing
-            } as any)
-        })
-
-        // 4. Create Links
-        data.pages.forEach((page) => {
-            if (page.detailed_links) {
-                page.detailed_links.forEach(link => {
-                    if (link.is_internal) {
-                        const targetNormalized = normalizeUrl(link.href)
-                        let targetOriginalUrl = validNormalizedUrls.get(targetNormalized)
-
-                        // If not found, try resolving relative
                         if (!targetOriginalUrl && !link.href.startsWith('http')) {
                             try {
                                 const baseUrl = new URL(page.url)
@@ -186,16 +106,63 @@ export function GraphView({ data, onNodeClick }: GraphViewProps) {
                         }
 
                         if (targetOriginalUrl) {
-                            // Check for broken path
+                            currentOut++
+                            inDegree.set(targetOriginalUrl, (inDegree.get(targetOriginalUrl) || 0) + 1)
+                        }
+                    }
+                })
+                outDegree.set(page.url, currentOut)
+            }
+        })
+
+        data.pages.forEach((page) => {
+            const issuesForPage = data.issues.filter(i => i.page_url === page.url)
+            const isCritical = issuesForPage.some(i => i.issue_type === "Critical")
+            const isWarning = issuesForPage.some(i => i.issue_type === "Warning")
+
+
+            const color = "#ffffffff"
+
+            const incoming = inDegree.get(page.url) || 0
+            const outgoing = outDegree.get(page.url) || 0
+
+            nodes.push({
+                id: page.url,
+                url: page.url,
+                title: page.title || "No Title",
+                status: page.status_code,
+                issueCount: issuesForPage.length,
+                inDegree: incoming,
+                outDegree: outgoing,
+                color
+            })
+        })
+
+        data.pages.forEach((page) => {
+            if (page.detailed_links) {
+                page.detailed_links.forEach(link => {
+                    if (link.is_internal) {
+                        const targetNormalized = normalizeUrl(link.href)
+                        let targetOriginalUrl = validNormalizedUrls.get(targetNormalized)
+
+                        if (!targetOriginalUrl && !link.href.startsWith('http')) {
+                            try {
+                                const baseUrl = new URL(page.url)
+                                const absoluteUrl = new URL(link.href, baseUrl.origin).href
+                                targetOriginalUrl = validNormalizedUrls.get(normalizeUrl(absoluteUrl))
+                            } catch (e) {
+                                // ignore
+                            }
+                        }
+
+                        if (targetOriginalUrl) {
                             const targetPage = data.pages.find(p => p.url === targetOriginalUrl)
-                            const isBrokenPath = targetPage && targetPage.status_code && targetPage.status_code >= 400
+                            const isBroken = targetPage && targetPage.status_code && targetPage.status_code >= 400
 
                             links.push({
                                 source: page.url,
                                 target: targetOriginalUrl,
-                                color: isBrokenPath
-                                    ? 'oklch(0.55 0.2 25)'
-                                    : (theme === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)')
+                                isBroken: !!isBroken
                             })
                         }
                     }
@@ -204,37 +171,103 @@ export function GraphView({ data, onNodeClick }: GraphViewProps) {
         })
 
         return { nodes, links }
-    }, [data, theme])
+    }, [data])
 
-
-    // Configure forces
+    // Initialize Cosmograph
     useEffect(() => {
-        if (fgRef.current) {
-            fgRef.current.d3Force('charge').strength(chargeStrength).distanceMax(500);
-            fgRef.current.d3Force('link').distance(linkDistance);
+        let mounted = true
 
-            // Re-heat simulation
-            fgRef.current.d3ReheatSimulation();
+        const initCosmograph = async () => {
+            if (!canvasRef.current || nodes.length === 0) return
+
+            try {
+                const { Graph } = await import('@cosmograph/cosmos')
+
+                if (!mounted) return
+
+                const config = {
+                    simulation: {
+                        repulsion: repulsion,
+                        linkDistance: linkDistance,
+                        linkSpring: 0.3,
+                        friction: 0.85,
+                        gravity: 0.0,
+                        center: 0.0
+                    },
+                    renderLinks: true,
+                    linkArrows: true,
+                    linkWidth: 1,
+                    nodeSize: (node: GraphNode) => 2 + Math.log(node.inDegree + 1) * 2,
+                    nodeColor: (node: GraphNode) => node.color,
+                    linkColor: (link: GraphLink) =>
+                        link.isBroken
+                            ? 'oklch(0.55 0.2 25)'
+                            : theme === 'dark'
+                                ? 'rgba(255,255,255,0.2)'
+                                : 'rgba(0,0,0,0.2)',
+                    backgroundColor: theme === 'dark' ? '#000000' : '#ffffff',
+                    spaceSize: 4096,
+                    onClick: (node?: GraphNode) => {
+                        if (node && onNodeClick) {
+                            onNodeClick(node.url)
+                        }
+                    },
+                    onNodeMouseOver: (node?: GraphNode) => {
+                        if (node) setHoveredNode(node)
+                    },
+                    onNodeMouseOut: () => {
+                        setHoveredNode(null)
+                    }
+                }
+
+                const graph = new Graph(canvasRef.current, config)
+                cosmographRef.current = graph
+
+                graph.setData(nodes, links)
+                graph.fitView()
+
+                setIsLoading(false)
+            } catch (error) {
+                console.error('Failed to initialize Cosmograph:', error)
+                setIsLoading(false)
+            }
         }
-    }, [graphData, chargeStrength, linkDistance])
+
+        initCosmograph()
+
+        return () => {
+            mounted = false
+            if (cosmographRef.current) {
+                cosmographRef.current.destroy?.()
+                cosmographRef.current = null
+            }
+        }
+    }, [nodes, links, theme, repulsion, linkDistance, onNodeClick])
+
+    // Update dimensions
+    useEffect(() => {
+        if (cosmographRef.current && canvasRef.current) {
+            canvasRef.current.width = dimensions.width
+            canvasRef.current.height = dimensions.height
+            cosmographRef.current.fitView()
+        }
+    }, [dimensions])
 
     const handleZoomIn = () => {
-        if (fgRef.current) {
-            const currentZoom = fgRef.current.zoom() as number
-            fgRef.current.zoom(currentZoom, 400)
-        }
+        cosmographRef.current?.zoomIn()
     }
 
     const handleZoomOut = () => {
-        if (fgRef.current) {
-            const currentZoom = fgRef.current.zoom() as number
-            fgRef.current.zoom(currentZoom, 400)
-        }
+        cosmographRef.current?.zoomOut()
     }
 
     const handleReset = () => {
-        if (fgRef.current) {
-            fgRef.current.zoomToFit(400, 20)
+        cosmographRef.current?.fitView()
+    }
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (hoveredNode) {
+            setMousePos({ x: e.clientX, y: e.clientY })
         }
     }
 
@@ -260,24 +293,24 @@ export function GraphView({ data, onNodeClick }: GraphViewProps) {
                     <PopoverContent side="left" className="w-80 p-4 mr-2 bg-background/95 backdrop-blur">
                         <div className="space-y-4">
                             <div className="space-y-2">
-                                <Label>Repulsion Force ({Math.abs(chargeStrength)})</Label>
+                                <Label>Repulsion Force ({repulsion.toFixed(2)})</Label>
                                 <Slider
-                                    value={[Math.abs(chargeStrength)]}
-                                    min={50}
-                                    max={1000}
-                                    step={10}
-                                    onValueChange={(vals) => setChargeStrength(-vals[0])}
+                                    value={[repulsion * 100]}
+                                    min={10}
+                                    max={2000}
+                                    step={5}
+                                    onValueChange={(vals) => setRepulsion(vals[0] / 100)}
                                 />
                                 <p className="text-xs text-muted-foreground">Higher values spread nodes further apart.</p>
                             </div>
                             <div className="space-y-2">
-                                <Label>Link Distance ({linkDistance})</Label>
+                                <Label>Link Distance ({linkDistance.toFixed(1)})</Label>
                                 <Slider
-                                    value={[linkDistance]}
-                                    min={10}
-                                    max={200}
-                                    step={5}
-                                    onValueChange={(vals) => setLinkDistance(vals[0])}
+                                    value={[linkDistance * 10]}
+                                    min={5}
+                                    max={500}
+                                    step={1}
+                                    onValueChange={(vals) => setLinkDistance(vals[0] / 10)}
                                 />
                             </div>
                         </div>
@@ -285,54 +318,44 @@ export function GraphView({ data, onNodeClick }: GraphViewProps) {
                 </Popover>
             </div>
 
-            <div className="flex-1 w-full h-full min-h-[600px]" ref={containerRef}>
-                <ForceGraph2D
-                    ref={fgRef}
+            {hoveredNode && (
+                <div
+                    className="absolute z-20 pointer-events-none bg-background/95 backdrop-blur border rounded-lg shadow-lg p-3 text-sm max-w-xs"
+                    style={{
+                        left: mousePos.x + 15,
+                        top: mousePos.y + 15,
+                    }}
+                >
+                    <div className="font-medium truncate">{hoveredNode.title}</div>
+                    <div className="text-xs text-muted-foreground truncate">{hoveredNode.url}</div>
+                    <div className="mt-2 space-y-1 text-xs">
+                        <div>Status: {hoveredNode.status || 'N/A'}</div>
+                        <div>In-links: {hoveredNode.inDegree}</div>
+                        <div>Out-links: {hoveredNode.outDegree}</div>
+                        <div>Issues: {hoveredNode.issueCount}</div>
+                    </div>
+                </div>
+            )}
+
+            <div
+                className="flex-1 w-full h-full min-h-[600px] relative"
+                ref={containerRef}
+                onMouseMove={handleMouseMove}
+            >
+                {isLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-muted/10 z-10">
+                        <div className="flex flex-col items-center gap-3">
+                            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                            <div className="text-sm text-muted-foreground">Loading Graph...</div>
+                        </div>
+                    </div>
+                )}
+                <canvas
+                    ref={canvasRef}
                     width={dimensions.width}
                     height={dimensions.height}
-                    graphData={graphData}
-                    nodeLabel={(node: any) => `${node.name}\nStatus: ${node.status}\nIn-links: ${node.inDegree}\nOut-links: ${node.outDegree}\nIssues: ${node.issueCount}`}
-                    nodeRelSize={8}
-                    linkColor={(link: any) => link.color}
-                    linkWidth={1}
-                    linkDirectionalArrowLength={6}
-                    linkDirectionalArrowRelPos={1}
-                    linkDirectionalArrowColor={() => theme === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
-                    backgroundColor="rgba(0,0,0,0)"
-                    nodeCanvasObjectMode={() => 'replace'}
-                    nodeCanvasObject={(node: any, ctx: any, globalScale: any) => {
-                        // Smaller radius base (User requested smaller circles)
-                        const r = Math.max(2, new Number(node.val).valueOf());
-
-                        // Draw shadow
-                        ctx.shadowColor = node.color;
-                        ctx.shadowBlur = 10;
-                        ctx.beginPath();
-                        ctx.arc(node.x, node.y, r, 0, 2 * Math.PI, false);
-                        ctx.fillStyle = node.color;
-                        ctx.fill();
-
-                        // Reset shadow
-                        ctx.shadowBlur = 0;
-
-                        // Draw border
-
-                        ctx.lineWidth = 1.5 / globalScale;
-                        ctx.strokeStyle = theme === 'dark' ? '#ffffff' : '#000000';
-                        ctx.stroke();
-
-                        // Label optimization: Only draw if zoomed in or specialized nodes?
-                        // For now we rely on tooltip, cleaner view requested.
-                    }}
-                    onNodeClick={(node: any) => {
-                        if (onNodeClick) onNodeClick(node.id)
-                        fgRef.current.centerAt(node.x, node.y, 1000);
-                        fgRef.current.zoom(3, 2000);
-                    }}
-                    cooldownTicks={100}
-                    d3AlphaDecay={0.02}
-                    d3VelocityDecay={0.4}
-                    warmupTicks={100}
+                    className="w-full h-full"
+                    style={{ display: 'block' }}
                 />
             </div>
 
@@ -350,6 +373,6 @@ export function GraphView({ data, onNodeClick }: GraphViewProps) {
                     <span className="w-3 h-3 rounded-full bg-[oklch(0.55_0.2_25)]"></span> Error
                 </div>
             </div>
-        </Card >
+        </Card>
     )
 }
