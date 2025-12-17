@@ -71,40 +71,33 @@ export function GraphView({ data, onNodeClick }: GraphViewProps) {
     const graphData = useMemo(() => {
         const nodes: GraphNode[] = []
         const links: GraphLink[] = []
-        const nodeIds = new Set<string>()
         const inDegree = new Map<string, number>()
         const outDegree = new Map<string, number>()
 
-        // 0. First Pass: Collect IDs and Calculate Degrees
-        data.pages.forEach(page => {
-            const id = page.url
-            nodeIds.add(id)
-            if (!inDegree.has(id)) inDegree.set(id, 0)
-            if (!outDegree.has(id)) outDegree.set(id, 0)
-
-            if (page.detailed_links) {
-                page.detailed_links.forEach(link => {
-                    if (link.is_internal) {
-                        let targetId = link.href
-                        // Normalize target logic (mirrors the logic used later)
-                        // We assume specific normalization matches the second pass, 
-                        // but for counting incoming connections rigorously we should verify target existence.
-                        // However, we can just strictly count 'href' as target for now and filter later,
-                        // OR better: do the normalization check here.
-
-                        // Let's use a helper for normalization to be safe if we were extracting it, 
-                        // but for now let's just do it inline or trust that exact matches are most important.
-                        // Actually, to get ACCURATE in-degree for the VISUALIZED nodes, we must match the logic exactly.
-                        // So let's do this: 
-                        // 1. Collect all valid Node IDs first.
-                    }
-                })
+        // Helper to normalize URLs for matching
+        // Removes trailing slashes and ensures consistent comparison
+        const normalizeUrl = (url: string) => {
+            try {
+                // If it's a full URL, use URL object to normalize
+                const u = new URL(url)
+                return (u.origin + u.pathname).replace(/\/$/, "")
+            } catch {
+                // If it's a relative path or invalid, just strip trailing slash
+                return url.replace(/\/$/, "")
             }
-        })
+        }
 
-        // Optimized Pass approach:
-        // 1. Set of all page URLs (Potential Nodes)
-        const validUrls = new Set(data.pages.map(p => p.url))
+        // 1. First Pass: Collect all valid Node IDs (normalized) and their original forms
+        const validNormalizedUrls = new Map<string, string>() // normalized -> original
+
+        data.pages.forEach(page => {
+            const normalized = normalizeUrl(page.url)
+            validNormalizedUrls.set(normalized, page.url)
+
+            // Initialize degrees
+            inDegree.set(page.url, 0)
+            outDegree.set(page.url, 0)
+        })
 
         // 2. Calculate connections
         data.pages.forEach(page => {
@@ -112,17 +105,29 @@ export function GraphView({ data, onNodeClick }: GraphViewProps) {
                 let currentOut = 0
                 page.detailed_links.forEach(link => {
                     if (link.is_internal) {
-                        let target = link.href
-                        // Normalization check
-                        if (!validUrls.has(target)) {
-                            if (target.endsWith('/') && validUrls.has(target.slice(0, -1))) target = target.slice(0, -1)
-                            else if (!target.endsWith('/') && validUrls.has(target + '/')) target = target + '/'
+                        const targetNormalized = normalizeUrl(link.href)
+
+                        // Try to find a matching page
+                        let targetOriginalUrl = validNormalizedUrls.get(targetNormalized)
+
+                        // If not found, try resolving against base if link is relative
+                        if (!targetOriginalUrl && !link.href.startsWith('http')) {
+                            try {
+                                const baseUrl = new URL(page.url)
+                                const absoluteUrl = new URL(link.href, baseUrl.origin).href
+                                targetOriginalUrl = validNormalizedUrls.get(normalizeUrl(absoluteUrl))
+                            } catch (e) {
+                                // ignore invalid urls
+                            }
                         }
 
-                        if (validUrls.has(target)) {
-                            // Valid internal link
+                        if (targetOriginalUrl) {
+                            // Valid internal link found
                             currentOut++
-                            inDegree.set(target, (inDegree.get(target) || 0) + 1)
+                            inDegree.set(targetOriginalUrl, (inDegree.get(targetOriginalUrl) || 0) + 1)
+
+                            // Store link (we'll add it to links array in next pass or here)
+                            // Let's just collect stats here and build links in step 4
                         }
                     }
                 })
@@ -145,14 +150,7 @@ export function GraphView({ data, onNodeClick }: GraphViewProps) {
             const incoming = inDegree.get(id) || 0
             const outgoing = outDegree.get(id) || 0
 
-            // Sizing Logic: Base size + Logarithmic scaling based on In-degree
-            // Base = 2 (minimum visibility)
-            // Scaling: each connection adds weight, but diminishing returns.
-            // Example: 0 in -> 2
-            // Example: 10 in -> 2 + 10 * 0.5 ?? No that's huge. 
-            // Log: 2 + Math.log(10+1) * 2 ~= 2 + 2.3*2 = 6.6
-            // Example: 100 in -> 2 + Math.log(101) * 2 ~= 2 + 4.6*2 = 11.2 
-            // This seems reasonable.
+            // Sizing Logic
             const size = 2 + Math.log(incoming + 1) * 2
 
             nodes.push({
@@ -163,14 +161,9 @@ export function GraphView({ data, onNodeClick }: GraphViewProps) {
                 status: page.status_code,
                 title: page.title || "No Title",
                 issueCount: issuesForPage.length,
-                // Add specific stats for tooltip if we extend the node type, 
-                // but we can just stuff it in 'name' or use a custom label generator.
-                // We'll update the GraphNode interface to include these stats?
-                // For now, let's keep it simple and just use 'val' for size.
-                // We will cast to 'any' in the nodeLabel prop if needed or just use the object.
                 inDegree: incoming,
                 outDegree: outgoing
-            } as any) // Casting as we're adding extra props for label
+            } as any)
         })
 
         // 4. Create Links
@@ -178,27 +171,30 @@ export function GraphView({ data, onNodeClick }: GraphViewProps) {
             if (page.detailed_links) {
                 page.detailed_links.forEach(link => {
                     if (link.is_internal) {
-                        let targetId = link.href;
-                        // Use same normalization as above
-                        if (!validUrls.has(targetId)) {
-                            if (targetId.endsWith('/') && validUrls.has(targetId.slice(0, -1))) {
-                                targetId = targetId.slice(0, -1);
-                            } else if (!targetId.endsWith('/') && validUrls.has(targetId + '/')) {
-                                targetId = targetId + '/';
+                        const targetNormalized = normalizeUrl(link.href)
+                        let targetOriginalUrl = validNormalizedUrls.get(targetNormalized)
+
+                        // If not found, try resolving relative
+                        if (!targetOriginalUrl && !link.href.startsWith('http')) {
+                            try {
+                                const baseUrl = new URL(page.url)
+                                const absoluteUrl = new URL(link.href, baseUrl.origin).href
+                                targetOriginalUrl = validNormalizedUrls.get(normalizeUrl(absoluteUrl))
+                            } catch (e) {
+                                // ignore
                             }
                         }
 
-                        if (validUrls.has(targetId)) {
-                            // Link Insight: 
-                            // If target has error (>=400), highlight the link as RED to show "Broken Path".
-                            const targetPage = data.pages.find(p => p.url === targetId)
+                        if (targetOriginalUrl) {
+                            // Check for broken path
+                            const targetPage = data.pages.find(p => p.url === targetOriginalUrl)
                             const isBrokenPath = targetPage && targetPage.status_code && targetPage.status_code >= 400
 
                             links.push({
                                 source: page.url,
-                                target: targetId,
+                                target: targetOriginalUrl,
                                 color: isBrokenPath
-                                    ? 'oklch(0.55 0.2 25)' // Red for broken paths
+                                    ? 'oklch(0.55 0.2 25)'
                                     : (theme === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)')
                             })
                         }
