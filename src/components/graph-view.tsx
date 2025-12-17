@@ -40,8 +40,8 @@ export function GraphView({ data, onNodeClick }: GraphViewProps) {
     const containerRef = useRef<HTMLDivElement>(null)
     const cosmographRef = useRef<any>(null)
     const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
-    const [repulsion, setRepulsion] = useState(0.5)
-    const [linkDistance, setLinkDistance] = useState(2)
+    const [repulsion, setRepulsion] = useState(0.8)
+    const [linkDistance, setLinkDistance] = useState(20)
     const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null)
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
     const [isLoading, setIsLoading] = useState(true)
@@ -121,7 +121,7 @@ export function GraphView({ data, onNodeClick }: GraphViewProps) {
             const isWarning = issuesForPage.some(i => i.issue_type === "Warning")
 
 
-            const color = "#ffffffff"
+            const node_color = "#b3b3b3"
 
             const incoming = inDegree.get(page.url) || 0
             const outgoing = outDegree.get(page.url) || 0
@@ -134,7 +134,7 @@ export function GraphView({ data, onNodeClick }: GraphViewProps) {
                 issueCount: issuesForPage.length,
                 inDegree: incoming,
                 outDegree: outgoing,
-                color
+                color: node_color
             })
         })
 
@@ -189,24 +189,20 @@ export function GraphView({ data, onNodeClick }: GraphViewProps) {
                     simulation: {
                         repulsion: repulsion,
                         linkDistance: linkDistance,
-                        linkSpring: 0.3,
+                        linkSpring: 0.5,
                         friction: 0.85,
-                        gravity: 0.0,
-                        center: 0.0
+                        gravity: 0.1,
+                        center: 1.0,
+                        decay: 5000
                     },
                     renderLinks: true,
                     linkArrows: true,
                     linkWidth: 1,
                     nodeSize: (node: GraphNode) => 2 + Math.log(node.inDegree + 1) * 2,
                     nodeColor: (node: GraphNode) => node.color,
-                    linkColor: (link: GraphLink) =>
-                        link.isBroken
-                            ? 'oklch(0.55 0.2 25)'
-                            : theme === 'dark'
-                                ? 'rgba(255,255,255,0.2)'
-                                : 'rgba(0,0,0,0.2)',
+                    linkColor: (link: GraphLink) => "#ffffff",
                     backgroundColor: theme === 'dark' ? '#000000' : '#ffffff',
-                    spaceSize: 4096,
+                    spaceSize: 8192,
                     onClick: (node?: GraphNode) => {
                         if (node && onNodeClick) {
                             onNodeClick(node.url)
