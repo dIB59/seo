@@ -60,7 +60,7 @@ export async function fromPromise<T>(p: Promise<T>): Promise<Result<T, string>> 
 			return Result.Ok(v)
 		})
 		.catch((e) => {
-			logger.error(e)
+			logger.warn(e)
 			return Result.Err((e as Error)?.message ?? String(e))
 		});
 }
