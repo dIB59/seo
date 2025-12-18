@@ -60,11 +60,11 @@ const GRAPH_CONFIG = {
     renderLinks: true,
     linkWidth: 0.1, // Increased slightly since it won't scale up anymore
     spaceSize: 8192,
-    nodeSizeScale: 0.1,
+    nodeSizeScale: 0.25,
     scalePointsOnZoom: false,
     scaleLinksOnZoom: false,
     curvedLinks: true,
-    linkWidthScale: 0.1,
+    linkWidthScale: 0,
     linkOpacity: 0.3,
     linkDefaultArrows: true,
     linkArrowsSizeScale: 0.5,
