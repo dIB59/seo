@@ -36,7 +36,7 @@ export default function AnalysisDashboard({ data }: { data: CompleteAnalysisResu
                 </TabsContent>
                 <TabsContent value="visual" className="mt-4">
                     <GraphView
-                        pages={data}
+                        data={data}
                         onNodeClick={(page) => setSelectedPage(page)}
                     />
                 </TabsContent>
