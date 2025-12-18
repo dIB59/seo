@@ -1,19 +1,31 @@
 import { execute } from "@/src/lib/tauri"
 import type { CompleteAnalysisResult } from "@/src/lib/types"
 import { toast } from "sonner"
+import { Result } from "../lib/result";
+
+export const AiError = {
+    MissingKey: "MISSING_KEY",
+    InvalidKey: "INVALID_KEY",
+    RateLimit: "RATE_LIMIT",
+    NetworkError: "NETWORK_ERROR",
+    Unknown: "UNKNOWN",
+} as const;
+
+// This creates a type union: "MISSING_KEY" | "INVALID_KEY" | ...
+export type AiError = typeof AiError[keyof typeof AiError];
 
 /**
  * Get Gemini API key from database 
  */
-async function getStoredApiKey(): Promise<string | null> {
-    try {
-        const existingKeyResult = await execute<string | null>("get_gemini_api_key")
-        const existingKey = existingKeyResult.expect("Failed to retrieve API key")
-        return existingKey && existingKey.trim().length > 0 ? existingKey : null
-    } catch (error) {
-        console.error("Error checking API key:", error)
-        return null
-    }
+async function getStoredApiKey(): Promise<Result<string, string>> {
+    const existingKeyResult = await execute<string | null>("get_gemini_api_key")
+
+    return existingKeyResult.andThen(key => {
+        if (key && key.trim().length > 0) {
+            return Result.Ok(key);
+        }
+        return Result.Err("API_KEY_MISSING");
+    });
 }
 
 /**
@@ -24,81 +36,86 @@ function openSettingsDialog() {
 }
 
 /**
- * Generate AI-powered SEO analysis using Google Gemini (via secure Tauri backend)
+ * Map backend error strings to our strict type
  */
+function mapErrorToType(error: string): AiError {
+    if (error.includes("API_KEY_MISSING")) return AiError.MissingKey;
+    if (error.includes("401")) return AiError.InvalidKey;
+    if (error.includes("429")) return AiError.RateLimit;
+    return AiError.Unknown;
+}
+
 export async function generateGeminiAnalysis(
     result: CompleteAnalysisResult
-): Promise<string | null> {
-    try {
-        // Check for API key
-        const apiKey = await getStoredApiKey()
+): Promise<Result<string, AiError>> {
 
-        if (!apiKey) {
-            toast("Gemini API Key Missing", {
-                description: "AI insights will be skipped. Please configure your API key.",
-                action: {
-                    label: "Configure Key",
-                    onClick: () => openSettingsDialog(),
-                },
-                duration: 10000,
-            })
-            // Automatically open dialog for better UX
-            openSettingsDialog()
-            return null
+    const apiKeyResult = await getStoredApiKey();
+
+    if (apiKeyResult.isErr() || !apiKeyResult.unwrap()) {
+        handleAiUiEffects(AiError.MissingKey);
+        return Result.Err(AiError.MissingKey);
+    }
+
+    const { analysis, summary, issues, pages } = result;
+
+    // 2. Call Backend
+    const insightsResult = await execute<string>("get_gemini_insights", {
+        analysisId: analysis.id,
+        url: analysis.url,
+        seoScore: summary.seo_score,
+        pagesCount: pages.length,
+        totalIssues: summary.total_issues,
+        criticalIssues: issues.filter(i => i.issue_type === "Critical").length,
+        warningIssues: issues.filter(i => i.issue_type === "Warning").length,
+        suggestionIssues: issues.filter(i => i.issue_type === "Suggestion").length,
+        topIssues: issues.slice(0, 10).map(i => `- ${i.title}`),
+        avgLoadTime: summary.avg_load_time,
+        totalWords: summary.total_words,
+        sslCertificate: analysis.ssl_certificate,
+        sitemapFound: analysis.sitemap_found,
+        robotsTxtFound: analysis.robots_txt_found,
+    });
+
+    return insightsResult.match<Result<string, AiError>>(
+        (data) => Result.Ok(data),
+        (err) => {
+            const errorType = mapErrorToType(err);
+            handleAiUiEffects(errorType);
+            return Result.Err(errorType);
         }
+    );
+}
 
-        const { analysis, summary, issues, pages } = result
+function handleAiUiEffects(error: AiError) {
+    switch (error) {
+        case AiError.MissingKey:
+            toast("Gemini API Configuration", {
+                description: "API key is missing.",
+                action: { label: "Configure", onClick: () => openSettingsDialog() },
+            });
+            break;
+        case AiError.InvalidKey:
+            toast("Gemini API Configuration", {
+                description: "The API key provided is invalid.",
+                action: { label: "Configure", onClick: () => openSettingsDialog() },
+            });
+            break;
 
-        // Prepare analysis summary
-        const criticalIssues = issues.filter(i => i.issue_type === "Critical").length
-        const warningIssues = issues.filter(i => i.issue_type === "Warning").length
-        const suggestionIssues = issues.filter(i => i.issue_type === "Suggestion").length
+        case AiError.RateLimit:
+            toast.error("Rate Limit Exceeded", {
+                description: "The AI is currently busy (429). Please try again later.",
+            });
+            break;
 
-        const topIssues = issues
-            .slice(0, 10)
-            .map(i => `- ${i.title} (${i.issue_type})`)
+        case AiError.NetworkError:
+            toast.error("Connection Error", {
+                description: "Could not reach Gemini services. Check your internet.",
+            });
+            break;
 
-        // Call secure Tauri backend command
-        const insightsResult = await execute<string>("get_gemini_insights", {
-            analysisId: analysis.id,
-            url: analysis.url,
-            seoScore: summary.seo_score,
-            pagesCount: pages.length,
-            totalIssues: summary.total_issues,
-            criticalIssues,
-            warningIssues,
-            suggestionIssues,
-            topIssues,
-            avgLoadTime: summary.avg_load_time,
-            totalWords: summary.total_words,
-            sslCertificate: analysis.ssl_certificate,
-            sitemapFound: analysis.sitemap_found,
-            robotsTxtFound: analysis.robots_txt_found,
-        })
-        const insights = insightsResult.expect("Failed to generate AI insights")
-
-        return insights
-    } catch (error) {
-        console.error("Error generating Gemini analysis:", error)
-
-        // Check if it's a missing API key error (backend might still throw if db check passed but key was invalid or emptied)
-        const errorMessage = String(error)
-        if (errorMessage.includes("API_KEY_MISSING")) {
-            toast("Gemini API Key Missing", {
-                description: "AI insights will be skipped. Configure API key to enable them.",
-                action: {
-                    label: "Configure Key",
-                    onClick: () => openSettingsDialog(),
-                },
-                duration: 10000,
-            })
-            openSettingsDialog()
-        } else {
-            toast.error("Failed to generate AI insights", {
-                description: "Please try again later",
-            })
-        }
-
-        return null
+        default:
+            toast.error("AI Analysis Failed", {
+                description: "An unexpected error occurred.",
+            });
     }
 }
