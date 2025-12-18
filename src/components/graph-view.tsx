@@ -4,7 +4,7 @@ import { useMemo, useRef, useState, useEffect, useCallback } from "react"
 import { useTheme } from "next-themes"
 import type { CompleteAnalysisResult } from "@/src/lib/types"
 import { Card } from "@/src/components/ui/card"
-import { ZoomIn, ZoomOut, RotateCcw, Settings2 } from "lucide-react"
+import { ZoomIn, ZoomOut, RotateCcw, Settings2, X, ExternalLink } from "lucide-react"
 import { Button } from "@/src/components/ui/button"
 import { Slider } from "@/src/components/ui/slider"
 import { Popover, PopoverContent, PopoverTrigger } from "@/src/components/ui/popover"
@@ -13,6 +13,7 @@ import { Label } from "@/src/components/ui/label"
 interface GraphViewProps {
     data: CompleteAnalysisResult
     onNodeClick?: (url: string) => void
+    onSelectPage?: (index: number) => void
 }
 
 interface GraphNode {
@@ -58,7 +59,7 @@ const GRAPH_CONFIG = {
     simulationGravity: 0,
     simulationCenter: 1,
     renderLinks: true,
-    linkWidth: 0.1, // Increased slightly since it won't scale up anymore
+    linkWidth: 0.1,
     spaceSize: 8192,
     nodeSizeScale: 0.25,
     scalePointsOnZoom: false,
@@ -78,7 +79,8 @@ const NODE_COLORS = {
     healthy: '#46c773ff',
     warning: '#e8aa3fff',
     critical: '#f14444ff',
-    error: '#ff0000ff'
+    error: '#ff0000ff',
+    dimmed: '#666666ff'
 } as const
 
 // Utility Functions
@@ -155,7 +157,7 @@ const calculateNodeSize = (inDegree: number): number => {
 }
 
 // Custom Hooks
-const useGraphData = (data: CompleteAnalysisResult): GraphData => {
+const useGraphData = (data: CompleteAnalysisResult, selectedNodeId: string | null): GraphData => {
     return useMemo(() => {
         const nodes: GraphNode[] = []
         const links: GraphLink[] = []
@@ -167,8 +169,10 @@ const useGraphData = (data: CompleteAnalysisResult): GraphData => {
 
         const { inDegree, outDegree } = calculateNodeDegrees(data.pages, validUrls)
 
+        // Create all nodes
         data.pages.forEach(page => {
             const issuesForPage = data.issues.filter(i => i.page_url === page.url)
+            const baseColor = getNodeColor(data.issues, page.url)
 
             nodes.push({
                 id: page.url,
@@ -178,10 +182,11 @@ const useGraphData = (data: CompleteAnalysisResult): GraphData => {
                 issueCount: issuesForPage.length,
                 inDegree: inDegree.get(page.url) || 0,
                 outDegree: outDegree.get(page.url) || 0,
-                color: getNodeColor(data.issues, page.url)
+                color: baseColor
             })
         })
 
+        // Create links
         data.pages.forEach(page => {
             if (!page.detailed_links) return
 
@@ -202,8 +207,31 @@ const useGraphData = (data: CompleteAnalysisResult): GraphData => {
             })
         })
 
+        // Filter links if a node is selected
+        if (selectedNodeId) {
+            const filteredLinks = links.filter(
+                link => link.source === selectedNodeId || link.target === selectedNodeId
+            )
+
+            // Get connected node IDs
+            const connectedNodeIds = new Set([selectedNodeId])
+            filteredLinks.forEach(link => {
+                connectedNodeIds.add(link.source)
+                connectedNodeIds.add(link.target)
+            })
+
+            // Dim nodes that aren't connected
+            nodes.forEach(node => {
+                if (!connectedNodeIds.has(node.id)) {
+                    node.color = NODE_COLORS.dimmed
+                }
+            })
+
+            return { nodes, links: filteredLinks }
+        }
+
         return { nodes, links }
-    }, [data])
+    }, [data, selectedNodeId])
 }
 
 const useContainerDimensions = (containerRef: React.RefObject<HTMLDivElement | null>) => {
@@ -233,7 +261,7 @@ const useContainerDimensions = (containerRef: React.RefObject<HTMLDivElement | n
 }
 
 // Main Component
-export function GraphView({ data, onNodeClick }: GraphViewProps) {
+export function GraphView({ data, onNodeClick, onSelectPage }: GraphViewProps) {
     const { resolvedTheme } = useTheme()
     const theme = resolvedTheme || 'dark'
 
@@ -244,17 +272,35 @@ export function GraphView({ data, onNodeClick }: GraphViewProps) {
     const [repulsion, setRepulsion] = useState(DEFAULT_REPULSION)
     const [linkDistance, setLinkDistance] = useState(DEFAULT_LINK_DISTANCE)
     const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null)
+    const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null)
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
     const [isLoading, setIsLoading] = useState(true)
 
     const dimensions = useContainerDimensions(containerRef)
-    const { nodes, links } = useGraphData(data)
+    const { nodes, links } = useGraphData(data, selectedNode?.id || null)
 
     const handleNodeClick = useCallback((node?: GraphNode) => {
-        if (node && onNodeClick) {
-            onNodeClick(node.url)
+        console.log("CLICK")
+        if (node) {
+            setSelectedNode(node)
+            if (onNodeClick) {
+                onNodeClick(node.url)
+            }
         }
     }, [onNodeClick])
+
+    const handleClearSelection = useCallback(() => {
+        setSelectedNode(null)
+    }, [])
+
+    const handleViewPageDetails = useCallback(() => {
+        if (selectedNode && onSelectPage) {
+            const pageIndex = data.pages.findIndex(p => p.url === selectedNode.url)
+            if (pageIndex !== -1) {
+                onSelectPage(pageIndex)
+            }
+        }
+    }, [selectedNode, data.pages, onSelectPage])
 
     const handleNodeMouseOver = useCallback((node?: GraphNode) => {
         if (node) setHoveredNode(node)
@@ -360,7 +406,15 @@ export function GraphView({ data, onNodeClick }: GraphViewProps) {
                 onLinkDistanceChange={handleLinkDistanceChange}
             />
 
-            {hoveredNode && (
+            {selectedNode && (
+                <SelectedNodePanel
+                    node={selectedNode}
+                    onClear={handleClearSelection}
+                    onViewDetails={handleViewPageDetails}
+                />
+            )}
+
+            {hoveredNode && !selectedNode && (
                 <NodeTooltip node={hoveredNode} position={mousePos} />
             )}
 
@@ -444,12 +498,67 @@ function GraphControls({
                                 min={5}
                                 max={5000}
                                 step={1}
-                                onValueChange={onLinkDistanceChange}
                             />
                         </div>
                     </div>
                 </PopoverContent>
             </Popover>
+        </div>
+    )
+}
+
+interface SelectedNodePanelProps {
+    node: GraphNode
+    onClear: () => void
+    onViewDetails: () => void
+}
+
+function SelectedNodePanel({ node, onClear, onViewDetails }: SelectedNodePanelProps) {
+    return (
+        <div className="absolute top-4 left-4 z-10 bg-background/95 backdrop-blur border rounded-lg shadow-lg p-4 max-w-md">
+            <div className="flex items-start justify-between gap-3 mb-3">
+                <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-sm truncate">{node.title}</h3>
+                    <p className="text-xs text-muted-foreground truncate">{node.url}</p>
+                </div>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 shrink-0"
+                    onClick={onClear}
+                    title="Clear Selection"
+                >
+                    <X className="h-4 w-4" />
+                </Button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs mb-3">
+                <div>
+                    <div className="text-muted-foreground">Status</div>
+                    <div className="font-medium">{node.status || 'N/A'}</div>
+                </div>
+                <div>
+                    <div className="text-muted-foreground">Issues</div>
+                    <div className="font-medium">{node.issueCount}</div>
+                </div>
+                <div>
+                    <div className="text-muted-foreground">Incoming</div>
+                    <div className="font-medium">{node.inDegree} links</div>
+                </div>
+                <div>
+                    <div className="text-muted-foreground">Outgoing</div>
+                    <div className="font-medium">{node.outDegree} links</div>
+                </div>
+            </div>
+
+            <Button
+                onClick={onViewDetails}
+                className="w-full"
+                size="sm"
+            >
+                <ExternalLink className="h-3 w-3 mr-2" />
+                View Page Details
+            </Button>
         </div>
     )
 }
@@ -510,7 +619,10 @@ interface LegendItemProps {
 function LegendItem({ color, label }: LegendItemProps) {
     return (
         <div className="flex items-center gap-2">
-            <span className={`w-3 h-3 rounded-full bg-[${color}]`} />
+            <div
+                className="w-3 h-3 rounded-full"
+                style={{ backgroundColor: color }}
+            />
             {label}
         </div>
     )

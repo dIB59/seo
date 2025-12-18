@@ -5,76 +5,37 @@ import {
 	ArrowLeft,
 	FileText,
 	AlertTriangle,
-	Clock,
 	CheckCircle2,
 	XCircle,
 	AlertCircle,
 	Lightbulb,
 	Download,
 	ExternalLink,
-	Smartphone,
-	ImageIcon,
-	Link2,
-	FileCode,
-	Eye,
-	Shield,
-	Zap,
-	Search,
-	BarChart3,
-	ChevronRight,
 	ChevronDown,
 	Table as TableIcon,
 	Network,
 } from "lucide-react"
 import { GraphView } from "@/src/components/graph-view"
 import { Button } from "@/src/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card"
+import { Card, CardContent } from "@/src/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/src/components/ui/tabs"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/src/components/ui/accordion"
-import { Progress } from "@/src/components/ui/progress"
 import { Badge } from "@/src/components/ui/badge"
-import { Separator } from "@/src/components/ui/separator"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/src/components/ui/dialog"
+import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/src/components/ui/table"
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu"
-import { cn } from "@/src/lib/utils"
 import type { CompleteAnalysisResult, SeoIssue, PageAnalysisData } from "@/src/lib/types"
 import { generatePDF, downloadTextReport, downloadCSVReport } from "@/src/lib/export-utils"
-
-// ============================================================================
-// UTILITY FUNCTIONS
-// ============================================================================
-
-function getScoreColor(score: number) {
-	if (score >= 80) return "text-success"
-	if (score >= 50) return "text-warning"
-	return "text-destructive"
-}
-
-function getScoreBgColor(score: number) {
-	if (score >= 80) return "bg-success"
-	if (score >= 50) return "bg-warning"
-	return "bg-destructive"
-}
-
-function getScoreLabel(score: number) {
-	if (score >= 90) return "Excellent"
-	if (score >= 80) return "Good"
-	if (score >= 60) return "Fair"
-	if (score >= 40) return "Poor"
-	return "Critical"
-}
-
-function getLoadTimeColor(time: number) {
-	if (time < 1) return "text-success"
-	if (time < 2) return "text-warning"
-	return "text-destructive"
-}
+import { QuickStatsCard } from "./analysis/molecules/QuickStat"
+import { OverviewTab } from "./analysis/molecules/OverviewTab"
+import { IssueBadge } from "./analysis/atoms/IssueBadge"
+import { ScoreCard } from "./analysis/molecules/ScoreCard"
+import { SiteHealthCard } from "./analysis/molecules/SiteHealthCard"
+import { BrokenPageRow, HealthyPageRow } from "./analysis/molecules/PageRow"
 
 // ============================================================================
 // COMPOSABLE UI COMPONENTS
@@ -89,207 +50,11 @@ function IssueIcon({ type }: { type: string }) {
 	return iconMap[type] ?? <AlertTriangle className="h-4 w-4 text-muted-foreground" />
 }
 
-function IssueBadge({ type, count }: { type: string; count?: number }) {
-	const label = count !== undefined ? `${count} ${type}` : type
-	const variants: Record<string, string> = {
-		Critical: "bg-destructive/15 text-destructive border-destructive/20",
-		Warning: "bg-warning/15 text-warning border-warning/20",
-		Suggestion: "bg-primary/15 text-primary border-primary/20",
-	}
-	return (
-		<Badge variant="outline" className={cn("text-xs font-medium", variants[type])}>
-			{label}
-		</Badge>
-	)
+
+
+const isBroken = (page: PageAnalysisData) => {
+	return page.status_code !== 200;
 }
-
-function ScoreRing({ score, size = "lg", label }: { score: number; size?: "sm" | "md" | "lg"; label?: string }) {
-	const dimensions = { sm: 48, md: 64, lg: 80 }
-	const strokeWidth = { sm: 5, md: 6, lg: 8 }
-	const fontSize = { sm: "text-sm", md: "text-lg", lg: "text-xl" }
-
-	const dim = dimensions[size]
-	const stroke = strokeWidth[size]
-	const radius = (dim - stroke) / 2
-	const circumference = 2 * Math.PI * radius
-
-	return (
-		<div className="relative inline-flex items-center justify-center shrink-0">
-			<svg className="transform -rotate-90" width={dim} height={dim}>
-				<circle
-					cx={dim / 2}
-					cy={dim / 2}
-					r={radius}
-					strokeWidth={stroke}
-					stroke="currentColor"
-					fill="none"
-					className="text-muted/30"
-				/>
-				<circle
-					cx={dim / 2}
-					cy={dim / 2}
-					r={radius}
-					strokeWidth={stroke}
-					stroke="currentColor"
-					fill="none"
-					strokeDasharray={circumference}
-					strokeDashoffset={circumference - (circumference * score) / 100}
-					strokeLinecap="round"
-					className={getScoreBgColor(score)}
-				/>
-			</svg>
-			<div className="absolute inset-0 flex flex-col items-center justify-center">
-				<span className={cn("font-bold", getScoreColor(score), fontSize[size])}>{score}</span>
-				{label && <span className="text-[10px] text-muted-foreground">{label}</span>}
-			</div>
-		</div>
-	)
-}
-
-function StatusIcon({
-	active,
-	activeIcon: ActiveIcon,
-	inactiveIcon: InactiveIcon,
-}: {
-	active: boolean
-	activeIcon?: React.ComponentType<{ className?: string }>
-	inactiveIcon?: React.ComponentType<{ className?: string }>
-}) {
-	const Icon = active ? ActiveIcon || CheckCircle2 : InactiveIcon || XCircle
-	return <Icon className={cn("h-5 w-5", active ? "text-success" : "text-muted-foreground")} />
-}
-
-function StatItem({
-	icon: Icon,
-	label,
-	value,
-	subValue,
-}: {
-	icon: React.ComponentType<{ className?: string }>
-	label: string
-	value: React.ReactNode
-	subValue?: string
-}) {
-	return (
-		<div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
-			<Icon className="h-4 w-4 text-muted-foreground shrink-0" />
-			<div className="min-w-0 flex-1">
-				<p className="text-sm font-semibold truncate">{value}</p>
-				<p className="text-[10px] text-muted-foreground truncate">{label}</p>
-				{subValue && <p className="text-[10px] text-muted-foreground">{subValue}</p>}
-			</div>
-		</div>
-	)
-}
-
-function StatItemError({
-	icon: Icon,
-	label,
-	value,
-	subValue,
-}: {
-	icon: React.ComponentType<{ className?: string }>
-	label: string
-	value: React.ReactNode
-	subValue?: string
-}) {
-	return (
-		<div
-			className="flex items-center gap-2 p-2 rounded-lg bg-card border-l-4"
-			style={{ borderLeftColor: "red" }}
-		>
-			<Icon className="h-4 w-4 text-muted-foreground shrink-0" />
-			<div className="min-w-0 flex-1">
-				{/* value is the only red touch – uses the raw variable */}
-				<p
-					className="text-sm font-semibold truncate"
-					style={{ color: 'hsl(var(--destructive))' }}
-				>
-					{value}
-				</p>
-
-				{/* label & sub-value stay on the neutral scale */}
-				<p className="text-[10px] text-muted-foreground truncate">{label}</p>
-				{subValue && (
-					<p className="text-[10px] text-muted-foreground">{subValue}</p>
-				)}
-			</div>
-		</div>
-	)
-}
-
-function HealthIndicator({ label, active }: { label: string; active: boolean }) {
-	return (
-		<div className="flex flex-col items-center gap-1 p-2 rounded-lg bg-muted/50">
-			<StatusIcon active={active} activeIcon={CheckCircle2} inactiveIcon={AlertCircle} />
-			<span className="text-xs text-muted-foreground">{label}</span>
-		</div>
-	)
-}
-
-function MetricBadge({ label, value }: { label: string; value: number | string }) {
-	return (
-		<div className="text-center p-2 rounded-lg bg-muted/50">
-			<p className="text-lg font-semibold">{value}</p>
-			<p className="text-[10px] text-muted-foreground">{label}</p>
-		</div>
-	)
-}
-
-function ProgressRow({
-	label,
-	value,
-	total,
-	color,
-}: {
-	label: string
-	value: number
-	total: number
-	color: "success" | "warning" | "destructive" | "primary"
-}) {
-	const colorMap = {
-		success: "[&>div]:bg-success",
-		warning: "[&>div]:bg-warning",
-		destructive: "[&>div]:bg-destructive",
-		primary: "[&>div]:bg-primary",
-	}
-	return (
-		<div className="flex items-center gap-3">
-			<div className="w-20 text-sm text-muted-foreground">{label}</div>
-			<Progress value={total > 0 ? (value / total) * 100 : 0} className={cn("flex-1 h-2", colorMap[color])} />
-			<div className="w-8 text-sm text-right">{value}</div>
-		</div>
-	)
-}
-
-// ============================================================================
-// LIGHTHOUSE SCORES COMPONENT
-// ============================================================================
-
-function LighthouseScores({ page }: { page: PageAnalysisData }) {
-	if (!page.lighthouse_performance) return null
-
-	const scores = [
-		{ label: "Performance", value: page.lighthouse_performance, icon: Zap },
-		{ label: "Accessibility", value: page.lighthouse_accessibility, icon: Eye },
-		{ label: "Best Practices", value: page.lighthouse_best_practices, icon: Shield },
-		{ label: "SEO", value: page.lighthouse_seo, icon: Search },
-	]
-
-	return (
-		<div className="grid grid-cols-4 gap-2">
-			{scores.map((score) => (
-				<div key={score.label} className="flex flex-col items-center gap-1 p-2 rounded-lg bg-muted/50">
-					<ScoreRing score={score.value || 0} size="sm" />
-					<span className="text-[10px] text-muted-foreground text-center">{score.label}</span>
-				</div>
-			))}
-		</div>
-	)
-}
-
-
-const isBroken = (p: PageAnalysisData) => p.status_code! >= 400;
 
 // ============================================================================
 // PAGE TABLE COMPONENTS
@@ -303,387 +68,8 @@ function PageDetailRow({ page, onClick }: { page: PageAnalysisData; onClick: () 
 }
 
 
-function BrokenPageRow({ page, onClick }: { page: PageAnalysisData; onClick: () => void }) {
-	return (
-		<TableRow className="cursor-pointer bg-destructive/5 hover:bg-destructive/10 text-destructive " onClick={onClick}>
-			<TableCell className="max-w-[200px]">
-				<div className="flex flex-col gap-0.5">
-					<span className="font-medium text-sm truncate text-foreground">
-						{page.url.replace(/^https?:\/\/[^/]+/, "") || "/"}
-					</span>
-					<span className="text-xs text-muted-foreground truncate">
-						{page.title || "No title"}
-					</span>
-				</div>
-			</TableCell>
-
-			{/* ----- red status code ----- */}
-			<TableCell className="text-center">
-				<span className="text-destructive font-medium">{page.load_time.toPrecision(2) + "s"}</span>
-			</TableCell>
-
-			{/* ----- same data as healthy row ----- */}
-			<TableCell className="text-center text-destructive ">-</TableCell>
-
-			<TableCell className="text-center text-xs text-destructive ">
-				–
-			</TableCell>
-
-			<TableCell className="text-center text-destructive ">
-				<div className="flex items-center justify-center gap-1">
-					<span>{page.image_count}</span>
-					{page.images_without_alt > 0 && (
-						<span className="text-destructive/80 text-xs">(-{page.images_without_alt})</span>
-					)}
-				</div>
-			</TableCell>
-
-			<TableCell className="text-center text-xs">
-				{page.internal_links}/{page.external_links}
-			</TableCell>
-
-			<TableCell className="text-center">
-				<div className="flex items-center justify-center gap-1.5">
-					-
-				</div>
-			</TableCell>
-
-			<TableCell className="text-center">
-				{page.lighthouse_seo ? (
-					<span className={cn("text-sm font-medium", getScoreColor(page.lighthouse_seo))}>
-						{page.lighthouse_seo}
-					</span>
-				) : (
-					<span className="text-muted-foreground">-</span>
-				)}
-			</TableCell>
-
-			<TableCell>
-				<ChevronRight className="h-4 w-4 text-muted-foreground" />
-			</TableCell>
-		</TableRow>
-	);
-}
-
-
-
-function HealthyPageRow({ page, onClick }: { page: PageAnalysisData; onClick: () => void }) {
-	return (
-		<TableRow className="cursor-pointer hover:bg-muted/50" onClick={onClick}>
-			<TableCell className="max-w-[200px]">
-				<div className="flex flex-col gap-0.5">
-					<span className="font-medium text-sm truncate">{page.url.replace(/^https?:\/\/[^/]+/, "") || "/"}</span>
-					<span className="text-xs text-muted-foreground truncate">{page.title || "No title"}</span>
-				</div>
-			</TableCell>
-			<TableCell className="text-center">
-				<span className={cn("font-medium", getLoadTimeColor(page.load_time))}>{page.load_time.toFixed(2)}s</span>
-			</TableCell>
-			<TableCell className="text-center">{page.word_count.toLocaleString()}</TableCell>
-			<TableCell className="text-center">
-				<span className="text-xs">
-					{page.h1_count}/{page.h2_count}/{page.h3_count}
-				</span>
-			</TableCell>
-			<TableCell className="text-center">
-				<div className="flex items-center justify-center gap-1">
-					<span>{page.image_count}</span>
-					{page.images_without_alt > 0 && (
-						<span className="text-destructive/80 text-xs">(-{page.images_without_alt})</span>
-					)}
-				</div>
-			</TableCell>
-			<TableCell className="text-center">
-				<span className="text-xs">
-					{page.internal_links}/{page.external_links}
-				</span>
-			</TableCell>
-			<TableCell className="text-center">
-				<div className="flex items-center justify-center gap-1.5">
-					<Smartphone className={cn("h-3.5 w-3.5", page.mobile_friendly ? "text-success" : "text-muted-foreground")} />
-					<FileCode
-						className={cn("h-3.5 w-3.5", page.has_structured_data ? "text-success" : "text-muted-foreground")}
-					/>
-				</div>
-			</TableCell>
-			<TableCell className="text-center">
-				{page.lighthouse_seo ? (
-					<span className={cn("text-sm font-medium", getScoreColor(page.lighthouse_seo))}>{page.lighthouse_seo}</span>
-				) : (
-					<span className="text-muted-foreground">-</span>
-				)}
-			</TableCell>
-			<TableCell>
-				<ChevronRight className="h-4 w-4 text-muted-foreground" />
-			</TableCell>
-		</TableRow>
-	)
-}
-
-/* ------------------------------------------------------------------ */
-/* Public wrapper                                                     */
-/* ------------------------------------------------------------------ */
-function PageDetailModal({
-	page,
-	open,
-	onClose,
-}: { page: PageAnalysisData | null; open: boolean; onClose: () => void }) {
-	if (!page) return null
-
-	return isBroken(page) ? (
-		<BrokenPageModal page={page} open={open} onClose={onClose} />
-	) : (
-		<HealthyPageModal page={page} open={open} onClose={onClose} />
-	)
-}
-
-// ============================================================================
-// PAGE DETAIL MODAL
-// ============================================================================
-function BrokenPageModal({ page, open, onClose }: { page: PageAnalysisData; open: boolean; onClose: () => void }) {
-	return (
-		<Dialog open={open} onOpenChange={onClose}>
-			<DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden grid">
-				<DialogHeader className="bg-destructive/5 rounded-t-lg -mx-6 -mt-6 px-6 py-4 truncate">
-					<DialogTitle className="truncate pr-8 text-destructive">{page.url}</DialogTitle>
-					<p className="text-sm text-muted-foreground truncate">{page.title || "No title"}</p>
-				</DialogHeader>
-
-				{/* scrollable body */}
-				<div className="overflow-auto">
-					<h4 className="text-sm font-medium mb-3">Content Metrics</h4>
-					<div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-						<StatItemError icon={BarChart3} label="Status" value={page.status_code} />
-						<StatItemError icon={Clock} label="Load Time" value={`${page.load_time.toFixed(2)}s`} />
-						<StatItemError icon={FileCode} label="Content Size" value={`${(page.content_size / 1024).toFixed(1)}KB`} />
-						<StatItemError icon={Link2} label="Links" value={`${page.internal_links}/${page.external_links}`} />
-					</div>
-				</div>
-			</DialogContent>
-		</Dialog>
-	)
-}
-
-
-function HealthyPageModal({
-	page,
-	open,
-	onClose,
-}: { page: PageAnalysisData | null; open: boolean; onClose: () => void }) {
-	if (!page) return null
-
-	return (
-		<Dialog open={open} onOpenChange={onClose}>
-			<DialogContent className="max-w-3xl max-h-[90vh] overflow-auto">
-				<DialogHeader className="truncate">
-					<DialogTitle className="truncate pr-8">{page.url}</DialogTitle>
-					<p className="text-sm text-muted-foreground truncate">{page.title || "No title"}</p>
-				</DialogHeader>
-
-				<div className="space-y-6">
-					<LighthouseScores page={page} />
-
-					<Separator />
-
-					<div>
-						<h4 className="text-sm font-medium mb-3">Meta Information</h4>
-						<div className="space-y-2 text-sm">
-							{[
-								{ label: "Title", value: page.title },
-								{ label: "Description", value: page.meta_description },
-								{ label: "Keywords", value: page.meta_keywords },
-								{ label: "Canonical", value: page.canonical_url },
-							].map(({ label, value }) => (
-								<div key={label} className="grid grid-cols-[100px_1fr] gap-2">
-									<span className="text-muted-foreground">{label}:</span>
-									<span className="truncate">{value || <span className="text-muted-foreground">None</span>}</span>
-								</div>
-							))}
-						</div>
-					</div>
-
-					<Separator />
-
-					<div>
-						<h4 className="text-sm font-medium mb-3">Content Metrics</h4>
-						<div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-							<StatItem icon={FileText} label="Word Count" value={page.word_count.toLocaleString()} />
-							<StatItem icon={Clock} label="Load Time" value={`${page.load_time.toFixed(2)}s`} />
-							<StatItem icon={FileCode} label="Content Size" value={`${(page.content_size / 1024).toFixed(1)}KB`} />
-							<StatItem icon={BarChart3} label="Status Code" value={page.status_code || "N/A"} />
-						</div>
-					</div>
-
-					<Separator />
-
-					<div>
-						<h4 className="text-sm font-medium mb-3">Page Structure</h4>
-						<div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-							<MetricBadge label="H1 Tags" value={page.h1_count} />
-							<MetricBadge label="H2 Tags" value={page.h2_count} />
-							<MetricBadge label="H3 Tags" value={page.h3_count} />
-							<MetricBadge label="Images" value={page.image_count} />
-							<MetricBadge label="Int. Links" value={page.internal_links} />
-							<MetricBadge label="Ext. Links" value={page.external_links} />
-						</div>
-					</div>
-
-					<Separator />
-
-					<div className="flex flex-wrap gap-2">
-						<Badge
-							variant="outline"
-							className={cn(
-								"text-xs",
-								page.mobile_friendly ? "bg-success/15 text-success border-success/20" : "bg-muted",
-							)}
-						>
-							<Smartphone className="h-3 w-3 mr-1" />
-							{page.mobile_friendly ? "Mobile Friendly" : "Not Mobile Friendly"}
-						</Badge>
-						<Badge
-							variant="outline"
-							className={cn(
-								"text-xs",
-								page.has_structured_data ? "bg-success/15 text-success border-success/20" : "bg-muted",
-							)}
-						>
-							<FileCode className="h-3 w-3 mr-1" />
-							{page.has_structured_data ? "Has Structured Data" : "No Structured Data"}
-						</Badge>
-						{page.images_without_alt > 0 && (
-							<Badge variant="outline" className="text-xs bg-destructive/15 text-destructive border-destructive/20">
-								<ImageIcon className="h-3 w-3 mr-1" />
-								{page.images_without_alt} Images Missing Alt
-							</Badge>
-						)}
-					</div>
-				</div>
-			</DialogContent>
-		</Dialog>
-	)
-}
 
 // Report generation functions moved to lib/export-utils.ts
-
-// ============================================================================
-// CARD SECTIONS
-// ============================================================================
-
-function ScoreCard({
-	summary,
-	issues,
-}: {
-	summary: CompleteAnalysisResult["summary"]
-	issues: SeoIssue[]
-}) {
-	const criticalCount = issues.filter((i) => i.issue_type === "Critical").length
-	const warningCount = issues.filter((i) => i.issue_type === "Warning").length
-	const suggestionCount = issues.filter((i) => i.issue_type === "Suggestion").length
-
-	return (
-		<Card>
-			<CardContent className="p-6">
-				<div className="flex items-start gap-6">
-					<ScoreRing score={summary.seo_score} size="lg" />
-					<div className="flex-1 min-w-0 space-y-2">
-						<div>
-							<h3 className="text-lg font-semibold">SEO Score</h3>
-							<p className={cn("text-sm font-medium", getScoreColor(summary.seo_score))}>
-								{getScoreLabel(summary.seo_score)}
-							</p>
-						</div>
-						<Separator />
-						<div className="pt-1">
-							<p className="text-xs text-muted-foreground mb-2">Issues Found</p>
-							<div className="flex flex-wrap gap-2">
-								<IssueBadge type="Critical" count={criticalCount} />
-								<IssueBadge type="Warning" count={warningCount} />
-								<IssueBadge type="Suggestion" count={suggestionCount} />
-							</div>
-						</div>
-					</div>
-				</div>
-			</CardContent>
-		</Card>
-	)
-}
-
-function SiteHealthCard({
-	analysis,
-	pages,
-}: {
-	analysis: CompleteAnalysisResult["analysis"]
-	pages: PageAnalysisData[]
-}) {
-	const mobilePages = pages.filter((p) => p.mobile_friendly).length
-	const structuredDataPages = pages.filter((p) => p.has_structured_data).length
-
-	return (
-		<Card>
-			<CardContent className="p-6">
-				<h3 className="text-sm font-semibold mb-3">Site Health</h3>
-				<div className="grid grid-cols-3 gap-3">
-					<HealthIndicator label="SSL" active={analysis.ssl_certificate} />
-					<HealthIndicator label="Sitemap" active={analysis.sitemap_found} />
-					<HealthIndicator label="robots.txt" active={analysis.robots_txt_found} />
-				</div>
-				<Separator className="my-3" />
-				<div className="grid grid-cols-2 gap-2 text-sm">
-					<div className="flex justify-between">
-						<span className="text-muted-foreground">Mobile Ready</span>
-						<span className={mobilePages === pages.length ? "text-success" : "text-warning"}>
-							{mobilePages}/{pages.length}
-						</span>
-					</div>
-					<div className="flex justify-between">
-						<span className="text-muted-foreground">Structured Data</span>
-						<span className={structuredDataPages === pages.length ? "text-success" : "text-muted-foreground"}>
-							{structuredDataPages}/{pages.length}
-						</span>
-					</div>
-				</div>
-			</CardContent>
-		</Card>
-	)
-}
-
-function QuickStatsCard({
-	summary,
-	pages,
-}: {
-	summary: CompleteAnalysisResult["summary"]
-	pages: PageAnalysisData[]
-}) {
-	const totalImages = pages.reduce((acc, p) => acc + p.image_count, 0)
-	const totalMissingAlt = pages.reduce((acc, p) => acc + p.images_without_alt, 0)
-	const totalInternalLinks = pages.reduce((acc, p) => acc + p.internal_links, 0)
-
-	return (
-		<Card>
-			<CardContent className="p-6">
-				<h3 className="text-sm font-semibold mb-3">Quick Stats</h3>
-				<div className="grid grid-cols-2 gap-3">
-					<StatItem icon={Clock} label="Avg Load Time" value={`${summary.avg_load_time.toFixed(2)}s`} />
-					<StatItem icon={FileText} label="Total Words" value={summary.total_words.toLocaleString()} />
-					<StatItem
-						icon={ImageIcon}
-						label="Images"
-						value={
-							<span>
-								{totalImages}
-								{totalMissingAlt > 0 && (
-									<span className="text-destructive/80 text-xs ml-1">({totalMissingAlt} no alt)</span>
-								)}
-							</span>
-						}
-					/>
-					<StatItem icon={Link2} label="Internal Links" value={totalInternalLinks} />
-				</div>
-			</CardContent>
-		</Card>
-	)
-}
 
 // ============================================================================
 // TABS CONTENT
@@ -774,45 +160,6 @@ function PagesTab({
 	)
 }
 
-function OverviewTab({ issues, pages }: { issues: SeoIssue[]; pages: PageAnalysisData[] }) {
-	const criticalCount = issues.filter((i) => i.issue_type === "Critical").length
-	const warningCount = issues.filter((i) => i.issue_type === "Warning").length
-	const suggestionCount = issues.filter((i) => i.issue_type === "Suggestion").length
-
-	const fastPages = pages.filter((p) => p.load_time < 1).length
-	const mediumPages = pages.filter((p) => p.load_time >= 1 && p.load_time < 2).length
-	const slowPages = pages.filter((p) => p.load_time >= 2).length
-
-	return (
-		<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-			<Card>
-				<CardHeader>
-					<CardTitle className="text-sm">Issue Distribution</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<div className="space-y-3">
-						<ProgressRow label="Critical" value={criticalCount} total={issues.length} color="destructive" />
-						<ProgressRow label="Warning" value={warningCount} total={issues.length} color="warning" />
-						<ProgressRow label="Suggestion" value={suggestionCount} total={issues.length} color="primary" />
-					</div>
-				</CardContent>
-			</Card>
-
-			<Card>
-				<CardHeader>
-					<CardTitle className="text-sm">Performance Summary</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<div className="space-y-3">
-						<ProgressRow label="Fast (<1s)" value={fastPages} total={pages.length} color="success" />
-						<ProgressRow label="Medium (1-2s)" value={mediumPages} total={pages.length} color="warning" />
-						<ProgressRow label="Slow (>2s)" value={slowPages} total={pages.length} color="destructive" />
-					</div>
-				</CardContent>
-			</Card>
-		</div>
-	)
-}
 
 // ============================================================================
 // MAIN COMPONENT
@@ -822,17 +169,15 @@ interface AnalysisResultsProps {
 	result: CompleteAnalysisResult
 	onBack: () => void
 	onSelectPage?: (index: number) => void
+	analysisId: string
 }
 
-export function AnalysisResults({ result, onBack, onSelectPage }: AnalysisResultsProps) {
+export function AnalysisResults({ result, onBack, onSelectPage, analysisId }: AnalysisResultsProps) {
 	const { analysis, pages, issues, summary } = result
 	// State for selected page removed - handled by router
 
 	const handlePageClick = (url: string) => {
-		const index = pages.findIndex(p => p.url === url);
-		if (index !== -1 && onSelectPage) {
-			onSelectPage(index);
-		}
+		onSelectPage?.(pages.findIndex(p => p.url === url));
 	};
 
 	const handleDownloadPDF = async () => {
