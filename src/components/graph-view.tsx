@@ -10,7 +10,7 @@ import { Slider } from "@/src/components/ui/slider"
 import { Popover, PopoverContent, PopoverTrigger } from "@/src/components/ui/popover"
 import { Label } from "@/src/components/ui/label"
 
-interface GraphViewProps {
+export interface GraphViewProps {
     data: CompleteAnalysisResult
     onNodeClick?: (url: string) => void
     onSelectPage?: (index: number) => void

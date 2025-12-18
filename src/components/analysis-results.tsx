@@ -3,18 +3,15 @@
 import {
 	ArrowLeft,
 	FileText,
-	CheckCircle2,
 	Download,
 	ExternalLink,
 	ChevronDown,
 	Table as TableIcon,
 	Network,
 } from "lucide-react"
-import { GraphView } from "@/src/components/graph-view"
 import { Button } from "@/src/components/ui/button"
-import { Card, CardContent } from "@/src/components/ui/card"
+import { Card } from "@/src/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/src/components/ui/tabs"
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/src/components/ui/accordion"
 import { Badge } from "@/src/components/ui/badge"
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/src/components/ui/table"
 import {
@@ -23,15 +20,16 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu"
-import type { CompleteAnalysisResult, SeoIssue, PageAnalysisData } from "@/src/lib/types"
+import type { CompleteAnalysisResult, PageAnalysisData } from "@/src/lib/types"
 import { generatePDF, downloadTextReport, downloadCSVReport } from "@/src/lib/export-utils"
 import { QuickStatsCard } from "./analysis/molecules/QuickStat"
 import { OverviewTab } from "./analysis/molecules/OverviewTab"
-import { IssueBadge } from "./analysis/atoms/IssueBadge"
 import { ScoreCard } from "./analysis/molecules/ScoreCard"
 import { SiteHealthCard } from "./analysis/molecules/SiteHealthCard"
 import { BrokenPageRow, HealthyPageRow } from "./analysis/molecules/PageRow"
-import { IssueIcon } from "./analysis/atoms/IssueIcon"
+import { IssuesAccordion } from "./analysis/organisms/IssuesAccordion"
+import { SiteVisualizer } from "./analysis/organisms/SiteVisualizer"
+
 
 
 const isBroken = (page: PageAnalysisData) => {
@@ -49,68 +47,6 @@ function PageDetailRow({ page, onClick }: { page: PageAnalysisData; onClick: () 
 	);
 }
 
-
-
-// Report generation functions moved to lib/export-utils.ts
-
-// ============================================================================
-// TABS CONTENT
-// ============================================================================
-
-function IssuesTab({ issues }: { issues: SeoIssue[] }) {
-	const groupedIssues: Record<string, SeoIssue[]> = {}
-	issues.forEach((issue) => {
-		if (!groupedIssues[issue.title]) groupedIssues[issue.title] = []
-		groupedIssues[issue.title].push(issue)
-	})
-
-	if (Object.keys(groupedIssues).length === 0) {
-		return (
-			<Card>
-				<CardContent className="p-6 text-center">
-					<CheckCircle2 className="h-12 w-12 text-success mx-auto mb-2" />
-					<p className="text-muted-foreground">No issues found. Great job!</p>
-				</CardContent>
-			</Card>
-		)
-	}
-
-	return (
-		<Accordion type="multiple" className="space-y-2">
-			{Object.entries(groupedIssues).map(([title, issueGroup]) => (
-				<AccordionItem key={title} value={title} className="border rounded-lg px-4">
-					<AccordionTrigger className="hover:no-underline">
-						<div className="flex items-center gap-3">
-							<IssueIcon type={issueGroup[0].issue_type} />
-							<span className="font-medium">{title}</span>
-							<IssueBadge type={issueGroup[0].issue_type} />
-							<span className="text-xs text-muted-foreground">
-								{issueGroup.length} {issueGroup.length === 1 ? "page" : "pages"}
-							</span>
-						</div>
-					</AccordionTrigger>
-					<AccordionContent>
-						<div className="space-y-3 pt-2">
-							<p className="text-sm text-muted-foreground">{issueGroup[0].description}</p>
-							<div className="p-3 bg-muted/50 rounded-lg">
-								<p className="text-sm font-medium mb-1">Recommendation</p>
-								<p className="text-sm text-muted-foreground">{issueGroup[0].recommendation}</p>
-							</div>
-							<div className="space-y-1">
-								<p className="text-xs font-medium text-muted-foreground">Affected Pages:</p>
-								{issueGroup.map((issue, idx) => (
-									<p key={idx} className="text-xs text-muted-foreground truncate">
-										{issue.page_url}
-									</p>
-								))}
-							</div>
-						</div>
-					</AccordionContent>
-				</AccordionItem>
-			))}
-		</Accordion>
-	)
-}
 
 function PagesTab({
 	pages,
@@ -133,9 +69,15 @@ function PagesTab({
 					</TableRow>
 				</TableHeader>
 				<TableBody>
-					{pages.map((page, idx) => (
-						<PageDetailRow key={idx} page={page} onClick={() => onSelectPage(idx)} />
-					))}
+					{pages.map(
+
+						(page, idx) => (
+							isBroken(page) ? (
+								<BrokenPageRow key={page.url} page={page} onClick={() => onSelectPage(idx)} />
+							) : (
+								<HealthyPageRow key={page.url} page={page} onClick={() => onSelectPage(idx)} />
+							)
+						))}
 				</TableBody>
 			</Table>
 		</Card>
@@ -151,7 +93,6 @@ interface AnalysisResultsProps {
 
 export function AnalysisResults({ result, onBack, onSelectPage, analysisId }: AnalysisResultsProps) {
 	const { analysis, pages, issues, summary } = result
-	// State for selected page removed - handled by router
 
 	const handlePageClick = (url: string) => {
 		onSelectPage?.(pages.findIndex(p => p.url === url));
@@ -168,8 +109,6 @@ export function AnalysisResults({ result, onBack, onSelectPage, analysisId }: An
 	const handleDownloadCSV = async () => {
 		await downloadCSVReport(result)
 	}
-
-	// Conditional rendering for Page Detail View removed - handled by routing
 
 
 	return (
@@ -244,20 +183,21 @@ export function AnalysisResults({ result, onBack, onSelectPage, analysisId }: An
 				</TabsList>
 
 				<TabsContent value="issues" className="mt-4">
-					<IssuesTab issues={issues} />
+					<IssuesAccordion issues={issues} />
 				</TabsContent>
 
 				<TabsContent value="pages">
 					<PagesTab
 						pages={pages}
 						onSelectPage={(index) => {
+							console.log(index)
 							if (onSelectPage) onSelectPage(index)
 						}}
 					/>
 				</TabsContent>
 
 				<TabsContent value="graph" className="h-[700px]">
-					<GraphView data={result} onNodeClick={handlePageClick} />
+					<SiteVisualizer data={result} onNodeClick={(page) => handlePageClick(page.url)} />
 				</TabsContent>
 
 				<TabsContent value="overview" className="mt-4">

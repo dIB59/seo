@@ -6,10 +6,13 @@ import { QuickStatsCard } from "./molecules/QuickStat";
 import { ScoreCard } from "./molecules/ScoreCard";
 import { SiteHealthCard } from "./molecules/SiteHealthCard";
 import { PageDetailModal } from "./organisms/PageDetailModal";
+import { IssuesAccordion } from "./organisms/IssuesAccordion";
+import { GraphView } from "../graph-view";
 
 // src/components/analysis/AnalysisDashboard.tsx
 export default function AnalysisDashboard({ data }: { data: CompleteAnalysisResult }) {
     const [selectedPage, setSelectedPage] = useState<PageAnalysisData | null>(null);
+
 
     return (
         <div className="space-y-6">
@@ -32,8 +35,8 @@ export default function AnalysisDashboard({ data }: { data: CompleteAnalysisResu
                     <PageTable pages={data.pages} onSelectPage={setSelectedPage} />
                 </TabsContent>
                 <TabsContent value="visual" className="mt-4">
-                    <SiteVisualizer
-                        pages={data.pages}
+                    <GraphView
+                        pages={data}
                         onNodeClick={(page) => setSelectedPage(page)}
                     />
                 </TabsContent>
