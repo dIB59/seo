@@ -8,7 +8,7 @@ export function QuickStatsCard({
 	pages,
 }: {
 	summary: CompleteAnalysisResult["summary"]
-	pages: PageAnalysisData[]
+	pages: CompleteAnalysisResult["pages"]
 }) {
 	const totalImages = pages.reduce((acc, p) => acc + p.image_count, 0)
 	const totalMissingAlt = pages.reduce((acc, p) => acc + p.images_without_alt, 0)
