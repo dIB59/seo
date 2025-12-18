@@ -1,17 +1,17 @@
 
-function getScoreColor(score: number) {
+export function getScoreColor(score: number) {
     if (score >= 80) return "text-success"
     if (score >= 50) return "text-warning"
     return "text-destructive"
 }
 
-function getScoreBgColor(score: number) {
+export function getScoreBgColor(score: number) {
     if (score >= 80) return "bg-success"
     if (score >= 50) return "bg-warning"
     return "bg-destructive"
 }
 
-function getScoreLabel(score: number) {
+export function getScoreLabel(score: number) {
     if (score >= 90) return "Excellent"
     if (score >= 80) return "Good"
     if (score >= 60) return "Fair"
@@ -19,7 +19,7 @@ function getScoreLabel(score: number) {
     return "Critical"
 }
 
-function getLoadTimeColor(time: number) {
+export function getLoadTimeColor(time: number) {
     if (time < 1) return "text-success"
     if (time < 2) return "text-warning"
     return "text-destructive"

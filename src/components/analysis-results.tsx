@@ -1,14 +1,9 @@
 "use client"
 
-import type React from "react"
 import {
 	ArrowLeft,
 	FileText,
-	AlertTriangle,
 	CheckCircle2,
-	XCircle,
-	AlertCircle,
-	Lightbulb,
 	Download,
 	ExternalLink,
 	ChevronDown,
@@ -36,20 +31,7 @@ import { IssueBadge } from "./analysis/atoms/IssueBadge"
 import { ScoreCard } from "./analysis/molecules/ScoreCard"
 import { SiteHealthCard } from "./analysis/molecules/SiteHealthCard"
 import { BrokenPageRow, HealthyPageRow } from "./analysis/molecules/PageRow"
-
-// ============================================================================
-// COMPOSABLE UI COMPONENTS
-// ============================================================================
-
-function IssueIcon({ type }: { type: string }) {
-	const iconMap: Record<string, React.ReactNode> = {
-		Critical: <XCircle className="h-4 w-4 text-destructive" />,
-		Warning: <AlertCircle className="h-4 w-4 text-warning" />,
-		Suggestion: <Lightbulb className="h-4 w-4 text-primary" />,
-	}
-	return iconMap[type] ?? <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-}
-
+import { IssueIcon } from "./analysis/atoms/IssueIcon"
 
 
 const isBroken = (page: PageAnalysisData) => {
@@ -159,11 +141,6 @@ function PagesTab({
 		</Card>
 	)
 }
-
-
-// ============================================================================
-// MAIN COMPONENT
-// ============================================================================
 
 interface AnalysisResultsProps {
 	result: CompleteAnalysisResult

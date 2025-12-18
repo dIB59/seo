@@ -4,6 +4,7 @@ import { Card, CardContent } from "../../ui/card"
 import { Separator } from "../../ui/separator"
 import { ScoreRing } from "../atoms/ScoreRing"
 import { IssueBadge } from "../atoms/IssueBadge"
+import { getScoreColor, getScoreLabel } from "@/src/lib/seo-metrics"
 
 export function ScoreCard({
     summary,

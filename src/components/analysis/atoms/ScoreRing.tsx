@@ -1,4 +1,5 @@
 // src/components/analysis/atoms/ScoreRing.tsx
+import { getScoreBgColor, getScoreColor } from "@/src/lib/seo-metrics";
 import { cn } from "@/src/lib/utils";
 
 interface ScoreRingProps {

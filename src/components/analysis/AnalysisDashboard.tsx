@@ -23,7 +23,7 @@ export default function AnalysisDashboard({ data }: { data: CompleteAnalysisResu
                 <TabsList>
                     <TabsTrigger value="issues">Issues</TabsTrigger>
                     <TabsTrigger value="pages">Pages</TabsTrigger>
-                    <TabsTrigger value="visual">Visual</TabsTrigger>
+                    <TabsTrigger value="pages">Raw Data</TabsTrigger>
                 </TabsList>
                 <TabsContent value="issues">
                     <IssuesAccordion issues={data.issues} />

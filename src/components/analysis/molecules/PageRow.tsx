@@ -2,6 +2,7 @@ import { ChevronRight, FileCode, Smartphone } from "lucide-react";
 import { TableCell, TableRow } from "../../ui/table";
 import { cn } from "@/src/lib/utils";
 import { PageAnalysisData } from "@/src/lib/types";
+import { getLoadTimeColor, getScoreColor } from "@/src/lib/seo-metrics";
 
 export function BrokenPageRow({ page, onClick }: { page: PageAnalysisData; onClick: () => void }) {
     return (
