@@ -8,6 +8,7 @@ import { SiteHealthCard } from "./molecules/SiteHealthCard";
 import { PageDetailModal } from "./organisms/PageDetailModal";
 import { IssuesAccordion } from "./organisms/IssuesAccordion";
 import { GraphView } from "../graph-view";
+import { AnalysisHeader } from "./organisms/AnalysisHeader";
 
 export default function AnalysisDashboard({ data, onBack, onSelectPage, analysisId }:
     {
@@ -18,6 +19,10 @@ export default function AnalysisDashboard({ data, onBack, onSelectPage, analysis
 
     return (
         <div className="space-y-6">
+            <AnalysisHeader
+                onBack={onBack}
+                result={data}
+            />
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <ScoreCard summary={data.summary} issues={data.issues} />
                 <SiteHealthCard analysis={data.analysis} pages={data.pages} />
@@ -34,7 +39,7 @@ export default function AnalysisDashboard({ data, onBack, onSelectPage, analysis
                     <IssuesAccordion issues={data.issues} />
                 </TabsContent>
                 <TabsContent value="pages">
-                    <PageTable pages={data.pages} onSelectPage={setSelectedPage} />
+                    <PageTable pages={data.pages} onSelectPage={onSelectPage} />
                 </TabsContent>
                 <TabsContent value="visual" className="mt-4">
                     <GraphView
