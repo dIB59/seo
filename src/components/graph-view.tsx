@@ -9,6 +9,7 @@ import { Button } from "@/src/components/ui/button"
 import { Slider } from "@/src/components/ui/slider"
 import { Popover, PopoverContent, PopoverTrigger } from "@/src/components/ui/popover"
 import { Label } from "@/src/components/ui/label"
+import { logger } from "../lib/logger"
 
 export interface GraphViewProps {
     data: CompleteAnalysisResult
@@ -268,6 +269,7 @@ export function GraphView({ data, onNodeClick, onSelectPage }: GraphViewProps) {
 
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
+    /* eslint-disable @typescript-eslint/no-explicit-any */
     const cosmographRef = useRef<any>(null)
 
     const [repulsion, setRepulsion] = useState(DEFAULT_REPULSION)
@@ -281,7 +283,7 @@ export function GraphView({ data, onNodeClick, onSelectPage }: GraphViewProps) {
     const { nodes, links } = useGraphData(data, selectedNode?.id || null)
 
     const handleNodeClick = useCallback((node?: GraphNode) => {
-        console.log("CLICK")
+        logger.info("Node clicked", node)
         if (node) {
             setSelectedNode(node)
             if (onNodeClick) {

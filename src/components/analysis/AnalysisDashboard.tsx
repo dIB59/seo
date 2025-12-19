@@ -12,10 +12,10 @@ import { AnalysisHeader } from "./organisms/AnalysisHeader";
 import { Network } from "lucide-react";
 import { OverviewTab } from "./molecules/OverviewTab";
 
-export default function AnalysisDashboard({ data, onBack, onSelectPage, analysisId }:
+export default function AnalysisDashboard({ data, onBack, onSelectPage }:
     {
         data: CompleteAnalysisResult, onBack: () => void, onSelectPage: (index: number)
-            => void, analysisId: string
+            => void
     }) {
     const [selectedPage, setSelectedPage] = useState<PageAnalysisData | null>(null);
 
