@@ -47,7 +47,48 @@ pub async fn init_db(app: &AppHandle) -> Result<SqlitePool> {
 
     log::info!("Database initialized successfully at {}", db_path.display());
 
+    // Dump schema for recreation / versioning
+    let schema_path = app_data_dir.join("schema.sql");
+    dump_schema(&pool, &schema_path)
+        .await
+        .context("failed to dump schema")?;
+
+    log::info!("Schema dumped to {}", schema_path.display());
+
     Ok(pool)
+}
+
+use sqlx::Row;
+use std::fs::File;
+use std::io::Write;
+
+async fn dump_schema(pool: &SqlitePool, output_path: &std::path::Path) -> anyhow::Result<()> {
+    let rows = sqlx::query(
+        r#"
+        SELECT sql
+        FROM sqlite_master
+        WHERE sql IS NOT NULL
+          AND type IN ('table', 'index', 'trigger')
+        ORDER BY type, name;
+        "#,
+    )
+    .fetch_all(pool)
+    .await
+    .context("failed to read sqlite_master")?;
+
+    let mut file = File::create(output_path).context("failed to create schema.sql")?;
+
+    writeln!(
+        file,
+        "-- Auto-generated SQLite schema\n-- DO NOT EDIT MANUALLY\n"
+    )?;
+
+    for row in rows {
+        let sql: String = row.get("sql");
+        writeln!(file, "{};\n", sql)?;
+    }
+
+    Ok(())
 }
 
 /// Get a setting value from the database
