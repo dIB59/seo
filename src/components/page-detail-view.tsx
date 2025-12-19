@@ -1,7 +1,6 @@
 "use client"
 
-import type React from "react"
-import { useEffect, useCallback, useState, useMemo } from "react"
+import { useEffect, useCallback, useState } from "react"
 import {
     ArrowLeft,
     ChevronLeft,
@@ -20,12 +19,11 @@ import {
     ChevronsUpDown,
 } from "lucide-react"
 import { Button } from "@/src/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/src/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/src/components/ui/tabs"
 import { Badge } from "@/src/components/ui/badge"
 import { Separator } from "@/src/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table"
-import { Input } from "@/src/components/ui/input"
 import {
     Command,
     CommandEmpty,

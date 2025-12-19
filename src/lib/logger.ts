@@ -7,10 +7,10 @@ type LogFn = typeof console.log;
 const noop: LogFn = () => { };
 
 export const logger = {
-	log: dev ? (...a: any[]) => console.log("[LOG]", stamp(), ...a) : noop,
-	info: dev ? (...a: any[]) => console.info("[INFO]", stamp(), ...a) : noop,
-	warn: dev ? (...a: any[]) => console.warn("[WARN]", stamp(), ...a) : noop,
-	error: (...a: any[]) => console.error("[ERROR]", stamp(), ...a),
+	log: dev ? (...a: unknown[]) => console.log("[LOG]", stamp(), ...a) : noop,
+	info: dev ? (...a: unknown[]) => console.info("[INFO]", stamp(), ...a) : noop,
+	warn: dev ? (...a: unknown[]) => console.warn("[WARN]", stamp(), ...a) : noop,
+	error: (...a: unknown[]) => console.error("[ERROR]", stamp(), ...a),
 	group: dev ? (label?: string) => console.group(`[GRP] ${stamp()} ${label ?? ""}`) : noop,
 	groupEnd: dev ? () => console.groupEnd() : noop,
 } as const;

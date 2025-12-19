@@ -1,7 +1,6 @@
 "use client"
 
 import { useSearchParams, useRouter } from "next/navigation"
-import { AnalysisResults } from "@/src/components/analysis-results"
 import { useAnalysis } from "@/src/hooks/use-analysis"
 import { Button } from "@/src/components/ui/button"
 import { ArrowLeft, Loader2 } from "lucide-react"

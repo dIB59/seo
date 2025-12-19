@@ -501,6 +501,7 @@ function GraphControls({
                                 min={5}
                                 max={5000}
                                 step={1}
+                                onValueChange={onLinkDistanceChange}
                             />
                         </div>
                     </div>

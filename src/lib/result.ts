@@ -28,13 +28,13 @@ export class Result<T, E = string> {
 
 	/* combinators */
 	map<U>(fn: (v: T) => U): Result<U, E> {
-		return this.isOk() ? Result.Ok(fn(this._value as T)) : (this as any);
+		return this.isOk() ? Result.Ok(fn(this._value as T)) : (this as unknown as Result<U, E>);
 	}
 	mapErr<F>(fn: (e: E) => F): Result<T, F> {
-		return this.isErr() ? Result.Err(fn(this._error as E)) : (this as any);
+		return this.isErr() ? Result.Err(fn(this._error as E)) : (this as unknown as Result<T, F>);
 	}
 	andThen<U>(fn: (v: T) => Result<U, E>): Result<U, E> {
-		return this.isOk() ? fn(this._value as T) : (this as any);
+		return this.isOk() ? fn(this._value as T) : (this as unknown as Result<U, E>);
 	}
 	match<U>(onOk: (v: T) => U, onErr: (e: E) => U): U {
 		return this.isOk() ? onOk(this._value as T) : onErr(this._error as E);

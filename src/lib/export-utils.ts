@@ -59,7 +59,7 @@ async function saveFile(
             toast.info("File save was cancelled")
             console.log("Save cancelled by user")
         }
-    } catch (error: any) {
+    } catch (error: unknown) {
         // Check for common cancellation errors
         const errorMessage = String(error)
         const errorString = JSON.stringify(error, Object.getOwnPropertyNames(error))
@@ -121,6 +121,7 @@ function fallbackDownload(content: string | Uint8Array<ArrayBuffer>, filename: s
 
 import { generateGeminiAnalysis } from "@/src/api/ai"
 import { execute } from "@/src/lib/tauri"
+import { Result } from "./result"
 
 export async function generatePDF(result: CompleteAnalysisResult): Promise<void> {
     const { analysis, summary, pages, issues } = result
@@ -128,7 +129,7 @@ export async function generatePDF(result: CompleteAnalysisResult): Promise<void>
     // Generate AI-powered recommendations if enabled
     const aiEnabledResult = await execute<boolean>("get_gemini_enabled")
     const aiEnabled = aiEnabledResult.unwrapOr(false)
-    let aiInsights: string | null = null
+    let aiInsights: Result<string, string> = Result.Err("AI analysis skipped (disabled in settings)")
 
     if (aiEnabled) {
         toast.info("Generating AI-powered insights...")
@@ -332,7 +333,7 @@ export async function generatePDF(result: CompleteAnalysisResult): Promise<void>
     // ========================================================================
     // AI-POWERED INSIGHTS
     // ========================================================================
-    if (aiInsights) {
+    if (aiInsights.isOk()) {
         checkPageBreak(60)
 
         // Section header with gradient background
@@ -351,7 +352,7 @@ export async function generatePDF(result: CompleteAnalysisResult): Promise<void>
 
         pdf.setFontSize(9)
         pdf.setTextColor(50, 50, 50)
-        addText(aiInsights, margin + 3, 9, { maxWidth: pageWidth - 2 * margin - 6 })
+        addText(aiInsights.unwrap(), margin + 3, 9, { maxWidth: pageWidth - 2 * margin - 6 })
 
         y += 15
     }
@@ -361,7 +362,7 @@ export async function generatePDF(result: CompleteAnalysisResult): Promise<void>
     // ========================================================================
     const criticalIssues = issues.filter((i) => i.issue_type === "Critical")
     const warningIssues = issues.filter((i) => i.issue_type === "Warning")
-    const suggestionIssues = issues.filter((i) => i.issue_type === "Suggestion")
+    // const suggestionIssues = issues.filter((i) => i.issue_type === "Suggestion")
 
     // Critical Issues
     if (criticalIssues.length > 0) {

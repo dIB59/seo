@@ -1,4 +1,4 @@
-import { CompleteAnalysisResult, PageAnalysisData } from "@/src/lib/types"
+import { CompleteAnalysisResult } from "@/src/lib/types"
 import { Clock, FileText, ImageIcon, Link2 } from "lucide-react"
 import { Card, CardContent } from "../../ui/card"
 import { StatItem } from "../atoms/Stat"

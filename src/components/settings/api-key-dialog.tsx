@@ -92,7 +92,7 @@ export function ApiKeyDialog() {
                         />
                     </div>
                     <div className="text-xs text-muted-foreground text-center">
-                        Don't have a key?{" "}
+                        Don&apos;t have a key?{" "}
                         <a
                             href="https://makersuite.google.com/app/apikey"
                             target="_blank"
