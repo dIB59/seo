@@ -41,8 +41,8 @@ export default function AnalysisPage() {
 
     return (
         <main className="min-h-screen p-6 max-w-7xl mx-auto">
-            <AnalysisResults
-                result={result}
+            <AnalysisDashboard
+                data={result}
                 onBack={() => router.push('/')}
                 onSelectPage={(index: number) => router.push(`/analysis/details?id=${id}&index=${index}`)}
                 analysisId={id}
