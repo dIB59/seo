@@ -396,7 +396,7 @@ export function GraphView({ data, onNodeClick, onSelectPage }: GraphViewProps) {
     }, [])
 
     return (
-        <div className="h-full border-1" >
+        <div className="h-[90vh] border-1" >
             <Card className="h-full flex flex-col overflow-hidden relative border-none shadow-none bg-background/50">
                 <GraphControls
                     onZoomIn={handleZoomIn}
