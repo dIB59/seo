@@ -1,4 +1,5 @@
 import { ExternalLink } from "lucide-react"
+import { open } from '@tauri-apps/plugin-shell';
 
 export function AnalysisTitleBlock({
     url,
@@ -17,9 +18,12 @@ export function AnalysisTitleBlock({
                 </h2>
                 <a
                     href={url}
-                    target="_blank"
                     rel="noopener noreferrer"
                     className="shrink-0"
+                    onClick={(e) => {
+                        e.preventDefault()
+                        open(url)
+                    }}
                 >
                     <ExternalLink className="h-4 w-4 text-muted-foreground hover:text-foreground" />
                 </a>
