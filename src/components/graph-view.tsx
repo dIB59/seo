@@ -395,46 +395,48 @@ export function GraphView({ data, onNodeClick, onSelectPage }: GraphViewProps) {
     }, [])
 
     return (
-        <Card className="h-full flex flex-col overflow-hidden relative border-none shadow-none bg-background/50">
-            <GraphControls
-                onZoomIn={handleZoomIn}
-                onZoomOut={handleZoomOut}
-                onReset={handleReset}
-                repulsion={repulsion}
-                linkDistance={linkDistance}
-                onRepulsionChange={handleRepulsionChange}
-                onLinkDistanceChange={handleLinkDistanceChange}
-            />
-
-            {selectedNode && (
-                <SelectedNodePanel
-                    node={selectedNode}
-                    onClear={handleClearSelection}
-                    onViewDetails={handleViewPageDetails}
+        <div className="h-full border-1" >
+            <Card className="h-full flex flex-col overflow-hidden relative border-none shadow-none bg-background/50">
+                <GraphControls
+                    onZoomIn={handleZoomIn}
+                    onZoomOut={handleZoomOut}
+                    onReset={handleReset}
+                    repulsion={repulsion}
+                    linkDistance={linkDistance}
+                    onRepulsionChange={handleRepulsionChange}
+                    onLinkDistanceChange={handleLinkDistanceChange}
                 />
-            )}
 
-            {hoveredNode && !selectedNode && (
-                <NodeTooltip node={hoveredNode} position={mousePos} />
-            )}
+                {selectedNode && (
+                    <SelectedNodePanel
+                        node={selectedNode}
+                        onClear={handleClearSelection}
+                        onViewDetails={handleViewPageDetails}
+                    />
+                )}
 
-            <div
-                className="flex-1 w-full h-full min-h-[600px] relative"
-                ref={containerRef}
-                onMouseMove={handleMouseMove}
-            >
-                {isLoading && <LoadingOverlay />}
-                <canvas
-                    ref={canvasRef}
-                    width={dimensions.width}
-                    height={dimensions.height}
-                    className="w-full h-full"
-                    style={{ display: 'block' }}
-                />
-            </div>
+                {hoveredNode && !selectedNode && (
+                    <NodeTooltip node={hoveredNode} position={mousePos} />
+                )}
 
-            <GraphLegend />
-        </Card>
+                <div
+                    className="flex-1 w-full h-full min-h-[600px] relative"
+                    ref={containerRef}
+                    onMouseMove={handleMouseMove}
+                >
+                    {isLoading && <LoadingOverlay />}
+                    <canvas
+                        ref={canvasRef}
+                        width={dimensions.width}
+                        height={dimensions.height}
+                        className="w-full h-full"
+                        style={{ display: 'block' }}
+                    />
+                </div>
+
+                <GraphLegend />
+            </Card>
+        </div>
     )
 }
 
