@@ -9,6 +9,8 @@ import { PageDetailModal } from "./organisms/PageDetailModal";
 import { IssuesAccordion } from "./organisms/IssuesAccordion";
 import { GraphView } from "../graph-view";
 import { AnalysisHeader } from "./organisms/AnalysisHeader";
+import { Network } from "lucide-react";
+import { OverviewTab } from "./molecules/OverviewTab";
 
 export default function AnalysisDashboard({ data, onBack, onSelectPage, analysisId }:
     {
@@ -33,7 +35,8 @@ export default function AnalysisDashboard({ data, onBack, onSelectPage, analysis
                 <TabsList>
                     <TabsTrigger value="issues">Issues</TabsTrigger>
                     <TabsTrigger value="pages">Pages</TabsTrigger>
-                    <TabsTrigger value="pages">Raw Data</TabsTrigger>
+                    <TabsTrigger value="graph"><Network className="h-4 w-4" />Graph</TabsTrigger>
+                    <TabsTrigger value="overview">Overview</TabsTrigger>
                 </TabsList>
                 <TabsContent value="issues">
                     <IssuesAccordion issues={data.issues} />
@@ -41,11 +44,17 @@ export default function AnalysisDashboard({ data, onBack, onSelectPage, analysis
                 <TabsContent value="pages">
                     <PageTable pages={data.pages} onSelectPage={onSelectPage} />
                 </TabsContent>
-                <TabsContent value="visual" className="mt-4">
+                <TabsContent value="graph" className="mt-4">
                     <GraphView
                         data={data}
-                        onNodeClick={(page) => setSelectedPage(data.pages.find(p => p.url === page) ?? null)}
+                        onNodeClick={(page) => {
+                            console.log(page);
+                            setSelectedPage(data.pages.find(p => p.url === page) ?? null)
+                        }}
                     />
+                </TabsContent>
+                <TabsContent value="overview" className="mt-4">
+                    <OverviewTab issues={data.issues} pages={data.pages} />
                 </TabsContent>
             </Tabs>
 

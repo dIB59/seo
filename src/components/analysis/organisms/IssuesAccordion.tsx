@@ -26,9 +26,9 @@ export function IssuesAccordion({ issues }: { issues: SeoIssue[] }) {
     return (
         <Accordion type="multiple" className="space-y-2">
             {Object.entries(groupedIssues).map(([title, issueGroup]) => (
-                <AccordionItem key={title} value={title} className="border rounded-lg px-4">
-                    <AccordionTrigger className="hover:no-underline">
-                        <div className="flex items-center gap-3">
+                <AccordionItem key={title} value={title} className="border rounded-lg px-4 ">
+                    <AccordionTrigger className="hover:no-underline p-2">
+                        <div className="flex items-center gap-3 p-2">
                             <IssueIcon type={issueGroup[0].issue_type} />
                             <span className="font-medium">{title}</span>
                             <IssueBadge type={issueGroup[0].issue_type} />
