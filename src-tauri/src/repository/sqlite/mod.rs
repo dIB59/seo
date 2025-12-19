@@ -753,11 +753,7 @@ impl SummaryRepository {
         let average_load_time = analyzed_page_data.iter().map(|d| d.load_time).sum::<f64>()
             / analyzed_page_data.len() as f64;
 
-        let total_words = analyzed_page_data
-            .iter()
-            .map(|d| d.word_count)
-            .reduce(|a, b| a + b)
-            .unwrap_or_default();
+        let total_words = analyzed_page_data.iter().map(|d| d.word_count).sum::<i64>();
 
         sqlx::query(
             "INSERT OR REPLACE INTO analysis_issues (analysis_id, critical, warnings, suggestions) \
