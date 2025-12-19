@@ -750,11 +750,8 @@ impl SummaryRepository {
         }
 
         let mut tx = self.pool.begin().await?;
-        let average_load_time = analyzed_page_data
-            .iter()
-            .map(|d| d.load_time)
-            .reduce(|a, b| a + b)
-            .unwrap_or_default();
+        let average_load_time = analyzed_page_data.iter().map(|d| d.load_time).sum::<f64>()
+            / analyzed_page_data.len() as f64;
 
         let total_words = analyzed_page_data
             .iter()
