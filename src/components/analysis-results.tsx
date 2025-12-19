@@ -75,20 +75,19 @@ export function AnalysisResults({ result, onBack, onSelectPage, analysisId }: An
 
 	return (
 		<div className="space-y-6">
-			{/* Header */}
+
 			<AnalysisHeader
 				onBack={onBack}
 				result={result}
 			/>
 
-			{/* Score Overview Grid */}
+
 			<div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 				<ScoreCard summary={summary} issues={issues} />
 				<SiteHealthCard analysis={analysis} pages={pages} />
 				<QuickStatsCard summary={summary} pages={pages} />
 			</div>
 
-			{/* Tabs */}
 			<Tabs defaultValue="issues" className="space-y-4">
 				<TabsList>
 					<TabsTrigger value="issues" className="gap-2">
