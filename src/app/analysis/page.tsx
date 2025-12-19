@@ -44,7 +44,6 @@ export default function AnalysisPage() {
                 data={result}
                 onBack={() => router.push('/')}
                 onSelectPage={(index: number) => router.push(`/analysis/details?id=${id}&index=${index}`)}
-                analysisId={id}
             />
         </main>
     )
