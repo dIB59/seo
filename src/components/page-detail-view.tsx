@@ -611,7 +611,21 @@ export function PageDetailView({
             <Card>
                 <CardContent className="py-4">
                     <div className="flex flex-col gap-2">
-                        <h2 className="text-lg font-semibold truncate">{page.url}</h2>
+                        <div className="flex items-center gap-2">
+                            <h2 className="text-lg font-semibold truncate">{page.url}</h2>
+                            <a
+                                href={page.url}
+                                rel="noopener noreferrer"
+                                className="shrink-0"
+                                target="_blank"
+                                onClick={(e) => {
+                                    e.preventDefault()
+                                    open(page.url)
+                                }}
+                            >
+                                <ExternalLink className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                            </a>
+                        </div>
                         <p className="text-sm text-muted-foreground truncate">
                             {page.title || "No title"}
                         </p>

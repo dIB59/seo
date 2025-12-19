@@ -20,6 +20,7 @@ export function AnalysisTitleBlock({
                     href={url}
                     rel="noopener noreferrer"
                     className="shrink-0"
+                    target="_blank"
                     onClick={(e) => {
                         e.preventDefault()
                         open(url)
