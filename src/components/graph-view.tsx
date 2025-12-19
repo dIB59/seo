@@ -48,7 +48,6 @@ interface NodeDegrees {
 const DEFAULT_REPULSION = 10
 const DEFAULT_LINK_DISTANCE = 100
 const TOOLTIP_OFFSET = 15
-const RESIZE_DEBOUNCE_DELAY = 100
 
 const GRAPH_CONFIG = {
     simulation: {
@@ -238,22 +237,18 @@ const useContainerDimensions = (containerRef: React.RefObject<HTMLDivElement | n
     const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
 
     useEffect(() => {
-        const updateDimensions = () => {
-            if (containerRef.current) {
-                setDimensions({
-                    width: containerRef.current.clientWidth,
-                    height: containerRef.current.clientHeight
-                })
-            }
-        }
+        if (!containerRef.current) return
 
-        const timeoutId = setTimeout(updateDimensions, RESIZE_DEBOUNCE_DELAY)
-        updateDimensions()
+        const observer = new ResizeObserver((entries) => {
+            if (!entries[0]) return
+            const { width, height } = entries[0].contentRect
+            setDimensions({ width, height })
+        })
 
-        window.addEventListener('resize', updateDimensions)
+        observer.observe(containerRef.current)
+
         return () => {
-            clearTimeout(timeoutId)
-            window.removeEventListener('resize', updateDimensions)
+            observer.disconnect()
         }
     }, [containerRef])
 
