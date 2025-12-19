@@ -425,7 +425,7 @@ impl PageAnalysisData {
             lighthouse_seo: None,
             links: Vec::new(),
             headings: Vec::new(), // Added for consistency with build_from_parsed
-            images: Vec::new(), // Added for consistency with build_from_parsed
+            images: Vec::new(),   // Added for consistency with build_from_parsed
             detailed_links: Vec::new(), // Added for consistency with build_from_parsed
         }
     }
@@ -528,7 +528,12 @@ impl PageAnalysisData {
             for element in document.select(&selector) {
                 results.push(HeadingElement {
                     tag: tag.clone(),
-                    text: element.text().collect::<Vec<_>>().join(" ").trim().to_string(),
+                    text: element
+                        .text()
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                        .trim()
+                        .to_string(),
                 });
             }
         }
@@ -557,11 +562,11 @@ impl PageAnalysisData {
         for link in document.select(&a_selector) {
             if let Some(href) = link.value().attr("href") {
                 let is_internal = if let Ok(url) = base_url.join(href) {
-                     url.host_str() == base_url.host_str()
+                    url.host_str() == base_url.host_str()
                 } else {
                     false
                 };
-                
+
                 results.push(LinkElement {
                     href: href.to_string(),
                     text: link.text().collect::<Vec<_>>().join(" ").trim().to_string(),
@@ -612,16 +617,20 @@ mod tests {
         page.title = None; // Inject failure
 
         let issues = page.generate_issues();
-        assert!(issues.iter().any(|i| i.title == PageAnalysisData::ISSUE_MISSING_TITLE));
+        assert!(issues
+            .iter()
+            .any(|i| i.title == PageAnalysisData::ISSUE_MISSING_TITLE));
     }
 
     #[test]
     fn test_generate_issues_short_content() {
-         let mut page = PageAnalysisData::default_test_instance();
-         page.word_count = 50; // Inject failure
+        let mut page = PageAnalysisData::default_test_instance();
+        page.word_count = 50; // Inject failure
 
         let issues = page.generate_issues();
-        assert!(issues.iter().any(|i| i.title == PageAnalysisData::ISSUE_THIN_CONTENT));
+        assert!(issues
+            .iter()
+            .any(|i| i.title == PageAnalysisData::ISSUE_THIN_CONTENT));
     }
 
     #[test]
@@ -633,10 +642,16 @@ mod tests {
         page.load_time = 5.0;
 
         let issues = page.generate_issues();
-        
-        assert!(issues.iter().any(|i| i.title == PageAnalysisData::ISSUE_MISSING_TITLE));
-        assert!(issues.iter().any(|i| i.title == PageAnalysisData::ISSUE_THIN_CONTENT));
-        assert!(issues.iter().any(|i| i.title == PageAnalysisData::ISSUE_SLOW_LOAD));
+
+        assert!(issues
+            .iter()
+            .any(|i| i.title == PageAnalysisData::ISSUE_MISSING_TITLE));
+        assert!(issues
+            .iter()
+            .any(|i| i.title == PageAnalysisData::ISSUE_THIN_CONTENT));
+        assert!(issues
+            .iter()
+            .any(|i| i.title == PageAnalysisData::ISSUE_SLOW_LOAD));
         assert_eq!(issues.len(), 3);
     }
 
@@ -659,20 +674,20 @@ mod tests {
         "#;
         let document = Html::parse_document(html);
         let (page, issues) = PageAnalysisData::build_from_parsed(
-            "https://example.com".into(), 
-            document, 
-            0.5, 
-            200, 
-            1000
+            "https://example.com".into(),
+            document,
+            0.5,
+            200,
+            1000,
         );
 
         assert_eq!(page.h1_count, 1);
         assert_eq!(page.images_without_alt, 1); // img2 missing alt
         assert_eq!(page.internal_links, 1);
         assert_eq!(page.external_links, 1);
-        
+
         // Issues should be generated too
-        assert!(!issues.is_empty()); 
+        assert!(!issues.is_empty());
         assert!(issues.iter().any(|i| i.title == "Images Missing Alt Text"));
     }
 
@@ -710,9 +725,12 @@ mod tests {
     fn test_no_issues_for_good_page() {
         let page = PageAnalysisData::default_test_instance();
         let issues = page.generate_issues();
-        
-        assert!(issues.is_empty(), "A well-configured page should generate no issues, got: {:?}", 
-            issues.iter().map(|i| &i.title).collect::<Vec<_>>());
+
+        assert!(
+            issues.is_empty(),
+            "A well-configured page should generate no issues, got: {:?}",
+            issues.iter().map(|i| &i.title).collect::<Vec<_>>()
+        );
     }
 
     #[test]
@@ -721,8 +739,12 @@ mod tests {
         page.title = Some("1234".to_string()); // 4 chars - should trigger "too short"
 
         let issues = page.generate_issues();
-        assert!(issues.iter().any(|i| i.title == PageAnalysisData::ISSUE_TITLE_TOO_SHORT),
-            "Title with 4 chars should be too short");
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.title == PageAnalysisData::ISSUE_TITLE_TOO_SHORT),
+            "Title with 4 chars should be too short"
+        );
     }
 
     #[test]
@@ -731,8 +753,12 @@ mod tests {
         page.title = Some("12345".to_string()); // 5 chars - should NOT trigger
 
         let issues = page.generate_issues();
-        assert!(!issues.iter().any(|i| i.title == PageAnalysisData::ISSUE_TITLE_TOO_SHORT),
-            "Title with exactly 5 chars should not be flagged as too short");
+        assert!(
+            !issues
+                .iter()
+                .any(|i| i.title == PageAnalysisData::ISSUE_TITLE_TOO_SHORT),
+            "Title with exactly 5 chars should not be flagged as too short"
+        );
     }
 
     #[test]
@@ -741,8 +767,12 @@ mod tests {
         page.title = Some("A".repeat(61)); // 61 chars - should trigger
 
         let issues = page.generate_issues();
-        assert!(issues.iter().any(|i| i.title == PageAnalysisData::ISSUE_TITLE_TOO_LONG),
-            "Title with 61 chars should be too long");
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.title == PageAnalysisData::ISSUE_TITLE_TOO_LONG),
+            "Title with 61 chars should be too long"
+        );
     }
 
     #[test]
@@ -751,8 +781,12 @@ mod tests {
         page.load_time = 3.01; // Just above 3.0
 
         let issues = page.generate_issues();
-        assert!(issues.iter().any(|i| i.title == PageAnalysisData::ISSUE_SLOW_LOAD),
-            "Load time > 3.0s should trigger slow load issue");
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.title == PageAnalysisData::ISSUE_SLOW_LOAD),
+            "Load time > 3.0s should trigger slow load issue"
+        );
     }
 
     #[test]
@@ -761,7 +795,11 @@ mod tests {
         page.h1_count = 3;
 
         let issues = page.generate_issues();
-        assert!(issues.iter().any(|i| i.title == PageAnalysisData::ISSUE_MULTIPLE_H1),
-            "Multiple H1 tags should generate warning");
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.title == PageAnalysisData::ISSUE_MULTIPLE_H1),
+            "Multiple H1 tags should generate warning"
+        );
     }
 }

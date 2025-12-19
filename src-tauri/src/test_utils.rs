@@ -17,7 +17,10 @@ pub mod fixtures {
             .connect("sqlite::memory:")
             .await
             .expect("Failed to create test database");
-        sqlx::migrate!().run(&pool).await.expect("Failed to run migrations");
+        sqlx::migrate!()
+            .run(&pool)
+            .await
+            .expect("Failed to run migrations");
         pool
     }
 

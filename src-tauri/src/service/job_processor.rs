@@ -304,7 +304,7 @@ impl JobProcessor {
                 Ok(u) => u,
                 Err(_) => continue,
             };
-             let _text = anchor.text().collect::<String>();
+            let _text = anchor.text().collect::<String>();
             // check for nofollow
             let _nofollow = anchor
                 .value()
@@ -383,15 +383,25 @@ mod tests {
         let mut server = mockito::Server::new_async().await;
         let html_body = mocks::html_with_missing_alt();
 
-        let _m1 = server.mock("GET", "/")
+        let _m1 = server
+            .mock("GET", "/")
             .with_status(200)
             .with_header("content-type", "text/html")
             .with_body(&html_body)
-            .create_async().await;
-        
+            .create_async()
+            .await;
+
         // Mock robots/sitemap to avoid errors
-        let _m2 = server.mock("GET", "/robots.txt").with_status(404).create_async().await;
-        let _m3 = server.mock("GET", "/sitemap.xml").with_status(404).create_async().await;
+        let _m2 = server
+            .mock("GET", "/robots.txt")
+            .with_status(404)
+            .create_async()
+            .await;
+        let _m3 = server
+            .mock("GET", "/sitemap.xml")
+            .with_status(404)
+            .create_async()
+            .await;
 
         let server_url = server.url();
 
@@ -402,26 +412,36 @@ mod tests {
 
         // 3. Create Job with minimal settings
         let settings = fixtures::settings_with_max_pages(1);
-        
-        let job_id = job_repo.create_with_settings(
-            &server_url, 
-            &settings
-        ).await.unwrap();
+
+        let job_id = job_repo
+            .create_with_settings(&server_url, &settings)
+            .await
+            .unwrap();
 
         let job = job_repo.get_pending_jobs().await.unwrap().pop().unwrap();
 
         // 4. Run Processing
-        let _result_id = processor.process_job(job).await.expect("Job processing failed");
+        let _result_id = processor
+            .process_job(job)
+            .await
+            .expect("Job processing failed");
 
         // 5. Verify Results
         let results_repo = ResultsRepository::new(pool.clone());
         let result = results_repo.get_result_by_job_id(job_id).await.unwrap();
 
         // Check Job Status - verify behavior, not implementation
-        assert_eq!(result.analysis.status, JobStatus::Completed, "Job should complete successfully");
-        
+        assert_eq!(
+            result.analysis.status,
+            JobStatus::Completed,
+            "Job should complete successfully"
+        );
+
         // Check Page Data
-        assert!(!result.pages.is_empty(), "Should have at least one analyzed page");
+        assert!(
+            !result.pages.is_empty(),
+            "Should have at least one analyzed page"
+        );
         let page = &result.pages[0];
         assert!(page.title.is_some(), "Page should have a title");
         assert_eq!(page.h1_count, 1, "Page should have one H1 tag");
@@ -429,7 +449,8 @@ mod tests {
         // Check Issues using assertion helper - uses the constant from PageAnalysisData
         assert!(
             assertions::has_issue(&result.issues, PageAnalysisData::ISSUE_IMG_MISSING_ALT),
-            "Expected to find '{}' issue", PageAnalysisData::ISSUE_IMG_MISSING_ALT
+            "Expected to find '{}' issue",
+            PageAnalysisData::ISSUE_IMG_MISSING_ALT
         );
     }
 
@@ -449,11 +470,20 @@ mod tests {
         "#;
 
         let links = JobProcessor::extract_links(html, &base);
-        
+
         assert_eq!(links.len(), 3, "Should extract 3 links");
-        assert!(links.iter().any(|l| l.contains("/about")), "Should find /about link");
-        assert!(links.iter().any(|l| l.contains("external.com")), "Should find external link");
-        assert!(links.iter().any(|l| l.contains("contact.html")), "Should find relative link");
+        assert!(
+            links.iter().any(|l| l.contains("/about")),
+            "Should find /about link"
+        );
+        assert!(
+            links.iter().any(|l| l.contains("external.com")),
+            "Should find external link"
+        );
+        assert!(
+            links.iter().any(|l| l.contains("contact.html")),
+            "Should find relative link"
+        );
     }
 
     #[test]
@@ -462,7 +492,10 @@ mod tests {
         let html = "<html><body><p>No links here</p></body></html>";
 
         let links = JobProcessor::extract_links(html, &base);
-        assert!(links.is_empty(), "Should return empty list for HTML without links");
+        assert!(
+            links.is_empty(),
+            "Should return empty list for HTML without links"
+        );
     }
 
     // ===== Unit tests for PageEdge.is_internal =====
@@ -475,8 +508,14 @@ mod tests {
             status_code: 200,
         };
 
-        assert!(edge.is_internal("https://example.com"), "Same domain should be internal");
-        assert!(edge.is_internal("https://example.com/other"), "Same domain with path should be internal");
+        assert!(
+            edge.is_internal("https://example.com"),
+            "Same domain should be internal"
+        );
+        assert!(
+            edge.is_internal("https://example.com/other"),
+            "Same domain with path should be internal"
+        );
     }
 
     #[test]
@@ -487,7 +526,10 @@ mod tests {
             status_code: 200,
         };
 
-        assert!(!edge.is_internal("https://example.com"), "Different domain should be external");
+        assert!(
+            !edge.is_internal("https://example.com"),
+            "Different domain should be external"
+        );
     }
 
     #[test]
@@ -499,7 +541,10 @@ mod tests {
         };
 
         // HTTP vs HTTPS on same domain should be considered external (different scheme)
-        assert!(!edge.is_internal("https://example.com"), "Different scheme should be external");
+        assert!(
+            !edge.is_internal("https://example.com"),
+            "Different scheme should be external"
+        );
     }
 
     #[test]
@@ -510,8 +555,14 @@ mod tests {
             status_code: 200,
         };
 
-        assert!(!edge.is_internal("https://example.com"), "Different port should be external");
-        assert!(edge.is_internal("https://example.com:8080"), "Same port should be internal");
+        assert!(
+            !edge.is_internal("https://example.com"),
+            "Different port should be external"
+        );
+        assert!(
+            edge.is_internal("https://example.com:8080"),
+            "Same port should be internal"
+        );
     }
 
     #[test]
@@ -523,15 +574,33 @@ mod tests {
 
         // We expect a significant number of links given the size of the file
         assert!(!links.is_empty(), "Should extract links from Discord HTML");
-        
+
         // Check for specific links we know exist/should exist
-        assert!(links.iter().any(|l| l.contains("/download")), "Should find /download link");
-        assert!(links.iter().any(|l| l.contains("/nitro")), "Should find /nitro link");
-        assert!(links.iter().any(|l| l.contains("/safety")), "Should find /safety link");
-        assert!(links.iter().any(|l| l.contains("support.discord.com")), "Should find support subdomain link");
-        assert!(links.iter().any(|l| l.contains("/developers")), "Should find /developers link");
-        
+        assert!(
+            links.iter().any(|l| l.contains("/download")),
+            "Should find /download link"
+        );
+        assert!(
+            links.iter().any(|l| l.contains("/nitro")),
+            "Should find /nitro link"
+        );
+        assert!(
+            links.iter().any(|l| l.contains("/safety")),
+            "Should find /safety link"
+        );
+        assert!(
+            links.iter().any(|l| l.contains("support.discord.com")),
+            "Should find support subdomain link"
+        );
+        assert!(
+            links.iter().any(|l| l.contains("/developers")),
+            "Should find /developers link"
+        );
+
         // Check that relative links were resolved correctly
-        assert!(links.iter().any(|l| l.starts_with("https://discord.com/")), "Links should be absolute");
+        assert!(
+            links.iter().any(|l| l.starts_with("https://discord.com/")),
+            "Links should be absolute"
+        );
     }
 }

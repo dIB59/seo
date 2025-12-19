@@ -4,9 +4,9 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use sqlx::SqlitePool;
-use uuid::Uuid;
-use url::Url;
 use std::collections::HashMap;
+use url::Url;
+use uuid::Uuid;
 
 // ====== Mappers ======
 
@@ -469,9 +469,18 @@ ORDER BY pa.id;
                     lighthouse_best_practices: r.lighthouse_best_practices,
                     lighthouse_seo: r.lighthouse_seo,
                     links,
-                    headings: r.headings.and_then(|h| serde_json::from_str::<Vec<HeadingElement>>(&h).ok()).unwrap_or_default(),
-                    images: r.images.and_then(|i| serde_json::from_str::<Vec<ImageElement>>(&i).ok()).unwrap_or_default(),
-                    detailed_links: r.detailed_links_json.and_then(|l| serde_json::from_str::<Vec<LinkElement>>(&l).ok()).unwrap_or_default(),
+                    headings: r
+                        .headings
+                        .and_then(|h| serde_json::from_str::<Vec<HeadingElement>>(&h).ok())
+                        .unwrap_or_default(),
+                    images: r
+                        .images
+                        .and_then(|i| serde_json::from_str::<Vec<ImageElement>>(&i).ok())
+                        .unwrap_or_default(),
+                    detailed_links: r
+                        .detailed_links_json
+                        .and_then(|l| serde_json::from_str::<Vec<LinkElement>>(&l).ok())
+                        .unwrap_or_default(),
                 }
             })
             .collect();
@@ -487,21 +496,21 @@ ORDER BY pa.id;
             if let Ok(base_url) = Url::parse(&page.url) {
                 for link in &mut page.detailed_links {
                     if link.status_code.is_none() {
-                         // Only check internal links or links we might have visited
-                         if let Ok(abs_url) = base_url.join(&link.href) {
-                             let abs_str = abs_url.to_string();
-                             // Try exact match
-                             if let Some(Some(code)) = url_status.get(&abs_str) {
-                                 link.status_code = Some(*code as u16);
-                             } else {
+                        // Only check internal links or links we might have visited
+                        if let Ok(abs_url) = base_url.join(&link.href) {
+                            let abs_str = abs_url.to_string();
+                            // Try exact match
+                            if let Some(Some(code)) = url_status.get(&abs_str) {
+                                link.status_code = Some(*code as u16);
+                            } else {
                                 // Try trimming internal anchor hash if present
                                 let mut abs_no_frag = abs_url.clone();
                                 abs_no_frag.set_fragment(None);
                                 if let Some(Some(code)) = url_status.get(abs_no_frag.as_str()) {
                                     link.status_code = Some(*code as u16);
                                 }
-                             }
-                         }
+                            }
+                        }
                     }
                 }
             }
@@ -611,35 +620,39 @@ impl PageRepository {
 
             query_builder.push_values(chunk, |mut b, page| {
                 b.push_bind(Uuid::new_v4().to_string()) // Generate new ID for each page
-                .push_bind(&page.analysis_id)
-                .push_bind(&page.url)
-                .push_bind(&page.title)
-                .push_bind(&page.meta_description)
-                .push_bind(&page.meta_keywords)
-                .push_bind(&page.canonical_url)
-                .push_bind(page.h1_count)
-                .push_bind(page.h2_count)
-                .push_bind(page.h3_count)
-                .push_bind(page.word_count)
-                .push_bind(page.image_count)
-                .push_bind(page.images_without_alt)
-                .push_bind(page.internal_links)
-                .push_bind(page.external_links)
-                .push_bind(page.load_time)
-                .push_bind(page.status_code)
-                .push_bind(page.content_size)
-                .push_bind(page.mobile_friendly)
-                .push_bind(page.has_structured_data)
-                .push_bind(page.lighthouse_performance)
-                .push_bind(page.lighthouse_accessibility)
-                .push_bind(page.lighthouse_best_practices)
-                .push_bind(page.lighthouse_seo)
-                .push_bind(chrono::Utc::now().to_rfc3339())
-                .push_bind(serde_json::to_string(&page.headings).unwrap_or_default())
-                .push_bind(serde_json::to_string(&page.images).unwrap_or_default())
-                .push_bind(serde_json::to_string(&page.detailed_links).unwrap_or_default());
+                    .push_bind(&page.analysis_id)
+                    .push_bind(&page.url)
+                    .push_bind(&page.title)
+                    .push_bind(&page.meta_description)
+                    .push_bind(&page.meta_keywords)
+                    .push_bind(&page.canonical_url)
+                    .push_bind(page.h1_count)
+                    .push_bind(page.h2_count)
+                    .push_bind(page.h3_count)
+                    .push_bind(page.word_count)
+                    .push_bind(page.image_count)
+                    .push_bind(page.images_without_alt)
+                    .push_bind(page.internal_links)
+                    .push_bind(page.external_links)
+                    .push_bind(page.load_time)
+                    .push_bind(page.status_code)
+                    .push_bind(page.content_size)
+                    .push_bind(page.mobile_friendly)
+                    .push_bind(page.has_structured_data)
+                    .push_bind(page.lighthouse_performance)
+                    .push_bind(page.lighthouse_accessibility)
+                    .push_bind(page.lighthouse_best_practices)
+                    .push_bind(page.lighthouse_seo)
+                    .push_bind(chrono::Utc::now().to_rfc3339())
+                    .push_bind(serde_json::to_string(&page.headings).unwrap_or_default())
+                    .push_bind(serde_json::to_string(&page.images).unwrap_or_default())
+                    .push_bind(serde_json::to_string(&page.detailed_links).unwrap_or_default());
             });
-            query_builder.build().execute(&mut *tx).await.context("Failed to insert page analysis chunk")?;
+            query_builder
+                .build()
+                .execute(&mut *tx)
+                .await
+                .context("Failed to insert page analysis chunk")?;
         }
         tx.commit().await?;
         Ok(())
@@ -653,8 +666,9 @@ impl PageRepository {
         let mut tx = self.pool.begin().await?;
 
         for chunk in edges.chunks(CHUNK_SIZE) {
-            let mut qb =
-                sqlx::QueryBuilder::new("INSERT INTO page_edge (from_page_id, to_url, status_code) ");
+            let mut qb = sqlx::QueryBuilder::new(
+                "INSERT INTO page_edge (from_page_id, to_url, status_code) ",
+            );
             qb.push_values(chunk, |mut b, edge| {
                 b.push_bind(&edge.from_page_id)
                     .push_bind(&edge.to_url)
@@ -802,7 +816,10 @@ mod tests {
             .expect("Failed to create job");
 
         // 2. Verify Pending
-        let pending = repo.get_pending_jobs().await.expect("Failed to get pending");
+        let pending = repo
+            .get_pending_jobs()
+            .await
+            .expect("Failed to get pending");
         assert_eq!(pending.len(), 1, "Should have one pending job");
         assert_eq!(pending[0].id, job_id);
         assert_eq!(pending[0].status, JobStatus::Queued);
@@ -811,7 +828,7 @@ mod tests {
         repo.update_status(job_id, JobStatus::Processing)
             .await
             .expect("Update status failed");
-        
+
         let pending_processing = repo.get_pending_jobs().await.unwrap();
         assert_eq!(pending_processing[0].status, JobStatus::Processing);
 
@@ -819,9 +836,12 @@ mod tests {
         repo.update_status(job_id, JobStatus::Completed)
             .await
             .expect("Update status failed");
-        
+
         let pending_final = repo.get_pending_jobs().await.unwrap();
-        assert!(pending_final.is_empty(), "Completed jobs should not appear in pending");
+        assert!(
+            pending_final.is_empty(),
+            "Completed jobs should not appear in pending"
+        );
     }
 
     #[tokio::test]
@@ -833,8 +853,11 @@ mod tests {
         let settings = fixtures::settings_with_max_pages(42);
 
         // Creating a job also creates settings
-        let _job_id = job_repo.create_with_settings("https://settings.test", &settings).await.unwrap();
-        
+        let _job_id = job_repo
+            .create_with_settings("https://settings.test", &settings)
+            .await
+            .unwrap();
+
         let pending = job_repo.get_pending_jobs().await.unwrap();
         let settings_id = pending[0].settings_id;
 
@@ -848,17 +871,23 @@ mod tests {
         let results_repo = ResultsRepository::new(pool.clone());
         let page_repo = PageRepository::new(pool.clone());
         let job_repo = JobRepository::new(pool.clone());
-        
+
         let settings = fixtures::default_settings();
-        let job_id = job_repo.create_with_settings("https://result.test", &settings).await.unwrap();
+        let job_id = job_repo
+            .create_with_settings("https://result.test", &settings)
+            .await
+            .unwrap();
 
         // 1. Create Result
-        let result_id = results_repo.create(
-            "https://result.test",
-            true, // sitemap
-            true, // robots
-            true  // ssl
-        ).await.expect("Failed to create result");
+        let result_id = results_repo
+            .create(
+                "https://result.test",
+                true, // sitemap
+                true, // robots
+                true, // ssl
+            )
+            .await
+            .expect("Failed to create result");
 
         // Link
         job_repo.link_to_result(job_id, &result_id).await.unwrap();
@@ -894,14 +923,23 @@ mod tests {
             detailed_links: vec![],
         };
 
-        page_repo.insert(&page_data).await.expect("Failed to insert page");
+        page_repo
+            .insert(&page_data)
+            .await
+            .expect("Failed to insert page");
 
         // 3. Update Progress
-        results_repo.update_progress(&result_id, 50.0, 1, 2).await.unwrap();
-        
+        results_repo
+            .update_progress(&result_id, 50.0, 1, 2)
+            .await
+            .unwrap();
+
         // Generate summary (required for get_result_by_job_id)
         let summary_repo = SummaryRepository::new(pool.clone());
-        summary_repo.generate_summary(&result_id, &[], &[page_data]).await.unwrap();
+        summary_repo
+            .generate_summary(&result_id, &[], &[page_data])
+            .await
+            .unwrap();
 
         let complete = results_repo.get_result_by_job_id(job_id).await.unwrap();
         assert_eq!(complete.analysis.id, result_id);
@@ -910,7 +948,10 @@ mod tests {
         assert_eq!(complete.pages[0].url, "https://result.test/page1");
 
         // 4. Finalize
-        results_repo.finalize(&result_id, AnalysisStatus::Completed).await.unwrap();
+        results_repo
+            .finalize(&result_id, AnalysisStatus::Completed)
+            .await
+            .unwrap();
 
         let finalized = results_repo.get_result_by_job_id(job_id).await.unwrap();
         assert_eq!(finalized.analysis.status, JobStatus::Completed); // check mapper logic if it matches enum
@@ -923,25 +964,45 @@ mod tests {
         let page_repo = PageRepository::new(pool.clone());
         let job_repo = JobRepository::new(pool.clone());
         let settings = fixtures::default_settings();
-        
+
         // Setup job & result
-        let job_id = job_repo.create_with_settings("https://detail.test", &settings).await.unwrap();
-        let result_id = results_repo.create("https://detail.test", true, true, true).await.unwrap();
+        let job_id = job_repo
+            .create_with_settings("https://detail.test", &settings)
+            .await
+            .unwrap();
+        let result_id = results_repo
+            .create("https://detail.test", true, true, true)
+            .await
+            .unwrap();
         job_repo.link_to_result(job_id, &result_id).await.unwrap();
 
         // Create page with details
         let mut page_data = PageAnalysisData::default_test_instance();
         page_data.analysis_id = result_id.clone();
-        page_data.headings = vec![HeadingElement { tag: "h1".into(), text: "Header".into() }];
-        page_data.images = vec![ImageElement { src: "img.jpg".into(), alt: Some("Alt".into()) }];
-        page_data.detailed_links = vec![LinkElement { href: "/".into(), text: "Home".into(), is_internal: true, status_code: None }];
+        page_data.headings = vec![HeadingElement {
+            tag: "h1".into(),
+            text: "Header".into(),
+        }];
+        page_data.images = vec![ImageElement {
+            src: "img.jpg".into(),
+            alt: Some("Alt".into()),
+        }];
+        page_data.detailed_links = vec![LinkElement {
+            href: "/".into(),
+            text: "Home".into(),
+            is_internal: true,
+            status_code: None,
+        }];
 
         page_repo.insert(&page_data).await.unwrap();
 
         // Retrieve and Verify
         // Need to ensure summary exists for get_result_by_job_id
         let summary_repo = SummaryRepository::new(pool.clone());
-        summary_repo.generate_summary(&result_id, &[], &[page_data.clone()]).await.unwrap();
+        summary_repo
+            .generate_summary(&result_id, &[], &[page_data.clone()])
+            .await
+            .unwrap();
 
         let complete = results_repo.get_result_by_job_id(job_id).await.unwrap();
         let retrieved_page = &complete.pages[0];
@@ -962,14 +1023,29 @@ mod tests {
         let summary_repo = SummaryRepository::new(pool.clone());
 
         let settings = fixtures::default_settings();
-        let job_id_1 = job_repo.create_with_settings("https://job1.test", &settings).await.unwrap();
-        let _job_id_2 = job_repo.create_with_settings("https://job2.test", &settings).await.unwrap();
+        let job_id_1 = job_repo
+            .create_with_settings("https://job1.test", &settings)
+            .await
+            .unwrap();
+        let _job_id_2 = job_repo
+            .create_with_settings("https://job2.test", &settings)
+            .await
+            .unwrap();
 
         // job 1 has result
-        let result_id = results_repo.create("https://job1.test", false, false, false).await.unwrap();
-        results_repo.update_progress(&result_id, 33.0, 1, 3).await.unwrap();
+        let result_id = results_repo
+            .create("https://job1.test", false, false, false)
+            .await
+            .unwrap();
+        results_repo
+            .update_progress(&result_id, 33.0, 1, 3)
+            .await
+            .unwrap();
         // ensure summary exists for join
-        summary_repo.generate_summary(&result_id, &[], &[]).await.unwrap();
+        summary_repo
+            .generate_summary(&result_id, &[], &[])
+            .await
+            .unwrap();
         job_repo.link_to_result(job_id_1, &result_id).await.unwrap();
 
         // Test get_progress
@@ -981,7 +1057,7 @@ mod tests {
         // Test get_all
         let all_jobs = job_repo.get_all().await.unwrap();
         assert!(all_jobs.len() >= 2);
-        
+
         let job_1_progress = all_jobs.iter().find(|j| j.job_id == job_id_1).unwrap();
         assert_eq!(job_1_progress.progress, Some(33.0));
     }
@@ -993,9 +1069,15 @@ mod tests {
         let page_repo = PageRepository::new(pool.clone());
         let job_repo = JobRepository::new(pool.clone());
         let settings = fixtures::default_settings();
-        
-        let job_id = job_repo.create_with_settings("https://backfill.test", &settings).await.unwrap();
-        let result_id = results_repo.create("https://backfill.test", true, true, true).await.unwrap();
+
+        let job_id = job_repo
+            .create_with_settings("https://backfill.test", &settings)
+            .await
+            .unwrap();
+        let result_id = results_repo
+            .create("https://backfill.test", true, true, true)
+            .await
+            .unwrap();
         job_repo.link_to_result(job_id, &result_id).await.unwrap();
 
         // 1. Insert "Target" page (the one being linked TO)
@@ -1010,27 +1092,36 @@ mod tests {
         source_page.analysis_id = result_id.clone();
         source_page.url = "https://backfill.test/source".into();
         // The link initially has NO status code
-        source_page.detailed_links = vec![
-            LinkElement { 
-                href: "/target".into(), 
-                text: "Go to Target".into(), 
-                is_internal: true, 
-                status_code: None 
-            }
-        ];
+        source_page.detailed_links = vec![LinkElement {
+            href: "/target".into(),
+            text: "Go to Target".into(),
+            is_internal: true,
+            status_code: None,
+        }];
         page_repo.insert(&source_page).await.unwrap();
 
         // Generate summary (required)
         let summary_repo = SummaryRepository::new(pool.clone());
-        summary_repo.generate_summary(&result_id, &[], &[target_page, source_page]).await.unwrap();
+        summary_repo
+            .generate_summary(&result_id, &[], &[target_page, source_page])
+            .await
+            .unwrap();
 
         // 3. Fetch Result and Verify Backfilling
         let complete = results_repo.get_result_by_job_id(job_id).await.unwrap();
-        
-        let retrieved_source = complete.pages.iter().find(|p| p.url == "https://backfill.test/source").unwrap();
+
+        let retrieved_source = complete
+            .pages
+            .iter()
+            .find(|p| p.url == "https://backfill.test/source")
+            .unwrap();
         let link = &retrieved_source.detailed_links[0];
-        
+
         assert_eq!(link.href, "/target");
-        assert_eq!(link.status_code, Some(404), "Status code should be backfilled from target page");
+        assert_eq!(
+            link.status_code,
+            Some(404),
+            "Status code should be backfilled from target page"
+        );
     }
 }

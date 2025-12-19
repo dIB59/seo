@@ -1,12 +1,12 @@
-use std::fmt;
 use serde::Serialize;
+use std::fmt;
 
 #[derive(Debug)]
 pub struct CommandError(pub anyhow::Error);
 
 impl std::error::Error for CommandError {}
 
-impl std::fmt::Display for CommandError{
+impl std::fmt::Display for CommandError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
