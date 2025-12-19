@@ -9,10 +9,12 @@ import { PageDetailModal } from "./organisms/PageDetailModal";
 import { IssuesAccordion } from "./organisms/IssuesAccordion";
 import { GraphView } from "../graph-view";
 
-// src/components/analysis/AnalysisDashboard.tsx
-export default function AnalysisDashboard({ data }: { data: CompleteAnalysisResult }) {
+export default function AnalysisDashboard({ data, onBack, onSelectPage, analysisId }:
+    {
+        data: CompleteAnalysisResult, onBack: () => void, onSelectPage: (index: number)
+            => void, analysisId: string
+    }) {
     const [selectedPage, setSelectedPage] = useState<PageAnalysisData | null>(null);
-
 
     return (
         <div className="space-y-6">
@@ -37,7 +39,7 @@ export default function AnalysisDashboard({ data }: { data: CompleteAnalysisResu
                 <TabsContent value="visual" className="mt-4">
                     <GraphView
                         data={data}
-                        onNodeClick={(page) => setSelectedPage(page)}
+                        onNodeClick={(page) => setSelectedPage(data.pages.find(p => p.url === page) ?? null)}
                     />
                 </TabsContent>
             </Tabs>
