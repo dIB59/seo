@@ -46,7 +46,6 @@ interface NodeDegrees {
 // Constants
 const DEFAULT_REPULSION = 10
 const DEFAULT_LINK_DISTANCE = 100
-const MIN_GRAPH_HEIGHT = 600
 const TOOLTIP_OFFSET = 15
 const RESIZE_DEBOUNCE_DELAY = 100
 
@@ -262,6 +261,8 @@ const useContainerDimensions = (containerRef: React.RefObject<HTMLDivElement | n
 
 // Main Component
 export function GraphView({ data, onNodeClick, onSelectPage }: GraphViewProps) {
+
+    console.log(data)
     const { resolvedTheme } = useTheme()
     const theme = resolvedTheme || 'dark'
 
