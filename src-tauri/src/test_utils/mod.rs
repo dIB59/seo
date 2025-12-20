@@ -1,10 +1,8 @@
 #[cfg(test)]
 pub mod fixtures {
     use crate::commands::analysis::AnalysisSettingsRequest;
-    use crate::domain::models::*;
     use crate::service::gemini::GeminiRequest;
     use sqlx::SqlitePool;
-    use std::fs;
 
     /// Creates an in-memory SQLite database with migrations applied
     pub async fn setup_test_db() -> SqlitePool {
