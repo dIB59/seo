@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            UPDATE analysis_jobs \n            SET result_id = ?\n            WHERE id = ?\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "ca1fe215ef4612a17f7e92a290b1038d71c3ea14df63a6f9e17b56a109f2dc51"
+}
