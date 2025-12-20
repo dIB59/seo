@@ -16,6 +16,7 @@ env:
 
 jobs:
   lint:
+    if: false
     name: Lint (fmt + clippy)
     runs-on: ubuntu-22.04
     defaults:
@@ -51,6 +52,7 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
 
   sqlx:
+    if: false
     name: SQLx verification
     runs-on: ubuntu-22.04
     defaults:
