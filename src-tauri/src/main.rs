@@ -6,6 +6,7 @@ use tauri::Manager;
 use app::commands;
 use app::db::{self, DbState};
 use app::service;
+use tracing_subscriber::fmt;
 
 //TODO:
 //-implement pagination for get all jobs
@@ -21,9 +22,13 @@ use app::service;
 //-xml file path not found due to redirection
 
 fn main() {
-    env_logger::builder()
-        .filter_level(log::LevelFilter::Info)
+    tracing_subscriber::fmt()
+        .with_env_filter("sqlx=warn")
+        .compact()
+        .with_target(false)
+        .with_ansi(true)
         .init();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())

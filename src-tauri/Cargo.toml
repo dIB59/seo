@@ -23,7 +23,7 @@ uuid = { version = "1.11.0", features = ["v4"] }
 
 rand = "0.8.5"
 chrono = { version = "0.4.31", features = ["serde"] }
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "macros", "sqlite", "migrate", "chrono"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "macros", "sqlite", "migrate", "chrono" ] }
 anyhow = "1.0.100"
 log = "0.4.28"
 env_logger = "0.11.8"
@@ -34,6 +34,8 @@ quick-xml = "0.38.4"
 async-trait = "0.1.89"
 dashmap = "6.1.0"
 tauri-plugin-shell = "2"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
 
 [features]
 custom-protocol = [ "tauri/custom-protocol" ]
