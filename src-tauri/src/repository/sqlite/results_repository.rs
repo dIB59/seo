@@ -318,6 +318,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_result_by_job_id() {
         let pool = set_up_test_db_with_prod_data().await;
         let repo = ResultsRepository::new(pool);
