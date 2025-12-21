@@ -311,3 +311,18 @@ impl ResultsRepository {
         Ok(complete_analysis)
     }
 }
+
+mod tests {
+    use crate::test_utils::set_up_test_db_with_prod_data;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_get_result_by_job_id() {
+        let pool = set_up_test_db_with_prod_data().await;
+        let repo = ResultsRepository::new(pool);
+
+        let result = repo.get_result_by_job_id(12).await.unwrap();
+        assert_eq!(result.pages.len(), 1497);
+    }
+}
