@@ -26,7 +26,7 @@ criterion_group! {
     name = benches;
     config = Criterion::default()
         .sample_size(10)
-        .measurement_time(Duration::from_secs(920));
+        .measurement_time(Duration::from_secs(20));
     targets = bench_current_method
 }
 
