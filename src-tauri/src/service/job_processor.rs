@@ -77,7 +77,7 @@ impl JobProcessor {
             match self.job_db.get_pending_jobs().await {
                 Ok(jobs) => {
                     if jobs.is_empty() {
-                        sleep(Duration::from_secs(5)).await;
+                        sleep(Duration::from_secs(15)).await;
                         continue;
                     }
 
