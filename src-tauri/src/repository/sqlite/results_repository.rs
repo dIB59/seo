@@ -325,5 +325,6 @@ mod tests {
 
         let result = repo.get_result_by_job_id(12).await.unwrap();
         assert_eq!(result.pages.len(), 1497);
+        assert_eq!(result.issues.len(), 2576);
     }
 }
