@@ -6,6 +6,10 @@ pub async fn set_up_test_db_with_prod_data() -> SqlitePool {
         .connect("sqlite:src/test_utils/test.db")
         .await
         .expect("Failed to connect");
+    sqlx::migrate!()
+        .run(&pool)
+        .await
+        .expect("Failed to run migrations");
     sqlx::query("PRAGMA cache_size = 0")
         .execute(&pool)
         .await
