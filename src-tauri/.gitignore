@@ -3,4 +3,4 @@
 /target/
 /gen
 Cargo.lock
-src-tauri/src/test_utils/test.db
+test.db
