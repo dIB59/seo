@@ -157,3 +157,19 @@ pub mod mocks {
         include_str!("mockdiscord.html").to_string()
     }
 }
+
+#[cfg(test)]
+mod connection_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_prod_db_connection_test() {
+        let pool = set_up_test_db_with_prod_data().await;
+        // Simple query to ensure connection is actually working
+        let res: (i32,) = sqlx::query_as("SELECT 1")
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to execute query");
+        assert_eq!(res.0, 1);
+    }
+}
