@@ -3,17 +3,9 @@
 
 use tauri::Manager;
 
-use crate::db::DbState;
-
-mod commands;
-mod db;
-mod domain;
-mod error;
-mod extractor;
-mod repository;
-mod service;
-#[cfg(test)]
-mod test_utils;
+use app::commands;
+use app::db::{self, DbState};
+use app::service;
 
 //TODO:
 //-implement pagination for get all jobs

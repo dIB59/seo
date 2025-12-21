@@ -30,8 +30,6 @@ env_logger = "0.11.8"
 url = "2.5.7"
 reqwest = { version = "0.12.24", features = ["json"] }
 scraper = "0.24.0"
-mockito = "1.7.0"
-tokio-test = "0.4.4"
 quick-xml = "0.38.4"
 async-trait = "0.1.89"
 dashmap = "6.1.0"
@@ -39,3 +37,12 @@ tauri-plugin-shell = "2"
 
 [features]
 custom-protocol = [ "tauri/custom-protocol" ]
+
+[dev-dependencies]
+criterion = { version = "0.8.1", features = ["async_tokio"] }
+tokio-test = "0.4.4"
+mockito = "1.7.0"
+
+[[bench]]
+name = "database_benchmarks"
+harness = false

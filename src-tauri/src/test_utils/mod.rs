@@ -1,9 +1,23 @@
+use sqlx::SqlitePool;
+
+pub async fn set_up_test_db_with_prod_data() -> SqlitePool {
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(5)
+        .connect("sqlite:src/test_utils/test.db")
+        .await
+        .expect("Failed to connect");
+    sqlx::query("PRAGMA cache_size = 0")
+        .execute(&pool)
+        .await
+        .expect("Failed to set cache size");
+    pool
+}
+
 #[cfg(test)]
 pub mod fixtures {
     use crate::commands::analysis::AnalysisSettingsRequest;
     use crate::service::gemini::GeminiRequest;
     use sqlx::SqlitePool;
-
     /// Creates an in-memory SQLite database with migrations applied
     pub async fn setup_test_db() -> SqlitePool {
         let pool = sqlx::sqlite::SqlitePoolOptions::new()
