@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT pe.from_page_id, pe.to_url, pe.status_code\n            FROM page_edge pe\n            WHERE pe.from_page_id IN (\n                SELECT id FROM page_analysis WHERE analysis_id = ?\n            )\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "from_page_id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "to_url",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "status_code",
+        "ordinal": 2,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "ba201e54c057ab4cb90a030c32a987000457dc2d30f548e3b4459dc22a258cbc"
+}

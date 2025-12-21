@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT ar.id as \"id!\" , ar.url, ar.status, ar.progress, ar.analyzed_pages, ar.total_pages,\n                   ar.started_at, ar.created_at, ar.completed_at, ar.sitemap_found, ar.robots_txt_found, ar.ssl_certificate\n            FROM analysis_results ar\n            JOIN analysis_jobs aj ON aj.result_id = ar.id\n            WHERE aj.id = ?\n            ",
+  "query": "\n            SELECT ar.id as \"id!\", ar.url, ar.status, ar.progress, ar.analyzed_pages, ar.total_pages,\n                   ar.started_at, ar.created_at, ar.completed_at, ar.sitemap_found, ar.robots_txt_found, ar.ssl_certificate\n            FROM analysis_results ar\n            JOIN analysis_jobs aj ON aj.result_id = ar.id\n            WHERE aj.id = ?\n            ",
   "describe": {
     "columns": [
       {
@@ -82,5 +82,5 @@
       false
     ]
   },
-  "hash": "44383e4224ea32e097f132eb47faa196097b4701bf96ac420e56d6d6bbd4801b"
+  "hash": "07acf73cf391d2c5ba9edff5612ef79d75648875c6b93dd217c3b2331be019d2"
 }
