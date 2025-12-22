@@ -200,7 +200,7 @@ impl JobProcessor {
                         };
 
                         edges.push(edge.clone());
-                        log::info!("{:?}", edge);
+                        log::trace!("{:?}", edge);
 
                         if edge.status_code >= 400 {
                             dbg!(&edge);
