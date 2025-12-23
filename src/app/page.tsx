@@ -6,10 +6,10 @@ import { useRouter } from "next/navigation";
 import { Search, RefreshCw, Settings } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { UrlInputForm } from "@/src/components/url-input-form";
-import { JobList } from "@/src/components/job-list";
 import { getAllJobs, startAnalysis, cancelAnalysis } from "@/src/api/analysis";
 import type { AnalysisSettingsRequest } from "@/src/lib/types";
 import { logger } from "../lib/logger";
+import { JobList } from "@/src/components/job-list/JobList";
 
 const fetchJobs = () =>
     getAllJobs().then((res) => {
