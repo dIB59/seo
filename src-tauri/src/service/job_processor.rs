@@ -9,7 +9,7 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use dashmap::DashMap;
-use reqwest::Client;
+use rquest::Client;
 use scraper::{Html, Selector};
 use serde::Serialize;
 use sqlx::SqlitePool;
@@ -17,17 +17,11 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
+use tauri::Emitter;
 use tokio::time::sleep;
 use url::Url;
 
-fn assert_send_static<F>(f: F) -> F
-where
-    F: std::future::Future + Send + 'static,
-{
-    f
-}
-
-pub struct JobProcessor {
+pub struct JobProcessor<R: tauri::Runtime = tauri::Wry> {
     job_db: JobRepository,
     settings_db: SettingsRepository,
     results_db: ResultsRepository,
@@ -37,10 +31,11 @@ pub struct JobProcessor {
     discovery: PageDiscovery,
     resource_checker: ResourceChecker,
     cancel_map: Arc<DashMap<i64, Arc<AtomicBool>>>,
+    app_handle: tauri::AppHandle<R>,
 }
 
-impl JobProcessor {
-    pub fn new(pool: SqlitePool) -> Self {
+impl<R: tauri::Runtime> JobProcessor<R> {
+    pub fn new(pool: SqlitePool, app_handle: tauri::AppHandle<R>) -> Self {
         Self {
             job_db: JobRepository::new(pool.clone()),
             settings_db: SettingsRepository::new(pool.clone()),
@@ -51,7 +46,20 @@ impl JobProcessor {
             discovery: PageDiscovery::new(),
             resource_checker: ResourceChecker::new(),
             cancel_map: Arc::new(DashMap::with_capacity(10)),
+            app_handle,
         }
+    }
+
+    fn emit_discovery_progress(&self, job_id: i64, count: usize) {
+        #[derive(Clone, Serialize)]
+        struct DiscoveryProgress {
+            job_id: i64,
+            count: usize,
+        }
+
+        let _ = self
+            .app_handle
+            .emit("discovery-progress", DiscoveryProgress { job_id, count });
     }
 
     fn cancel_flag(&self, job_id: i64) -> Arc<AtomicBool> {
@@ -77,7 +85,7 @@ impl JobProcessor {
             match self.job_db.get_pending_jobs().await {
                 Ok(jobs) => {
                     if jobs.is_empty() {
-                        sleep(Duration::from_secs(5)).await;
+                        sleep(Duration::from_secs(15)).await;
                         continue;
                     }
 
@@ -100,8 +108,10 @@ impl JobProcessor {
         let cancel_flag = self.cancel_flag(job.id);
 
         // 1. Update status
-        job.status = JobStatus::Processing;
-        self.job_db.update_status(job.id, job.status).await?;
+        job.status = JobStatus::Discovering;
+        self.job_db
+            .update_status(job.id, job.status.clone())
+            .await?;
 
         // 2. Fetch settings
         let settings = self
@@ -152,11 +162,20 @@ impl JobProcessor {
                 settings.max_pages,
                 settings.delay_between_requests,
                 cancel_flag.as_ref(),
+                |count| {
+                    self.emit_discovery_progress(job.id, count);
+                },
             )
             .await
             .context("Unable to discover pages")?;
         let total_pages = pages.len() as i32;
         log::info!("Discovered {} pages", total_pages);
+
+        // Update status to Processing after discovery
+        job.status = JobStatus::Processing;
+        self.job_db
+            .update_status(job.id, job.status.clone())
+            .await?;
 
         self.results_db
             .update_progress(&analysis_result_id, 8.0, 0, pages.len() as i64)
@@ -191,7 +210,7 @@ impl JobProcessor {
                     url_to_id.insert(page_url.to_string(), page_id.clone());
 
                     // we already have page.html and page.status_code from analyze_page
-                    let targets = Self::extract_links(&html_str, &page_url);
+                    let targets = JobProcessor::extract_links(&html_str, &page_url);
                     for tgt in targets {
                         let edge = PageEdge {
                             from_page_id: page_id.clone(),
@@ -200,7 +219,7 @@ impl JobProcessor {
                         };
 
                         edges.push(edge.clone());
-                        log::info!("{:?}", edge);
+                        log::trace!("{:?}", edge);
 
                         if edge.status_code >= 400 {
                             dbg!(&edge);
@@ -281,7 +300,8 @@ impl JobProcessor {
     }
 
     async fn analyze_page(&self, url: &Url) -> Result<(PageAnalysisData, Vec<SeoIssue>, String)> {
-        let client = Client::new();
+        let client =
+            crate::service::http::create_client(crate::service::http::ClientType::HeavyEmulation)?;
         let start = std::time::Instant::now();
 
         // 1.  Fetch the page
@@ -318,7 +338,7 @@ impl JobProcessor {
         }
 
         // 5.  Build the data object and issues
-        let (mut page, mut issues) = PageAnalysisData::build_from_parsed(
+        let (page, issues) = PageAnalysisData::build_from_parsed(
             base_url.to_string(),
             document.clone(),
             load_time,
@@ -328,10 +348,12 @@ impl JobProcessor {
 
         Ok((page, issues, html))
     }
+}
 
+impl JobProcessor {
     /// Extract every absolute link (`<a href="…">`) from the given HTML.
     /// The returned strings are already resolved against `base`.
-    fn extract_links(html: &str, base: &Url) -> Vec<String> {
+    pub(crate) fn extract_links(html: &str, base: &Url) -> Vec<String> {
         // `Selector::parse` is expensive (allocations + regex compilation), so we
         // keep the parsed selector in a `std::sync::OnceLock` to pay that cost
         // exactly once per process and reuse it on every call.
@@ -407,7 +429,7 @@ mod tests {
 
         // 2. Setup Processor using shared fixture
         let pool = fixtures::setup_test_db().await;
-        let processor = JobProcessor::new(pool.clone());
+        let processor = JobProcessor::new(pool.clone(), tauri::test::mock_app().handle().clone());
         let job_repo = JobRepository::new(pool.clone());
 
         // 3. Create Job with minimal settings
