@@ -1,6 +1,6 @@
 import type { AnalysisProgress } from "@/src/lib/types"
 import { JobStatusBadge } from "../atoms/JobStatusBadge"
-import { DiscoveryProgress } from "../molecules/DiscoveryProgress"
+import { DiscoveryProgress } from "../atoms/DiscoveryProgress"
 import { getStatusIcon } from "../atoms/JobStatusIcon"
 import { CancelButton } from "../atoms/CancelButton"
 import { ViewResultButton } from "../atoms/ViewResultButton"
