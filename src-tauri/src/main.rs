@@ -6,7 +6,6 @@ use tauri::Manager;
 use app::commands;
 use app::db::{self, DbState};
 use app::service;
-use tracing_subscriber::fmt;
 
 //TODO:
 //-implement pagination for get all jobs
@@ -41,7 +40,10 @@ fn main() {
                     .unwrap_or_else(|e| panic!("failed to init db: {}", e))
             });
 
-            let processor = std::sync::Arc::new(service::JobProcessor::new(pool.clone()));
+            let processor = std::sync::Arc::new(service::JobProcessor::new(
+                pool.clone(),
+                app.handle().clone(),
+            ));
             let proc_clone = processor.clone();
             tauri::async_runtime::spawn(async move {
                 proc_clone.run().await.expect("job-processor died")

@@ -31,6 +31,7 @@ impl PageDiscovery {
         max_pages: i64,
         delay_ms: i64,
         cancel_flag: &AtomicBool,
+        on_discovered: impl Fn(usize) + Send + Sync,
     ) -> Result<Vec<Url>> {
         let mut visited = HashSet::new();
         let mut to_visit = vec![start_url.clone()];
@@ -54,6 +55,8 @@ impl PageDiscovery {
             }
 
             visited.insert(url.clone());
+            on_discovered(visited.len());
+
             sleep(Duration::from_millis(delay_ms as u64)).await;
 
             let Ok(response) = self.client.get(url.as_str()).send().await else {
