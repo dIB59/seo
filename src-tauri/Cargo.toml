@@ -28,7 +28,6 @@ anyhow = "1.0.100"
 log = "0.4.28"
 env_logger = "0.11.8"
 url = "2.5.7"
-reqwest = { version = "0.12.24", features = ["json"] }
 scraper = "0.24.0"
 quick-xml = "0.38.4"
 async-trait = "0.1.89"
@@ -36,6 +35,8 @@ dashmap = "6.1.0"
 tauri-plugin-shell = "2"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
+rquest-util = "2.2.1"
+rquest = { version = "5.1.0", features = ["full", "cookies", "json"] }
 
 [features]
 custom-protocol = [ "tauri/custom-protocol" ]

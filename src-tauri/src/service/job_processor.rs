@@ -9,7 +9,7 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use dashmap::DashMap;
-use reqwest::Client;
+use rquest::Client;
 use scraper::{Html, Selector};
 use serde::Serialize;
 use sqlx::SqlitePool;
@@ -300,7 +300,8 @@ impl<R: tauri::Runtime> JobProcessor<R> {
     }
 
     async fn analyze_page(&self, url: &Url) -> Result<(PageAnalysisData, Vec<SeoIssue>, String)> {
-        let client = Client::new();
+        let client =
+            crate::service::http::create_client(crate::service::http::ClientType::HeavyEmulation)?;
         let start = std::time::Instant::now();
 
         // 1.  Fetch the page

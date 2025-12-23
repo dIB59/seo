@@ -1,5 +1,5 @@
+use crate::service::http::{create_client, ClientType};
 use anyhow::{Context, Result};
-use reqwest;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::SqlitePool;
@@ -111,7 +111,7 @@ pub async fn generate_gemini_analysis(
     });
 
     // Make API request
-    let client = reqwest::Client::new();
+    let client = create_client(ClientType::Standard)?;
     let response = client
         .post(&api_url)
         .header("Content-Type", "application/json")
