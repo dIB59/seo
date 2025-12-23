@@ -337,7 +337,7 @@ impl<R: tauri::Runtime> JobProcessor<R> {
         }
 
         // 5.  Build the data object and issues
-        let (mut page, mut issues) = PageAnalysisData::build_from_parsed(
+        let (page, issues) = PageAnalysisData::build_from_parsed(
             base_url.to_string(),
             document.clone(),
             load_time,
