@@ -1,5 +1,4 @@
 import type { AnalysisProgress } from "@/src/lib/types"
-import { JobStatusBadge } from "../atoms/JobStatusBadge"
 import { DiscoveryProgress } from "../atoms/DiscoveryProgress"
 import { getStatusIcon } from "../atoms/JobStatusIcon"
 import { CancelButton } from "../atoms/CancelButton"
@@ -7,6 +6,7 @@ import { ViewResultButton } from "../atoms/ViewResultButton"
 import { JobProgressBar } from "../atoms/JobProgressBar"
 
 import { useDiscoveryProgress } from "../hooks/useDiscoveryProgress"
+import { JobItemHeader } from "../molecules/JobItemHeader"
 
 interface JobItemProps {
     job: AnalysisProgress
@@ -24,10 +24,7 @@ export function JobItem({ job, onViewResult, onCancel }: JobItemProps) {
             <div className="flex-shrink-0">{getStatusIcon(job.job_status)}</div>
 
             <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium truncate">{job.url}</span>
-                    <JobStatusBadge status={job.job_status} />
-                </div>
+                <JobItemHeader job={job} />
 
                 {job.job_status === "processing" && job.progress !== null && (
                     <JobProgressBar
