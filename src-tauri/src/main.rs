@@ -21,9 +21,13 @@ use app::service;
 //-xml file path not found due to redirection
 
 fn main() {
-    env_logger::builder()
-        .filter_level(log::LevelFilter::Info)
+    tracing_subscriber::fmt()
+        .with_env_filter("sqlx=warn")
+        .compact()
+        .with_target(false)
+        .with_ansi(true)
         .init();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
@@ -36,7 +40,10 @@ fn main() {
                     .unwrap_or_else(|e| panic!("failed to init db: {}", e))
             });
 
-            let processor = std::sync::Arc::new(service::JobProcessor::new(pool.clone()));
+            let processor = std::sync::Arc::new(service::JobProcessor::new(
+                pool.clone(),
+                app.handle().clone(),
+            ));
             let proc_clone = processor.clone();
             tauri::async_runtime::spawn(async move {
                 proc_clone.run().await.expect("job-processor died")

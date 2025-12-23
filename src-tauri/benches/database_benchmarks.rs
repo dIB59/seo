@@ -13,7 +13,7 @@ fn bench_current_method(c: &mut Criterion) {
     c.bench_function("get_result_by_job_id_12", |b| {
         b.to_async(&rt).iter(|| async {
             let result = repo
-                .get_result_by_job_id(black_box(12))
+                .get_result_by_job_id(black_box(13))
                 .await
                 .expect("Failed");
 

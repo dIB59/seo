@@ -111,10 +111,7 @@ impl ResultsRepository {
             analyzed_pages: analysis_result_row.analyzed_pages,
             total_pages: analysis_result_row.total_pages,
             started_at: analysis_result_row.started_at.map(|dt| dt.and_utc()),
-            created_at: analysis_result_row
-                .created_at
-                .expect("Must Exist")
-                .and_utc(),
+            created_at: analysis_result_row.created_at.and_utc(),
             completed_at: analysis_result_row.completed_at.map(|dt| dt.and_utc()),
             sitemap_found: analysis_result_row.sitemap_found,
             robots_txt_found: analysis_result_row.robots_txt_found,

@@ -22,7 +22,7 @@ const defaultSettings: AnalysisSettingsRequest = {
   check_images: true,
   mobile_analysis: false,
   lighthouse_analysis: false,
-  delay_between_requests: 500,
+  delay_between_requests: 5,
 }
 
 export function UrlInputForm({ onSubmit, isLoading }: UrlInputFormProps) {

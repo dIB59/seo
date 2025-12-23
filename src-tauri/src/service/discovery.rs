@@ -10,17 +10,18 @@ use url::Url;
 
 use crate::domain::models::ResourceStatus;
 
+use crate::service::http::{create_client, ClientType};
+use rquest::Client;
+
 pub struct PageDiscovery {
-    client: reqwest::Client,
+    client: Client,
 }
 
 impl PageDiscovery {
     pub fn new() -> Self {
         Self {
-            client: reqwest::Client::builder()
-                .timeout(Duration::from_secs(30))
-                .build()
-                .expect("Failed to create HTTP client"),
+            client: create_client(ClientType::HeavyEmulation)
+                .expect("Failed to create heavy HTTP client"),
         }
     }
 
@@ -31,6 +32,7 @@ impl PageDiscovery {
         max_pages: i64,
         delay_ms: i64,
         cancel_flag: &AtomicBool,
+        on_discovered: impl Fn(usize) + Send + Sync,
     ) -> Result<Vec<Url>> {
         let mut visited = HashSet::new();
         let mut to_visit = vec![start_url.clone()];
@@ -54,6 +56,8 @@ impl PageDiscovery {
             }
 
             visited.insert(url.clone());
+            on_discovered(visited.len());
+
             sleep(Duration::from_millis(delay_ms as u64)).await;
 
             let Ok(response) = self.client.get(url.as_str()).send().await else {
@@ -105,16 +109,14 @@ impl PageDiscovery {
 }
 
 pub struct ResourceChecker {
-    client: reqwest::Client,
+    client: Client,
 }
 
 impl ResourceChecker {
     pub fn new() -> Self {
         Self {
-            client: reqwest::Client::builder()
-                .timeout(Duration::from_secs(30))
-                .build()
-                .expect("Failed to create HTTP client"),
+            client: create_client(ClientType::HeavyEmulation)
+                .expect("Failed to create heavy HTTP client"),
         }
     }
 
@@ -138,11 +140,11 @@ impl ResourceChecker {
         let response = self.client.get(resource_url.clone()).send().await?;
 
         let status = match response.status() {
-            reqwest::StatusCode::OK => ResourceStatus::Found(resource_url.to_string()),
-            reqwest::StatusCode::UNAUTHORIZED | reqwest::StatusCode::FORBIDDEN => {
+            rquest::StatusCode::OK => ResourceStatus::Found(resource_url.to_string()),
+            rquest::StatusCode::UNAUTHORIZED | rquest::StatusCode::FORBIDDEN => {
                 ResourceStatus::Unauthorized(resource_url.to_string())
             }
-            reqwest::StatusCode::NOT_FOUND => ResourceStatus::NotFound,
+            rquest::StatusCode::NOT_FOUND => ResourceStatus::NotFound,
             _ => ResourceStatus::NotFound,
         };
 

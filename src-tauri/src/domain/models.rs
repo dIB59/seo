@@ -28,6 +28,7 @@ impl ResourceStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum JobStatus {
     Queued,
+    Discovering,
     Processing,
     Completed,
     Failed,
@@ -37,9 +38,31 @@ impl JobStatus {
     pub fn as_str(&self) -> &'static str {
         match self {
             JobStatus::Queued => "queued",
+            JobStatus::Discovering => "discovering",
             JobStatus::Processing => "processing",
             JobStatus::Completed => "completed",
             JobStatus::Failed => "failed",
+        }
+    }
+}
+
+impl std::fmt::Display for JobStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl std::str::FromStr for JobStatus {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "queued" => Ok(JobStatus::Queued),
+            "discovering" => Ok(JobStatus::Discovering),
+            "processing" => Ok(JobStatus::Processing),
+            "completed" => Ok(JobStatus::Completed),
+            "failed" => Ok(JobStatus::Failed),
+            _ => Err(()),
         }
     }
 }
