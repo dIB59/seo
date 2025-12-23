@@ -1,5 +1,6 @@
 pub mod discovery;
 pub mod gemini;
+pub mod http;
 pub mod job_processor;
 
 pub use discovery::{PageDiscovery, ResourceChecker};
