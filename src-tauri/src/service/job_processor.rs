@@ -9,7 +9,6 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use dashmap::DashMap;
-use rquest::Client;
 use scraper::{Html, Selector};
 use serde::Serialize;
 use sqlx::SqlitePool;

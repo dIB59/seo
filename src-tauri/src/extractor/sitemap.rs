@@ -1,7 +1,6 @@
 use crate::service::http::{create_client, ClientType};
 use anyhow::{Context, Error, Result};
 use quick_xml::events::Event;
-use rquest::Client;
 use url::Url;
 
 pub const SITE_MAP_PATH: &str = "sitemap.xml";
