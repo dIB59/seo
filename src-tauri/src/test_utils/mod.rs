@@ -167,6 +167,7 @@ mod connection_tests {
     use super::*;
 
     #[tokio::test]
+    #[test::ignore = "shouldnt be run on the cloud as the database does not exist there"]
     async fn test_prod_db_connection_test() {
         let pool = set_up_test_db_with_prod_data().await;
         // Simple query to ensure connection is actually working
