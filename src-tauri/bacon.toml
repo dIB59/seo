@@ -3,10 +3,6 @@
 #############################
 default_job = "clippy"
 
-#############################
-# Jobs
-#############################
-
 [jobs.check]
 command = ["cargo", "check", "--color", "always"]
 need_stdout = true
