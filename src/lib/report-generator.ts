@@ -1,18 +1,11 @@
-import type { CompleteAnalysisResult } from "@/src/lib/types"
-
-function getScoreLabel(score: number) {
-    if (score >= 90) return "Excellent"
-    if (score >= 80) return "Good"
-    if (score >= 60) return "Fair"
-    if (score >= 40) return "Poor"
-    return "Critical"
-}
+import type { CompleteAnalysisResult } from "@/src/lib/types";
+import { getScoreLabel } from "./seo-metrics";
 
 export function generateReport(result: CompleteAnalysisResult): string {
-    const { analysis, summary, pages, issues } = result
-    const criticalIssues = issues.filter((i) => i.issue_type === "Critical")
-    const warningIssues = issues.filter((i) => i.issue_type === "Warning")
-    const suggestionIssues = issues.filter((i) => i.issue_type === "Suggestion")
+    const { analysis, summary, pages, issues } = result;
+    const criticalIssues = issues.filter((i) => i.issue_type === "Critical");
+    const warningIssues = issues.filter((i) => i.issue_type === "Warning");
+    const suggestionIssues = issues.filter((i) => i.issue_type === "Suggestion");
 
     return `
 SEO ANALYSIS REPORT
@@ -44,60 +37,63 @@ Site Health:
 ${"=".repeat(60)}
 CRITICAL ISSUES (${criticalIssues.length})
 ${"=".repeat(60)}
-${criticalIssues.length === 0
-            ? "\nNo critical issues found.\n"
-            : criticalIssues
-                .map(
-                    (issue, i) => `
+${
+    criticalIssues.length === 0
+        ? "\nNo critical issues found.\n"
+        : criticalIssues
+              .map(
+                  (issue, i) => `
 ${i + 1}. ${issue.title}
    Page: ${issue.page_url}
    Description: ${issue.description}
    Recommendation: ${issue.recommendation}
 `,
-                )
-                .join("")
-        }
+              )
+              .join("")
+}
 
 ${"=".repeat(60)}
 WARNINGS (${warningIssues.length})
 ${"=".repeat(60)}
-${warningIssues.length === 0
-            ? "\nNo warnings found.\n"
-            : warningIssues
-                .map(
-                    (issue, i) => `
+${
+    warningIssues.length === 0
+        ? "\nNo warnings found.\n"
+        : warningIssues
+              .map(
+                  (issue, i) => `
 ${i + 1}. ${issue.title}
    Page: ${issue.page_url}
    Description: ${issue.description}
    Recommendation: ${issue.recommendation}
 `,
-                )
-                .join("")
-        }
+              )
+              .join("")
+}
 
 ${"=".repeat(60)}
 SUGGESTIONS (${suggestionIssues.length})
 ${"=".repeat(60)}
-${suggestionIssues.length === 0
-            ? "\nNo suggestions.\n"
-            : suggestionIssues
-                .map(
-                    (issue, i) => `
+${
+    suggestionIssues.length === 0
+        ? "\nNo suggestions.\n"
+        : suggestionIssues
+              .map(
+                  (issue, i) => `
 ${i + 1}. ${issue.title}
    Page: ${issue.page_url}
    Description: ${issue.description}
    Recommendation: ${issue.recommendation}
 `,
-                )
-                .join("")
-        }
+              )
+              .join("")
+}
 
 ${"=".repeat(60)}
 PAGE-BY-PAGE ANALYSIS
 ${"=".repeat(60)}
 ${pages
-            .map(
-                (page, i) => `
+    .map(
+        (page, i) => `
 ${i + 1}. ${page.url}
    Title: ${page.title || "Missing"}
    Meta Description: ${page.meta_description ? "Present" : "Missing"}
@@ -110,17 +106,17 @@ ${i + 1}. ${page.url}
    Structured Data: ${page.has_structured_data ? "Yes" : "No"}
    ${page.lighthouse_seo ? `Lighthouse SEO: ${page.lighthouse_seo}/100` : ""}
 `,
-            )
-            .join("")}
+    )
+    .join("")}
 
 ${"=".repeat(60)}
 END OF REPORT
 ${"=".repeat(60)}
-`.trim()
+`.trim();
 }
 
 export function generateCSV(result: CompleteAnalysisResult): string {
-    const { pages, issues } = result
+    const { pages, issues } = result;
     const header = [
         "URL",
         "Status",
@@ -135,14 +131,14 @@ export function generateCSV(result: CompleteAnalysisResult): string {
         "Ext Links",
         "Mobile Friendly",
         "Issues Found",
-    ].join(",")
+    ].join(",");
 
     const rows = pages.map((p) => {
         // Count issues for this page - usually matched by page_url
-        const issueCount = issues.filter((i) => i.page_url === p.url).length
+        const issueCount = issues.filter((i) => i.page_url === p.url).length;
 
         // Escape URL to prevent CSV injection or formatting errors
-        const safeUrl = `"${p.url.replace(/"/g, '""')}"`
+        const safeUrl = `"${p.url.replace(/"/g, '""')}"`;
 
         return [
             safeUrl,
@@ -158,8 +154,8 @@ export function generateCSV(result: CompleteAnalysisResult): string {
             p.external_links,
             p.mobile_friendly ? "Yes" : "No",
             issueCount,
-        ].join(",")
-    })
+        ].join(",");
+    });
 
-    return [header, ...rows].join("\n")
+    return [header, ...rows].join("\n");
 }
