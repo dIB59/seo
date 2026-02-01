@@ -1,11 +1,12 @@
 //! Application layer - coordinates services
 use crate::domain::models::{
-    AnalysisJob, AnalysisStatus, IssueType, JobStatus, PageAnalysisData, ResourceStatus, SeoIssue,
+    AnalysisJob, AnalysisSettings, AnalysisStatus, IssueType, JobStatus, PageAnalysisData,
+    ResourceStatus, SeoIssue,
 };
 
 use crate::{
     repository::sqlite::*,
-    service::{PageDiscovery, ResourceChecker},
+    service::{LighthouseService, PageDiscovery, ResourceChecker},
 };
 use anyhow::{Context, Result};
 use dashmap::DashMap;
@@ -17,6 +18,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 use tauri::Emitter;
+use tokio::sync::Mutex;
 use tokio::time::sleep;
 use url::Url;
 
@@ -29,6 +31,7 @@ pub struct JobProcessor<R: tauri::Runtime = tauri::Wry> {
     summary_db: SummaryRepository,
     discovery: PageDiscovery,
     resource_checker: ResourceChecker,
+    lighthouse: Arc<Mutex<LighthouseService>>,
     cancel_map: Arc<DashMap<i64, Arc<AtomicBool>>>,
     app_handle: tauri::AppHandle<R>,
 }
@@ -44,6 +47,7 @@ impl<R: tauri::Runtime> JobProcessor<R> {
             summary_db: SummaryRepository::new(pool.clone()),
             discovery: PageDiscovery::new(),
             resource_checker: ResourceChecker::new(),
+            lighthouse: Arc::new(Mutex::new(LighthouseService::new())),
             cancel_map: Arc::new(DashMap::with_capacity(10)),
             app_handle,
         }
@@ -195,7 +199,7 @@ impl<R: tauri::Runtime> JobProcessor<R> {
         log::info!("Starting page analysis for job {}", job.id);
 
         for page_url in pages {
-            match self.analyze_page(&page_url).await {
+            match self.analyze_page(&page_url, &settings).await {
                 Ok((mut page, mut issues, html_str)) => {
                     page.analysis_id = analysis_result_id.clone();
 
@@ -298,7 +302,35 @@ impl<R: tauri::Runtime> JobProcessor<R> {
         Ok(analysis_result_id)
     }
 
-    async fn analyze_page(&self, url: &Url) -> Result<(PageAnalysisData, Vec<SeoIssue>, String)> {
+    /// Analyze a page using the Lighthouse service (headless Chrome)
+    async fn analyze_page_with_lighthouse(
+        &self,
+        url: &Url,
+    ) -> Result<(PageAnalysisData, Vec<SeoIssue>, String)> {
+        log::debug!("Analyzing page with Lighthouse: {}", url);
+
+        let lighthouse = self.lighthouse.lock().await;
+        let result = lighthouse
+            .analyze(url.as_str())
+            .await
+            .context("Lighthouse analysis failed")?;
+
+        let document = Html::parse_document(&result.html);
+
+        let (page, issues) = PageAnalysisData::build_from_parsed_with_lighthouse(
+            url.to_string(),
+            document,
+            result.load_time_ms / 1000.0, // Convert to seconds
+            result.status_code as i64,
+            result.content_size as i64,
+            Some(result.scores),
+        );
+
+        Ok((page, issues, result.html))
+    }
+
+    /// Analyze a page using the HTTP client (faster, no Lighthouse)
+    async fn analyze_page_basic(&self, url: &Url) -> Result<(PageAnalysisData, Vec<SeoIssue>, String)> {
         let client =
             crate::service::http::create_client(crate::service::http::ClientType::HeavyEmulation)?;
         let start = std::time::Instant::now();
@@ -346,6 +378,19 @@ impl<R: tauri::Runtime> JobProcessor<R> {
         );
 
         Ok((page, issues, html))
+    }
+
+    /// Analyze a page, optionally using Lighthouse
+    async fn analyze_page(
+        &self,
+        url: &Url,
+        settings: &AnalysisSettings,
+    ) -> Result<(PageAnalysisData, Vec<SeoIssue>, String)> {
+        if settings.lighthouse_analysis {
+            self.analyze_page_with_lighthouse(url).await
+        } else {
+            self.analyze_page_basic(url).await
+        }
     }
 }
 

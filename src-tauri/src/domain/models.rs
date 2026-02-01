@@ -275,6 +275,50 @@ impl PageAnalysisData {
         (page, issues)
     }
 
+    /// Rich factory with lighthouse scores: parses HTML and performs initial analysis
+    pub fn build_from_parsed_with_lighthouse(
+        url: String,
+        document: Html,
+        load_time: f64,
+        status_code: i64,
+        content_size: i64,
+        lighthouse_scores: Option<crate::service::LighthouseScores>,
+    ) -> (Self, Vec<SeoIssue>) {
+        let scores = lighthouse_scores.unwrap_or_default();
+        let page = Self {
+            analysis_id: String::new(),
+            url: url.clone(),
+            title: Self::extract_title(&document),
+            meta_description: Self::extract_meta(&document, "description"),
+            meta_keywords: Self::extract_meta(&document, "keywords"),
+            canonical_url: Self::extract_canonical(&document),
+            h1_count: Self::count_headings(&document).0,
+            h2_count: Self::count_headings(&document).1,
+            h3_count: Self::count_headings(&document).2,
+            word_count: Self::count_words(&document),
+            image_count: Self::analyze_images(&document).0,
+            images_without_alt: Self::analyze_images(&document).1,
+            internal_links: Self::count_links(&document, &Url::parse(&url).unwrap()).0,
+            external_links: Self::count_links(&document, &Url::parse(&url).unwrap()).1,
+            load_time,
+            status_code: Some(status_code),
+            content_size,
+            mobile_friendly: true,
+            has_structured_data: Self::check_structured_data(&document),
+            lighthouse_performance: scores.performance,
+            lighthouse_accessibility: scores.accessibility,
+            lighthouse_best_practices: scores.best_practices,
+            lighthouse_seo: scores.seo,
+            links: Vec::new(),
+            headings: Self::extract_headings(&document),
+            images: Self::extract_images_detailed(&document),
+            detailed_links: Self::extract_detailed_links(&document, &Url::parse(&url).unwrap()),
+        };
+
+        let issues = page.generate_issues();
+        (page, issues)
+    }
+
     pub const ISSUE_MISSING_TITLE: &'static str = "Missing Title Tag";
     pub const ISSUE_TITLE_TOO_SHORT: &'static str = "Title Too Short";
     pub const ISSUE_TITLE_TOO_LONG: &'static str = "Title Too Long";
