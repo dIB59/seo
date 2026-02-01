@@ -34,8 +34,8 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": [
-      "binaries/lighthouse-runner/**/*"
+    "externalBin": [
+      "binaries/lighthouse-runner/lighthouse-runner"
     ]
   }
 }

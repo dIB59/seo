@@ -1,7 +1,7 @@
 //! Lighthouse service using a bundled sidecar binary for real Lighthouse audits.
 //!
-//! This module spawns the \`lighthouse-runner\` sidecar which is a standalone Node.js
-//! executable that runs actual Lighthouse audits and returns JSON results.
+//! This module spawns the `lighthouse-runner` sidecar which is a standalone executable
+//! (bundled Node.js + Lighthouse) that runs actual Lighthouse audits and returns JSON results.
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -133,124 +133,121 @@ struct SidecarPerformanceMetrics {
     cumulative_layout_shift: Option<f64>,
 }
 
-/// Service for running Lighthouse audits via Node.js
+/// Service for running Lighthouse audits via bundled sidecar binary
 pub struct LighthouseService {
-    script_path: PathBuf,
-    node_path: String,
+    sidecar_path: PathBuf,
 }
 
 impl LighthouseService {
-    /// Create a new LighthouseService, locating the script and Node.js
+    /// Create a new LighthouseService, locating the sidecar binary
     pub fn new() -> Self {
-        let script_path = Self::find_script_path();
-        let node_path = Self::find_node_path();
-        log::info!("Lighthouse script path: {:?}", script_path);
-        log::info!("Node.js path: {}", node_path);
-        Self { script_path, node_path }
+        let sidecar_path = Self::find_sidecar_path();
+        log::info!("Lighthouse sidecar path: {:?}", sidecar_path);
+        Self { sidecar_path }
     }
 
-    /// Find Node.js executable
-    fn find_node_path() -> String {
-        // Try common locations
-        let candidates = if cfg!(target_os = "windows") {
-            vec![
-                "node.exe",
-                "C:\\Program Files\\nodejs\\node.exe",
-                "C:\\Program Files (x86)\\nodejs\\node.exe",
-            ]
-        } else if cfg!(target_os = "macos") {
-            vec![
-                "node",
-                "/usr/local/bin/node",
-                "/opt/homebrew/bin/node",
-                "/usr/bin/node",
-            ]
-        } else {
-            vec![
-                "node",
-                "/usr/bin/node",
-                "/usr/local/bin/node",
-            ]
-        };
-
-        for candidate in &candidates {
-            if std::process::Command::new(candidate)
-                .arg("--version")
-                .output()
-                .is_ok()
-            {
-                return candidate.to_string();
-            }
-        }
-
-        // Fallback - assume node is in PATH
-        "node".to_string()
-    }
-
-    /// Find the path to the lighthouse-runner script
-    fn find_script_path() -> PathBuf {
+    /// Find the path to the lighthouse-runner sidecar binary
+    fn find_sidecar_path() -> PathBuf {
         let exe_path = std::env::current_exe().unwrap_or_default();
         let exe_dir = exe_path.parent().unwrap_or(std::path::Path::new("."));
         
-        // Try production location first (Resources/lighthouse-runner/index.js on macOS)
-        #[cfg(target_os = "macos")]
-        {
-            let resources_path = exe_dir
-                .parent()
-                .map(|p| p.join("Resources").join("lighthouse-runner").join("index.js"));
-            if let Some(path) = resources_path {
-                if path.exists() {
-                    return path;
-                }
-            }
-        }
+        // Get the target triple suffix for the current platform
+        let suffix = Self::get_target_triple();
+        let binary_name = format!("lighthouse-runner-{}", suffix);
         
-        // Try next to the binary
-        let production_path = exe_dir.join("lighthouse-runner").join("index.js");
+        // On macOS, also try without suffix (Tauri adds it at runtime)
+        let binary_name_plain = "lighthouse-runner";
+        
+        // Try production location first (same directory as the main executable)
+        let production_path = exe_dir.join(&binary_name);
         if production_path.exists() {
             return production_path;
         }
         
-        // Try development location
+        // Try without suffix
+        let production_path_plain = exe_dir.join(binary_name_plain);
+        if production_path_plain.exists() {
+            return production_path_plain;
+        }
+        
+        #[cfg(target_os = "macos")]
+        {
+            // Try inside MacOS bundle
+            let macos_path = exe_dir.join(&binary_name);
+            if macos_path.exists() {
+                return macos_path;
+            }
+        }
+        
+        // Try development location (in binaries/lighthouse-runner directory)
         let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("binaries")
             .join("lighthouse-runner")
-            .join("index.js");
+            .join(&binary_name);
         if dev_path.exists() {
             return dev_path;
         }
         
-        // Fallback
-        PathBuf::from("lighthouse-runner/index.js")
+        // Fallback - just use the binary name and hope it's in PATH or current dir
+        PathBuf::from(binary_name)
+    }
+    
+    /// Get the target triple suffix for the current platform
+    fn get_target_triple() -> &'static str {
+        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+        { "aarch64-apple-darwin" }
+        
+        #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+        { "x86_64-apple-darwin" }
+        
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+        { "x86_64-unknown-linux-gnu" }
+        
+        #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+        { "x86_64-pc-windows-msvc.exe" }
+        
+        #[cfg(not(any(
+            all(target_os = "macos", target_arch = "aarch64"),
+            all(target_os = "macos", target_arch = "x86_64"),
+            all(target_os = "linux", target_arch = "x86_64"),
+            all(target_os = "windows", target_arch = "x86_64"),
+        )))]
+        { "unknown" }
     }
 
-    /// Check if Node.js is available
+    /// Check if the sidecar binary is available
     pub fn is_available(&self) -> bool {
-        std::process::Command::new(&self.node_path)
-            .arg("--version")
-            .output()
-            .is_ok()
+        self.sidecar_path.exists() || {
+            // Also check if we can run it (in case it's in PATH)
+            std::process::Command::new(&self.sidecar_path)
+                .arg("--help")
+                .output()
+                .is_ok()
+        }
     }
 
-    /// Analyze a URL using Lighthouse via Node.js
+    /// Analyze a URL using Lighthouse via the bundled sidecar binary
     pub async fn analyze(&self, url: &str) -> Result<PageFetchResult> {
         log::info!("Running Lighthouse analysis for: {}", url);
+        log::debug!("Using sidecar binary: {:?}", self.sidecar_path);
         
         if !self.is_available() {
-            anyhow::bail!("Node.js is not available. Please install Node.js to use Lighthouse analysis.");
+            anyhow::bail!(
+                "Lighthouse sidecar binary not found at: {:?}. This is a packaging error.",
+                self.sidecar_path
+            );
         }
         
         let start_time = std::time::Instant::now();
         
-        // Spawn node with the script
-        let output = Command::new(&self.node_path)
-            .arg(&self.script_path)
+        // Spawn the sidecar binary directly
+        let output = Command::new(&self.sidecar_path)
             .arg(url)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
             .await
-            .context("Failed to spawn Node.js for Lighthouse analysis")?;
+            .context("Failed to spawn lighthouse-runner sidecar")?;
         
         let load_time_ms = start_time.elapsed().as_secs_f64() * 1000.0;
         

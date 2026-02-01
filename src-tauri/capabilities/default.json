@@ -12,6 +12,16 @@
     "fs:allow-read-file",
     "fs:allow-write-file",
     "fs:allow-read-dir",
-    "shell:default"
+    "shell:default",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "lighthouse-runner",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    }
   ]
 }
