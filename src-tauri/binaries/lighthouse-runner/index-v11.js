@@ -25,17 +25,18 @@ const lighthouse = require('lighthouse');
 const chromeLauncher = require('chrome-launcher');
 const readline = require('readline');
 
-// Track all Chrome instances for cleanup
+// Track all Chrome instances we create for cleanup
 const activeChrome = new Set();
 
-// Cleanup handler for graceful shutdown
+// Cleanup handler for graceful shutdown - only kills Chrome instances we created
 async function cleanupAllChrome() {
-  console.error(`[lighthouse-runner] Cleaning up ${activeChrome.size} Chrome instance(s)...`);
+  if (activeChrome.size === 0) return;
+  console.error(`[lighthouse-runner] Cleaning up ${activeChrome.size} Chrome instance(s) we created...`);
   for (const chrome of activeChrome) {
     try {
-      await killChrome(chrome);
+      await chrome.kill();
     } catch (e) {
-      // Force kill via process if normal kill fails
+      // Force kill our specific PID if normal kill fails
       try {
         process.kill(chrome.pid, 'SIGKILL');
       } catch (e2) {
@@ -376,7 +377,8 @@ async function runBatch(urls, concurrency) {
 }
 
 /**
- * Launch Chrome with optimal flags and track the instance
+ * Launch Chrome with optimal flags and track the instance.
+ * Only Chrome instances we create are tracked for cleanup.
  */
 async function launchChrome() {
   const chrome = await chromeLauncher.launch({
@@ -394,27 +396,29 @@ async function launchChrome() {
       '--hide-scrollbars',
       '--no-first-run',
       '--no-default-browser-check',
-      '--disable-crashpad', // Prevent crashpad handlers from lingering
     ],
   });
   activeChrome.add(chrome);
+  console.error(`[lighthouse-runner] Launched Chrome (pid: ${chrome.pid})`);
   return chrome;
 }
 
 /**
- * Kill Chrome and remove from tracking
+ * Kill a specific Chrome instance we created and remove from tracking
  */
 async function killChrome(chrome) {
   if (!chrome) return;
   activeChrome.delete(chrome);
   try {
     await chrome.kill();
+    console.error(`[lighthouse-runner] Killed Chrome (pid: ${chrome.pid})`);
   } catch (e) {
-    // Force kill if normal kill fails
+    // Force kill our specific PID if normal kill fails
     try {
       process.kill(chrome.pid, 'SIGKILL');
+      console.error(`[lighthouse-runner] Force killed Chrome (pid: ${chrome.pid})`);
     } catch (e2) {
-      // Ignore
+      // Ignore - process may already be dead
     }
   }
 }
