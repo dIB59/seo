@@ -17,9 +17,17 @@ import {
     Hash,
     Search,
     ChevronsUpDown,
+    Gauge,
+    Zap,
+    Eye,
+    Shield,
+    Activity,
+    LayoutPanelTop,
+    MousePointer,
+    XCircle,
 } from "lucide-react"
 import { Button } from "@/src/components/ui/button"
-import { Card, CardContent, CardHeader } from "@/src/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/src/components/ui/tabs"
 import { Badge } from "@/src/components/ui/badge"
 import { Separator } from "@/src/components/ui/separator"
@@ -45,6 +53,7 @@ import {
 } from "@/src/components/ui/tooltip"
 import { cn } from "@/src/lib/utils"
 import type { PageDetailData, HeadingElement, ImageElement, LinkElement } from "@/src/lib/types"
+import { ScoreRing } from "./analysis/atoms/ScoreRing"
 
 // ============================================================================
 // UTILITY COMPONENTS
@@ -169,6 +178,227 @@ function MetaTab({ page }: { page: PageDetailData }) {
                 </Table>
             </CardContent>
         </Card>
+    )
+}
+
+// Format milliseconds to readable format
+function formatTime(ms: number | null): string {
+    if (ms === null) return "N/A"
+    if (ms < 1000) return `${Math.round(ms)}ms`
+    return `${(ms / 1000).toFixed(1)}s`
+}
+
+// Get color based on performance metric thresholds
+function getMetricColor(metric: string, value: number | null): string {
+    if (value === null) return "text-muted-foreground"
+    
+    const thresholds: Record<string, { good: number; moderate: number }> = {
+        first_contentful_paint: { good: 1800, moderate: 3000 },
+        largest_contentful_paint: { good: 2500, moderate: 4000 },
+        speed_index: { good: 3400, moderate: 5800 },
+        time_to_interactive: { good: 3800, moderate: 7300 },
+        total_blocking_time: { good: 200, moderate: 600 },
+        cumulative_layout_shift: { good: 0.1, moderate: 0.25 },
+    }
+    
+    const threshold = thresholds[metric]
+    if (!threshold) return "text-muted-foreground"
+    
+    if (value <= threshold.good) return "text-success"
+    if (value <= threshold.moderate) return "text-warning"
+    return "text-destructive"
+}
+
+function SeoAuditTab({ page }: { page: PageDetailData }) {
+    const seoAudits = page.lighthouse_seo_audits
+    const perfMetrics = page.lighthouse_performance_metrics
+    
+    // No SEO data available at all
+    if (!page.lighthouse_seo) {
+        return (
+            <Card>
+                <CardContent className="py-12 text-center">
+                    <Search className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                    <p className="text-muted-foreground">No SEO audit data available</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                        Run an analysis to see SEO scores
+                    </p>
+                </CardContent>
+            </Card>
+        )
+    }
+
+    const scores = [
+        { label: "Performance", value: page.lighthouse_performance, icon: Zap, color: "text-orange-500" },
+        { label: "Accessibility", value: page.lighthouse_accessibility, icon: Eye, color: "text-blue-500" },
+        { label: "Best Practices", value: page.lighthouse_best_practices, icon: Shield, color: "text-purple-500" },
+        { label: "SEO", value: page.lighthouse_seo, icon: Search, color: "text-green-500" },
+    ]
+
+    const auditItems = seoAudits ? [
+        { key: "document_title", label: "Document Title", audit: seoAudits.document_title },
+        { key: "meta_description", label: "Meta Description", audit: seoAudits.meta_description },
+        { key: "viewport", label: "Viewport Meta Tag", audit: seoAudits.viewport },
+        { key: "canonical", label: "Canonical URL", audit: seoAudits.canonical },
+        { key: "hreflang", label: "Hreflang Tags", audit: seoAudits.hreflang },
+        { key: "robots_txt", label: "Robots.txt Valid", audit: seoAudits.robots_txt },
+        { key: "crawlable_anchors", label: "Crawlable Anchors", audit: seoAudits.crawlable_anchors },
+        { key: "link_text", label: "Descriptive Link Text", audit: seoAudits.link_text },
+        { key: "image_alt", label: "Image Alt Attributes", audit: seoAudits.image_alt },
+        { key: "http_status_code", label: "HTTP Status Code", audit: seoAudits.http_status_code },
+        { key: "is_crawlable", label: "Page is Crawlable", audit: seoAudits.is_crawlable },
+    ] : []
+
+    const metricItems = perfMetrics ? [
+        { key: "first_contentful_paint", label: "First Contentful Paint (FCP)", value: perfMetrics.first_contentful_paint, icon: Clock },
+        { key: "largest_contentful_paint", label: "Largest Contentful Paint (LCP)", value: perfMetrics.largest_contentful_paint, icon: LayoutPanelTop },
+        { key: "speed_index", label: "Speed Index", value: perfMetrics.speed_index, icon: Gauge },
+        { key: "time_to_interactive", label: "Time to Interactive (TTI)", value: perfMetrics.time_to_interactive, icon: MousePointer },
+        { key: "total_blocking_time", label: "Total Blocking Time (TBT)", value: perfMetrics.total_blocking_time, icon: Clock },
+        { key: "cumulative_layout_shift", label: "Cumulative Layout Shift (CLS)", value: perfMetrics.cumulative_layout_shift, icon: LayoutPanelTop },
+    ] : []
+
+    return (
+        <div className="space-y-4">
+            {/* Score Overview */}
+            <Card>
+                <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                        <Search className="h-4 w-4" />
+                        {perfMetrics ? "Deep Audit Scores" : "SEO Scores"}
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid grid-cols-4 gap-4">
+                        {scores.map((score) => {
+                            const Icon = score.icon
+                            return (
+                                <div
+                                    key={score.label}
+                                    className="flex flex-col items-center gap-2 p-4 rounded-lg bg-muted/50"
+                                >
+                                    <ScoreRing score={score.value || 0} size="md" />
+                                    <div className="flex items-center gap-1.5">
+                                        <Icon className={cn("h-4 w-4", score.color)} />
+                                        <span className="text-sm font-medium">{score.label}</span>
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Performance Metrics */}
+            {perfMetrics && (
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="flex items-center gap-2 text-base">
+                            <Activity className="h-4 w-4" />
+                            Core Web Vitals & Performance Metrics
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Metric</TableHead>
+                                    <TableHead className="text-right">Value</TableHead>
+                                    <TableHead className="w-[100px] text-right">Status</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {metricItems.map(({ key, label, value, icon: Icon }) => {
+                                    const isCLS = key === "cumulative_layout_shift"
+                                    const displayValue = isCLS ? (value?.toFixed(3) ?? "N/A") : formatTime(value)
+                                    const colorClass = getMetricColor(key, value)
+                                    
+                                    return (
+                                        <TableRow key={key}>
+                                            <TableCell className="font-medium">
+                                                <div className="flex items-center gap-2">
+                                                    <Icon className="h-4 w-4 text-muted-foreground" />
+                                                    {label}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className={cn("text-right font-mono", colorClass)}>
+                                                {displayValue}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <Badge 
+                                                    variant="outline" 
+                                                    className={cn(
+                                                        "text-xs",
+                                                        colorClass === "text-success" && "bg-success/15 text-success border-success/20",
+                                                        colorClass === "text-warning" && "bg-warning/15 text-warning border-warning/20",
+                                                        colorClass === "text-destructive" && "bg-destructive/15 text-destructive border-destructive/20",
+                                                    )}
+                                                >
+                                                    {colorClass === "text-success" ? "Good" : 
+                                                     colorClass === "text-warning" ? "Needs Work" : 
+                                                     colorClass === "text-destructive" ? "Poor" : "N/A"}
+                                                </Badge>
+                                            </TableCell>
+                                        </TableRow>
+                                    )
+                                })}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* SEO Audits */}
+            {seoAudits && (
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="flex items-center gap-2 text-base">
+                            <Search className="h-4 w-4" />
+                            SEO Audit Breakdown
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Audit</TableHead>
+                                    <TableHead className="w-[100px] text-right">Status</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {auditItems.map(({ key, label, audit }) => (
+                                    <TableRow key={key}>
+                                        <TableCell className="font-medium">
+                                            <div className="flex items-center gap-2">
+                                                {audit.passed ? (
+                                                    <CheckCircle2 className="h-4 w-4 text-success" />
+                                                ) : (
+                                                    <XCircle className="h-4 w-4 text-destructive" />
+                                                )}
+                                                {label}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <Badge 
+                                                variant="outline" 
+                                                className={cn(
+                                                    "text-xs",
+                                                    audit.passed 
+                                                        ? "bg-success/15 text-success border-success/20" 
+                                                        : "bg-destructive/15 text-destructive border-destructive/20"
+                                                )}
+                                            >
+                                                {audit.passed ? "Passed" : "Failed"}
+                                            </Badge>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+            )}
+        </div>
     )
 }
 
@@ -669,10 +899,14 @@ export function PageDetailView({
 
             {/* Tabs */}
             <Tabs defaultValue="meta" className="space-y-4">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-5">
                     <TabsTrigger value="meta">
                         <FileText className="h-4 w-4 mr-2" />
                         Meta
+                    </TabsTrigger>
+                    <TabsTrigger value="seo-audit">
+                        <Search className="h-4 w-4 mr-2" />
+                        SEO Audit
                     </TabsTrigger>
                     <TabsTrigger value="headings">
                         <Heading className="h-4 w-4 mr-2" />
@@ -699,6 +933,10 @@ export function PageDetailView({
 
                 <TabsContent value="meta">
                     <MetaTab page={page} />
+                </TabsContent>
+
+                <TabsContent value="seo-audit">
+                    <SeoAuditTab page={page} />
                 </TabsContent>
 
                 <TabsContent value="headings">

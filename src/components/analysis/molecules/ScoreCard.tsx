@@ -13,10 +13,9 @@ export function ScoreCard({
     summary: CompleteAnalysisResult["summary"]
     issues: SeoIssue[]
 }) {
-    const criticalCount = issues.filter((i) => i.issue_type === "Critical").length
-    const warningCount = issues.filter((i) => i.issue_type === "Warning").length
-    const suggestionCount = issues.filter((i) => i.issue_type === "Suggestion").length
-
+    const criticalCount = issues.filter((i) => i.issue_type === "critical").length
+    const warningCount = issues.filter((i) => i.issue_type === "warning").length
+    const suggestionCount = issues.filter((i) => i.issue_type === "suggestion").length
     return (
         <Card>
             <CardContent className="p-6">

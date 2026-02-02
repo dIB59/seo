@@ -127,12 +127,15 @@ export function UrlInputForm({ onSubmit, isLoading }: UrlInputFormProps) {
                 onCheckedChange={(checked) => setSettings({ ...settings, mobile_analysis: checked })}
               />
             </div>
-            <div className="flex items-center justify-between space-x-2">
-              <Label htmlFor="lighthouse" className="text-sm">
-                Lighthouse
-              </Label>
+            <div className="flex items-center justify-between space-x-2 col-span-2 md:col-span-1">
+              <div className="flex flex-col">
+                <Label htmlFor="deep-audit" className="text-sm">
+                  Deep Audit
+                </Label>
+                <span className="text-xs text-muted-foreground">Full Chrome analysis (slower but more detailed)</span>
+              </div>
               <Switch
-                id="lighthouse"
+                id="deep-audit"
                 checked={settings.lighthouse_analysis}
                 onCheckedChange={(checked) => setSettings({ ...settings, lighthouse_analysis: checked })}
               />

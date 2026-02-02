@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            UPDATE jobs \n            SET status = ?1, completed_at = COALESCE(?2, completed_at)\n            WHERE id = ?3\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "8b80eda7a06b7525ad42339754f51250a3389ae1049cffdbfe8aa4fcf5612813"
+}

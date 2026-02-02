@@ -6,7 +6,7 @@ import { BarChart3, Clock, FileCode, Link2, FileText, Smartphone, ImageIcon } fr
 import { DialogHeader } from "../../ui/dialog";
 import { MetricBadge } from "../atoms/MetricBadge";
 import { StatItemError, StatItem } from "../atoms/Stat";
-import { LighthouseScores } from "../molecules/LighthouseScores";
+import { LighthouseDetailedView } from "../molecules/LighthouseDetailedView";
 import { Badge } from "../../ui/badge";
 
 const isBroken = (p: PageAnalysisData) => p.status_code! >= 400 || p.status_code! < 200;
@@ -66,7 +66,7 @@ function HealthyPageModal({
                 </DialogHeader>
 
                 <div className="space-y-6">
-                    <LighthouseScores page={page} />
+                    <LighthouseDetailedView page={page} />
 
                     <Separator />
 

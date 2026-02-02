@@ -5,6 +5,7 @@ import { PageTable } from "./organisms/PageTable";
 import { QuickStatsCard } from "./molecules/QuickStat";
 import { ScoreCard } from "./molecules/ScoreCard";
 import { SiteHealthCard } from "./molecules/SiteHealthCard";
+import { SeoSummaryCard } from "./molecules/SeoSummaryCard";
 import { PageDetailModal } from "./organisms/PageDetailModal";
 import { IssuesAccordion } from "./organisms/IssuesAccordion";
 import { GraphView } from "../graph-view";
@@ -25,7 +26,7 @@ export default function AnalysisDashboard({ data, onBack, onSelectPage }:
                 onBack={onBack}
                 result={data}
             />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <ScoreCard summary={data.summary} issues={data.issues} />
                 <SiteHealthCard analysis={data.analysis} pages={data.pages} />
                 <QuickStatsCard summary={data.summary} pages={data.pages} />

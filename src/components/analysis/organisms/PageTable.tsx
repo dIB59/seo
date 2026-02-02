@@ -2,6 +2,8 @@
 import { PageAnalysisData } from "@/src/lib/types";
 import { Table, TableBody, TableHeader, TableRow, TableHead } from "@/src/components/ui/table";
 import { BrokenPageRow, HealthyPageRow } from "../molecules/PageRow";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/src/components/ui/tooltip";
+import { Search } from "lucide-react";
 
 export function PageTable({ pages, onSelectPage }: { pages: PageAnalysisData[], onSelectPage: (p: number) => void }) {
     return (
@@ -15,7 +17,19 @@ export function PageTable({ pages, onSelectPage }: { pages: PageAnalysisData[], 
                     <TableHead className="text-center">Images</TableHead>
                     <TableHead className="text-center">Links</TableHead>
                     <TableHead className="text-center">Status</TableHead>
-                    <TableHead className="text-center">SEO</TableHead>
+                    <TableHead className="text-center">
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger className="flex items-center justify-center gap-1">
+                                    <Search className="h-3.5 w-3.5" />
+                                    <span>SEO</span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>SEO Score (0-100)</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    </TableHead>
                     <TableHead className="w-[40px]"></TableHead>
                 </TableRow>
             </TableHeader>

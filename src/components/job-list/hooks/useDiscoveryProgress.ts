@@ -1,6 +1,6 @@
 import React from "react"
 
-export function useDiscoveryProgress(jobId: number, jobStatus: string) {
+export function useDiscoveryProgress(jobId: string, jobStatus: string) {
     const [discoveryCount, setDiscoveryCount] = React.useState<number | null>(null)
 
     React.useEffect(() => {
@@ -8,7 +8,7 @@ export function useDiscoveryProgress(jobId: number, jobStatus: string) {
 
         const setupListener = async () => {
             const { listen } = await import("@tauri-apps/api/event")
-            unlisten = await listen<{ job_id: number; count: number }>(
+            unlisten = await listen<{ job_id: string; count: number }>(
                 "discovery-progress",
                 (event) => {
                     if (event.payload.job_id === jobId) {
