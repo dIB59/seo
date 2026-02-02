@@ -52,7 +52,7 @@ import {
     TooltipTrigger,
 } from "@/src/components/ui/tooltip"
 import { cn } from "@/src/lib/utils"
-import type { PageDetailData, HeadingElement, ImageElement, LinkElement, LighthouseAuditResult } from "@/src/lib/types"
+import type { PageDetailData, HeadingElement, ImageElement, LinkElement } from "@/src/lib/types"
 import { ScoreRing } from "./analysis/atoms/ScoreRing"
 
 // ============================================================================
@@ -209,19 +209,19 @@ function getMetricColor(metric: string, value: number | null): string {
     return "text-destructive"
 }
 
-function LighthouseTab({ page }: { page: PageDetailData }) {
+function SeoAuditTab({ page }: { page: PageDetailData }) {
     const seoAudits = page.lighthouse_seo_audits
     const perfMetrics = page.lighthouse_performance_metrics
     
-    // No Lighthouse data available
-    if (!page.lighthouse_performance && !page.lighthouse_seo) {
+    // No SEO data available at all
+    if (!page.lighthouse_seo) {
         return (
             <Card>
                 <CardContent className="py-12 text-center">
-                    <Gauge className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                    <p className="text-muted-foreground">No Lighthouse data available</p>
+                    <Search className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                    <p className="text-muted-foreground">No SEO audit data available</p>
                     <p className="text-sm text-muted-foreground mt-1">
-                        Enable Lighthouse analysis in settings to see detailed scores
+                        Run an analysis to see SEO scores
                     </p>
                 </CardContent>
             </Card>
@@ -264,8 +264,8 @@ function LighthouseTab({ page }: { page: PageDetailData }) {
             <Card>
                 <CardHeader className="pb-2">
                     <CardTitle className="flex items-center gap-2 text-base">
-                        <Gauge className="h-4 w-4" />
-                        Lighthouse Scores
+                        <Search className="h-4 w-4" />
+                        {perfMetrics ? "Deep Audit Scores" : "SEO Scores"}
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -904,9 +904,9 @@ export function PageDetailView({
                         <FileText className="h-4 w-4 mr-2" />
                         Meta
                     </TabsTrigger>
-                    <TabsTrigger value="lighthouse">
-                        <Gauge className="h-4 w-4 mr-2" />
-                        Lighthouse
+                    <TabsTrigger value="seo-audit">
+                        <Search className="h-4 w-4 mr-2" />
+                        SEO Audit
                     </TabsTrigger>
                     <TabsTrigger value="headings">
                         <Heading className="h-4 w-4 mr-2" />
@@ -935,8 +935,8 @@ export function PageDetailView({
                     <MetaTab page={page} />
                 </TabsContent>
 
-                <TabsContent value="lighthouse">
-                    <LighthouseTab page={page} />
+                <TabsContent value="seo-audit">
+                    <SeoAuditTab page={page} />
                 </TabsContent>
 
                 <TabsContent value="headings">

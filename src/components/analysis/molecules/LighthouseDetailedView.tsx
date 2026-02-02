@@ -1,5 +1,5 @@
-import { PageAnalysisData, LighthouseSeoAudits, LighthousePerformanceMetrics, LighthouseAuditResult } from "@/src/lib/types"
-import { Zap, Eye, Shield, Search, CheckCircle2, XCircle, Clock, Gauge, Activity, LayoutPanelTop, MousePointer, FileText, Link2, Image, Globe, Bot, ChevronDown } from "lucide-react"
+import { PageAnalysisData, LighthouseAuditResult } from "@/src/lib/types"
+import { Zap, Eye, Shield, Search, CheckCircle2, XCircle, Clock, Gauge, Activity, LayoutPanelTop, MousePointer, ChevronDown } from "lucide-react"
 import { ScoreRing } from "../atoms/ScoreRing"
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card"
 import { Badge } from "../../ui/badge"
