@@ -31,6 +31,20 @@ pub struct LighthouseScores {
     pub performance_metrics: Option<PerformanceMetrics>,
 }
 
+// Conversion from new AuditScores to legacy LighthouseScores
+impl From<crate::service::auditor::AuditScores> for LighthouseScores {
+    fn from(scores: crate::service::auditor::AuditScores) -> Self {
+        Self {
+            performance: scores.performance,
+            accessibility: scores.accessibility,
+            best_practices: scores.best_practices,
+            seo: scores.seo,
+            seo_audits: scores.seo_details.into(),
+            performance_metrics: scores.performance_metrics.map(|pm| pm.into()),
+        }
+    }
+}
+
 /// Detailed performance metrics from Lighthouse
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PerformanceMetrics {
@@ -42,6 +56,19 @@ pub struct PerformanceMetrics {
     pub cumulative_layout_shift: Option<f64>,
 }
 
+impl From<crate::service::auditor::PerformanceMetrics> for PerformanceMetrics {
+    fn from(pm: crate::service::auditor::PerformanceMetrics) -> Self {
+        Self {
+            first_contentful_paint: pm.first_contentful_paint,
+            largest_contentful_paint: pm.largest_contentful_paint,
+            speed_index: pm.speed_index,
+            time_to_interactive: pm.time_to_interactive,
+            total_blocking_time: pm.total_blocking_time,
+            cumulative_layout_shift: pm.cumulative_layout_shift,
+        }
+    }
+}
+
 /// Result of an individual audit check
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AuditResult {
@@ -50,6 +77,17 @@ pub struct AuditResult {
     pub score: f64,
     #[serde(default)]
     pub description: Option<String>,
+}
+
+impl From<crate::service::auditor::CheckResult> for AuditResult {
+    fn from(cr: crate::service::auditor::CheckResult) -> Self {
+        Self {
+            passed: cr.passed,
+            value: cr.value,
+            score: cr.score,
+            description: cr.description,
+        }
+    }
 }
 
 /// Detailed SEO audit results
@@ -66,6 +104,24 @@ pub struct SeoAuditDetails {
     pub image_alt: AuditResult,
     pub http_status_code: AuditResult,
     pub is_crawlable: AuditResult,
+}
+
+impl From<crate::service::auditor::SeoAuditDetails> for SeoAuditDetails {
+    fn from(details: crate::service::auditor::SeoAuditDetails) -> Self {
+        Self {
+            document_title: details.document_title.into(),
+            meta_description: details.meta_description.into(),
+            viewport: details.viewport.into(),
+            canonical: details.canonical.into(),
+            hreflang: details.hreflang.into(),
+            robots_txt: details.robots_txt.into(),
+            crawlable_anchors: details.crawlable_anchors.into(),
+            link_text: details.link_text.into(),
+            image_alt: details.image_alt.into(),
+            http_status_code: details.http_status_code.into(),
+            is_crawlable: details.is_crawlable.into(),
+        }
+    }
 }
 
 /// Request to analyze a URL with Lighthouse
