@@ -1,32 +1,13 @@
-//! Adapter layer for bridging V2 repositories with existing API contracts.
+//! Adapter layer for converting domain models to API response types.
 //!
-//! This module provides conversion functions from V2 domain models to the
-//! existing API response types, allowing a gradual migration without breaking
-//! the frontend.
+//! This module provides conversion functions from domain models to the
+//! API response types used by the frontend.
 
 use crate::domain::models::{
     AnalysisProgress, AnalysisSummary, CompleteAnalysisResult, AnalysisResults,
-    PageAnalysisData, SeoIssue, IssueType, JobStatus as V1JobStatus,
+    PageAnalysisData, SeoIssue, IssueType,
+    CompleteJobResult, Issue, IssueSeverity, Job, JobInfo, Page,
 };
-use crate::domain::models_v2::{
-    CompleteJobResult, Issue, IssueSeverity, Job, JobInfo, JobStatus, Page,
-};
-
-// ============================================================================
-// JOB STATUS CONVERSION
-// ============================================================================
-
-impl From<JobStatus> for V1JobStatus {
-    fn from(status: JobStatus) -> Self {
-        match status {
-            JobStatus::Pending => V1JobStatus::Queued,
-            JobStatus::Running => V1JobStatus::Processing,
-            JobStatus::Completed => V1JobStatus::Completed,
-            JobStatus::Failed => V1JobStatus::Failed,
-            JobStatus::Cancelled => V1JobStatus::Failed,
-        }
-    }
-}
 
 // ============================================================================
 // JOB TO ANALYSIS PROGRESS
@@ -34,11 +15,10 @@ impl From<JobStatus> for V1JobStatus {
 
 impl From<Job> for AnalysisProgress {
     fn from(job: Job) -> Self {
-        let status: V1JobStatus = job.status.into();
         Self {
             job_id: job.id.clone(),
             url: job.url,
-            job_status: status.to_string(),
+            job_status: job.status.as_str().to_string(),
             result_id: Some(job.id.clone()),
             progress: Some(job.progress),
             analyzed_pages: Some(job.summary.pages_crawled),
@@ -49,11 +29,10 @@ impl From<Job> for AnalysisProgress {
 
 impl From<JobInfo> for AnalysisProgress {
     fn from(info: JobInfo) -> Self {
-        let status: V1JobStatus = info.status.into();
         Self {
             job_id: info.id.clone(),
             url: info.url,
-            job_status: status.to_string(),
+            job_status: info.status.as_str().to_string(),
             result_id: Some(info.id.clone()),
             progress: Some(info.progress),
             analyzed_pages: Some(info.total_pages),
@@ -143,7 +122,7 @@ impl From<CompleteJobResult> for CompleteAnalysisResult {
         let analysis = AnalysisResults {
             id: job.id.clone(),
             url: job.url.clone(),
-            status: job.status.clone().into(),
+            status: job.status.clone(),
             progress: job.progress,
             total_pages: job.summary.total_pages,
             analyzed_pages: job.summary.pages_crawled,

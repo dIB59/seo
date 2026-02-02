@@ -6,14 +6,14 @@
 use anyhow::{Context, Result};
 use sqlx::{Row, SqlitePool};
 
-use crate::domain::models_v2::{Link, NewLink};
+use crate::domain::models::{Link, NewLink};
 use super::map_link_type;
 
-pub struct LinkRepositoryV2 {
+pub struct LinkRepository {
     pool: SqlitePool,
 }
 
-impl LinkRepositoryV2 {
+impl LinkRepository {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }

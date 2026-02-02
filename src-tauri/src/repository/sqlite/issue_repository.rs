@@ -7,14 +7,14 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use sqlx::{Row, SqlitePool};
 
-use crate::domain::models_v2::{Issue, IssueSeverity, NewIssue};
+use crate::domain::models::{Issue, IssueSeverity, NewIssue};
 use super::map_severity;
 
-pub struct IssueRepositoryV2 {
+pub struct IssueRepository {
     pool: SqlitePool,
 }
 
-impl IssueRepositoryV2 {
+impl IssueRepository {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }

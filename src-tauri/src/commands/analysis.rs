@@ -7,10 +7,10 @@ use url::Url;
 use crate::{
     db::DbState,
     domain::models::{AnalysisProgress, CompleteAnalysisResult, JobStatus},
-    domain::models_v2::JobSettings,
+    domain::models::JobSettings,
     error::CommandError,
-    repository::sqlite_v2::{JobRepositoryV2, ResultsRepositoryV2},
-    service::JobProcessorV2,
+    repository::sqlite::{JobRepository, ResultsRepository},
+    service::JobProcessor,
 };
 
 #[derive(Debug, serde::Serialize)]
@@ -73,7 +73,7 @@ pub async fn start_analysis(
     let analysis_settings: JobSettings = settings.unwrap_or_default().into();
     let pool = &db.0;
 
-    let repository = JobRepositoryV2::new(pool.clone());
+    let repository = JobRepository::new(pool.clone());
     let job_id = repository
         .create(parsed_url.as_str(), &analysis_settings)
         .await
@@ -82,7 +82,7 @@ pub async fn start_analysis(
     Ok(AnalysisJobResponse {
         job_id,
         url,
-        status: JobStatus::Queued,
+        status: JobStatus::Pending,
     })
 }
 
@@ -94,7 +94,7 @@ pub async fn get_analysis_progress(
     log::info!("Getting analysis progress for job: {}", job_id);
 
     let pool = &db.0;
-    let repository = JobRepositoryV2::new(pool.clone());
+    let repository = JobRepository::new(pool.clone());
 
     let job = repository
         .get_by_id(&job_id)
@@ -112,7 +112,7 @@ pub async fn get_all_jobs(db: State<'_, DbState>) -> Result<Vec<AnalysisProgress
     log::info!("Fetching all analysis jobs");
 
     let pool = &db.0;
-    let repository = JobRepositoryV2::new(pool.clone());
+    let repository = JobRepository::new(pool.clone());
 
     let jobs = repository.get_all().await.map_err(CommandError::from)?;
     
@@ -126,7 +126,7 @@ pub async fn get_all_jobs(db: State<'_, DbState>) -> Result<Vec<AnalysisProgress
 #[tauri::command]
 pub async fn cancel_analysis(
     job_id: String,
-    job_processor: State<'_, Arc<JobProcessorV2>>,
+    job_processor: State<'_, Arc<JobProcessor>>,
 ) -> Result<(), CommandError> {
     log::trace!("Cancelling analysis job: {}", job_id);
     job_processor.cancel(&job_id).await.map_err(CommandError)
@@ -140,7 +140,7 @@ pub async fn get_result(
     log::trace!("Getting result ID for job: {}", job_id);
 
     let pool = &db.0;
-    let repository = ResultsRepositoryV2::new(pool.clone());
+    let repository = ResultsRepository::new(pool.clone());
 
     let result = repository
         .get_complete_result(&job_id)

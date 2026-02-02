@@ -3,7 +3,6 @@
 // use crate::{analysis::AnalysisSettings, domain::models::*};
 
 pub mod sqlite;
-pub mod sqlite_v2;
 
 // #[async_trait]
 // pub trait JobRepository: Send + Sync {

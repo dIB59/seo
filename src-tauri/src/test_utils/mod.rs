@@ -88,8 +88,7 @@ pub async fn set_up_benchmark_db() -> SqlitePool {
 /// Benchmark data generators for realistic test data
 /// Made public for use in benches/
 pub mod generators {
-    use crate::domain::models::{IssueType, PageAnalysisData, SeoIssue};
-    use crate::service::job_processor::PageEdge;
+    use crate::domain::models::{IssueType, SeoIssue, PageAnalysisData, LinkDetail};
 
     /// Generate mock pages for benchmarking write operations
     pub fn generate_mock_pages(count: usize, analysis_id: &str) -> Vec<PageAnalysisData> {
@@ -124,35 +123,21 @@ pub mod generators {
                 lighthouse_seo_audits: None,
                 lighthouse_performance_metrics: None,
                 links: vec![],
-                headings: vec![
-                    crate::domain::models::HeadingElement {
-                        tag: "h1".to_string(),
-                        text: format!("Main Heading {}", i),
-                    },
-                    crate::domain::models::HeadingElement {
-                        tag: "h2".to_string(),
-                        text: format!("Subheading {}", i),
-                    },
-                ],
-                images: vec![crate::domain::models::ImageElement {
-                    src: format!("/images/img-{}.jpg", i),
-                    alt: if i % 3 == 0 {
-                        None
-                    } else {
-                        Some(format!("Image {}", i))
-                    },
-                }],
+                headings: vec![format!("h1: Main Heading {}", i), format!("h2: Subheading {}", i)],
+                images: vec![format!("/images/img-{}.jpg", i)],
                 detailed_links: vec![
-                    crate::domain::models::LinkElement {
-                        href: format!("/page-{}", (i + 1) % count.max(1)),
+                    LinkDetail {
+                        url: format!("/page-{}", (i + 1) % count.max(1)),
                         text: format!("Link to page {}", (i + 1) % count.max(1)),
-                        is_internal: true,
+                        is_external: false,
+                        is_broken: false,
                         status_code: Some(200),
                     },
-                    crate::domain::models::LinkElement {
-                        href: "https://external.com".to_string(),
+                    LinkDetail {
+                        url: "https://external.com".to_string(),
                         text: "External link".to_string(),
-                        is_internal: false,
+                        is_external: true,
+                        is_broken: false,
                         status_code: None,
                     },
                 ],
@@ -183,24 +168,9 @@ pub mod generators {
                     description: template.2.to_string(),
                     page_url: page_url.to_string(),
                     element: Some(format!("<element-{}>", i)),
-                    line_number: Some((i + 1) as i64),
+                    line_number: Some((i + 1) as i32),
                     recommendation: format!("Fix issue #{} by following best practices", i),
                 }
-            })
-            .collect()
-    }
-
-    /// Generate mock page edges for benchmarking link graph operations
-    pub fn generate_mock_edges(count: usize, page_ids: &[String]) -> Vec<PageEdge> {
-        if page_ids.is_empty() {
-            return vec![];
-        }
-
-        (0..count)
-            .map(|i| PageEdge {
-                from_page_id: page_ids[i % page_ids.len()].clone(),
-                to_url: format!("https://example.com/linked-page-{}", i),
-                status_code: if i % 10 == 0 { 404 } else { 200 },
             })
             .collect()
     }
