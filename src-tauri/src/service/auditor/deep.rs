@@ -137,6 +137,7 @@ impl DeepAuditor {
     }
 
     async fn fetch_html_fallback(&self, url: &str) -> Result<String> {
+        log::warn!("[DEEP] Falling back to direct HTML fetch for URL: {}", url);
         let client = rquest::Client::new();
         let response = client
             .get(url)
