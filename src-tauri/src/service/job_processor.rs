@@ -1,6 +1,6 @@
 //! Application layer - coordinates services
 use crate::domain::models::{
-    AnalysisJob, AnalysisSettings, AnalysisStatus, IssueType, JobStatus, PageAnalysisData,
+    AnalysisJob, AnalysisSettings, IssueType, JobStatus, PageAnalysisData,
     ResourceStatus, SeoIssue,
 };
 
@@ -235,20 +235,20 @@ impl<R: tauri::Runtime> JobProcessor<R> {
         // 7. Finalise
         log::debug!("[JOB {}] Finalizing job status", job.id);
         let final_status = if self.is_cancelled(job.id) {
-            log::warn!("[JOB {}] Job was cancelled, marking as Error", job.id);
+            log::warn!("[JOB {}] Job was cancelled, marking as Failed", job.id);
             self.results_db
-                .finalize(&analysis_result_id, AnalysisStatus::Error)
+                .finalize(&analysis_result_id, JobStatus::Failed)
                 .await?;
             self.job_db.update_status(job.id, JobStatus::Failed).await?;
-            AnalysisStatus::Error
+            JobStatus::Failed
         } else {
             self.results_db
-                .finalize(&analysis_result_id, AnalysisStatus::Completed)
+                .finalize(&analysis_result_id, JobStatus::Completed)
                 .await?;
             self.job_db
                 .update_status(job.id, JobStatus::Completed)
                 .await?;
-            AnalysisStatus::Completed
+            JobStatus::Completed
         };
 
         log::info!("========================================");

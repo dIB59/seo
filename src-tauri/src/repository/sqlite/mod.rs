@@ -196,12 +196,12 @@ mod tests {
 
         // 4. Finalize
         results_repo
-            .finalize(&result_id, AnalysisStatus::Completed)
+            .finalize(&result_id, JobStatus::Completed)
             .await
             .unwrap();
 
         let finalized = results_repo.get_result_by_job_id(job_id).await.unwrap();
-        assert_eq!(finalized.analysis.status, JobStatus::Completed); // check mapper logic if it matches enum
+        assert_eq!(finalized.analysis.status, JobStatus::Completed);
     }
 
     #[tokio::test]

@@ -1,18 +1,103 @@
 //! Rich domain entities - behavior lives WITH data
+//!
+//! This module contains the core domain models for the SEO analyzer.
+//! Models are designed to be:
+//! - **Type-safe**: Using newtypes for IDs to prevent mixing them up
+//! - **Rich**: Business logic lives with the data it operates on
+//! - **Serializable**: Ready for API responses and database storage
 
 use chrono::{DateTime, Utc};
 use scraper::{Html, Selector};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::service::job_processor::PageEdge;
 
-// ====== Enums ======
+// ============================================================================
+// TYPE-SAFE ID WRAPPERS
+// ============================================================================
 
+/// Wrapper for job identifiers (database auto-increment ID).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct JobId(pub i64);
+
+impl From<i64> for JobId {
+    fn from(id: i64) -> Self {
+        Self(id)
+    }
+}
+
+impl std::fmt::Display for JobId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+/// Wrapper for analysis result identifiers (UUID string).
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct AnalysisId(pub String);
+
+impl From<String> for AnalysisId {
+    fn from(id: String) -> Self {
+        Self(id)
+    }
+}
+
+impl From<&str> for AnalysisId {
+    fn from(id: &str) -> Self {
+        Self(id.to_string())
+    }
+}
+
+impl AsRef<str> for AnalysisId {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for AnalysisId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+/// Wrapper for page identifiers (UUID string).
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct PageId(pub String);
+
+impl From<String> for PageId {
+    fn from(id: String) -> Self {
+        Self(id)
+    }
+}
+
+impl AsRef<str> for PageId {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for PageId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+/// Status of a resource check (robots.txt, sitemap.xml, etc.)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResourceStatus {
+    /// Resource found with content
     Found(String),
+    /// Resource exists but access denied
     Unauthorized(String),
+    /// Resource not found (404)
     NotFound,
 }
 
@@ -25,24 +110,48 @@ impl ResourceStatus {
     }
 }
 
+/// Unified status for jobs and analysis results.
+/// 
+/// Represents the lifecycle of an SEO analysis:
+/// ```text
+/// Queued → Discovering → Processing → Completed
+///                    ↘      ↓       ↗
+///                      → Failed
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum JobStatus {
+    /// Initial state, waiting to be processed
     Queued,
+    /// Discovering pages to analyze
     Discovering,
+    /// Actively analyzing pages
     Processing,
+    /// Successfully completed
     Completed,
+    /// Failed or cancelled
     Failed,
 }
 
 impl JobStatus {
     pub fn as_str(&self) -> &'static str {
         match self {
-            JobStatus::Queued => "queued",
-            JobStatus::Discovering => "discovering",
-            JobStatus::Processing => "processing",
-            JobStatus::Completed => "completed",
-            JobStatus::Failed => "failed",
+            Self::Queued => "queued",
+            Self::Discovering => "discovering",
+            Self::Processing => "processing",
+            Self::Completed => "completed",
+            Self::Failed => "failed",
         }
+    }
+    
+    /// Check if this is a terminal state (no more transitions expected)
+    pub fn is_terminal(&self) -> bool {
+        matches!(self, Self::Completed | Self::Failed)
+    }
+    
+    /// Check if the job is actively running
+    pub fn is_active(&self) -> bool {
+        matches!(self, Self::Discovering | Self::Processing)
     }
 }
 
@@ -57,44 +166,26 @@ impl std::str::FromStr for JobStatus {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "queued" => Ok(JobStatus::Queued),
-            "discovering" => Ok(JobStatus::Discovering),
-            "processing" => Ok(JobStatus::Processing),
-            "completed" => Ok(JobStatus::Completed),
-            "failed" => Ok(JobStatus::Failed),
+            "queued" => Ok(Self::Queued),
+            "discovering" => Ok(Self::Discovering),
+            "processing" => Ok(Self::Processing),
+            "completed" => Ok(Self::Completed),
+            "failed" | "error" => Ok(Self::Failed), // "error" for legacy compatibility
+            "analyzing" => Ok(Self::Processing),    // legacy mapping
             _ => Err(()),
         }
     }
 }
 
-//TODO:
-//Remove AnalysisStatus
-//and use Job status instead
-//merge both of them
-
+/// Issue severity level for SEO problems.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
-pub enum AnalysisStatus {
-    Analyzing,
-    Completed,
-    Error,
-    Paused,
-}
-
-impl AnalysisStatus {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            AnalysisStatus::Analyzing => "analyzing",
-            AnalysisStatus::Completed => "completed",
-            AnalysisStatus::Error => "error",
-            AnalysisStatus::Paused => "paused",
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum IssueType {
+    /// Must fix - significantly impacts SEO
     Critical,
+    /// Should fix - moderate impact on SEO  
     Warning,
+    /// Nice to have - minor optimization opportunity
     Suggestion,
 }
 
@@ -198,8 +289,154 @@ pub struct LinkElement {
     pub status_code: Option<u16>,
 }
 
-// ====== Rich Entity: PageAnalysisData ======
+// ============================================================================
+// PAGE ANALYSIS DATA WITH BUILDER
+// ============================================================================
 
+/// Builder for constructing PageAnalysisData with a fluent API.
+/// 
+/// This extracts common data from HTML once and allows customization of
+/// runtime-specific fields like load_time and lighthouse scores.
+/// 
+/// # Example
+/// ```ignore
+/// let (page, issues) = PageAnalysisData::builder(url, &document)
+///     .load_time(1.5)
+///     .status_code(200)
+///     .content_size(5000)
+///     .lighthouse_scores(Some(scores))
+///     .build();
+/// ```
+pub struct PageAnalysisDataBuilder {
+    url: String,
+    // Extracted from HTML (computed once)
+    title: Option<String>,
+    meta_description: Option<String>,
+    meta_keywords: Option<String>,
+    canonical_url: Option<String>,
+    h1_count: i64,
+    h2_count: i64,
+    h3_count: i64,
+    word_count: i64,
+    image_count: i64,
+    images_without_alt: i64,
+    internal_links: i64,
+    external_links: i64,
+    has_structured_data: bool,
+    headings: Vec<HeadingElement>,
+    images: Vec<ImageElement>,
+    detailed_links: Vec<LinkElement>,
+    // Runtime fields (set via builder)
+    load_time: f64,
+    status_code: Option<i64>,
+    content_size: i64,
+    lighthouse_scores: Option<crate::service::LighthouseScores>,
+}
+
+impl PageAnalysisDataBuilder {
+    /// Create a new builder by extracting data from the parsed HTML document.
+    fn new(url: String, document: &Html) -> Self {
+        let parsed_url = Url::parse(&url).ok();
+        let (h1, h2, h3) = PageAnalysisData::count_headings(document);
+        let (img_count, img_no_alt) = PageAnalysisData::analyze_images(document);
+        let (internal, external) = parsed_url
+            .as_ref()
+            .map(|u| PageAnalysisData::count_links(document, u))
+            .unwrap_or((0, 0));
+        
+        Self {
+            title: PageAnalysisData::extract_title(document),
+            meta_description: PageAnalysisData::extract_meta(document, "description"),
+            meta_keywords: PageAnalysisData::extract_meta(document, "keywords"),
+            canonical_url: PageAnalysisData::extract_canonical(document),
+            h1_count: h1,
+            h2_count: h2,
+            h3_count: h3,
+            word_count: PageAnalysisData::count_words(document),
+            image_count: img_count,
+            images_without_alt: img_no_alt,
+            internal_links: internal,
+            external_links: external,
+            has_structured_data: PageAnalysisData::check_structured_data(document),
+            headings: PageAnalysisData::extract_headings(document),
+            images: PageAnalysisData::extract_images_detailed(document),
+            detailed_links: parsed_url
+                .as_ref()
+                .map(|u| PageAnalysisData::extract_detailed_links(document, u))
+                .unwrap_or_default(),
+            url,
+            // Defaults for runtime fields
+            load_time: 0.0,
+            status_code: None,
+            content_size: 0,
+            lighthouse_scores: None,
+        }
+    }
+    
+    pub fn load_time(mut self, time: f64) -> Self {
+        self.load_time = time;
+        self
+    }
+    
+    pub fn status_code(mut self, code: i64) -> Self {
+        self.status_code = Some(code);
+        self
+    }
+    
+    pub fn content_size(mut self, size: i64) -> Self {
+        self.content_size = size;
+        self
+    }
+    
+    pub fn lighthouse_scores(mut self, scores: Option<crate::service::LighthouseScores>) -> Self {
+        self.lighthouse_scores = scores;
+        self
+    }
+    
+    /// Build the PageAnalysisData and generate SEO issues.
+    pub fn build(self) -> (PageAnalysisData, Vec<SeoIssue>) {
+        // Convert Lighthouse scores from 0.0-1.0 to 0-100 for UI display
+        let to_percentage = |score: Option<f64>| score.map(|s| (s * 100.0).round());
+        let scores = self.lighthouse_scores.unwrap_or_default();
+        
+        let page = PageAnalysisData {
+            analysis_id: String::new(),
+            url: self.url,
+            title: self.title,
+            meta_description: self.meta_description,
+            meta_keywords: self.meta_keywords,
+            canonical_url: self.canonical_url,
+            h1_count: self.h1_count,
+            h2_count: self.h2_count,
+            h3_count: self.h3_count,
+            word_count: self.word_count,
+            image_count: self.image_count,
+            images_without_alt: self.images_without_alt,
+            internal_links: self.internal_links,
+            external_links: self.external_links,
+            load_time: self.load_time,
+            status_code: self.status_code,
+            content_size: self.content_size,
+            mobile_friendly: true,
+            has_structured_data: self.has_structured_data,
+            lighthouse_performance: to_percentage(scores.performance),
+            lighthouse_accessibility: to_percentage(scores.accessibility),
+            lighthouse_best_practices: to_percentage(scores.best_practices),
+            lighthouse_seo: to_percentage(scores.seo),
+            lighthouse_seo_audits: Some(scores.seo_audits),
+            lighthouse_performance_metrics: scores.performance_metrics,
+            links: Vec::new(),
+            headings: self.headings,
+            images: self.images,
+            detailed_links: self.detailed_links,
+        };
+        
+        let issues = page.generate_issues();
+        (page, issues)
+    }
+}
+
+/// Data extracted from analyzing a single web page.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct PageAnalysisData {
     pub analysis_id: String,
@@ -236,7 +473,12 @@ pub struct PageAnalysisData {
 }
 
 impl PageAnalysisData {
-    /// Rich factory: parses HTML and performs initial analysis
+    /// Create a builder for PageAnalysisData from parsed HTML.
+    pub fn builder(url: String, document: &Html) -> PageAnalysisDataBuilder {
+        PageAnalysisDataBuilder::new(url, document)
+    }
+
+    /// Rich factory: parses HTML and performs initial analysis (no lighthouse scores).
     pub fn build_from_parsed(
         url: String,
         document: Html,
@@ -244,43 +486,14 @@ impl PageAnalysisData {
         status_code: i64,
         content_size: i64,
     ) -> (Self, Vec<SeoIssue>) {
-        let page = Self {
-            analysis_id: String::new(),
-            url: url.clone(),
-            title: Self::extract_title(&document),
-            meta_description: Self::extract_meta(&document, "description"),
-            meta_keywords: Self::extract_meta(&document, "keywords"),
-            canonical_url: Self::extract_canonical(&document),
-            h1_count: Self::count_headings(&document).0,
-            h2_count: Self::count_headings(&document).1,
-            h3_count: Self::count_headings(&document).2,
-            word_count: Self::count_words(&document),
-            image_count: Self::analyze_images(&document).0,
-            images_without_alt: Self::analyze_images(&document).1,
-            internal_links: Self::count_links(&document, &Url::parse(&url).unwrap()).0,
-            external_links: Self::count_links(&document, &Url::parse(&url).unwrap()).1,
-            load_time,
-            status_code: Some(status_code),
-            content_size,
-            mobile_friendly: true,
-            has_structured_data: Self::check_structured_data(&document),
-            lighthouse_performance: None,
-            lighthouse_accessibility: None,
-            lighthouse_best_practices: None,
-            lighthouse_seo: None,
-            lighthouse_seo_audits: None,
-            lighthouse_performance_metrics: None,
-            links: Vec::new(),
-            headings: Self::extract_headings(&document),
-            images: Self::extract_images_detailed(&document),
-            detailed_links: Self::extract_detailed_links(&document, &Url::parse(&url).unwrap()),
-        };
-
-        let issues = page.generate_issues(); // your other rules
-        (page, issues)
+        Self::builder(url, &document)
+            .load_time(load_time)
+            .status_code(status_code)
+            .content_size(content_size)
+            .build()
     }
 
-    /// Rich factory with lighthouse scores: parses HTML and performs initial analysis
+    /// Rich factory with lighthouse scores: parses HTML and performs initial analysis.
     pub fn build_from_parsed_with_lighthouse(
         url: String,
         document: Html,
@@ -289,43 +502,12 @@ impl PageAnalysisData {
         content_size: i64,
         lighthouse_scores: Option<crate::service::LighthouseScores>,
     ) -> (Self, Vec<SeoIssue>) {
-        let scores = lighthouse_scores.clone().unwrap_or_default();
-        // Convert Lighthouse scores from 0.0-1.0 to 0-100 for UI display
-        let to_percentage = |score: Option<f64>| score.map(|s| (s * 100.0).round());
-        let page = Self {
-            analysis_id: String::new(),
-            url: url.clone(),
-            title: Self::extract_title(&document),
-            meta_description: Self::extract_meta(&document, "description"),
-            meta_keywords: Self::extract_meta(&document, "keywords"),
-            canonical_url: Self::extract_canonical(&document),
-            h1_count: Self::count_headings(&document).0,
-            h2_count: Self::count_headings(&document).1,
-            h3_count: Self::count_headings(&document).2,
-            word_count: Self::count_words(&document),
-            image_count: Self::analyze_images(&document).0,
-            images_without_alt: Self::analyze_images(&document).1,
-            internal_links: Self::count_links(&document, &Url::parse(&url).unwrap()).0,
-            external_links: Self::count_links(&document, &Url::parse(&url).unwrap()).1,
-            load_time,
-            status_code: Some(status_code),
-            content_size,
-            mobile_friendly: true,
-            has_structured_data: Self::check_structured_data(&document),
-            lighthouse_performance: to_percentage(scores.performance),
-            lighthouse_accessibility: to_percentage(scores.accessibility),
-            lighthouse_best_practices: to_percentage(scores.best_practices),
-            lighthouse_seo: to_percentage(scores.seo),
-            lighthouse_seo_audits: Some(scores.seo_audits),
-            lighthouse_performance_metrics: scores.performance_metrics,
-            links: Vec::new(),
-            headings: Self::extract_headings(&document),
-            images: Self::extract_images_detailed(&document),
-            detailed_links: Self::extract_detailed_links(&document, &Url::parse(&url).unwrap()),
-        };
-
-        let issues = page.generate_issues();
-        (page, issues)
+        Self::builder(url, &document)
+            .load_time(load_time)
+            .status_code(status_code)
+            .content_size(content_size)
+            .lighthouse_scores(lighthouse_scores)
+            .build()
     }
 
     pub const ISSUE_MISSING_TITLE: &'static str = "Missing Title Tag";
@@ -338,135 +520,127 @@ impl PageAnalysisData {
     pub const ISSUE_IMG_MISSING_ALT: &'static str = "Images Missing Alt Text";
     pub const ISSUE_SLOW_LOAD: &'static str = "Slow Page Load";
 
-    /// Rich behavior: validates itself and generates SEO issues
+    /// Validates the page and generates SEO issues using the builder pattern.
     pub fn generate_issues(&self) -> Vec<SeoIssue> {
         let mut issues = Vec::new();
         let page_id = uuid::Uuid::new_v4().to_string();
 
-        // Missing title
-        if self.title.is_none() {
-            issues.push(SeoIssue {
-                page_id: page_id.clone(),
-                issue_type: IssueType::Critical,
-                title: Self::ISSUE_MISSING_TITLE.to_string(),
-                description: "Page has no title tag".to_string(),
-                page_url: self.url.clone(),
-                element: Some("title".to_string()),
-                line_number: None,
-                recommendation: "Add a unique, descriptive title tag (50-60 characters)"
-                    .to_string(),
-            });
-        } else if let Some(title) = &self.title {
-            if title.len() < 5 {
-                issues.push(SeoIssue {
-                    page_id: page_id.clone(),
-                    issue_type: IssueType::Warning,
-                    title: Self::ISSUE_TITLE_TOO_SHORT.to_string(),
-                    description: format!("Title is only {} characters", title.len()),
-                    page_url: self.url.clone(),
-                    element: Some("title".to_string()),
-                    line_number: None,
-                    recommendation: "Expand title to 50-60 characters with main keyword"
-                        .to_string(),
-                });
-            } else if title.len() > 60 {
-                issues.push(SeoIssue {
-                    page_id: page_id.clone(),
-                    issue_type: IssueType::Suggestion,
-                    title: Self::ISSUE_TITLE_TOO_LONG.to_string(),
-                    description: format!("Title is {} characters", title.len()),
-                    page_url: self.url.clone(),
-                    element: Some("title".to_string()),
-                    line_number: None,
-                    recommendation: "Shorten title to display fully in search results".to_string(),
-                });
+        // Title checks
+        match &self.title {
+            None => {
+                issues.push(
+                    SeoIssue::critical(Self::ISSUE_MISSING_TITLE)
+                        .page_id(&page_id)
+                        .description("Page has no title tag")
+                        .page_url(&self.url)
+                        .element("title")
+                        .recommendation("Add a unique, descriptive title tag (50-60 characters)")
+                        .build()
+                );
             }
+            Some(title) if title.len() < 5 => {
+                issues.push(
+                    SeoIssue::warning(Self::ISSUE_TITLE_TOO_SHORT)
+                        .page_id(&page_id)
+                        .description(format!("Title is only {} characters", title.len()))
+                        .page_url(&self.url)
+                        .element("title")
+                        .recommendation("Expand title to 50-60 characters with main keyword")
+                        .build()
+                );
+            }
+            Some(title) if title.len() > 60 => {
+                issues.push(
+                    SeoIssue::suggestion(Self::ISSUE_TITLE_TOO_LONG)
+                        .page_id(&page_id)
+                        .description(format!("Title is {} characters", title.len()))
+                        .page_url(&self.url)
+                        .element("title")
+                        .recommendation("Shorten title to display fully in search results")
+                        .build()
+                );
+            }
+            _ => {}
         }
 
         // Missing meta description
         if self.meta_description.is_none() {
-            issues.push(SeoIssue {
-                page_id: page_id.clone(),
-                issue_type: IssueType::Warning,
-                title: Self::ISSUE_MISSING_DESC.to_string(),
-                description: "Page has no meta description".to_string(),
-                page_url: self.url.clone(),
-                element: Some("meta[name=description]".to_string()),
-                line_number: None,
-                recommendation: "Add a compelling meta description (150-160 characters)"
-                    .to_string(),
-            });
+            issues.push(
+                SeoIssue::warning(Self::ISSUE_MISSING_DESC)
+                    .page_id(&page_id)
+                    .description("Page has no meta description")
+                    .page_url(&self.url)
+                    .element("meta[name=description]")
+                    .recommendation("Add a compelling meta description (150-160 characters)")
+                    .build()
+            );
         }
 
-        // Missing H1
-        if self.h1_count == 0 {
-            issues.push(SeoIssue {
-                page_id: page_id.clone(),
-                issue_type: IssueType::Critical,
-                title: Self::ISSUE_MISSING_H1.to_string(),
-                description: "Page has no H1 heading".to_string(),
-                page_url: self.url.clone(),
-                element: Some("h1".to_string()),
-                line_number: None,
-                recommendation: "Add one H1 tag with main keyword near the top".to_string(),
-            });
-        } else if self.h1_count > 1 {
-            issues.push(SeoIssue {
-                page_id: page_id.clone(),
-                issue_type: IssueType::Warning,
-                title: Self::ISSUE_MULTIPLE_H1.to_string(),
-                description: format!("Page has {} H1 tags", self.h1_count),
-                page_url: self.url.clone(),
-                element: Some("h1".to_string()),
-                line_number: None,
-                recommendation: "Use only one H1 tag per page".to_string(),
-            });
+        // H1 checks
+        match self.h1_count {
+            0 => {
+                issues.push(
+                    SeoIssue::critical(Self::ISSUE_MISSING_H1)
+                        .page_id(&page_id)
+                        .description("Page has no H1 heading")
+                        .page_url(&self.url)
+                        .element("h1")
+                        .recommendation("Add one H1 tag with main keyword near the top")
+                        .build()
+                );
+            }
+            n if n > 1 => {
+                issues.push(
+                    SeoIssue::warning(Self::ISSUE_MULTIPLE_H1)
+                        .page_id(&page_id)
+                        .description(format!("Page has {} H1 tags", n))
+                        .page_url(&self.url)
+                        .element("h1")
+                        .recommendation("Use only one H1 tag per page")
+                        .build()
+                );
+            }
+            _ => {}
         }
 
         // Thin content
         if self.word_count < 300 {
-            issues.push(SeoIssue {
-                page_id: page_id.clone(),
-                issue_type: IssueType::Warning,
-                title: Self::ISSUE_THIN_CONTENT.to_string(),
-                description: format!("Page only has {} words", self.word_count),
-                page_url: self.url.clone(),
-                element: None,
-                line_number: None,
-                recommendation: "Add more comprehensive content (aim for 500+ words)".to_string(),
-            });
+            issues.push(
+                SeoIssue::warning(Self::ISSUE_THIN_CONTENT)
+                    .page_id(&page_id)
+                    .description(format!("Page only has {} words", self.word_count))
+                    .page_url(&self.url)
+                    .recommendation("Add more comprehensive content (aim for 500+ words)")
+                    .build()
+            );
         }
 
         // Images without alt text
         if self.images_without_alt > 0 {
-            issues.push(SeoIssue {
-                page_id: page_id.clone(),
-                issue_type: IssueType::Warning,
-                title: Self::ISSUE_IMG_MISSING_ALT.to_string(),
-                description: format!(
-                    "{} of {} images lack alt attribute",
-                    self.images_without_alt, self.image_count
-                ),
-                page_url: self.url.clone(),
-                element: Some("img".to_string()),
-                line_number: None,
-                recommendation: "Add descriptive alt text for accessibility and SEO".to_string(),
-            });
+            issues.push(
+                SeoIssue::warning(Self::ISSUE_IMG_MISSING_ALT)
+                    .page_id(&page_id)
+                    .description(format!(
+                        "{} of {} images lack alt attribute",
+                        self.images_without_alt, self.image_count
+                    ))
+                    .page_url(&self.url)
+                    .element("img")
+                    .recommendation("Add descriptive alt text for accessibility and SEO")
+                    .build()
+            );
         }
 
         // Slow page load
         if self.load_time > 3.0 {
-            issues.push(SeoIssue {
-                page_id: page_id.clone(),
-                issue_type: IssueType::Warning,
-                title: Self::ISSUE_SLOW_LOAD.to_string(),
-                description: format!("Page loads in {:.2} seconds", self.load_time),
-                page_url: self.url.clone(),
-                element: None,
-                line_number: None,
-                recommendation: "Optimize images, enable caching, reduce server response time"
-                    .to_string(),
-            });
+            issues.push(
+                SeoIssue::warning(Self::ISSUE_SLOW_LOAD)
+                    .page_id(&page_id)
+                    .description(format!("Page loads in {:.2} seconds", self.load_time))
+                    .page_url(&self.url)
+                    .recommendation("Optimize images, enable caching, reduce server response time")
+                    .build()
+            );
         }
 
         issues
@@ -664,8 +838,11 @@ impl PageAnalysisData {
     }
 }
 
-// ====== Simple Entity: SeoIssue ======
+// ============================================================================
+// SEO ISSUE WITH BUILDER
+// ============================================================================
 
+/// An SEO issue found during page analysis.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct SeoIssue {
     pub page_id: String,
@@ -676,6 +853,109 @@ pub struct SeoIssue {
     pub element: Option<String>,
     pub line_number: Option<i64>,
     pub recommendation: String,
+}
+
+impl SeoIssue {
+    /// Start building a new SEO issue.
+    pub fn builder(issue_type: IssueType, title: impl Into<String>) -> SeoIssueBuilder {
+        SeoIssueBuilder::new(issue_type, title)
+    }
+    
+    /// Create a critical issue (convenience method).
+    pub fn critical(title: impl Into<String>) -> SeoIssueBuilder {
+        SeoIssueBuilder::new(IssueType::Critical, title)
+    }
+    
+    /// Create a warning issue (convenience method).
+    pub fn warning(title: impl Into<String>) -> SeoIssueBuilder {
+        SeoIssueBuilder::new(IssueType::Warning, title)
+    }
+    
+    /// Create a suggestion issue (convenience method).
+    pub fn suggestion(title: impl Into<String>) -> SeoIssueBuilder {
+        SeoIssueBuilder::new(IssueType::Suggestion, title)
+    }
+}
+
+/// Builder for creating SeoIssue instances with a fluent API.
+/// 
+/// # Example
+/// ```ignore
+/// let issue = SeoIssue::critical("Missing Title Tag")
+///     .description("Page has no title tag")
+///     .page_url("https://example.com")
+///     .element("title")
+///     .recommendation("Add a unique, descriptive title tag")
+///     .build();
+/// ```
+#[derive(Debug)]
+pub struct SeoIssueBuilder {
+    page_id: String,
+    issue_type: IssueType,
+    title: String,
+    description: String,
+    page_url: String,
+    element: Option<String>,
+    line_number: Option<i64>,
+    recommendation: String,
+}
+
+impl SeoIssueBuilder {
+    fn new(issue_type: IssueType, title: impl Into<String>) -> Self {
+        Self {
+            page_id: uuid::Uuid::new_v4().to_string(),
+            issue_type,
+            title: title.into(),
+            description: String::new(),
+            page_url: String::new(),
+            element: None,
+            line_number: None,
+            recommendation: String::new(),
+        }
+    }
+    
+    pub fn page_id(mut self, id: impl Into<String>) -> Self {
+        self.page_id = id.into();
+        self
+    }
+    
+    pub fn description(mut self, desc: impl Into<String>) -> Self {
+        self.description = desc.into();
+        self
+    }
+    
+    pub fn page_url(mut self, url: impl Into<String>) -> Self {
+        self.page_url = url.into();
+        self
+    }
+    
+    pub fn element(mut self, el: impl Into<String>) -> Self {
+        self.element = Some(el.into());
+        self
+    }
+    
+    pub fn line_number(mut self, line: i64) -> Self {
+        self.line_number = Some(line);
+        self
+    }
+    
+    pub fn recommendation(mut self, rec: impl Into<String>) -> Self {
+        self.recommendation = rec.into();
+        self
+    }
+    
+    pub fn build(self) -> SeoIssue {
+        SeoIssue {
+            page_id: self.page_id,
+            issue_type: self.issue_type,
+            title: self.title,
+            description: self.description,
+            page_url: self.page_url,
+            element: self.element,
+            line_number: self.line_number,
+            recommendation: self.recommendation,
+        }
+    }
 }
 
 #[cfg(test)]

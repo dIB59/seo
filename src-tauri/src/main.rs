@@ -7,18 +7,17 @@ use app::commands;
 use app::db::{self, DbState};
 use app::service;
 
-//TODO:
-//-implement pagination for get all jobs
-//-remove AnalysisStatus from result, is should just be job status, maybe pages should have one
-//-create custom issue rules to define what an issue is
-//-search in pages table
-//-create proper report
-//-add pausing job
-//-fix when app quits while job is being processed
-//-Explain what the elements in the issues are
-//-add abiity to delete job
-//-when on page, you can press on the link to go to that page, that does not work
-//-xml file path not found due to redirection
+// TODO:
+// - implement pagination for get all jobs
+// - create custom issue rules to define what an issue is
+// - search in pages table
+// - create proper report
+// - add pausing job
+// - fix when app quits while job is being processed
+// - Explain what the elements in the issues are
+// - add ability to delete job
+// - when on page, you can press on the link to go to that page, that does not work
+// - xml file path not found due to redirection
 
 fn main() {
     // Enable logging from both `tracing` and `log` crates

@@ -7,8 +7,8 @@ use uuid::Uuid;
 
 use crate::{
     domain::models::{
-        AnalysisResults, AnalysisStatus, AnalysisSummary, CompleteAnalysisResult, HeadingElement,
-        ImageElement, LinkElement, PageAnalysisData, SeoIssue,
+        AnalysisResults, AnalysisSummary, CompleteAnalysisResult, HeadingElement,
+        ImageElement, JobStatus, LinkElement, PageAnalysisData, SeoIssue,
     },
     repository::sqlite::{map_issue_type, map_job_status},
     service::job_processor::PageEdge,
@@ -71,9 +71,8 @@ impl ResultsRepository {
         Ok(())
     }
 
-    //TODO:
-    //Drop coloum of analysis results
-    pub async fn finalize(&self, id: &str, status: AnalysisStatus) -> Result<()> {
+    /// Mark an analysis as complete with the given status.
+    pub async fn finalize(&self, id: &str, status: JobStatus) -> Result<()> {
         sqlx::query("UPDATE analysis_results SET status = ?, completed_at = ? WHERE id = ?")
             .bind(status.as_str())
             .bind(chrono::Utc::now().to_rfc3339())
