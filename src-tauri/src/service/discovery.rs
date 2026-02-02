@@ -4,6 +4,7 @@ use anyhow::Result;
 use scraper::{Html, Selector};
 use std::collections::HashSet;
 use std::sync::atomic::AtomicBool;
+use std::sync::OnceLock;
 use std::time::Duration;
 use tokio::time::sleep;
 use url::Url;
@@ -82,14 +83,9 @@ impl PageDiscovery {
             };
             log::trace!("[DISCOVERY] Received {} bytes from {}", body.len(), url);
 
-            let document = Html::parse_document(&body);
-            let links: Vec<Url> = self
-                .extract_links(&document, &url)?
+            let links: Vec<Url> = Self::extract_links(&body, &url)
                 .into_iter()
-                .map(|mut u| {
-                    u.set_fragment(None);
-                    u
-                })
+                .filter_map(|s| Url::parse(&s).ok())
                 .collect();
             
             log::debug!("[DISCOVERY] Found {} links on {}", links.len(), url);
@@ -112,19 +108,23 @@ impl PageDiscovery {
         Ok(visited.into_iter().collect())
     }
 
-    fn extract_links(&self, document: &Html, base_url: &Url) -> Result<Vec<Url>> {
-        let selector = Selector::parse("a[href]").unwrap();
-        let mut links = Vec::new();
-
-        for element in document.select(&selector) {
-            if let Some(href) = element.value().attr("href") {
-                if let Ok(url) = base_url.join(href) {
-                    links.push(url);
-                }
-            }
-        }
-
-        Ok(links)
+    /// Extract all absolute links (`<a href="…">`) from HTML.
+    /// Uses a cached selector for performance.
+    /// Strips URL fragments (#...) from links.
+    pub fn extract_links(html: &str, base_url: &Url) -> Vec<String> {
+        static SELECTOR: OnceLock<Selector> = OnceLock::new();
+        let selector = SELECTOR.get_or_init(|| Selector::parse("a[href]").unwrap());
+        
+        Html::parse_document(html)
+            .select(selector)
+            .filter_map(|a| a.value().attr("href"))
+            .filter(|raw| !raw.starts_with('#'))  // Skip fragment-only links
+            .filter_map(|raw| base_url.join(raw).ok())
+            .map(|mut u| {
+                u.set_fragment(None);  // Strip fragments from all links
+                u.to_string()
+            })
+            .collect()
     }
 }
 
@@ -193,27 +193,30 @@ mod tests {
 
     #[test]
     fn test_extract_links() {
-        let discovery = PageDiscovery::new();
         let base_url = Url::parse("https://example.com").unwrap();
         let html = r##"
             <html>
                 <body>
                     <a href="/relative">Relative</a>
                     <a href="https://other.com/absolute">Absolute</a>
-                    <a href="#fragment">Fragment</a>
+                    <a href="#fragment">Fragment Only</a>
+                    <a href="/page#section">Page with Fragment</a>
                     <a>No Href</a>
                 </body>
             </html>
         "##;
-        let document = Html::parse_document(html);
-        let links = discovery.extract_links(&document, &base_url).unwrap();
+        let links = PageDiscovery::extract_links(html, &base_url);
 
-        // Should return 3 links (relative resolved, absolute, and fragment one resolved)
+        // Should return 3 links:
+        // - Fragment-only links (#fragment) are skipped
+        // - Fragments are stripped from other links (/page#section -> /page)
         assert_eq!(links.len(), 3);
 
-        assert!(links.contains(&Url::parse("https://example.com/relative").unwrap()));
-        assert!(links.contains(&Url::parse("https://other.com/absolute").unwrap()));
-        assert!(links.contains(&Url::parse("https://example.com/#fragment").unwrap()));
+        assert!(links.contains(&"https://example.com/relative".to_string()));
+        assert!(links.contains(&"https://other.com/absolute".to_string()));
+        assert!(links.contains(&"https://example.com/page".to_string()));
+        // Fragment-only link should NOT be included
+        assert!(!links.iter().any(|l| l.contains("#")));
     }
 
     #[test]

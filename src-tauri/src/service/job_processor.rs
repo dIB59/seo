@@ -10,12 +10,12 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use dashmap::DashMap;
-use scraper::{Html, Selector};
+use scraper::Html;
 use serde::Serialize;
 use sqlx::SqlitePool;
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 use std::time::Duration;
 use tauri::Emitter;
 use tokio::time::sleep;
@@ -276,35 +276,10 @@ impl<R: tauri::Runtime> JobProcessor<R> {
         let load_time = start.elapsed().as_secs_f64();
         log::debug!("[BASIC] HTML fetched ({} bytes) in {:.2}s", html.len(), load_time);
 
-        // 2.  Parse once
+        // Parse and build the page data
         let document = Html::parse_document(&html);
-        let base_url = url.clone();
-        let selector = Selector::parse("a[href]").unwrap();
-        for anchor in document.select(&selector) {
-            let href = match anchor.value().attr("href") {
-                Some(h) => h,
-                None => continue,
-            };
-            let target = match base_url.join(href) {
-                Ok(u) => u,
-                Err(_) => continue,
-            };
-            let _text = anchor.text().collect::<String>();
-            // check for nofollow
-            let _nofollow = anchor
-                .value()
-                .attr("rel")
-                .map(|r| r.contains("nofollow"))
-                .unwrap_or(false);
-
-            let _is_internal = target.domain() == base_url.domain();
-            // TODO: check status code
-            let _status_code = 0;
-        }
-
-        // 5.  Build the data object and issues
         let (page, issues) = PageAnalysisData::build_from_parsed(
-            base_url.to_string(),
+            url.to_string(),
             document.clone(),
             load_time,
             status_code,
@@ -439,7 +414,7 @@ impl<R: tauri::Runtime> JobProcessor<R> {
                         url_to_id.insert(url_str.clone(), page_id.clone());
                         
                         // Extract links from rendered HTML and queue new ones
-                        let targets = JobProcessor::extract_links(&fetch_result.html, &url);
+                        let targets = PageDiscovery::extract_links(&fetch_result.html, &url);
                         log::debug!("[JOB {}] [LIGHTHOUSE-MODE] Found {} links on {}", job.id, targets.len(), url);
                         
                         let mut new_links_count = 0;
@@ -612,7 +587,7 @@ impl<R: tauri::Runtime> JobProcessor<R> {
                     url_to_id.insert(page_url.to_string(), page_id.clone());
                     
                     log::trace!("[JOB {}] [BASIC-MODE] Extracting links from HTML", job.id);
-                    let targets = JobProcessor::extract_links(&html_str, &page_url);
+                    let targets = PageDiscovery::extract_links(&html_str, &page_url);
                     log::debug!("[JOB {}] [BASIC-MODE] Found {} links on page", job.id, targets.len());
                     for tgt in targets {
                         let edge = PageEdge {
@@ -677,23 +652,6 @@ impl<R: tauri::Runtime> JobProcessor<R> {
 }
 
 impl JobProcessor {
-    /// Extract every absolute link (`<a href="…">`) from the given HTML.
-    /// The returned strings are already resolved against `base`.
-    pub(crate) fn extract_links(html: &str, base: &Url) -> Vec<String> {
-        // `Selector::parse` is expensive (allocations + regex compilation), so we
-        // keep the parsed selector in a `std::sync::OnceLock` to pay that cost
-        // exactly once per process and reuse it on every call.
-        // TODO:
-        // TEST IF THIS MAKES A DIFFERENCE OR NOT
-        static A: OnceLock<Selector> = OnceLock::new();
-        let selector = A.get_or_init(|| Selector::parse("a[href]").unwrap());
-        Html::parse_document(html)
-            .select(&selector)
-            .filter_map(|a| a.value().attr("href"))
-            .filter_map(|raw| base.join(raw).ok())
-            .map(|u| u.into())
-            .collect()
-    }
 }
 
 /// A light-weight edge we can persist.
@@ -817,7 +775,7 @@ mod tests {
             </html>
         "#;
 
-        let links = JobProcessor::extract_links(html, &base);
+        let links = PageDiscovery::extract_links(html, &base);
 
         assert_eq!(links.len(), 3, "Should extract 3 links");
         assert!(
@@ -839,7 +797,7 @@ mod tests {
         let base = Url::parse("https://example.com").unwrap();
         let html = "<html><body><p>No links here</p></body></html>";
 
-        let links = JobProcessor::extract_links(html, &base);
+        let links = PageDiscovery::extract_links(html, &base);
         assert!(
             links.is_empty(),
             "Should return empty list for HTML without links"
@@ -918,7 +876,7 @@ mod tests {
         let base = Url::parse("https://discord.com/community/establishing-trust-with-connections-connection-details-and-linked-roles").unwrap();
         let html = crate::test_utils::mocks::discord_html();
 
-        let links = JobProcessor::extract_links(&html, &base);
+        let links = PageDiscovery::extract_links(&html, &base);
 
         // We expect a significant number of links given the size of the file
         assert!(!links.is_empty(), "Should extract links from Discord HTML");
