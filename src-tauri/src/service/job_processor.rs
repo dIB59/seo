@@ -13,7 +13,7 @@ use dashmap::DashMap;
 use scraper::{Html, Selector};
 use serde::Serialize;
 use sqlx::SqlitePool;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
@@ -107,36 +107,53 @@ impl<R: tauri::Runtime> JobProcessor<R> {
     }
 
     pub(crate) async fn process_job(&self, mut job: AnalysisJob) -> Result<String> {
-        log::info!("Processing job {} for URL: {}", job.id, job.url);
+        log::info!("========================================");
+        log::info!("[STAGE 1/7] Starting job {} for URL: {}", job.id, job.url);
+        log::info!("========================================");
+        let job_start_time = std::time::Instant::now();
         let cancel_flag = self.cancel_flag(job.id);
 
         // 1. Update status
+        log::debug!("[JOB {}] Setting initial status to Discovering", job.id);
         job.status = JobStatus::Discovering;
         self.job_db
             .update_status(job.id, job.status.clone())
             .await?;
 
         // 2. Fetch settings
+        log::debug!("[JOB {}] [STAGE 2/7] Fetching analysis settings (settings_id: {})", job.id, job.settings_id);
         let settings = self
             .settings_db
             .get_by_id(job.settings_id)
             .await
             .context("Failed to fetch analysis settings")?;
+        log::debug!(
+            "[JOB {}] Settings loaded: max_pages={}, delay={}ms, lighthouse={}",
+            job.id, settings.max_pages, settings.delay_between_requests, settings.lighthouse_analysis
+        );
 
         let start_url = Url::parse(&job.url).context(format!("Unable to Parse URL {}", job.url))?;
+        log::debug!("[JOB {}] Parsed URL: scheme={}, host={:?}", job.id, start_url.scheme(), start_url.host_str());
 
         // 3. Check resources in parallel
+        log::info!("[JOB {}] [STAGE 3/7] Checking site resources (robots.txt, sitemap.xml, SSL)", job.id);
+        let resource_check_start = std::time::Instant::now();
         let robots_status: ResourceStatus = self
             .resource_checker
             .check_robots_txt(start_url.clone())
             .await?;
+        log::debug!("[JOB {}] robots.txt status: {:?}", job.id, robots_status);
         let sitemap_status: ResourceStatus = self
             .resource_checker
             .check_sitemap_xml(start_url.clone())
             .await?;
+        log::debug!("[JOB {}] sitemap.xml status: {:?}", job.id, sitemap_status);
         let has_ssl = self.resource_checker.check_ssl_certificate(&start_url);
+        log::debug!("[JOB {}] SSL certificate: {}", job.id, has_ssl);
+        log::info!("[JOB {}] Resource check completed in {:?}", job.id, resource_check_start.elapsed());
 
         // 4. Create analysis record
+        log::info!("[JOB {}] [STAGE 4/7] Creating analysis record in database", job.id);
         let analysis_result_id = self
             .results_db
             .create(
@@ -147,142 +164,78 @@ impl<R: tauri::Runtime> JobProcessor<R> {
             )
             .await
             .context("Unable to create Result index")?;
+        log::debug!("[JOB {}] Analysis record created with ID: {}", job.id, analysis_result_id);
 
         self.job_db
             .link_to_result(job.id, &analysis_result_id)
             .await
             .context("Unable to link job to result")?;
+        log::debug!("[JOB {}] Job linked to analysis result", job.id);
 
         if self.is_cancelled(job.id) {
+            log::warn!("[JOB {}] Job cancelled before discovery phase", job.id);
             return Ok(analysis_result_id);
         }
 
-        // 5. Discover pages
-        let pages = self
-            .discovery
-            .discover(
-                start_url.clone(),
-                settings.max_pages,
-                settings.delay_between_requests,
+        // 5. Discovery + Analysis
+        // When Lighthouse is enabled, we do discovery and analysis in ONE pass
+        // to avoid fetching each page twice and to capture JS-rendered content
+        log::info!("[JOB {}] [STAGE 5/7] Starting discovery and analysis phase", job.id);
+        log::info!(
+            "[JOB {}] Mode: {}",
+            job.id,
+            if settings.lighthouse_analysis { "Lighthouse (unified discovery+analysis)" } else { "Basic HTTP (two-phase)" }
+        );
+        let discovery_start = std::time::Instant::now();
+        let (all_issues, analyzed_page_data, edges) = if settings.lighthouse_analysis {
+            self.discover_and_analyze_with_lighthouse(
+                &start_url,
+                &settings,
+                &analysis_result_id,
+                &job,
                 cancel_flag.as_ref(),
-                |count| {
-                    self.emit_discovery_progress(job.id, count);
-                },
             )
-            .await
-            .context("Unable to discover pages")?;
-        let total_pages = pages.len() as i32;
-        log::info!("Discovered {} pages", total_pages);
-
-        // Update status to Processing after discovery
-        job.status = JobStatus::Processing;
-        self.job_db
-            .update_status(job.id, job.status.clone())
-            .await?;
-
-        self.results_db
-            .update_progress(&analysis_result_id, 8.0, 0, pages.len() as i64)
-            .await
-            .context("Unable to update Analysis Results progress")?;
-
-        // 6. Analyse pages + build link graph
-        let mut all_issues = Vec::new();
-        let mut analyzed_page_data = Vec::new();
-        let mut analyzed_count = 0;
-
-        // url  -> page_id   (so we can resolve edges later)
-        let mut url_to_id: HashMap<String, String> = HashMap::with_capacity(pages.len());
-
-        // all edges we collect
-        let mut edges: Vec<PageEdge> = Vec::new();
-
-        log::info!("Starting page analysis for job {}", job.id);
-
-        for page_url in pages {
-            match self.analyze_page(&page_url, &settings).await {
-                Ok((mut page, mut issues, html_str)) => {
-                    page.analysis_id = analysis_result_id.clone();
-
-                    let page_id = self
-                        .page_db
-                        .insert(&page)
-                        .await
-                        .context("Unable to insert page analysis data")?;
-
-                    // remember mapping
-                    url_to_id.insert(page_url.to_string(), page_id.clone());
-
-                    // we already have page.html and page.status_code from analyze_page
-                    let targets = JobProcessor::extract_links(&html_str, &page_url);
-                    for tgt in targets {
-                        let edge = PageEdge {
-                            from_page_id: page_id.clone(),
-                            to_url: tgt.clone(),
-                            status_code: page.status_code.unwrap_or(408) as u16, // status of *this* page
-                        };
-
-                        edges.push(edge.clone());
-                        log::trace!("{:?}", edge);
-
-                        if edge.status_code >= 400 {
-                            dbg!(&edge);
-                            issues.push(SeoIssue {
-                                page_id: page_id.to_string(),
-                                issue_type: IssueType::Critical,
-                                description: format!(
-                                    "Broken link: {} returned {}",
-                                    tgt, edge.status_code
-                                ),
-                                title: "Broken Link".to_string(),
-                                page_url: page.url.clone(),
-                                element: None,
-                                line_number: None,
-                                recommendation: "Remove broken Link from the page".to_string(),
-                            });
-                        }
-                    }
-
-                    for issue in &mut issues {
-                        issue.page_id = page_id.clone();
-                    }
-                    self.issues_db.insert_batch(&issues).await?;
-                    all_issues.extend(issues);
-                    analyzed_page_data.push(page);
-                    analyzed_count += 1;
-
-                    // progress
-                    let progress = (analyzed_count as f64 / total_pages as f64) * 100.0;
-                    self.results_db
-                        .update_progress(
-                            &analysis_result_id,
-                            progress,
-                            analyzed_count,
-                            total_pages as i64,
-                        )
-                        .await?;
-                }
-                Err(e) => {
-                    log::warn!("Error analysing {}: {}", page_url, e);
-                    continue;
-                }
-            }
-        }
+            .await?
+        } else {
+            self.discover_then_analyze_basic(
+                &start_url,
+                &settings,
+                &analysis_result_id,
+                &job,
+                cancel_flag.as_ref(),
+            )
+            .await?
+        };
+        log::info!(
+            "[JOB {}] Discovery+Analysis completed in {:?} - Pages: {}, Issues: {}, Edges: {}",
+            job.id, discovery_start.elapsed(), analyzed_page_data.len(), all_issues.len(), edges.len()
+        );
 
         // ---- persist edges ----
+        log::info!("[JOB {}] [STAGE 6/7] Persisting {} page edges to database", job.id, edges.len());
         if !edges.is_empty() {
+            let edges_start = std::time::Instant::now();
             self.page_db.insert_edges_batch(&edges).await?;
+            log::debug!("[JOB {}] Edges persisted in {:?}", job.id, edges_start.elapsed());
+        } else {
+            log::debug!("[JOB {}] No edges to persist", job.id);
         }
 
-        log::info!("Completed page analysis for job {}", job.id);
+        log::info!("[JOB {}] Page analysis completed", job.id);
 
-        // 7. Generate summary
+        // 6. Generate summary
+        log::info!("[JOB {}] [STAGE 7/7] Generating analysis summary", job.id);
+        let summary_start = std::time::Instant::now();
         self.summary_db
             .generate_summary(&analysis_result_id, &all_issues, &analyzed_page_data)
             .await
             .context("Unable to update issues for analysis")?;
+        log::debug!("[JOB {}] Summary generated in {:?}", job.id, summary_start.elapsed());
 
-        // 8. Finalise
+        // 7. Finalise
+        log::debug!("[JOB {}] Finalizing job status", job.id);
         let final_status = if self.is_cancelled(job.id) {
+            log::warn!("[JOB {}] Job was cancelled, marking as Error", job.id);
             self.results_db
                 .finalize(&analysis_result_id, AnalysisStatus::Error)
                 .await?;
@@ -298,7 +251,12 @@ impl<R: tauri::Runtime> JobProcessor<R> {
             AnalysisStatus::Completed
         };
 
-        log::info!("Job {} completed with status {:?}", job.id, final_status);
+        log::info!("========================================");
+        log::info!(
+            "[JOB {}] COMPLETED - Status: {:?}, Total time: {:?}",
+            job.id, final_status, job_start_time.elapsed()
+        );
+        log::info!("========================================");
         Ok(analysis_result_id)
     }
 
@@ -307,14 +265,27 @@ impl<R: tauri::Runtime> JobProcessor<R> {
         &self,
         url: &Url,
     ) -> Result<(PageAnalysisData, Vec<SeoIssue>, String)> {
-        log::debug!("Analyzing page with Lighthouse: {}", url);
+        log::debug!("[LIGHTHOUSE] Starting analysis for: {}", url);
+        let start = std::time::Instant::now();
 
+        log::trace!("[LIGHTHOUSE] Acquiring Lighthouse service lock...");
         let lighthouse = self.lighthouse.lock().await;
+        log::trace!("[LIGHTHOUSE] Lock acquired, running analysis...");
+        
         let result = lighthouse
             .analyze(url.as_str())
             .await
             .context("Lighthouse analysis failed")?;
+        log::debug!(
+            "[LIGHTHOUSE] Analysis returned - status: {}, content_size: {}, load_time: {:.2}ms",
+            result.status_code, result.content_size, result.load_time_ms
+        );
+        log::trace!(
+            "[LIGHTHOUSE] Scores - perf: {:?}, access: {:?}, seo: {:?}",
+            result.scores.performance, result.scores.accessibility, result.scores.seo
+        );
 
+        log::trace!("[LIGHTHOUSE] Parsing HTML document ({} bytes)", result.html.len());
         let document = Html::parse_document(&result.html);
 
         let (page, issues) = PageAnalysisData::build_from_parsed_with_lighthouse(
@@ -325,22 +296,30 @@ impl<R: tauri::Runtime> JobProcessor<R> {
             result.content_size as i64,
             Some(result.scores),
         );
+        log::debug!(
+            "[LIGHTHOUSE] Page analysis complete for {} - {} issues found, took {:?}",
+            url, issues.len(), start.elapsed()
+        );
 
         Ok((page, issues, result.html))
     }
 
     /// Analyze a page using the HTTP client (faster, no Lighthouse)
     async fn analyze_page_basic(&self, url: &Url) -> Result<(PageAnalysisData, Vec<SeoIssue>, String)> {
+        log::debug!("[BASIC] Starting HTTP analysis for: {}", url);
         let client =
             crate::service::http::create_client(crate::service::http::ClientType::HeavyEmulation)?;
         let start = std::time::Instant::now();
 
         // 1.  Fetch the page
+        log::trace!("[BASIC] Sending HTTP GET request to {}", url);
         let response = client.get(url.as_str()).send().await?;
         let status_code = response.status().as_u16() as i64;
         let content_size = response.content_length().unwrap_or(0) as i64;
+        log::debug!("[BASIC] Response received - status: {}, content_size: {}", status_code, content_size);
         let html = response.text().await?;
         let load_time = start.elapsed().as_secs_f64();
+        log::debug!("[BASIC] HTML fetched ({} bytes) in {:.2}s", html.len(), load_time);
 
         // 2.  Parse once
         let document = Html::parse_document(&html);
@@ -380,17 +359,316 @@ impl<R: tauri::Runtime> JobProcessor<R> {
         Ok((page, issues, html))
     }
 
-    /// Analyze a page, optionally using Lighthouse
-    async fn analyze_page(
+    /// Unified discovery + analysis using Lighthouse
+    /// Each page is visited ONCE via Lighthouse, which:
+    /// 1. Renders JavaScript to get the full DOM
+    /// 2. Extracts links from the rendered page for discovery
+    /// 3. Runs Lighthouse audits for scores
+    /// 4. Returns the rendered HTML for SEO analysis
+    async fn discover_and_analyze_with_lighthouse(
         &self,
-        url: &Url,
+        start_url: &Url,
         settings: &AnalysisSettings,
-    ) -> Result<(PageAnalysisData, Vec<SeoIssue>, String)> {
-        if settings.lighthouse_analysis {
-            self.analyze_page_with_lighthouse(url).await
-        } else {
-            self.analyze_page_basic(url).await
+        analysis_result_id: &str,
+        job: &AnalysisJob,
+        cancel_flag: &AtomicBool,
+    ) -> Result<(Vec<SeoIssue>, Vec<PageAnalysisData>, Vec<PageEdge>)> {
+        log::info!("[JOB {}] [LIGHTHOUSE-MODE] Starting unified discovery+analysis", job.id);
+        log::debug!("[JOB {}] [LIGHTHOUSE-MODE] Start URL: {}, Max pages: {}", job.id, start_url, settings.max_pages);
+        
+        let mut visited: HashSet<String> = HashSet::new();
+        let mut to_visit = vec![start_url.clone()];
+        
+        let base_host = start_url.host_str().unwrap_or("");
+        let base_port = start_url.port();
+        log::debug!("[JOB {}] [LIGHTHOUSE-MODE] Base host: {}, port: {:?}", job.id, base_host, base_port);
+        
+        let mut all_issues = Vec::new();
+        let mut analyzed_page_data = Vec::new();
+        let mut edges: Vec<PageEdge> = Vec::new();
+        let mut url_to_id: HashMap<String, String> = HashMap::new();
+        
+        // Update status to Processing (discovery happens as part of analysis)
+        log::debug!("[JOB {}] [LIGHTHOUSE-MODE] Updating job status to Processing", job.id);
+        self.job_db
+            .update_status(job.id, JobStatus::Processing)
+            .await?;
+        
+        log::info!("[JOB {}] [LIGHTHOUSE-MODE] Beginning page crawl loop", job.id);
+        while let Some(url) = to_visit.pop() {
+            if cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
+                log::warn!("[JOB {}] [LIGHTHOUSE-MODE] Crawl cancelled by user", job.id);
+                break;
+            }
+            
+            let url_str = url.to_string();
+            if visited.contains(&url_str) {
+                log::trace!("[JOB {}] [LIGHTHOUSE-MODE] Skipping already visited: {}", job.id, url_str);
+                continue;
+            }
+            
+            if visited.len() >= settings.max_pages as usize {
+                log::info!("[JOB {}] [LIGHTHOUSE-MODE] Reached max pages limit: {}", job.id, settings.max_pages);
+                break;
+            }
+            
+            visited.insert(url_str.clone());
+            log::info!(
+                "[JOB {}] [LIGHTHOUSE-MODE] Processing page {}/{}: {}",
+                job.id, visited.len(), settings.max_pages, url_str
+            );
+            self.emit_discovery_progress(job.id, visited.len());
+            
+            // Delay between requests
+            if settings.delay_between_requests > 0 {
+                log::trace!("[JOB {}] [LIGHTHOUSE-MODE] Waiting {}ms before next request", job.id, settings.delay_between_requests);
+                sleep(Duration::from_millis(settings.delay_between_requests as u64)).await;
+            }
+            
+            // Run Lighthouse analysis (includes fetching + rendering + scoring)
+            log::debug!("[JOB {}] [LIGHTHOUSE-MODE] Running Lighthouse analysis for: {}", job.id, url);
+            match self.analyze_page_with_lighthouse(&url).await {
+                Ok((mut page, mut issues, html_str)) => {
+                    log::debug!("[JOB {}] [LIGHTHOUSE-MODE] Analysis successful for: {}", job.id, url);
+                    page.analysis_id = analysis_result_id.to_string();
+                    
+                    log::trace!("[JOB {}] [LIGHTHOUSE-MODE] Inserting page data into database", job.id);
+                    let page_id = self
+                        .page_db
+                        .insert(&page)
+                        .await
+                        .context("Unable to insert page analysis data")?;
+                    log::trace!("[JOB {}] [LIGHTHOUSE-MODE] Page inserted with ID: {}", job.id, page_id);
+                    
+                    url_to_id.insert(url_str.clone(), page_id.clone());
+                    
+                    // Extract links from the RENDERED HTML (includes JS-generated links)
+                    log::trace!("[JOB {}] [LIGHTHOUSE-MODE] Extracting links from rendered HTML", job.id);
+                    let targets = JobProcessor::extract_links(&html_str, &url);
+                    log::debug!("[JOB {}] [LIGHTHOUSE-MODE] Found {} links on page", job.id, targets.len());
+                    
+                    let mut new_links_queued = 0;
+                    for tgt in &targets {
+                        // Add to discovery queue if internal and not visited
+                        if let Ok(target_url) = Url::parse(tgt) {
+                            if target_url.host_str() == Some(base_host)
+                                && target_url.port() == base_port
+                                && !visited.contains(tgt)
+                                && !to_visit.iter().any(|u| u.as_str() == tgt)
+                            {
+                                to_visit.push(target_url);
+                                new_links_queued += 1;
+                            }
+                        }
+                        
+                        let edge = PageEdge {
+                            from_page_id: page_id.clone(),
+                            to_url: tgt.clone(),
+                            status_code: page.status_code.unwrap_or(408) as u16,
+                        };
+                        edges.push(edge);
+                    }
+                    log::debug!(
+                        "[JOB {}] [LIGHTHOUSE-MODE] Queued {} new internal links (queue size: {})",
+                        job.id, new_links_queued, to_visit.len()
+                    );
+                    
+                    // Check for broken links (status code errors)
+                    if let Some(status) = page.status_code {
+                        if status >= 400 {
+                            issues.push(SeoIssue {
+                                page_id: page_id.clone(),
+                                issue_type: IssueType::Critical,
+                                description: format!("Page returned HTTP {}", status),
+                                title: "HTTP Error".to_string(),
+                                page_url: page.url.clone(),
+                                element: None,
+                                line_number: None,
+                                recommendation: "Fix the server error or remove links to this page".to_string(),
+                            });
+                        }
+                    }
+                    
+                    for issue in &mut issues {
+                        issue.page_id = page_id.clone();
+                    }
+                    if !issues.is_empty() {
+                        log::debug!("[JOB {}] [LIGHTHOUSE-MODE] Persisting {} issues for page", job.id, issues.len());
+                    }
+                    self.issues_db.insert_batch(&issues).await?;
+                    all_issues.extend(issues);
+                    analyzed_page_data.push(page);
+                    
+                    // Update progress
+                    let progress = (visited.len() as f64 / settings.max_pages as f64).min(1.0) * 100.0;
+                    log::trace!("[JOB {}] [LIGHTHOUSE-MODE] Progress: {:.1}%", job.id, progress);
+                    self.results_db
+                        .update_progress(
+                            analysis_result_id,
+                            progress,
+                            visited.len() as i64,
+                            settings.max_pages,
+                        )
+                        .await?;
+                }
+                Err(e) => {
+                    log::warn!("[JOB {}] [LIGHTHOUSE-MODE] Error analysing {}: {}", job.id, url, e);
+                    continue;
+                }
+            }
         }
+        
+        log::info!(
+            "[JOB {}] [LIGHTHOUSE-MODE] Crawl complete - Pages: {}, Issues: {}, Edges: {}",
+            job.id, analyzed_page_data.len(), all_issues.len(), edges.len()
+        );
+        
+        Ok((all_issues, analyzed_page_data, edges))
+    }
+
+    /// Traditional two-phase approach: discover first, then analyze
+    /// Used when Lighthouse is disabled (faster, but no JS rendering)
+    async fn discover_then_analyze_basic(
+        &self,
+        start_url: &Url,
+        settings: &AnalysisSettings,
+        analysis_result_id: &str,
+        job: &AnalysisJob,
+        cancel_flag: &AtomicBool,
+    ) -> Result<(Vec<SeoIssue>, Vec<PageAnalysisData>, Vec<PageEdge>)> {
+        // Phase 1: Discover pages (using basic HTTP)
+        log::info!("[JOB {}] [BASIC-MODE] Phase 1: Starting page discovery", job.id);
+        log::debug!("[JOB {}] [BASIC-MODE] Start URL: {}, Max pages: {}", job.id, start_url, settings.max_pages);
+        let discovery_start = std::time::Instant::now();
+        let pages = self
+            .discovery
+            .discover(
+                start_url.clone(),
+                settings.max_pages,
+                settings.delay_between_requests,
+                cancel_flag,
+                |count| {
+                    self.emit_discovery_progress(job.id, count);
+                },
+            )
+            .await
+            .context("Unable to discover pages")?;
+        
+        let total_pages = pages.len() as i64;
+        log::info!(
+            "[JOB {}] [BASIC-MODE] Phase 1 complete: Discovered {} pages in {:?}",
+            job.id, total_pages, discovery_start.elapsed()
+        );
+        
+        // Update status to Processing after discovery
+        log::debug!("[JOB {}] [BASIC-MODE] Updating job status to Processing", job.id);
+        self.job_db
+            .update_status(job.id, JobStatus::Processing)
+            .await?;
+        
+        self.results_db
+            .update_progress(analysis_result_id, 8.0, 0, total_pages)
+            .await
+            .context("Unable to update Analysis Results progress")?;
+        
+        // Phase 2: Analyze pages
+        log::info!("[JOB {}] [BASIC-MODE] Phase 2: Starting page analysis ({} pages)", job.id, total_pages);
+        let analysis_start = std::time::Instant::now();
+        let mut all_issues = Vec::new();
+        let mut analyzed_page_data = Vec::new();
+        let mut analyzed_count = 0;
+        let mut url_to_id: HashMap<String, String> = HashMap::with_capacity(pages.len());
+        let mut edges: Vec<PageEdge> = Vec::new();
+        
+        for page_url in pages {
+            if cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
+                log::warn!("[JOB {}] [BASIC-MODE] Analysis cancelled by user", job.id);
+                break;
+            }
+            
+            analyzed_count += 1;
+            log::info!(
+                "[JOB {}] [BASIC-MODE] Analyzing page {}/{}: {}",
+                job.id, analyzed_count, total_pages, page_url
+            );
+            
+            match self.analyze_page_basic(&page_url).await {
+                Ok((mut page, mut issues, html_str)) => {
+                    log::debug!("[JOB {}] [BASIC-MODE] Analysis successful for: {}", job.id, page_url);
+                    page.analysis_id = analysis_result_id.to_string();
+                    
+                    log::trace!("[JOB {}] [BASIC-MODE] Inserting page data into database", job.id);
+                    let page_id = self
+                        .page_db
+                        .insert(&page)
+                        .await
+                        .context("Unable to insert page analysis data")?;
+                    log::trace!("[JOB {}] [BASIC-MODE] Page inserted with ID: {}", job.id, page_id);
+                    
+                    url_to_id.insert(page_url.to_string(), page_id.clone());
+                    
+                    log::trace!("[JOB {}] [BASIC-MODE] Extracting links from HTML", job.id);
+                    let targets = JobProcessor::extract_links(&html_str, &page_url);
+                    log::debug!("[JOB {}] [BASIC-MODE] Found {} links on page", job.id, targets.len());
+                    for tgt in targets {
+                        let edge = PageEdge {
+                            from_page_id: page_id.clone(),
+                            to_url: tgt.clone(),
+                            status_code: page.status_code.unwrap_or(408) as u16,
+                        };
+                        edges.push(edge.clone());
+                        
+                        if edge.status_code >= 400 {
+                            issues.push(SeoIssue {
+                                page_id: page_id.to_string(),
+                                issue_type: IssueType::Critical,
+                                description: format!(
+                                    "Broken link: {} returned {}",
+                                    tgt, edge.status_code
+                                ),
+                                title: "Broken Link".to_string(),
+                                page_url: page.url.clone(),
+                                element: None,
+                                line_number: None,
+                                recommendation: "Remove broken Link from the page".to_string(),
+                            });
+                        }
+                    }
+                    
+                    for issue in &mut issues {
+                        issue.page_id = page_id.clone();
+                    }
+                    if !issues.is_empty() {
+                        log::debug!("[JOB {}] [BASIC-MODE] Persisting {} issues for page", job.id, issues.len());
+                    }
+                    self.issues_db.insert_batch(&issues).await?;
+                    all_issues.extend(issues);
+                    analyzed_page_data.push(page);
+                    
+                    let progress = (analyzed_count as f64 / total_pages as f64) * 100.0;
+                    log::trace!("[JOB {}] [BASIC-MODE] Progress: {:.1}%", job.id, progress);
+                    self.results_db
+                        .update_progress(
+                            analysis_result_id,
+                            progress,
+                            analyzed_count,
+                            total_pages,
+                        )
+                        .await?;
+                }
+                Err(e) => {
+                    log::warn!("[JOB {}] [BASIC-MODE] Error analysing {}: {}", job.id, page_url, e);
+                    continue;
+                }
+            }
+        }
+        
+        log::info!(
+            "[JOB {}] [BASIC-MODE] Phase 2 complete - Analyzed {} pages in {:?}",
+            job.id, analyzed_page_data.len(), analysis_start.elapsed()
+        );
+        
+        Ok((all_issues, analyzed_page_data, edges))
     }
 }
 

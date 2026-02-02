@@ -84,6 +84,12 @@ struct SidecarResponse {
     #[serde(default)]
     error: Option<String>,
     #[serde(default)]
+    html: Option<String>,
+    #[serde(default)]
+    status_code: Option<u16>,
+    #[serde(default)]
+    content_size: Option<usize>,
+    #[serde(default)]
     scores: Option<SidecarScores>,
     #[serde(default)]
     seo_audits: Option<SidecarSeoAudits>,
@@ -228,19 +234,22 @@ impl LighthouseService {
 
     /// Analyze a URL using Lighthouse via the bundled sidecar binary
     pub async fn analyze(&self, url: &str) -> Result<PageFetchResult> {
-        log::info!("Running Lighthouse analysis for: {}", url);
-        log::debug!("Using sidecar binary: {:?}", self.sidecar_path);
+        log::info!("[LIGHTHOUSE-SIDECAR] Starting analysis for: {}", url);
+        log::debug!("[LIGHTHOUSE-SIDECAR] Sidecar binary path: {:?}", self.sidecar_path);
         
         if !self.is_available() {
+            log::error!("[LIGHTHOUSE-SIDECAR] Binary not found at: {:?}", self.sidecar_path);
             anyhow::bail!(
                 "Lighthouse sidecar binary not found at: {:?}. This is a packaging error.",
                 self.sidecar_path
             );
         }
+        log::debug!("[LIGHTHOUSE-SIDECAR] Binary verified, spawning process...");
         
         let start_time = std::time::Instant::now();
         
         // Spawn the sidecar binary directly
+        log::trace!("[LIGHTHOUSE-SIDECAR] Executing command: {:?} {}", self.sidecar_path, url);
         let output = Command::new(&self.sidecar_path)
             .arg(url)
             .stdout(Stdio::piped())
@@ -250,40 +259,71 @@ impl LighthouseService {
             .context("Failed to spawn lighthouse-runner sidecar")?;
         
         let load_time_ms = start_time.elapsed().as_secs_f64() * 1000.0;
+        log::info!("[LIGHTHOUSE-SIDECAR] Process completed in {:.2}ms", load_time_ms);
         
         // Parse stdout as JSON
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
         
+        log::trace!("[LIGHTHOUSE-SIDECAR] stdout length: {} bytes", stdout.len());
+        if !stderr.is_empty() {
+            log::debug!("[LIGHTHOUSE-SIDECAR] stderr: {}", stderr.trim());
+        }
+        
         if !output.status.success() {
-            log::error!("Lighthouse sidecar failed: {}", stderr);
+            log::error!("[LIGHTHOUSE-SIDECAR] Process failed with status: {:?}", output.status);
+            log::error!("[LIGHTHOUSE-SIDECAR] stderr: {}", stderr);
             anyhow::bail!(
                 "Lighthouse analysis failed: {}",
                 if !stderr.is_empty() { stderr.to_string() } else { "Unknown error".to_string() }
             );
         }
         
+        log::debug!("[LIGHTHOUSE-SIDECAR] Parsing JSON response...");
         let response: SidecarResponse = serde_json::from_str(&stdout)
             .context("Failed to parse lighthouse-runner output")?;
         
         if !response.success {
-            anyhow::bail!(
-                "Lighthouse analysis failed: {}",
-                response.error.unwrap_or_else(|| "Unknown error".to_string())
-            );
+            let error_msg = response.error.unwrap_or_else(|| "Unknown error".to_string());
+            log::error!("[LIGHTHOUSE-SIDECAR] Analysis reported failure: {}", error_msg);
+            anyhow::bail!("Lighthouse analysis failed: {}", error_msg);
         }
         
+        log::debug!("[LIGHTHOUSE-SIDECAR] Converting scores...");
         // Convert sidecar response to our types
         let scores = self.convert_scores(&response);
+        log::debug!(
+            "[LIGHTHOUSE-SIDECAR] Scores - perf: {:?}, access: {:?}, seo: {:?}, best-practices: {:?}",
+            scores.performance, scores.accessibility, scores.seo, scores.best_practices
+        );
         
-        // Fetch HTML separately since Lighthouse doesn't give us the raw HTML
-        let html = self.fetch_html(url).await.unwrap_or_default();
-        let content_size = html.len();
+        // Use rendered HTML from Lighthouse (JS-executed content)
+        // Falls back to fetching if Lighthouse didn't return HTML
+        let html = if let Some(ref h) = response.html {
+            if !h.is_empty() {
+                log::debug!("[LIGHTHOUSE-SIDECAR] Using rendered HTML from Lighthouse ({} bytes)", h.len());
+                h.clone()
+            } else {
+                log::warn!("[LIGHTHOUSE-SIDECAR] Lighthouse returned empty HTML, fetching separately");
+                self.fetch_html(url).await.unwrap_or_default()
+            }
+        } else {
+            log::warn!("[LIGHTHOUSE-SIDECAR] Lighthouse didn't return HTML, fetching separately");
+            self.fetch_html(url).await.unwrap_or_default()
+        };
+        
+        let content_size = response.content_size.unwrap_or(html.len());
+        let status_code = response.status_code.unwrap_or(200);
+        
+        log::info!(
+            "[LIGHTHOUSE-SIDECAR] Analysis complete - status: {}, content: {} bytes, time: {:.2}ms",
+            status_code, content_size, load_time_ms
+        );
         
         Ok(PageFetchResult {
             url: response.url.unwrap_or_else(|| url.to_string()),
             html,
-            status_code: 200,
+            status_code,
             load_time_ms,
             content_size,
             scores,

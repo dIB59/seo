@@ -21,8 +21,9 @@ impl PageRepository {
              canonical_url, h1_count, h2_count, h3_count, word_count, image_count, images_without_alt, \
              internal_links, external_links, load_time, status_code, content_size, mobile_friendly, \
              has_structured_data, lighthouse_performance, lighthouse_accessibility, \
-             lighthouse_best_practices, lighthouse_seo, created_at, headings, images, links) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+             lighthouse_best_practices, lighthouse_seo, lighthouse_seo_audits, lighthouse_performance_metrics, \
+             created_at, headings, images, links) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
         .bind(&id)
         .bind(&page.analysis_id)
@@ -48,6 +49,8 @@ impl PageRepository {
         .bind(page.lighthouse_accessibility)
         .bind(page.lighthouse_best_practices)
         .bind(page.lighthouse_seo)
+        .bind(serde_json::to_string(&page.lighthouse_seo_audits).unwrap_or_default())
+        .bind(serde_json::to_string(&page.lighthouse_performance_metrics).unwrap_or_default())
         .bind(chrono::Utc::now().to_rfc3339())
         .bind(serde_json::to_string(&page.headings).unwrap_or_default())
         .bind(serde_json::to_string(&page.images).unwrap_or_default())
@@ -73,7 +76,8 @@ impl PageRepository {
                  canonical_url, h1_count, h2_count, h3_count, word_count, image_count, images_without_alt, \
                  internal_links, external_links, load_time, status_code, content_size, mobile_friendly, \
                  has_structured_data, lighthouse_performance, lighthouse_accessibility, \
-                 lighthouse_best_practices, lighthouse_seo, created_at, headings, images, links) "
+                 lighthouse_best_practices, lighthouse_seo, lighthouse_seo_audits, lighthouse_performance_metrics, \
+                 created_at, headings, images, links) "
             );
 
             query_builder.push_values(chunk, |mut b, page| {
@@ -101,6 +105,8 @@ impl PageRepository {
                     .push_bind(page.lighthouse_accessibility)
                     .push_bind(page.lighthouse_best_practices)
                     .push_bind(page.lighthouse_seo)
+                    .push_bind(serde_json::to_string(&page.lighthouse_seo_audits).unwrap_or_default())
+                    .push_bind(serde_json::to_string(&page.lighthouse_performance_metrics).unwrap_or_default())
                     .push_bind(chrono::Utc::now().to_rfc3339())
                     .push_bind(serde_json::to_string(&page.headings).unwrap_or_default())
                     .push_bind(serde_json::to_string(&page.images).unwrap_or_default())

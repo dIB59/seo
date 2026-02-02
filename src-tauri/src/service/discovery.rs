@@ -34,6 +34,9 @@ impl PageDiscovery {
         cancel_flag: &AtomicBool,
         on_discovered: impl Fn(usize) + Send + Sync,
     ) -> Result<Vec<Url>> {
+        log::info!("[DISCOVERY] Starting page discovery from: {}", start_url);
+        log::debug!("[DISCOVERY] Max pages: {}, Delay: {}ms", max_pages, delay_ms);
+        
         let mut visited = HashSet::new();
         let mut to_visit = vec![start_url.clone()];
 
@@ -41,32 +44,43 @@ impl PageDiscovery {
             .host_str()
             .ok_or_else(|| anyhow::anyhow!("Invalid host"))?;
         let base_port = start_url.port();
+        log::debug!("[DISCOVERY] Base host: {}, port: {:?}", base_host, base_port);
 
         while let Some(url) = to_visit.pop() {
             if cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
-                log::info!("Page discovery cancelled for {}", start_url);
+                log::warn!("[DISCOVERY] Discovery cancelled by user at {} pages", visited.len());
                 return Ok(visited.into_iter().collect());
             }
             if visited.contains(&url) {
+                log::trace!("[DISCOVERY] Skipping already visited: {}", url);
                 continue;
             }
 
             if visited.len() >= max_pages as usize {
+                log::info!("[DISCOVERY] Reached max pages limit: {}", max_pages);
                 break;
             }
 
             visited.insert(url.clone());
+            log::info!("[DISCOVERY] Discovered page {}/{}: {}", visited.len(), max_pages, url);
             on_discovered(visited.len());
 
+            if delay_ms > 0 {
+                log::trace!("[DISCOVERY] Waiting {}ms before next request", delay_ms);
+            }
             sleep(Duration::from_millis(delay_ms as u64)).await;
 
+            log::trace!("[DISCOVERY] Fetching page: {}", url);
             let Ok(response) = self.client.get(url.as_str()).send().await else {
+                log::debug!("[DISCOVERY] Failed to fetch: {}", url);
                 continue;
             };
 
             let Ok(body) = response.text().await else {
+                log::debug!("[DISCOVERY] Failed to read response body for: {}", url);
                 continue;
             };
+            log::trace!("[DISCOVERY] Received {} bytes from {}", body.len(), url);
 
             let document = Html::parse_document(&body);
             let links: Vec<Url> = self
@@ -77,7 +91,10 @@ impl PageDiscovery {
                     u
                 })
                 .collect();
+            
+            log::debug!("[DISCOVERY] Found {} links on {}", links.len(), url);
 
+            let mut new_links_count = 0;
             for link in links {
                 if link.host_str() == Some(base_host)
                     && link.port() == base_port
@@ -85,10 +102,13 @@ impl PageDiscovery {
                     && !to_visit.contains(&link)
                 {
                     to_visit.push(link);
+                    new_links_count += 1;
                 }
             }
+            log::trace!("[DISCOVERY] Queued {} new internal links (queue size: {})", new_links_count, to_visit.len());
         }
 
+        log::info!("[DISCOVERY] Discovery complete - found {} pages", visited.len());
         Ok(visited.into_iter().collect())
     }
 
@@ -122,30 +142,45 @@ impl ResourceChecker {
 
     /// Check robots.txt exists
     pub async fn check_robots_txt(&self, base_url: Url) -> Result<ResourceStatus> {
+        log::debug!("[RESOURCE] Checking robots.txt for {}", base_url);
         self.check_resource(base_url, "robots.txt").await
     }
 
     /// Check sitemap.xml exists
     pub async fn check_sitemap_xml(&self, base_url: Url) -> Result<ResourceStatus> {
+        log::debug!("[RESOURCE] Checking sitemap.xml for {}", base_url);
         self.check_resource(base_url, "sitemap.xml").await
     }
 
     /// Check SSL certificate (HTTPS)
     pub fn check_ssl_certificate(&self, url: &Url) -> bool {
-        url.scheme() == "https"
+        let has_ssl = url.scheme() == "https";
+        log::debug!("[RESOURCE] SSL check for {}: {}", url, has_ssl);
+        has_ssl
     }
 
     async fn check_resource(&self, base_url: Url, path: &str) -> Result<ResourceStatus> {
         let resource_url = base_url.join(path)?;
+        log::trace!("[RESOURCE] Fetching: {}", resource_url);
         let response = self.client.get(resource_url.clone()).send().await?;
 
         let status = match response.status() {
-            rquest::StatusCode::OK => ResourceStatus::Found(resource_url.to_string()),
+            rquest::StatusCode::OK => {
+                log::debug!("[RESOURCE] Found: {}", resource_url);
+                ResourceStatus::Found(resource_url.to_string())
+            }
             rquest::StatusCode::UNAUTHORIZED | rquest::StatusCode::FORBIDDEN => {
+                log::debug!("[RESOURCE] Unauthorized: {}", resource_url);
                 ResourceStatus::Unauthorized(resource_url.to_string())
             }
-            rquest::StatusCode::NOT_FOUND => ResourceStatus::NotFound,
-            _ => ResourceStatus::NotFound,
+            rquest::StatusCode::NOT_FOUND => {
+                log::debug!("[RESOURCE] Not found: {}", resource_url);
+                ResourceStatus::NotFound
+            }
+            status => {
+                log::debug!("[RESOURCE] Unexpected status {} for: {}", status, resource_url);
+                ResourceStatus::NotFound
+            }
         };
 
         Ok(status)

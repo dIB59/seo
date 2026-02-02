@@ -162,6 +162,8 @@ mod tests {
             lighthouse_accessibility: None,
             lighthouse_best_practices: None,
             lighthouse_seo: None,
+            lighthouse_seo_audits: None,
+            lighthouse_performance_metrics: None,
             links: vec![],
             headings: vec![],
             images: vec![],

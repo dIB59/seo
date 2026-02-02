@@ -2,6 +2,7 @@ import { PageAnalysisData } from "@/src/lib/types"
 import { Zap, Eye, Shield, Search } from "lucide-react"
 import { ScoreRing } from "../atoms/ScoreRing"
 
+// Original compact display - kept for backwards compatibility
 export function LighthouseScores({ page }: { page: PageAnalysisData }) {
     if (!page.lighthouse_performance) return null
 
@@ -23,3 +24,6 @@ export function LighthouseScores({ page }: { page: PageAnalysisData }) {
         </div>
     )
 }
+
+// Re-export from the detailed view for convenience
+export { LighthouseDetailedView, LighthouseScoresCompact } from "./LighthouseDetailedView"

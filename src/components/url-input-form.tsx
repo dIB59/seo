@@ -127,10 +127,13 @@ export function UrlInputForm({ onSubmit, isLoading }: UrlInputFormProps) {
                 onCheckedChange={(checked) => setSettings({ ...settings, mobile_analysis: checked })}
               />
             </div>
-            <div className="flex items-center justify-between space-x-2">
-              <Label htmlFor="lighthouse" className="text-sm">
-                Lighthouse
-              </Label>
+            <div className="flex items-center justify-between space-x-2 col-span-2 md:col-span-1">
+              <div className="flex flex-col">
+                <Label htmlFor="lighthouse" className="text-sm">
+                  Lighthouse Audit
+                </Label>
+                <span className="text-xs text-muted-foreground">Real Chrome performance scores</span>
+              </div>
               <Switch
                 id="lighthouse"
                 checked={settings.lighthouse_analysis}

@@ -175,6 +175,8 @@ impl ResultsRepository {
                 pa.lighthouse_accessibility,
                 pa.lighthouse_best_practices,
                 pa.lighthouse_seo,
+                pa.lighthouse_seo_audits,
+                pa.lighthouse_performance_metrics,
                 pa.created_at,
                 pa.headings,
                 pa.images,
@@ -320,6 +322,12 @@ impl ResultsRepository {
                 lighthouse_accessibility: row.lighthouse_accessibility,
                 lighthouse_best_practices: row.lighthouse_best_practices,
                 lighthouse_seo: row.lighthouse_seo,
+                lighthouse_seo_audits: row.lighthouse_seo_audits
+                    .as_ref()
+                    .and_then(|s| serde_json::from_str(s).ok()),
+                lighthouse_performance_metrics: row.lighthouse_performance_metrics
+                    .as_ref()
+                    .and_then(|s| serde_json::from_str(s).ok()),
                 links,
                 headings,
                 images,

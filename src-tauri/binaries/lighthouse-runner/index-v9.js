@@ -3,6 +3,8 @@
  * Standalone Lighthouse runner that outputs JSON results to stdout.
  * Uses Lighthouse v9 (CommonJS) for better bundling compatibility.
  * Directly spawns Chrome and connects Lighthouse to it.
+ * 
+ * Returns rendered HTML along with Lighthouse scores for proper JS-rendered content analysis.
  */
 
 // Set HOME if not set (needed for bundled binaries)
@@ -57,7 +59,7 @@ async function runLighthouse(url) {
       ],
     });
 
-    // Run Lighthouse
+    // Run Lighthouse with HTML artifact collection enabled
     const result = await lighthouse(url, {
       port: chrome.port,
       output: 'json',
@@ -70,6 +72,31 @@ async function runLighthouse(url) {
     }
 
     const { lhr } = result;
+
+    // Extract the rendered HTML from Lighthouse artifacts
+    // Lighthouse stores the final HTML in the 'final-screenshot' related artifacts
+    // We need to get it from the DOM snapshot
+    let renderedHtml = '';
+    let statusCode = 200;
+    
+    // Try to get HTML from artifacts
+    if (result.artifacts) {
+      // The MainDocumentContent artifact contains the rendered HTML
+      if (result.artifacts.MainDocumentContent) {
+        renderedHtml = result.artifacts.MainDocumentContent;
+      }
+      
+      // Get status code from network requests
+      if (result.artifacts.devtoolsLogs && result.artifacts.devtoolsLogs.defaultPass) {
+        const mainRequest = result.artifacts.devtoolsLogs.defaultPass.find(
+          log => log.method === 'Network.responseReceived' && 
+                 log.params?.response?.url === (lhr.finalDisplayedUrl || lhr.finalUrl || url)
+        );
+        if (mainRequest?.params?.response?.status) {
+          statusCode = mainRequest.params.response.status;
+        }
+      }
+    }
 
     // Extract scores (0-1 scale)
     const scores = {
@@ -104,15 +131,18 @@ async function runLighthouse(url) {
       cumulative_layout_shift: lhr.audits['cumulative-layout-shift']?.numericValue ?? null,
     };
 
-    // Get the final URL
+    // Get the final URL (after redirects)
     const finalUrl = lhr.finalDisplayedUrl || lhr.finalUrl || url;
 
-    // Output result
+    // Output result with rendered HTML
     const output = {
       success: true,
       url: finalUrl,
       requested_url: url,
       fetch_time: lhr.fetchTime,
+      status_code: statusCode,
+      html: renderedHtml,
+      content_size: renderedHtml.length,
       scores,
       seo_audits: seoAudits,
       performance_metrics: performanceMetrics,

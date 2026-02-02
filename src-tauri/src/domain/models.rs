@@ -225,6 +225,9 @@ pub struct PageAnalysisData {
     pub lighthouse_accessibility: Option<f64>,
     pub lighthouse_best_practices: Option<f64>,
     pub lighthouse_seo: Option<f64>,
+    // Detailed Lighthouse audit breakdown (JSON serialized)
+    pub lighthouse_seo_audits: Option<crate::service::SeoAuditDetails>,
+    pub lighthouse_performance_metrics: Option<crate::service::PerformanceMetrics>,
     pub links: Vec<PageEdge>,
     // detailed data for report view
     pub headings: Vec<HeadingElement>,
@@ -265,6 +268,8 @@ impl PageAnalysisData {
             lighthouse_accessibility: None,
             lighthouse_best_practices: None,
             lighthouse_seo: None,
+            lighthouse_seo_audits: None,
+            lighthouse_performance_metrics: None,
             links: Vec::new(),
             headings: Self::extract_headings(&document),
             images: Self::extract_images_detailed(&document),
@@ -284,7 +289,9 @@ impl PageAnalysisData {
         content_size: i64,
         lighthouse_scores: Option<crate::service::LighthouseScores>,
     ) -> (Self, Vec<SeoIssue>) {
-        let scores = lighthouse_scores.unwrap_or_default();
+        let scores = lighthouse_scores.clone().unwrap_or_default();
+        // Convert Lighthouse scores from 0.0-1.0 to 0-100 for UI display
+        let to_percentage = |score: Option<f64>| score.map(|s| (s * 100.0).round());
         let page = Self {
             analysis_id: String::new(),
             url: url.clone(),
@@ -305,10 +312,12 @@ impl PageAnalysisData {
             content_size,
             mobile_friendly: true,
             has_structured_data: Self::check_structured_data(&document),
-            lighthouse_performance: scores.performance,
-            lighthouse_accessibility: scores.accessibility,
-            lighthouse_best_practices: scores.best_practices,
-            lighthouse_seo: scores.seo,
+            lighthouse_performance: to_percentage(scores.performance),
+            lighthouse_accessibility: to_percentage(scores.accessibility),
+            lighthouse_best_practices: to_percentage(scores.best_practices),
+            lighthouse_seo: to_percentage(scores.seo),
+            lighthouse_seo_audits: Some(scores.seo_audits),
+            lighthouse_performance_metrics: scores.performance_metrics,
             links: Vec::new(),
             headings: Self::extract_headings(&document),
             images: Self::extract_images_detailed(&document),
@@ -490,6 +499,8 @@ impl PageAnalysisData {
             lighthouse_accessibility: None,
             lighthouse_best_practices: None,
             lighthouse_seo: None,
+            lighthouse_seo_audits: None,
+            lighthouse_performance_metrics: None,
             links: Vec::new(),
             headings: Vec::new(), // Added for consistency with build_from_parsed
             images: Vec::new(),   // Added for consistency with build_from_parsed

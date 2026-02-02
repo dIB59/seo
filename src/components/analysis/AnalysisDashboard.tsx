@@ -5,6 +5,7 @@ import { PageTable } from "./organisms/PageTable";
 import { QuickStatsCard } from "./molecules/QuickStat";
 import { ScoreCard } from "./molecules/ScoreCard";
 import { SiteHealthCard } from "./molecules/SiteHealthCard";
+import { LighthouseSummaryCard } from "./molecules/LighthouseSummaryCard";
 import { PageDetailModal } from "./organisms/PageDetailModal";
 import { IssuesAccordion } from "./organisms/IssuesAccordion";
 import { GraphView } from "../graph-view";
@@ -19,16 +20,20 @@ export default function AnalysisDashboard({ data, onBack, onSelectPage }:
     }) {
     const [selectedPage, setSelectedPage] = useState<PageAnalysisData | null>(null);
 
+    // Check if any page has Lighthouse data
+    const hasLighthouseData = data.pages.some((p) => p.lighthouse_performance !== null);
+
     return (
         <div className="space-y-6">
             <AnalysisHeader
                 onBack={onBack}
                 result={data}
             />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className={`grid grid-cols-1 gap-4 ${hasLighthouseData ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
                 <ScoreCard summary={data.summary} issues={data.issues} />
                 <SiteHealthCard analysis={data.analysis} pages={data.pages} />
                 <QuickStatsCard summary={data.summary} pages={data.pages} />
+                <LighthouseSummaryCard pages={data.pages} />
             </div>
 
             <Tabs defaultValue="issues">
