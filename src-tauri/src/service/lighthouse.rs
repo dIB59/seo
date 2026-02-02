@@ -249,7 +249,7 @@ impl LighthouseService {
         let start_time = std::time::Instant::now();
         
         // Spawn the sidecar binary directly
-        log::trace!("[LIGHTHOUSE-SIDECAR] Executing command: {:?} {}", self.sidecar_path, url);
+        log::debug!("[LIGHTHOUSE-SIDECAR] Executing command: {:?} {}", self.sidecar_path, url);
         let output = Command::new(&self.sidecar_path)
             .arg(url)
             .stdout(Stdio::piped())
@@ -258,8 +258,8 @@ impl LighthouseService {
             .await
             .context("Failed to spawn lighthouse-runner sidecar")?;
         
-        let load_time_ms = start_time.elapsed().as_secs_f64() * 1000.0;
-        log::info!("[LIGHTHOUSE-SIDECAR] Process completed in {:.2}ms", load_time_ms);
+        let process_time_ms = start_time.elapsed().as_secs_f64() * 1000.0;
+        log::info!("[LIGHTHOUSE-SIDECAR] Process completed in {:.2}ms", process_time_ms);
         
         // Parse stdout as JSON
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -297,6 +297,23 @@ impl LighthouseService {
             scores.performance, scores.accessibility, scores.seo, scores.best_practices
         );
         
+        // Use actual page load time from Lighthouse metrics, not the process execution time
+        // Time to Interactive (TTI) is a good representation of "page load time" for user experience
+        // Fallback to LCP, then FCP, then process time as last resort
+        let actual_load_time_ms = scores.performance_metrics
+            .as_ref()
+            .and_then(|pm| {
+                pm.time_to_interactive
+                    .or(pm.largest_contentful_paint)
+                    .or(pm.first_contentful_paint)
+            })
+            .unwrap_or(process_time_ms);
+        
+        log::debug!(
+            "[LIGHTHOUSE-SIDECAR] Load time: {:.2}ms (from metrics), Process time: {:.2}ms",
+            actual_load_time_ms, process_time_ms
+        );
+        
         // Use rendered HTML from Lighthouse (JS-executed content)
         // Falls back to fetching if Lighthouse didn't return HTML
         let html = if let Some(ref h) = response.html {
@@ -316,15 +333,15 @@ impl LighthouseService {
         let status_code = response.status_code.unwrap_or(200);
         
         log::info!(
-            "[LIGHTHOUSE-SIDECAR] Analysis complete - status: {}, content: {} bytes, time: {:.2}ms",
-            status_code, content_size, load_time_ms
+            "[LIGHTHOUSE-SIDECAR] Analysis complete - status: {}, content: {} bytes, page_load: {:.2}ms, process: {:.2}ms",
+            status_code, content_size, actual_load_time_ms, process_time_ms
         );
         
         Ok(PageFetchResult {
             url: response.url.unwrap_or_else(|| url.to_string()),
             html,
             status_code,
-            load_time_ms,
+            load_time_ms: actual_load_time_ms,
             content_size,
             scores,
         })
