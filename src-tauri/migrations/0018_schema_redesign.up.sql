@@ -9,6 +9,9 @@
 -- 5. Add proper indexes and constraints
 -- =============================================================================
 
+-- Disable foreign key checks during migration to allow data migration
+PRAGMA foreign_keys = OFF;
+
 -- Step 1: Create new normalized schema
 -- -----------------------------------------------------------------------------
 
@@ -313,7 +316,8 @@ WHERE j.result_id IS NOT NULL;
 
 -- Migrate links (from page_edge, adding job_id)
 -- Old schema uses from_page_id/to_url instead of source_page_id/target_page_id
-INSERT INTO links_new (job_id, source_page_id, target_page_id, target_url, link_text, link_type, is_followed, status_code)
+-- Use OR IGNORE to skip duplicates (old schema may have duplicate links)
+INSERT OR IGNORE INTO links_new (job_id, source_page_id, target_page_id, target_url, link_text, link_type, is_followed, status_code)
 SELECT 
     CAST(j.id AS TEXT) as job_id,
     pe.from_page_id,
@@ -491,3 +495,6 @@ BEGIN
         info_issues = (SELECT COUNT(*) FROM issues WHERE job_id = NEW.job_id AND severity = 'info')
     WHERE id = NEW.job_id;
 END;
+
+-- Re-enable foreign key checks
+PRAGMA foreign_keys = ON;
