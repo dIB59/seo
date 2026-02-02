@@ -1,11 +1,15 @@
 // src-tauri/src/main.rs
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::sync::Arc;
 use tauri::Manager;
 
 use app::commands;
 use app::db::{self, DbState};
 use app::service;
+
+/// Wrapper for LighthouseService to use as Tauri managed state
+pub struct LighthouseState(pub Arc<service::LighthouseService>);
 
 // TODO:
 // - implement pagination for get all jobs
@@ -55,9 +59,36 @@ fn main() {
                 proc_clone.run().await.expect("job-processor died")
             });
 
+            // Initialize LighthouseService and start persistent mode
+            let lighthouse = Arc::new(service::LighthouseService::new());
+            let lighthouse_clone = lighthouse.clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = lighthouse_clone.start_persistent().await {
+                    log::warn!("Failed to start Lighthouse persistent mode: {}", e);
+                    log::info!("Lighthouse will use one-shot mode (slower but still works)");
+                } else {
+                    log::info!("Lighthouse persistent mode started successfully");
+                }
+            });
+
             app.manage(DbState(pool));
             app.manage(processor);
+            app.manage(LighthouseState(lighthouse));
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // Shutdown LighthouseService when the app is closing
+            if let tauri::WindowEvent::Destroyed = event {
+                if let Some(lighthouse) = window.app_handle().try_state::<LighthouseState>() {
+                    let lighthouse = lighthouse.0.clone();
+                    tauri::async_runtime::spawn(async move {
+                        log::info!("Shutting down Lighthouse service...");
+                        if let Err(e) = lighthouse.shutdown().await {
+                            log::error!("Error shutting down Lighthouse: {}", e);
+                        }
+                    });
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::analysis::start_analysis,
