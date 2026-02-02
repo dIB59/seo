@@ -518,9 +518,10 @@ pub struct CompleteJobResult {
 // ============================================================================
 
 /// Resource status (robots.txt, sitemap, SSL)
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ResourceStatus {
+    #[default]
     NotChecked,
     Found(String),
     NotFound,
@@ -532,12 +533,6 @@ impl ResourceStatus {
     /// Returns true if the resource exists (Found or Unauthorized)
     pub fn exists(&self) -> bool {
         matches!(self, Self::Found(_) | Self::Unauthorized(_))
-    }
-}
-
-impl Default for ResourceStatus {
-    fn default() -> Self {
-        Self::NotChecked
     }
 }
 

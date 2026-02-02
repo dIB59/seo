@@ -63,7 +63,7 @@ impl From<Page> for PageAnalysisData {
             internal_links: 0,
             external_links: 0,
             load_time: page.load_time_ms.unwrap_or(0) as f64 / 1000.0,
-            status_code: page.status_code.map(|c| c as i64),
+            status_code: page.status_code,
             content_size: page.response_size_bytes.unwrap_or(0),
             mobile_friendly: true,
             has_structured_data: false,
@@ -143,7 +143,7 @@ impl From<CompleteJobResult> for CompleteAnalysisResult {
         // Build summary from job stats
         let summary = AnalysisSummary {
             analysis_id: job.id.clone(),
-            seo_score: calculate_seo_score(&job),
+            seo_score: calculate_seo_score(job),
             avg_load_time: 0.0, // TODO: calculate from pages
             total_words: pages.iter().map(|p| p.word_count).sum(),
             total_issues: job.summary.total_issues,
@@ -172,7 +172,7 @@ fn calculate_seo_score(job: &Job) -> i64 {
     let deductions = (critical * 10) + (warning * 5) + (total - critical - warning);
     let score = 100 - deductions;
     
-    score.max(0).min(100)
+    score.clamp(0, 100)
 }
 
 // ============================================================================

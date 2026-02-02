@@ -18,6 +18,12 @@ pub struct PageDiscovery {
     client: Client,
 }
 
+impl Default for PageDiscovery {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PageDiscovery {
     pub fn new() -> Self {
         Self {
@@ -130,6 +136,12 @@ impl PageDiscovery {
 
 pub struct ResourceChecker {
     client: Client,
+}
+
+impl Default for ResourceChecker {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ResourceChecker {
