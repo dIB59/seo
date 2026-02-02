@@ -18,8 +18,6 @@ function calculateAverage(pages: PageAnalysisData[], key: keyof PageAnalysisData
 
 export function SeoSummaryCard({ pages }: SeoSummaryCardProps) {
     const avgSeo = calculateAverage(pages, "lighthouse_seo")
-    const avgAccessibility = calculateAverage(pages, "lighthouse_accessibility")
-    const avgBestPractices = calculateAverage(pages, "lighthouse_best_practices")
     const avgPerformance = calculateAverage(pages, "lighthouse_performance")
 
     // Count pages with SEO scores (always available from Light or Deep audit)
@@ -30,8 +28,6 @@ export function SeoSummaryCard({ pages }: SeoSummaryCardProps) {
 
     const scores = [
         { label: "SEO", value: avgSeo, icon: Search, color: "text-green-500", alwaysShow: true },
-        { label: "Accessibility", value: avgAccessibility, icon: Eye, color: "text-blue-500", alwaysShow: true },
-        { label: "Best Practices", value: avgBestPractices, icon: Shield, color: "text-purple-500", alwaysShow: true },
         { label: "Performance", value: avgPerformance, icon: Zap, color: "text-orange-500", alwaysShow: false },
     ]
 
@@ -53,7 +49,7 @@ export function SeoSummaryCard({ pages }: SeoSummaryCardProps) {
                 </p>
             </CardHeader>
             <CardContent className="pt-0">
-                <div className={`grid gap-3 ${hasDeepAuditData ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                <div className={`grid gap-3 ${hasDeepAuditData ? 'grid-cols-2' : 'grid-cols-1'}`}>
                     {displayScores.map((score) => {
                         const Icon = score.icon
                         const value = score.value
