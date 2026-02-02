@@ -297,7 +297,7 @@ mod tests {
 
         // Test get_progress
         let progress = job_repo.get_progress(job_id_1).await.unwrap();
-        assert_eq!(progress.job_id, job_id_1);
+        assert_eq!(progress.job_id, job_id_1.to_string());
         assert_eq!(progress.progress, Some(33.0));
         assert_eq!(progress.analyzed_pages, Some(1));
 
@@ -305,7 +305,8 @@ mod tests {
         let all_jobs = job_repo.get_all().await.unwrap();
         assert!(all_jobs.len() >= 2);
 
-        let job_1_progress = all_jobs.iter().find(|j| j.job_id == job_id_1).unwrap();
+        let job_id_1_str = job_id_1.to_string();
+        let job_1_progress = all_jobs.iter().find(|j| j.job_id == job_id_1_str).unwrap();
         assert_eq!(job_1_progress.progress, Some(33.0));
     }
 

@@ -197,15 +197,14 @@ impl ResultsRepository {
             pages_start.elapsed()
         );
 
-        // Step 4: Get ALL edges in one separate query (FAST!)
+        // Step 4: Get ALL edges in one query using JOIN (optimized from subquery)
         let edges_start = std::time::Instant::now();
         let edge_rows = sqlx::query!(
             r#"
             SELECT pe.from_page_id, pe.to_url, pe.status_code
             FROM page_edge pe
-            WHERE pe.from_page_id IN (
-                SELECT id FROM page_analysis WHERE analysis_id = ?
-            )
+            INNER JOIN page_analysis pa ON pe.from_page_id = pa.id
+            WHERE pa.analysis_id = ?
             "#,
             analysis_id
         )

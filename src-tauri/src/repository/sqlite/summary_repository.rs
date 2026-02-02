@@ -3,6 +3,7 @@ use sqlx::SqlitePool;
 use crate::domain::models::{IssueType, PageAnalysisData, SeoIssue};
 use anyhow::Result;
 
+#[derive(Clone)]
 pub struct SummaryRepository {
     pool: SqlitePool,
 }

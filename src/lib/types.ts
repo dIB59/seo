@@ -1,7 +1,7 @@
 // Types matching the Tauri backend
 
 export interface AnalysisJobResponse {
-  job_id: number
+  job_id: string
   url: string
   status: string
 }
@@ -16,7 +16,7 @@ export interface AnalysisSettingsRequest {
 }
 
 export interface AnalysisProgress {
-  job_id: number
+  job_id: string
   url: string
   job_status: string
   result_id: string | null

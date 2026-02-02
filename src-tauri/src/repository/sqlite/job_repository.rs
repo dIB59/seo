@@ -118,8 +118,7 @@ impl JobRepository {
     }
 
     pub async fn get_progress(&self, job_id: i64) -> Result<AnalysisProgress> {
-        let row = sqlx::query_as!(
-            AnalysisProgress,
+        let row = sqlx::query!(
             r#"
             SELECT 
                 aj.id as job_id,
@@ -139,7 +138,15 @@ impl JobRepository {
         .await
         .context("Failed to fetch analysis progress")?;
 
-        Ok(row)
+        Ok(AnalysisProgress {
+            job_id: row.job_id.to_string(),
+            url: row.url,
+            job_status: row.job_status,
+            result_id: row.result_id,
+            progress: row.progress,
+            analyzed_pages: row.analyzed_pages,
+            total_pages: row.total_pages,
+        })
     }
 
     pub async fn get_all(&self) -> Result<Vec<AnalysisProgress>> {
@@ -166,7 +173,7 @@ impl JobRepository {
         Ok(rows
             .into_iter()
             .map(|row| AnalysisProgress {
-                job_id: row.job_id,
+                job_id: row.job_id.to_string(),
                 url: row.url,
                 job_status: row.job_status,
                 result_id: row.result_id,

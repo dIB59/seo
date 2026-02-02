@@ -234,7 +234,7 @@ pub struct AnalysisJob {
 
 #[derive(Debug, serde::Serialize)]
 pub struct AnalysisProgress {
-    pub job_id: i64,
+    pub job_id: String,
     pub url: String,
     pub job_status: String,
     pub result_id: Option<String>,

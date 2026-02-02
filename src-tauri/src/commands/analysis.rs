@@ -7,14 +7,15 @@ use url::Url;
 use crate::{
     db::DbState,
     domain::models::{AnalysisProgress, CompleteAnalysisResult, JobStatus},
+    domain::models_v2::JobSettings,
     error::CommandError,
-    repository::sqlite::{JobRepository, ResultsRepository},
-    service::JobProcessor,
+    repository::sqlite_v2::{JobRepositoryV2, ResultsRepositoryV2},
+    service::JobProcessorV2,
 };
 
 #[derive(Debug, serde::Serialize)]
 pub struct AnalysisJobResponse {
-    pub job_id: i64,
+    pub job_id: String,
     pub url: String,
     pub status: JobStatus,
 }
@@ -42,6 +43,19 @@ impl Default for AnalysisSettingsRequest {
     }
 }
 
+impl From<AnalysisSettingsRequest> for JobSettings {
+    fn from(req: AnalysisSettingsRequest) -> Self {
+        Self {
+            max_pages: req.max_pages,
+            max_depth: 3, // Default depth
+            respect_robots_txt: true,
+            include_subdomains: false,
+            rate_limit_ms: req.delay_between_requests,
+            user_agent: None,
+        }
+    }
+}
+
 fn validate_url(url: &str) -> Result<Url> {
     Url::from_str(url).with_context(|| format!("Invalid URL: {}", url))
 }
@@ -56,12 +70,12 @@ pub async fn start_analysis(
     log::info!("Settings: {:?}", settings);
     let parsed_url = validate_url(&url).context("Bad URL")?;
 
-    let analysis_settings = settings.unwrap_or_default();
+    let analysis_settings: JobSettings = settings.unwrap_or_default().into();
     let pool = &db.0;
 
-    let repository = JobRepository::new(pool.clone());
+    let repository = JobRepositoryV2::new(pool.clone());
     let job_id = repository
-        .create_with_settings(parsed_url.as_str(), &analysis_settings)
+        .create(parsed_url.as_str(), &analysis_settings)
         .await
         .map_err(CommandError::from)?;
 
@@ -74,21 +88,23 @@ pub async fn start_analysis(
 
 #[tauri::command]
 pub async fn get_analysis_progress(
-    job_id: i64,
+    job_id: String,
     db: State<'_, DbState>,
 ) -> Result<AnalysisProgress, CommandError> {
     log::info!("Getting analysis progress for job: {}", job_id);
 
     let pool = &db.0;
-    let repository = JobRepository::new(pool.clone());
+    let repository = JobRepositoryV2::new(pool.clone());
 
-    let progress = repository
-        .get_progress(job_id)
+    let job = repository
+        .get_by_id(&job_id)
         .await
         .map_err(CommandError::from)?;
 
-    Ok(progress)
+    // Convert V2 Job to V1 AnalysisProgress
+    Ok(job.into())
 }
+
 //TODO:
 //Implement pagination
 #[tauri::command]
@@ -96,35 +112,41 @@ pub async fn get_all_jobs(db: State<'_, DbState>) -> Result<Vec<AnalysisProgress
     log::info!("Fetching all analysis jobs");
 
     let pool = &db.0;
-    let repository = JobRepository::new(pool.clone());
+    let repository = JobRepositoryV2::new(pool.clone());
 
     let jobs = repository.get_all().await.map_err(CommandError::from)?;
-    log::trace!("{:?}", jobs.first());
+    
+    // Convert V2 Jobs to V1 AnalysisProgress
+    let progress: Vec<AnalysisProgress> = jobs.into_iter().map(|j| j.into()).collect();
+    log::trace!("{:?}", progress.first());
 
-    Ok(jobs)
+    Ok(progress)
 }
 
 #[tauri::command]
 pub async fn cancel_analysis(
-    job_id: i64,
-    job_processor: State<'_, Arc<JobProcessor>>,
+    job_id: String,
+    job_processor: State<'_, Arc<JobProcessorV2>>,
 ) -> Result<(), CommandError> {
     log::trace!("Cancelling analysis job: {}", job_id);
-    job_processor.cancel(job_id).await.map_err(CommandError)
+    job_processor.cancel(&job_id).await.map_err(CommandError)
 }
 
 #[tauri::command]
 pub async fn get_result(
-    job_id: i64,
+    job_id: String,
     db: State<'_, DbState>,
 ) -> Result<CompleteAnalysisResult, CommandError> {
     log::trace!("Getting result ID for job: {}", job_id);
 
     let pool = &db.0;
-    let repository = ResultsRepository::new(pool.clone());
+    let repository = ResultsRepositoryV2::new(pool.clone());
 
-    repository
-        .get_result_by_job_id(job_id)
+    let result = repository
+        .get_complete_result(&job_id)
         .await
-        .map_err(CommandError::from)
+        .map_err(CommandError::from)?;
+
+    // Convert V2 CompleteJobResult to V1 CompleteAnalysisResult
+    Ok(result.into())
 }

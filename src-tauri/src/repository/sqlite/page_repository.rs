@@ -123,7 +123,7 @@ impl PageRepository {
         Ok(())
     }
 
-    pub(crate) async fn insert_edges_batch(&self, edges: &[PageEdge]) -> Result<()> {
+    pub async fn insert_edges_batch(&self, edges: &[PageEdge]) -> Result<()> {
         if edges.is_empty() {
             return Ok(());
         }

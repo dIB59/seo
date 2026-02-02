@@ -44,13 +44,13 @@ export default function Home() {
         setIsLoading(false);
     };
 
-    const handleViewResult = async (jobId: number) => {
+    const handleViewResult = async (jobId: string) => {
         router.push(`/analysis?id=${jobId}`);
     };
     // Note: using window.location.href or router.push if I import router.
     // Since "use client" is at top, I should import useRouter.
 
-    const handleCancel = async (jobId: number) => {
+    const handleCancel = async (jobId: string) => {
         const res = await cancelAnalysis(jobId);
         res.match(
             () => {

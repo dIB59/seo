@@ -3,8 +3,8 @@ import { JobItem } from "./organisms/JobItem"
 
 interface JobListProps {
     jobs: AnalysisProgress[]
-    onViewResult: (jobId: number) => void
-    onCancel: (jobId: number) => void
+    onViewResult: (jobId: string) => void
+    onCancel: (jobId: string) => void
 }
 
 export function JobList({ jobs, onViewResult, onCancel }: JobListProps) {

@@ -6,7 +6,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Manager, RunEvent};
 
 use crate::db::{self, DbState};
-use crate::service::{self, JobProcessor, LighthouseService};
+use crate::service::{self, JobProcessorV2, LighthouseService};
 
 /// Wrapper for LighthouseService to use as Tauri managed state
 pub struct LighthouseState(pub Arc<LighthouseService>);
@@ -40,8 +40,8 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             .unwrap_or_else(|e| panic!("failed to init db: {}", e))
     });
 
-    // Start job processor
-    let processor = Arc::new(JobProcessor::new(
+    // Start job processor (V2 schema)
+    let processor = Arc::new(JobProcessorV2::new(
         pool.clone(),
         app.handle().clone(),
     ));

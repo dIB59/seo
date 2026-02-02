@@ -10,8 +10,8 @@ import { JobItemHeader } from "../molecules/JobItemHeader"
 
 interface JobItemProps {
     job: AnalysisProgress
-    onViewResult: (jobId: number) => void
-    onCancel: (jobId: number) => void
+    onViewResult: (jobId: string) => void
+    onCancel: (jobId: string) => void
 }
 
 export function JobItem({ job, onViewResult, onCancel }: JobItemProps) {
