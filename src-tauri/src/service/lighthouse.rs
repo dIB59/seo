@@ -2,12 +2,20 @@
 //!
 //! This module spawns the `lighthouse-runner` sidecar which is a standalone executable
 //! (bundled Node.js + Lighthouse) that runs actual Lighthouse audits and returns JSON results.
+//!
+//! Supports two modes:
+//! - **One-shot mode**: Spawns a new process (and Chrome) for each URL. Simple but slow for bulk.
+//! - **Persistent mode**: Keeps Chrome running and accepts requests via stdin/stdout.
+//!   Much faster for 1000s of requests as Chrome only starts once (~3-5 second savings per URL).
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::process::Stdio;
-use tokio::process::Command;
+use std::sync::Arc;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::process::{Child, ChildStdin, ChildStdout, Command};
+use tokio::sync::Mutex;
 
 /// Result from a Lighthouse analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -203,9 +211,25 @@ struct SidecarPerformanceMetrics {
     cumulative_layout_shift: Option<f64>,
 }
 
+/// Request format for the persistent sidecar
+#[derive(Debug, Serialize)]
+struct PersistentRequest {
+    action: String,
+    url: Option<String>,
+}
+
+/// Holds the persistent sidecar process state
+struct PersistentProcess {
+    #[allow(dead_code)]
+    child: Child,
+    stdin: ChildStdin,
+    stdout: BufReader<ChildStdout>,
+}
+
 /// Service for running Lighthouse audits via bundled sidecar binary
 pub struct LighthouseService {
     sidecar_path: PathBuf,
+    persistent_process: Arc<Mutex<Option<PersistentProcess>>>,
 }
 
 impl LighthouseService {
@@ -213,7 +237,10 @@ impl LighthouseService {
     pub fn new() -> Self {
         let sidecar_path = Self::find_sidecar_path();
         log::info!("Lighthouse sidecar path: {:?}", sidecar_path);
-        Self { sidecar_path }
+        Self { 
+            sidecar_path,
+            persistent_process: Arc::new(Mutex::new(None)),
+        }
     }
 
     /// Find the path to the lighthouse-runner sidecar binary
@@ -295,11 +322,151 @@ impl LighthouseService {
                 .is_ok()
         }
     }
+    
+    /// Start a persistent sidecar process that keeps Chrome running.
+    /// This is much faster for bulk operations as Chrome only starts once.
+    pub async fn start_persistent(&self) -> Result<()> {
+        let mut process = self.persistent_process.lock().await;
+        
+        if process.is_some() {
+            log::debug!("[LIGHTHOUSE-SIDECAR] Persistent process already running");
+            return Ok(());
+        }
+        
+        if !self.is_available() {
+            anyhow::bail!(
+                "Lighthouse sidecar binary not found at: {:?}. This is a packaging error.",
+                self.sidecar_path
+            );
+        }
+        
+        log::info!("[LIGHTHOUSE-SIDECAR] Starting persistent sidecar process...");
+        
+        let mut child = Command::new(&self.sidecar_path)
+            .arg("--persistent")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .context("Failed to spawn persistent lighthouse-runner sidecar")?;
+        
+        let stdin = child.stdin.take()
+            .context("Failed to get stdin of sidecar process")?;
+        let stdout = child.stdout.take()
+            .context("Failed to get stdout of sidecar process")?;
+        
+        let mut stdout = BufReader::new(stdout);
+        
+        // Wait for ready signal from the sidecar
+        let mut ready_line = String::new();
+        stdout.read_line(&mut ready_line).await
+            .context("Failed to read ready signal from sidecar")?;
+        
+        let ready_response: serde_json::Value = serde_json::from_str(&ready_line)
+            .context("Failed to parse ready signal from sidecar")?;
+        
+        if !ready_response.get("ready").and_then(|v| v.as_bool()).unwrap_or(false) {
+            anyhow::bail!("Sidecar did not report ready status");
+        }
+        
+        log::info!("[LIGHTHOUSE-SIDECAR] Persistent process started and ready");
+        
+        *process = Some(PersistentProcess {
+            child,
+            stdin,
+            stdout,
+        });
+        
+        Ok(())
+    }
+    
+    /// Check if persistent mode is active
+    pub async fn is_persistent_running(&self) -> bool {
+        self.persistent_process.lock().await.is_some()
+    }
+    
+    /// Analyze a URL using the persistent process (fast, reuses Chrome)
+    async fn analyze_persistent(&self, url: &str) -> Result<PageFetchResult> {
+        let mut process_guard = self.persistent_process.lock().await;
+        
+        let process = process_guard.as_mut()
+            .context("Persistent process not started. Call start_persistent() first.")?;
+        
+        log::debug!("[LIGHTHOUSE-SIDECAR] [PERSISTENT] Sending request for: {}", url);
+        let start_time = std::time::Instant::now();
+        
+        let request = PersistentRequest {
+            action: "analyze".to_string(),
+            url: Some(url.to_string()),
+        };
+        
+        let request_json = serde_json::to_string(&request)?;
+        process.stdin.write_all(request_json.as_bytes()).await?;
+        process.stdin.write_all(b"\n").await?;
+        process.stdin.flush().await?;
+        
+        // Read response line
+        let mut response_line = String::new();
+        process.stdout.read_line(&mut response_line).await
+            .context("Failed to read response from persistent sidecar")?;
+        
+        let process_time_ms = start_time.elapsed().as_secs_f64() * 1000.0;
+        log::debug!("[LIGHTHOUSE-SIDECAR] [PERSISTENT] Response received in {:.2}ms", process_time_ms);
+        
+        let response: SidecarResponse = serde_json::from_str(&response_line)
+            .context("Failed to parse lighthouse-runner output")?;
+        
+        if !response.success {
+            let error_msg = response.error.unwrap_or_else(|| "Unknown error".to_string());
+            anyhow::bail!("Lighthouse analysis failed: {}", error_msg);
+        }
+        
+        let scores = self.convert_scores(&response);
+        let actual_load_time_ms = scores.performance_metrics.as_ref()
+            .and_then(|pm| pm.time_to_interactive)
+            .or(response.load_time_ms)
+            .unwrap_or(process_time_ms);
+        
+        let html = response.html.unwrap_or_default();
+        let content_size = response.content_size.unwrap_or(html.len());
+        let status_code = response.status_code.unwrap_or(200);
+        
+        log::info!(
+            "[LIGHTHOUSE-SIDECAR] [PERSISTENT] Analysis complete - status: {}, content: {} bytes, load: {:.2}ms",
+            status_code, content_size, actual_load_time_ms
+        );
+        
+        Ok(PageFetchResult {
+            url: response.url.unwrap_or_else(|| url.to_string()),
+            html,
+            status_code,
+            load_time_ms: actual_load_time_ms,
+            content_size,
+            scores,
+        })
+    }
 
-    /// Analyze a URL using Lighthouse via the bundled sidecar binary
+    /// Analyze a URL using Lighthouse via the bundled sidecar binary.
+    /// Uses persistent process if available, falls back to one-shot mode.
     pub async fn analyze(&self, url: &str) -> Result<PageFetchResult> {
         log::info!("[LIGHTHOUSE-SIDECAR] Starting analysis for: {}", url);
-        log::debug!("[LIGHTHOUSE-SIDECAR] Sidecar binary path: {:?}", self.sidecar_path);
+        
+        // Try persistent process first
+        {
+            let process = self.persistent_process.lock().await;
+            if process.is_some() {
+                drop(process); // Release lock before calling analyze_persistent
+                return self.analyze_persistent(url).await;
+            }
+        }
+        
+        // Fall back to one-shot mode
+        self.analyze_oneshot(url).await
+    }
+    
+    /// One-shot analysis (spawns new process each time) - slower but simpler
+    async fn analyze_oneshot(&self, url: &str) -> Result<PageFetchResult> {
+        log::debug!("[LIGHTHOUSE-SIDECAR] Using one-shot mode for: {}", url);
         
         if !self.is_available() {
             log::error!("[LIGHTHOUSE-SIDECAR] Binary not found at: {:?}", self.sidecar_path);
@@ -408,14 +575,19 @@ impl LighthouseService {
         })
     }
     
-    /// Analyze multiple URLs sequentially.
-    /// Each URL spawns a new sidecar process with its own Chrome instance.
+    /// Analyze multiple URLs efficiently using persistent mode.
+    /// Starts a persistent Chrome instance if not already running.
     pub async fn analyze_urls(&self, urls: &[String]) -> Vec<Result<PageFetchResult>> {
         if urls.is_empty() {
             return Vec::new();
         }
         
-        log::info!("[LIGHTHOUSE-SIDECAR] Analyzing {} URLs sequentially", urls.len());
+        log::info!("[LIGHTHOUSE-SIDECAR] Analyzing {} URLs with persistent mode", urls.len());
+        
+        // Start persistent process for bulk operations (saves ~3-5 seconds per URL)
+        if let Err(e) = self.start_persistent().await {
+            log::warn!("[LIGHTHOUSE-SIDECAR] Failed to start persistent mode: {}, falling back to one-shot", e);
+        }
         
         let mut results = Vec::with_capacity(urls.len());
         
@@ -504,8 +676,33 @@ impl LighthouseService {
         Ok(response.text().await?)
     }
     
+    /// Shutdown the persistent sidecar process if running
     pub async fn shutdown(&self) -> Result<()> {
-        log::info!("Lighthouse service shutdown (no-op for sidecar approach)");
+        let mut process = self.persistent_process.lock().await;
+        
+        if let Some(mut p) = process.take() {
+            log::info!("[LIGHTHOUSE-SIDECAR] Shutting down persistent process");
+            
+            // Send shutdown command
+            let shutdown_req = PersistentRequest {
+                action: "shutdown".to_string(),
+                url: None,
+            };
+            if let Ok(json) = serde_json::to_string(&shutdown_req) {
+                let _ = p.stdin.write_all(json.as_bytes()).await;
+                let _ = p.stdin.write_all(b"\n").await;
+                let _ = p.stdin.flush().await;
+            }
+            
+            // Wait briefly then kill if needed
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            let _ = p.child.kill().await;
+            
+            log::info!("[LIGHTHOUSE-SIDECAR] Persistent process shut down");
+        } else {
+            log::debug!("[LIGHTHOUSE-SIDECAR] No persistent process to shut down");
+        }
+        
         Ok(())
     }
 }
