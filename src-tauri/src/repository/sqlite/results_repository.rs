@@ -1,7 +1,19 @@
+//! # DEPRECATED - V1 Repository
+//!
+//! This module contains the V1 SQLite repository implementation.
+//! It has been superseded by the V2 schema (migration 0018+).
+//!
+//! **Warning:** This code uses runtime SQL queries because the V1 tables
+//! (analysis_results, seo_issues, page_analysis, page_edge, analysis_summary)
+//! no longer exist in the schema after migration 0018.
+//!
+//! These repositories will only work at runtime if V1 tables still exist
+//! in the database (e.g., for legacy data migration purposes).
+
 use std::collections::HashMap;
 
 use anyhow::{Context, Result};
-use sqlx::SqlitePool;
+use sqlx::{Row, SqlitePool};
 use url::Url;
 use uuid::Uuid;
 
@@ -87,47 +99,47 @@ impl ResultsRepository {
         let query_start = std::time::Instant::now();
 
         // Step 1: Get analysis metadata
-        let analysis_result_row = sqlx::query!(
+        let analysis_result_row = sqlx::query(
             r#"
-            SELECT ar.id as "id!", ar.url, ar.status, ar.progress, ar.analyzed_pages, ar.total_pages,
+            SELECT ar.id, ar.url, ar.status, ar.progress, ar.analyzed_pages, ar.total_pages,
                    ar.started_at, ar.created_at, ar.completed_at, ar.sitemap_found, ar.robots_txt_found, ar.ssl_certificate
             FROM analysis_results ar
             JOIN analysis_jobs aj ON aj.result_id = ar.id
             WHERE aj.id = ?
             "#,
-            job_id
         )
+        .bind(job_id)
         .fetch_one(&self.pool)
         .await
         .context("Failed to fetch analysis result by job ID")?;
 
-        let analysis_id = analysis_result_row.id.clone();
+        let analysis_id: String = analysis_result_row.get("id");
 
         let analysis = AnalysisResults {
             id: analysis_id.clone(),
-            url: analysis_result_row.url.clone(),
-            status: map_job_status(&analysis_result_row.status),
-            progress: analysis_result_row.progress,
-            analyzed_pages: analysis_result_row.analyzed_pages,
-            total_pages: analysis_result_row.total_pages,
-            started_at: analysis_result_row.started_at.map(|dt| dt.and_utc()),
-            created_at: analysis_result_row.created_at.and_utc(),
-            completed_at: analysis_result_row.completed_at.map(|dt| dt.and_utc()),
-            sitemap_found: analysis_result_row.sitemap_found,
-            robots_txt_found: analysis_result_row.robots_txt_found,
-            ssl_certificate: analysis_result_row.ssl_certificate,
+            url: analysis_result_row.get("url"),
+            status: map_job_status(analysis_result_row.get("status")),
+            progress: analysis_result_row.get("progress"),
+            analyzed_pages: analysis_result_row.get("analyzed_pages"),
+            total_pages: analysis_result_row.get("total_pages"),
+            started_at: analysis_result_row.get::<Option<chrono::NaiveDateTime>, _>("started_at").map(|dt| dt.and_utc()),
+            created_at: analysis_result_row.get::<chrono::NaiveDateTime, _>("created_at").and_utc(),
+            completed_at: analysis_result_row.get::<Option<chrono::NaiveDateTime>, _>("completed_at").map(|dt| dt.and_utc()),
+            sitemap_found: analysis_result_row.get("sitemap_found"),
+            robots_txt_found: analysis_result_row.get("robots_txt_found"),
+            ssl_certificate: analysis_result_row.get("ssl_certificate"),
         };
 
         // Step 2: Get issues (unchanged)
-        let issues_rows = sqlx::query!(
+        let issues_rows = sqlx::query(
             r#"
             SELECT si.type, si.title, si.description, si.page_url, si.element, si.line_number, si.recommendation
             FROM seo_issues si
             JOIN page_analysis pa ON si.page_id = pa.id
             WHERE pa.analysis_id = ?
             "#,
-            analysis_id
         )
+        .bind(&analysis_id)
         .fetch_all(&self.pool)
         .await
         .context("Failed to fetch SEO issues for analysis result")?;
@@ -136,19 +148,19 @@ impl ResultsRepository {
             .into_iter()
             .map(|row| SeoIssue {
                 page_id: "".to_string(),
-                issue_type: map_issue_type(&row.r#type),
-                title: row.title,
-                description: row.description,
-                page_url: row.page_url,
-                element: row.element,
-                line_number: row.line_number,
-                recommendation: row.recommendation,
+                issue_type: map_issue_type(row.get("type")),
+                title: row.get("title"),
+                description: row.get("description"),
+                page_url: row.get("page_url"),
+                element: row.get("element"),
+                line_number: row.get("line_number"),
+                recommendation: row.get("recommendation"),
             })
             .collect();
 
         // Step 3: Get ALL pages WITHOUT GROUP_CONCAT (FAST!)
         let pages_start = std::time::Instant::now();
-        let page_rows = sqlx::query!(
+        let page_rows = sqlx::query(
             r#"
             SELECT 
                 pa.id,
@@ -185,8 +197,8 @@ impl ResultsRepository {
             WHERE pa.analysis_id = ?
             ORDER BY pa.id
             "#,
-            analysis_id
         )
+        .bind(&analysis_id)
         .fetch_all(&self.pool)
         .await
         .context("Failed to fetch pages")?;
@@ -199,15 +211,15 @@ impl ResultsRepository {
 
         // Step 4: Get ALL edges in one query using JOIN (optimized from subquery)
         let edges_start = std::time::Instant::now();
-        let edge_rows = sqlx::query!(
+        let edge_rows = sqlx::query(
             r#"
             SELECT pe.from_page_id, pe.to_url, pe.status_code
             FROM page_edge pe
             INNER JOIN page_analysis pa ON pe.from_page_id = pa.id
             WHERE pa.analysis_id = ?
             "#,
-            analysis_id
         )
+        .bind(&analysis_id)
         .fetch_all(&self.pool)
         .await
         .context("Failed to fetch edges")?;
@@ -222,15 +234,16 @@ impl ResultsRepository {
         let grouping_start = std::time::Instant::now();
         let mut edges_by_page: HashMap<String, Vec<PageEdge>> = HashMap::new();
 
-        for edge in edge_rows {
+        for edge in &edge_rows {
+            let from_page_id: String = edge.get("from_page_id");
             let page_edge = PageEdge {
-                from_page_id: edge.from_page_id.clone(),
-                to_url: edge.to_url,
-                status_code: edge.status_code as u16,
+                from_page_id: from_page_id.clone(),
+                to_url: edge.get("to_url"),
+                status_code: edge.get::<i32, _>("status_code") as u16,
             };
 
             edges_by_page
-                .entry(edge.from_page_id)
+                .entry(from_page_id)
                 .or_insert_with(Vec::new)
                 .push(page_edge);
         }
@@ -244,7 +257,7 @@ impl ResultsRepository {
         // Step 6: Build URL status lookup for internal links
         let url_status: HashMap<String, Option<i64>> = page_rows
             .iter()
-            .map(|p| (p.url.clone(), p.page_status))
+            .map(|p| (p.get::<String, _>("url"), p.get("page_status")))
             .collect();
 
         // Step 7: Construct pages with edges
@@ -253,29 +266,30 @@ impl ResultsRepository {
 
         for row in page_rows {
             // Get edges for this page (fast HashMap lookup)
-            let row_id = row.id;
+            let row_id: Option<String> = row.get("id");
             let links = edges_by_page
                 .remove(&row_id.expect("Page Id must exist"))
                 .unwrap_or_default();
 
             // Parse JSON fields
-            let headings = row
-                .headings
+            let headings_json: Option<String> = row.get("headings");
+            let headings = headings_json
                 .and_then(|h| serde_json::from_str::<Vec<HeadingElement>>(&h).ok())
                 .unwrap_or_default();
 
-            let images = row
-                .images
+            let images_json: Option<String> = row.get("images");
+            let images = images_json
                 .and_then(|i| serde_json::from_str::<Vec<ImageElement>>(&i).ok())
                 .unwrap_or_default();
 
-            let mut detailed_links = row
-                .detailed_links_json
+            let detailed_links_json: Option<String> = row.get("detailed_links_json");
+            let mut detailed_links = detailed_links_json
                 .and_then(|l| serde_json::from_str::<Vec<LinkElement>>(&l).ok())
                 .unwrap_or_default();
 
+            let row_url: String = row.get("url");
             // Populate status codes for internal links
-            if let Ok(base_url) = Url::parse(&row.url) {
+            if let Ok(base_url) = Url::parse(&row_url) {
                 for link in &mut detailed_links {
                     if link.status_code.is_none() {
                         if let Ok(abs_url) = base_url.join(&link.href) {
@@ -297,34 +311,37 @@ impl ResultsRepository {
                 }
             }
 
+            let lighthouse_seo_audits_json: Option<String> = row.get("lighthouse_seo_audits");
+            let lighthouse_performance_metrics_json: Option<String> = row.get("lighthouse_performance_metrics");
+
             pages.push(PageAnalysisData {
-                analysis_id: row.analysis_id,
-                url: row.url,
-                title: row.title,
-                meta_description: row.meta_description,
-                meta_keywords: row.meta_keywords,
-                canonical_url: row.canonical_url,
-                h1_count: row.h1_count,
-                h2_count: row.h2_count,
-                h3_count: row.h3_count,
-                word_count: row.word_count,
-                image_count: row.image_count,
-                images_without_alt: row.images_without_alt,
-                internal_links: row.internal_links,
-                external_links: row.external_links,
-                load_time: row.load_time,
-                status_code: row.page_status,
-                content_size: row.content_size,
-                mobile_friendly: row.mobile_friendly,
-                has_structured_data: row.has_structured_data,
-                lighthouse_performance: row.lighthouse_performance,
-                lighthouse_accessibility: row.lighthouse_accessibility,
-                lighthouse_best_practices: row.lighthouse_best_practices,
-                lighthouse_seo: row.lighthouse_seo,
-                lighthouse_seo_audits: row.lighthouse_seo_audits
+                analysis_id: row.get("analysis_id"),
+                url: row_url,
+                title: row.get("title"),
+                meta_description: row.get("meta_description"),
+                meta_keywords: row.get("meta_keywords"),
+                canonical_url: row.get("canonical_url"),
+                h1_count: row.get("h1_count"),
+                h2_count: row.get("h2_count"),
+                h3_count: row.get("h3_count"),
+                word_count: row.get("word_count"),
+                image_count: row.get("image_count"),
+                images_without_alt: row.get("images_without_alt"),
+                internal_links: row.get("internal_links"),
+                external_links: row.get("external_links"),
+                load_time: row.get("load_time"),
+                status_code: row.get("page_status"),
+                content_size: row.get("content_size"),
+                mobile_friendly: row.get("mobile_friendly"),
+                has_structured_data: row.get("has_structured_data"),
+                lighthouse_performance: row.get("lighthouse_performance"),
+                lighthouse_accessibility: row.get("lighthouse_accessibility"),
+                lighthouse_best_practices: row.get("lighthouse_best_practices"),
+                lighthouse_seo: row.get("lighthouse_seo"),
+                lighthouse_seo_audits: lighthouse_seo_audits_json
                     .as_ref()
                     .and_then(|s| serde_json::from_str(s).ok()),
-                lighthouse_performance_metrics: row.lighthouse_performance_metrics
+                lighthouse_performance_metrics: lighthouse_performance_metrics_json
                     .as_ref()
                     .and_then(|s| serde_json::from_str(s).ok()),
                 links,
@@ -341,24 +358,24 @@ impl ResultsRepository {
         );
 
         // Step 8: Get summary
-        let summary_row = sqlx::query!(
+        let summary_row = sqlx::query(
             r#"
             SELECT seo_score, avg_load_time, total_words, pages_with_issues
             FROM analysis_summary
             WHERE analysis_id = ?
             "#,
-            analysis_id
         )
+        .bind(&analysis_id)
         .fetch_one(&self.pool)
         .await
         .context("Failed to fetch analysis summary")?;
 
         let summary = AnalysisSummary {
             analysis_id: analysis_id.clone(),
-            seo_score: summary_row.seo_score,
-            avg_load_time: summary_row.avg_load_time,
-            total_words: summary_row.total_words,
-            total_issues: summary_row.pages_with_issues,
+            seo_score: summary_row.get("seo_score"),
+            avg_load_time: summary_row.get("avg_load_time"),
+            total_words: summary_row.get("total_words"),
+            total_issues: summary_row.get("pages_with_issues"),
         };
 
         let total_time = query_start.elapsed();

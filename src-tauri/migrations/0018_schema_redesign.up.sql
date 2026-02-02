@@ -385,6 +385,13 @@ VALUES (
 -- Step 4: Drop old tables and rename new ones
 -- -----------------------------------------------------------------------------
 
+-- Drop views that depend on old tables first
+DROP VIEW IF EXISTS v_job_progress;
+DROP VIEW IF EXISTS v_crawl_stats;
+DROP VIEW IF EXISTS v_analysis_overview;
+DROP VIEW IF EXISTS v_analysis_jobs;
+DROP VIEW IF EXISTS v_page_details;
+
 -- Drop old tables
 DROP TABLE IF EXISTS analysis_ai_insights;
 DROP TABLE IF EXISTS analysis_issues;

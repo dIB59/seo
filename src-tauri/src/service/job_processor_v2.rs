@@ -498,12 +498,17 @@ struct PageResult {
     edges: Vec<PageEdge>,
 }
 
+/// Site-level resource check results.
+/// TODO: These will be used for robots.txt parsing and sitemap discovery in future.
+#[allow(dead_code)]
 struct SiteResources {
     robots_txt: bool,
     sitemap: bool,
     ssl: bool,
 }
 
+/// Job timer for measuring total crawl time.
+#[allow(dead_code)]
 struct JobTimer {
     job_id: String,
     start: std::time::Instant,

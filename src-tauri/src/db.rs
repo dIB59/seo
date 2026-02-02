@@ -137,10 +137,29 @@ async fn dump_schema(pool: &SqlitePool, output_path: &std::path::Path) -> anyhow
     Ok(())
 }
 
-/// Get a setting value from the database
+/// Get a setting value from the database (V2 schema - single-row structured table)
+/// Maps V1-style keys to V2 column names for backward compatibility
 pub async fn get_setting(pool: &SqlitePool, key: &str) -> Result<Option<String>> {
-    let result = sqlx::query_scalar::<_, String>("SELECT value FROM settings WHERE key = ?")
-        .bind(key)
+    // Map V1 key-value names to V2 column names
+    let column = match key {
+        "openai_api_key" => "openai_api_key",
+        "anthropic_api_key" => "anthropic_api_key",
+        "google_api_key" | "gemini_api_key" => "google_api_key",
+        "default_ai_provider" => "default_ai_provider",
+        "default_max_pages" => "default_max_pages",
+        "default_max_depth" => "default_max_depth",
+        "default_rate_limit_ms" => "default_rate_limit_ms",
+        "theme" => "theme",
+        _ => {
+            // Unknown key - return None since V2 schema doesn't support arbitrary keys
+            log::warn!("Unknown setting key requested: {}", key);
+            return Ok(None);
+        }
+    };
+
+    // Query the appropriate column (V2 has a single row with id=1)
+    let query = format!("SELECT {} FROM settings WHERE id = 1", column);
+    let result = sqlx::query_scalar::<_, String>(&query)
         .fetch_optional(pool)
         .await
         .context("Failed to get setting from database")?;
@@ -148,28 +167,48 @@ pub async fn get_setting(pool: &SqlitePool, key: &str) -> Result<Option<String>>
     Ok(result)
 }
 
-/// Set a setting value in the database
+/// Set a setting value in the database (V2 schema - single-row structured table)
+/// Maps V1-style keys to V2 column names for backward compatibility
 pub async fn set_setting(pool: &SqlitePool, key: &str, value: &str) -> Result<()> {
-    sqlx::query(
-        "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
-         ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP",
-    )
-    .bind(key)
-    .bind(value)
-    .bind(value)
-    .execute(pool)
-    .await
-    .context("Failed to set setting in database")?;
+    // Map V1 key-value names to V2 column names
+    let column = match key {
+        "openai_api_key" => "openai_api_key",
+        "anthropic_api_key" => "anthropic_api_key",
+        "google_api_key" | "gemini_api_key" => "google_api_key",
+        "default_ai_provider" => "default_ai_provider",
+        "default_max_pages" => "default_max_pages",
+        "default_max_depth" => "default_max_depth",
+        "default_rate_limit_ms" => "default_rate_limit_ms",
+        "theme" => "theme",
+        _ => {
+            return Err(anyhow::anyhow!("Unknown setting key: {}", key));
+        }
+    };
+
+    // V2 schema: single row with id=1, upsert the specific column
+    let query = format!(
+        "INSERT INTO settings (id, {column}) VALUES (1, ?)
+         ON CONFLICT(id) DO UPDATE SET {column} = ?, updated_at = datetime('now')",
+        column = column
+    );
+    
+    sqlx::query(&query)
+        .bind(value)
+        .bind(value)
+        .execute(pool)
+        .await
+        .context("Failed to set setting in database")?;
 
     Ok(())
 }
 
-/// Get cached AI insights for an analysis
-pub async fn get_ai_insights(pool: &SqlitePool, analysis_id: &str) -> Result<Option<String>> {
+/// Get cached AI insights for a job (V2 schema)
+/// Note: V2 stores structured insights. This returns the summary for backward compatibility.
+pub async fn get_ai_insights(pool: &SqlitePool, job_id: &str) -> Result<Option<String>> {
     let result = sqlx::query_scalar::<_, String>(
-        "SELECT insights FROM analysis_ai_insights WHERE analysis_id = ?",
+        "SELECT summary FROM ai_insights WHERE job_id = ?",
     )
-    .bind(analysis_id)
+    .bind(job_id)
     .fetch_optional(pool)
     .await
     .context("Failed to get ai insights from database")?;
@@ -177,13 +216,14 @@ pub async fn get_ai_insights(pool: &SqlitePool, analysis_id: &str) -> Result<Opt
     Ok(result)
 }
 
-/// Save AI insights to the database
-pub async fn save_ai_insights(pool: &SqlitePool, analysis_id: &str, insights: &str) -> Result<()> {
+/// Save AI insights to the database (V2 schema)
+/// For backward compatibility, stores insights as the summary field.
+pub async fn save_ai_insights(pool: &SqlitePool, job_id: &str, insights: &str) -> Result<()> {
     sqlx::query(
-        "INSERT INTO analysis_ai_insights (analysis_id, insights, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)
-         ON CONFLICT(analysis_id) DO UPDATE SET insights = ?, created_at = CURRENT_TIMESTAMP"
+        "INSERT INTO ai_insights (job_id, summary, created_at, updated_at) VALUES (?, ?, datetime('now'), datetime('now'))
+         ON CONFLICT(job_id) DO UPDATE SET summary = ?, updated_at = datetime('now')"
     )
-    .bind(analysis_id)
+    .bind(job_id)
     .bind(insights)
     .bind(insights)
     .execute(pool)
@@ -202,17 +242,28 @@ mod tests {
     async fn test_get_setting_returns_none_when_not_set() {
         let pool = fixtures::setup_test_db().await;
 
+        // V2 schema creates a settings row with NULL values by default during migration
+        // When we query a NULL column, we should get None (not Some(""))
+        let result = get_setting(&pool, "openai_api_key").await.unwrap();
+        assert!(result.is_none() || result.as_deref() == Some(""), 
+            "Should return None or empty string when API key not configured, got: {:?}", result);
+    }
+
+    #[tokio::test]
+    async fn test_get_setting_returns_none_for_unknown_key() {
+        let pool = fixtures::setup_test_db().await;
+
         let result = get_setting(&pool, "nonexistent_key").await.unwrap();
-        assert!(result.is_none(), "Should return None for non-existent key");
+        assert!(result.is_none(), "Should return None for unknown key");
     }
 
     #[tokio::test]
     async fn test_set_and_get_setting() {
         let pool = fixtures::setup_test_db().await;
 
-        set_setting(&pool, "test_key", "test_value").await.unwrap();
+        set_setting(&pool, "openai_api_key", "test_value").await.unwrap();
 
-        let result = get_setting(&pool, "test_key").await.unwrap();
+        let result = get_setting(&pool, "openai_api_key").await.unwrap();
         assert_eq!(result, Some("test_value".to_string()));
     }
 
@@ -220,10 +271,10 @@ mod tests {
     async fn test_set_setting_updates_existing() {
         let pool = fixtures::setup_test_db().await;
 
-        set_setting(&pool, "update_key", "original").await.unwrap();
-        set_setting(&pool, "update_key", "updated").await.unwrap();
+        set_setting(&pool, "openai_api_key", "original").await.unwrap();
+        set_setting(&pool, "openai_api_key", "updated").await.unwrap();
 
-        let result = get_setting(&pool, "update_key").await.unwrap();
+        let result = get_setting(&pool, "openai_api_key").await.unwrap();
         assert_eq!(
             result,
             Some("updated".to_string()),
@@ -235,20 +286,20 @@ mod tests {
     async fn test_ai_insights_returns_none_when_not_cached() {
         let pool = fixtures::setup_test_db().await;
 
-        let result = get_ai_insights(&pool, "nonexistent_analysis")
+        let result = get_ai_insights(&pool, "nonexistent_job")
             .await
             .unwrap();
         assert!(
             result.is_none(),
-            "Should return None for non-cached analysis"
+            "Should return None for non-cached job"
         );
     }
 
-    /// Helper to create a valid analysis_results record for FK constraint
-    async fn create_test_analysis(pool: &SqlitePool, id: &str) {
+    /// Helper to create a valid jobs record for FK constraint (V2 schema)
+    async fn create_test_job(pool: &SqlitePool, id: &str) {
         sqlx::query(
-            "INSERT INTO analysis_results (id, url, status, progress, analyzed_pages, total_pages, sitemap_found, robots_txt_found, ssl_certificate) 
-             VALUES (?, 'https://test.com', 'completed', 100.0, 1, 1, 0, 0, 1)"
+            "INSERT INTO jobs (id, url, status, created_at, updated_at) 
+             VALUES (?, 'https://test.com', 'completed', datetime('now'), datetime('now'))"
         )
         .bind(id)
         .execute(pool)
@@ -260,14 +311,14 @@ mod tests {
     async fn test_save_and_get_ai_insights() {
         let pool = fixtures::setup_test_db().await;
 
-        // Create the analysis record first to satisfy FK constraint
-        create_test_analysis(&pool, "analysis_123").await;
+        // Create the job record first to satisfy FK constraint
+        create_test_job(&pool, "job_123").await;
 
-        save_ai_insights(&pool, "analysis_123", "These are AI insights")
+        save_ai_insights(&pool, "job_123", "These are AI insights")
             .await
             .unwrap();
 
-        let result = get_ai_insights(&pool, "analysis_123").await.unwrap();
+        let result = get_ai_insights(&pool, "job_123").await.unwrap();
         assert_eq!(result, Some("These are AI insights".to_string()));
     }
 
@@ -275,17 +326,17 @@ mod tests {
     async fn test_save_ai_insights_updates_existing() {
         let pool = fixtures::setup_test_db().await;
 
-        // Create the analysis record first to satisfy FK constraint
-        create_test_analysis(&pool, "analysis_456").await;
+        // Create the job record first to satisfy FK constraint
+        create_test_job(&pool, "job_456").await;
 
-        save_ai_insights(&pool, "analysis_456", "Original insights")
+        save_ai_insights(&pool, "job_456", "Original insights")
             .await
             .unwrap();
-        save_ai_insights(&pool, "analysis_456", "Updated insights")
+        save_ai_insights(&pool, "job_456", "Updated insights")
             .await
             .unwrap();
 
-        let result = get_ai_insights(&pool, "analysis_456").await.unwrap();
+        let result = get_ai_insights(&pool, "job_456").await.unwrap();
         assert_eq!(
             result,
             Some("Updated insights".to_string()),

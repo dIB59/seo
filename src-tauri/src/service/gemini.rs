@@ -311,13 +311,13 @@ mod tests {
             .await
             .unwrap();
 
-        // Create an analysis_results record to satisfy FK constraint when caching
-        let test_analysis_id = "cache_test_analysis";
+        // Create a jobs record to satisfy FK constraint when caching (V2 schema)
+        let test_job_id = "cache_test_job";
         sqlx::query(
-            "INSERT INTO analysis_results (id, url, status, progress, analyzed_pages, total_pages, sitemap_found, robots_txt_found, ssl_certificate) 
-             VALUES (?, 'https://test.com', 'completed', 100.0, 1, 1, 0, 0, 1)"
+            "INSERT INTO jobs (id, url, status, created_at, updated_at) 
+             VALUES (?, 'https://test.com', 'completed', datetime('now'), datetime('now'))"
         )
-        .bind(test_analysis_id)
+        .bind(test_job_id)
         .execute(&pool)
         .await
         .unwrap();
@@ -333,9 +333,9 @@ mod tests {
             .create_async()
             .await;
 
-        // Use the analysis_id that was pre-created
+        // Use the job_id that was pre-created (now called analysis_id in request for backward compat)
         let mut request = fixtures::minimal_gemini_request();
-        request.analysis_id = test_analysis_id.to_string();
+        request.analysis_id = test_job_id.to_string();
 
         // First call - should hit API
         let result1 = generate_gemini_analysis(&pool, request.clone(), Some(server.url()))

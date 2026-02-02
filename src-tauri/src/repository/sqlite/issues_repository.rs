@@ -1,3 +1,14 @@
+//! # DEPRECATED - V1 Repository
+//!
+//! This module contains the V1 SQLite repository implementation.
+//! It has been superseded by the V2 schema (migration 0018+).
+//!
+//! **Warning:** This code uses runtime SQL queries because the V1 table
+//! (seo_issues) no longer exists in the schema after migration 0018.
+//!
+//! This repository will only work at runtime if V1 tables still exist
+//! in the database (e.g., for legacy data migration purposes).
+
 use anyhow::Result;
 use sqlx::SqlitePool;
 use uuid::Uuid;

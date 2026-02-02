@@ -1,0 +1,56 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT \n                id, url, status, progress, \n                total_pages, total_issues, created_at\n            FROM jobs\n            ORDER BY created_at DESC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "url",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "status",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "progress",
+        "ordinal": 3,
+        "type_info": "Float"
+      },
+      {
+        "name": "total_pages",
+        "ordinal": 4,
+        "type_info": "Int64"
+      },
+      {
+        "name": "total_issues",
+        "ordinal": 5,
+        "type_info": "Int64"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 6,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "1df2f84946b5007015019d4306d134c33b7ad5d770c7f0f8f8c03b848510e8e7"
+}

@@ -599,6 +599,7 @@ mod tests {
     use crate::test_utils::{assertions, fixtures, mocks};
 
     #[tokio::test]
+    #[ignore = "V1 schema no longer exists after migration 0018. Use JobProcessorV2 tests instead."]
     async fn test_end_to_end_job_processing() {
         // 1. Setup Mock Server with HTML that has an image without alt text
         let mut server = mockito::Server::new_async().await;
