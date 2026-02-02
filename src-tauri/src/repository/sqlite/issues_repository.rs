@@ -4,6 +4,7 @@ use uuid::Uuid;
 
 use crate::domain::models::SeoIssue;
 
+#[derive(Clone)]
 pub struct IssuesRepository {
     pool: SqlitePool,
 }

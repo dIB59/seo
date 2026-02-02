@@ -34,9 +34,10 @@ async-trait = "0.1.89"
 dashmap = "6.1.0"
 tauri-plugin-shell = "2"
 tracing = "0.1.44"
-tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.22", features = ["env-filter", "tracing-log"] }
 rquest-util = "2.2.1"
 rquest = { version = "5.1.0", features = ["full", "cookies", "json"] }
+futures = "0.3.31"
 
 [features]
 custom-protocol = [ "tauri/custom-protocol" ]

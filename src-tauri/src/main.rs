@@ -21,8 +21,15 @@ use app::service;
 //-xml file path not found due to redirection
 
 fn main() {
+    // Enable logging from both `tracing` and `log` crates
+    // Set RUST_LOG env var to control log level, e.g. RUST_LOG=debug
     tracing_subscriber::fmt()
-        .with_env_filter("sqlx=warn")
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::from_default_env()
+                .add_directive("sqlx=warn".parse().unwrap())
+                .add_directive("app=debug".parse().unwrap())  // Enable debug for our app
+                .add_directive("info".parse().unwrap())       // Default to info for others
+        )
         .compact()
         .with_target(false)
         .with_ansi(true)

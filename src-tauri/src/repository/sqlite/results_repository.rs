@@ -14,6 +14,7 @@ use crate::{
     service::job_processor::PageEdge,
 };
 
+#[derive(Clone)]
 pub struct ResultsRepository {
     pool: SqlitePool,
 }

@@ -90,13 +90,21 @@ struct SidecarResponse {
     #[serde(default)]
     content_size: Option<usize>,
     #[serde(default)]
+    load_time_ms: Option<f64>,  // Actual HTTP response time
+    #[serde(default)]
     scores: Option<SidecarScores>,
     #[serde(default)]
     seo_audits: Option<SidecarSeoAudits>,
     #[serde(default)]
     performance_metrics: Option<SidecarPerformanceMetrics>,
+    // Batch mode fields
+    #[serde(default)]
+    #[allow(dead_code)] // Used for JSON deserialization, indicates batch response
+    batch: Option<bool>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    results: Option<Vec<SidecarResponse>>,
 }
-
 #[derive(Debug, Deserialize, Default)]
 struct SidecarScores {
     performance: Option<f64>,
@@ -297,20 +305,17 @@ impl LighthouseService {
             scores.performance, scores.accessibility, scores.seo, scores.best_practices
         );
         
-        // Use actual page load time from Lighthouse metrics, not the process execution time
-        // Time to Interactive (TTI) is a good representation of "page load time" for user experience
-        // Fallback to LCP, then FCP, then process time as last resort
-        let actual_load_time_ms = scores.performance_metrics
-            .as_ref()
-            .and_then(|pm| {
-                pm.time_to_interactive
-                    .or(pm.largest_contentful_paint)
-                    .or(pm.first_contentful_paint)
-            })
+        // Use actual page load time:
+        // 1. First try TTI (Time to Interactive) from Lighthouse performance metrics
+        // 2. Then try load_time_ms from sidecar (actual HTTP response time)
+        // 3. Fallback to process time (includes Chrome startup, not ideal but better than nothing)
+        let actual_load_time_ms = scores.performance_metrics.as_ref()
+            .and_then(|pm| pm.time_to_interactive)
+            .or(response.load_time_ms)
             .unwrap_or(process_time_ms);
         
-        log::debug!(
-            "[LIGHTHOUSE-SIDECAR] Load time: {:.2}ms (from metrics), Process time: {:.2}ms",
+        log::info!(
+            "[LIGHTHOUSE-SIDECAR] Load time: {:.2}ms, Process time: {:.2}ms",
             actual_load_time_ms, process_time_ms
         );
         
@@ -347,6 +352,70 @@ impl LighthouseService {
         })
     }
     
+    /// Analyze multiple URLs sequentially.
+    /// Each URL spawns a new sidecar process with its own Chrome instance.
+    pub async fn analyze_urls(&self, urls: &[String]) -> Vec<Result<PageFetchResult>> {
+        if urls.is_empty() {
+            return Vec::new();
+        }
+        
+        log::info!("[LIGHTHOUSE-SIDECAR] Analyzing {} URLs sequentially", urls.len());
+        
+        let mut results = Vec::with_capacity(urls.len());
+        
+        for (i, url) in urls.iter().enumerate() {
+            log::debug!("[LIGHTHOUSE-SIDECAR] Analyzing {}/{}: {}", i + 1, urls.len(), url);
+            let result = self.analyze(url).await;
+            results.push(result);
+        }
+        
+        log::info!(
+            "[LIGHTHOUSE-SIDECAR] Analysis complete: {}/{} successful",
+            results.iter().filter(|r| r.is_ok()).count(),
+            results.len()
+        );
+        
+        results
+    }
+    
+
+    
+    /// Helper to convert SEO audits from sidecar response
+    fn convert_seo_audits_from_option(audits: Option<&SidecarSeoAudits>) -> SeoAuditDetails {
+        let default_audit = || AuditResult {
+            passed: false,
+            value: None,
+            score: 0.0,
+            description: None,
+        };
+        
+        let convert = |audit: Option<&SidecarAudit>| -> AuditResult {
+            match audit {
+                Some(a) => AuditResult {
+                    passed: a.passed,
+                    value: a.value.clone(),
+                    score: a.score,
+                    description: a.description.clone(),
+                },
+                None => default_audit(),
+            }
+        };
+        
+        SeoAuditDetails {
+            document_title: convert(audits.and_then(|a| a.document_title.as_ref())),
+            meta_description: convert(audits.and_then(|a| a.meta_description.as_ref())),
+            viewport: convert(audits.and_then(|a| a.viewport.as_ref())),
+            canonical: convert(audits.and_then(|a| a.canonical.as_ref())),
+            hreflang: convert(audits.and_then(|a| a.hreflang.as_ref())),
+            robots_txt: convert(audits.and_then(|a| a.robots_txt.as_ref())),
+            crawlable_anchors: convert(audits.and_then(|a| a.crawlable_anchors.as_ref())),
+            link_text: convert(audits.and_then(|a| a.link_text.as_ref())),
+            image_alt: convert(audits.and_then(|a| a.image_alt.as_ref())),
+            http_status_code: convert(audits.and_then(|a| a.http_status_code.as_ref())),
+            is_crawlable: convert(audits.and_then(|a| a.is_crawlable.as_ref())),
+        }
+    }
+    
     fn convert_scores(&self, response: &SidecarResponse) -> LighthouseScores {
         let sidecar_scores = response.scores.as_ref();
         let sidecar_audits = response.seo_audits.as_ref();
@@ -357,7 +426,7 @@ impl LighthouseService {
             accessibility: sidecar_scores.and_then(|s| s.accessibility),
             best_practices: sidecar_scores.and_then(|s| s.best_practices),
             seo: sidecar_scores.and_then(|s| s.seo),
-            seo_audits: self.convert_seo_audits(sidecar_audits),
+            seo_audits: Self::convert_seo_audits_from_option(sidecar_audits),
             performance_metrics: sidecar_perf.map(|p| PerformanceMetrics {
                 first_contentful_paint: p.first_contentful_paint,
                 largest_contentful_paint: p.largest_contentful_paint,
@@ -366,36 +435,6 @@ impl LighthouseService {
                 total_blocking_time: p.total_blocking_time,
                 cumulative_layout_shift: p.cumulative_layout_shift,
             }),
-        }
-    }
-    
-    fn convert_seo_audits(&self, audits: Option<&SidecarSeoAudits>) -> SeoAuditDetails {
-        let audits = match audits {
-            Some(a) => a,
-            None => return SeoAuditDetails::default(),
-        };
-        
-        fn convert_audit(audit: Option<&SidecarAudit>) -> AuditResult {
-            audit.map(|a| AuditResult {
-                passed: a.passed,
-                value: a.value.clone(),
-                score: a.score,
-                description: a.description.clone(),
-            }).unwrap_or_default()
-        }
-        
-        SeoAuditDetails {
-            document_title: convert_audit(audits.document_title.as_ref()),
-            meta_description: convert_audit(audits.meta_description.as_ref()),
-            viewport: convert_audit(audits.viewport.as_ref()),
-            canonical: convert_audit(audits.canonical.as_ref()),
-            hreflang: convert_audit(audits.hreflang.as_ref()),
-            robots_txt: convert_audit(audits.robots_txt.as_ref()),
-            crawlable_anchors: convert_audit(audits.crawlable_anchors.as_ref()),
-            link_text: convert_audit(audits.link_text.as_ref()),
-            image_alt: convert_audit(audits.image_alt.as_ref()),
-            http_status_code: convert_audit(audits.http_status_code.as_ref()),
-            is_crawlable: convert_audit(audits.is_crawlable.as_ref()),
         }
     }
     

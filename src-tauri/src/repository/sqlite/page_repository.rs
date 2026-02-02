@@ -4,6 +4,7 @@ use uuid::Uuid;
 
 use crate::{domain::models::PageAnalysisData, service::job_processor::PageEdge};
 
+#[derive(Clone)]
 pub struct PageRepository {
     pool: SqlitePool,
 }
