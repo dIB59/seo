@@ -60,20 +60,22 @@ export async function generateGeminiAnalysis(
 
     // 2. Call Backend
     const insightsResult = await execute<string>("get_gemini_insights", {
-        analysisId: analysis.id,
-        url: analysis.url,
-        seoScore: summary.seo_score,
-        pagesCount: pages.length,
-        totalIssues: summary.total_issues,
-        criticalIssues: issues.filter(i => i.issue_type === "Critical").length,
-        warningIssues: issues.filter(i => i.issue_type === "Warning").length,
-        suggestionIssues: issues.filter(i => i.issue_type === "Suggestion").length,
-        topIssues: issues.slice(0, 10).map(i => `- ${i.title}`),
-        avgLoadTime: summary.avg_load_time,
-        totalWords: summary.total_words,
-        sslCertificate: analysis.ssl_certificate,
-        sitemapFound: analysis.sitemap_found,
-        robotsTxtFound: analysis.robots_txt_found,
+        request: {
+            analysisId: analysis.id,
+            url: analysis.url,
+            seoScore: summary.seo_score,
+            pagesCount: pages.length,
+            totalIssues: summary.total_issues,
+            criticalIssues: issues.filter(i => i.issue_type === "critical").length,
+            warningIssues: issues.filter(i => i.issue_type === "warning").length,
+            suggestionIssues: issues.filter(i => i.issue_type === "suggestion").length,
+            topIssues: issues.slice(0, 10).map(i => `- ${i.title}`),
+            avgLoadTime: summary.avg_load_time,
+            totalWords: summary.total_words,
+            sslCertificate: analysis.ssl_certificate,
+            sitemapFound: analysis.sitemap_found,
+            robotsTxtFound: analysis.robots_txt_found,
+        }
     });
 
     return insightsResult.match<Result<string, AiError>>(

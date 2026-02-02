@@ -6,23 +6,10 @@ use crate::service::{generate_gemini_analysis, GeminiRequest};
 #[command]
 pub async fn get_gemini_insights(
     db: State<'_, DbState>,
-    analysis_id: String,
-    url: String,
-    seo_score: i32,
-    pages_count: i32,
-    total_issues: i32,
-    critical_issues: i32,
-    warning_issues: i32,
-    suggestion_issues: i32,
-    top_issues: Vec<String>,
-    avg_load_time: f64,
-    total_words: i32,
-    ssl_certificate: bool,
-    sitemap_found: bool,
-    robots_txt_found: bool,
+    request: GeminiRequest,
 ) -> Result<String, String> {
     // Check if AI is enabled globally
-    log::info!("Analysis Id for AI insight: {:?}", analysis_id);
+    log::info!("Analysis Id for AI insight: {:?}", request.analysis_id);
     let enabled = get_setting(&db.0, "gemini_enabled")
         .await
         .map_err(|e| format!("Failed to check AI settings: {}", e))?;
@@ -33,23 +20,6 @@ pub async fn get_gemini_insights(
             return Ok("".to_string());
         }
     }
-
-    let request = GeminiRequest {
-        analysis_id,
-        url,
-        seo_score,
-        pages_count,
-        total_issues,
-        critical_issues,
-        warning_issues,
-        suggestion_issues,
-        top_issues,
-        avg_load_time,
-        total_words,
-        ssl_certificate,
-        sitemap_found,
-        robots_txt_found,
-    };
 
     generate_gemini_analysis(&db.0, request, None)
         .await
