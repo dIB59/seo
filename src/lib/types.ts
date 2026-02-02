@@ -112,7 +112,7 @@ export interface PageAnalysisData {
   detailed_links?: LinkElement[]
 }
 
-export type IssueType = "Critical" | "Warning" | "Suggestion"
+export type IssueType = "critical" | "warning" | "suggestion"
 
 export interface SeoIssue {
   page_id: string

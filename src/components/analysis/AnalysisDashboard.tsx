@@ -26,11 +26,10 @@ export default function AnalysisDashboard({ data, onBack, onSelectPage }:
                 onBack={onBack}
                 result={data}
             />
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <ScoreCard summary={data.summary} issues={data.issues} />
                 <SiteHealthCard analysis={data.analysis} pages={data.pages} />
                 <QuickStatsCard summary={data.summary} pages={data.pages} />
-                <SeoSummaryCard pages={data.pages} />
             </div>
 
             <Tabs defaultValue="issues">
