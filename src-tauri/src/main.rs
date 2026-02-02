@@ -1,95 +1,16 @@
 // src-tauri/src/main.rs
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::sync::Arc;
-use tauri::Manager;
-
-use app::commands;
-use app::db::{self, DbState};
-use app::service;
-
-/// Wrapper for LighthouseService to use as Tauri managed state
-pub struct LighthouseState(pub Arc<service::LighthouseService>);
-
-// TODO:
-// - implement pagination for get all jobs
-// - create custom issue rules to define what an issue is
-// - search in pages table
-// - create proper report
-// - add pausing job
-// - fix when app quits while job is being processed
-// - Explain what the elements in the issues are
-// - add ability to delete job
-// - when on page, you can press on the link to go to that page, that does not work
-// - xml file path not found due to redirection
+use app::{commands, lifecycle};
 
 fn main() {
-    // Enable logging from both `tracing` and `log` crates
-    // Set RUST_LOG env var to control log level, e.g. RUST_LOG=debug
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive("sqlx=warn".parse().unwrap())
-                .add_directive("app=debug".parse().unwrap())  // Enable debug for our app
-                .add_directive("info".parse().unwrap())       // Default to info for others
-        )
-        .compact()
-        .with_target(false)
-        .with_ansi(true)
-        .init();
+    lifecycle::init_logging();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .setup(|app| {
-            // block on async init so the pool is available before commands run
-            let pool = tauri::async_runtime::block_on(async {
-                db::init_db(app.handle())
-                    .await
-                    .unwrap_or_else(|e| panic!("failed to init db: {}", e))
-            });
-
-            let processor = std::sync::Arc::new(service::JobProcessor::new(
-                pool.clone(),
-                app.handle().clone(),
-            ));
-            let proc_clone = processor.clone();
-            tauri::async_runtime::spawn(async move {
-                proc_clone.run().await.expect("job-processor died")
-            });
-
-            // Initialize LighthouseService and start persistent mode
-            let lighthouse = Arc::new(service::LighthouseService::new());
-            let lighthouse_clone = lighthouse.clone();
-            tauri::async_runtime::spawn(async move {
-                if let Err(e) = lighthouse_clone.start_persistent().await {
-                    log::warn!("Failed to start Lighthouse persistent mode: {}", e);
-                    log::info!("Lighthouse will use one-shot mode (slower but still works)");
-                } else {
-                    log::info!("Lighthouse persistent mode started successfully");
-                }
-            });
-
-            app.manage(DbState(pool));
-            app.manage(processor);
-            app.manage(LighthouseState(lighthouse));
-            Ok(())
-        })
-        .on_window_event(|window, event| {
-            // Shutdown LighthouseService when the app is closing
-            if let tauri::WindowEvent::Destroyed = event {
-                if let Some(lighthouse) = window.app_handle().try_state::<LighthouseState>() {
-                    let lighthouse = lighthouse.0.clone();
-                    tauri::async_runtime::spawn(async move {
-                        log::info!("Shutting down Lighthouse service...");
-                        if let Err(e) = lighthouse.shutdown().await {
-                            log::error!("Error shutting down Lighthouse: {}", e);
-                        }
-                    });
-                }
-            }
-        })
+        .setup(lifecycle::setup)
         .invoke_handler(tauri::generate_handler![
             commands::analysis::start_analysis,
             commands::analysis::get_analysis_progress,
@@ -110,6 +31,7 @@ fn main() {
             commands::ai::get_gemini_enabled,
             commands::ai::set_gemini_enabled,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(lifecycle::handle_run_event);
 }
