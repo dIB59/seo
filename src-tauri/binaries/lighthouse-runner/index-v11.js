@@ -25,6 +25,51 @@ const lighthouse = require('lighthouse');
 const chromeLauncher = require('chrome-launcher');
 const readline = require('readline');
 
+// Track all Chrome instances for cleanup
+const activeChrome = new Set();
+
+// Cleanup handler for graceful shutdown
+async function cleanupAllChrome() {
+  console.error(`[lighthouse-runner] Cleaning up ${activeChrome.size} Chrome instance(s)...`);
+  for (const chrome of activeChrome) {
+    try {
+      await killChrome(chrome);
+    } catch (e) {
+      // Force kill via process if normal kill fails
+      try {
+        process.kill(chrome.pid, 'SIGKILL');
+      } catch (e2) {
+        // Ignore - process may already be dead
+      }
+    }
+  }
+  activeChrome.clear();
+}
+
+// Handle process termination signals
+process.on('SIGTERM', async () => {
+  console.error('[lighthouse-runner] Received SIGTERM');
+  await cleanupAllChrome();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.error('[lighthouse-runner] Received SIGINT');
+  await cleanupAllChrome();
+  process.exit(0);
+});
+
+process.on('exit', () => {
+  // Sync cleanup on exit - kill any remaining Chrome processes
+  for (const chrome of activeChrome) {
+    try {
+      process.kill(chrome.pid, 'SIGKILL');
+    } catch (e) {
+      // Ignore
+    }
+  }
+});
+
 // Default concurrency for batch mode (how many Lighthouse audits run in parallel)
 const DEFAULT_CONCURRENCY = 3;
 
@@ -149,7 +194,7 @@ async function runPersistentMode() {
           } finally {
             if (chrome) {
               try {
-                await chrome.kill();
+                await killChrome(chrome);
               } catch (e) {
                 // Ignore kill errors
               }
@@ -176,7 +221,7 @@ async function runPersistentMode() {
               try {
                 // Restart Chrome between URLs to avoid Lighthouse state issues
                 if (i > 0) {
-                  await chrome.kill();
+                  await killChrome(chrome);
                   chrome = await launchChrome();
                 }
                 const result = await analyzeSingleUrl(url, chrome.port);
@@ -189,7 +234,7 @@ async function runPersistentMode() {
                 });
                 // Restart Chrome on error
                 try {
-                  await chrome.kill();
+                  await killChrome(chrome);
                   chrome = await launchChrome();
                 } catch (e) {
                   // Ignore
@@ -210,7 +255,7 @@ async function runPersistentMode() {
           } finally {
             if (chrome) {
               try {
-                await chrome.kill();
+                await killChrome(chrome);
               } catch (e) {
                 // Ignore
               }
@@ -265,7 +310,7 @@ async function runSingleUrl(url) {
     process.exit(1);
   } finally {
     if (chrome) {
-      await chrome.kill();
+      await killChrome(chrome);
     }
   }
 }
@@ -325,16 +370,16 @@ async function runBatch(urls, concurrency) {
   } finally {
     if (chrome) {
       console.error('[lighthouse-runner] Shutting down Chrome');
-      await chrome.kill();
+      await killChrome(chrome);
     }
   }
 }
 
 /**
- * Launch Chrome with optimal flags
+ * Launch Chrome with optimal flags and track the instance
  */
 async function launchChrome() {
-  return chromeLauncher.launch({
+  const chrome = await chromeLauncher.launch({
     chromeFlags: [
       '--headless',
       '--disable-gpu',
@@ -349,8 +394,29 @@ async function launchChrome() {
       '--hide-scrollbars',
       '--no-first-run',
       '--no-default-browser-check',
+      '--disable-crashpad', // Prevent crashpad handlers from lingering
     ],
   });
+  activeChrome.add(chrome);
+  return chrome;
+}
+
+/**
+ * Kill Chrome and remove from tracking
+ */
+async function killChrome(chrome) {
+  if (!chrome) return;
+  activeChrome.delete(chrome);
+  try {
+    await chrome.kill();
+  } catch (e) {
+    // Force kill if normal kill fails
+    try {
+      process.kill(chrome.pid, 'SIGKILL');
+    } catch (e2) {
+      // Ignore
+    }
+  }
 }
 
 /**
