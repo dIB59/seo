@@ -56,14 +56,14 @@ export function SeoSummaryCard({ pages }: SeoSummaryCardProps) {
                 <div className={`grid gap-3 ${hasDeepAuditData ? 'grid-cols-2' : 'grid-cols-3'}`}>
                     {displayScores.map((score) => {
                         const Icon = score.icon
-                        const hasValue = score.value !== null
+                        const value = score.value
                         return (
                             <div
                                 key={score.label}
                                 className="flex items-center gap-2 p-2 rounded-lg bg-muted/50"
                             >
-                                {hasValue ? (
-                                    <ScoreRing score={score.value} size="sm" />
+                                {value ? (
+                                    <ScoreRing score={value} size="sm" />
                                 ) : (
                                     <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
                                         <span className="text-[10px] text-muted-foreground">N/A</span>
