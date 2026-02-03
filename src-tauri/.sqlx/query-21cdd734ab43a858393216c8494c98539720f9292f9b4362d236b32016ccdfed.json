@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO pages (\n                id, job_id, url, depth, status_code, content_type,\n                title, meta_description, canonical_url, robots_meta,\n                word_count, load_time_ms, response_size_bytes, crawled_at\n            )\n            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n            ON CONFLICT(job_id, url) DO UPDATE SET\n                depth = excluded.depth,\n                status_code = excluded.status_code,\n                content_type = excluded.content_type,\n                title = excluded.title,\n                meta_description = excluded.meta_description,\n                canonical_url = excluded.canonical_url,\n                robots_meta = excluded.robots_meta,\n                word_count = excluded.word_count,\n                load_time_ms = excluded.load_time_ms,\n                response_size_bytes = excluded.response_size_bytes,\n                crawled_at = excluded.crawled_at\n            RETURNING id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 14
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "21cdd734ab43a858393216c8494c98539720f9292f9b4362d236b32016ccdfed"
+}

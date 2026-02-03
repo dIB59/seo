@@ -70,22 +70,22 @@ impl std::fmt::Display for JobStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobSettings {
     pub max_pages: i64,
-    pub max_depth: i64,
-    pub respect_robots_txt: bool,
-    pub include_subdomains: bool,
-    pub rate_limit_ms: i64,
-    pub user_agent: Option<String>,
+    pub include_external_links: bool,
+    pub check_images: bool,
+    pub mobile_analysis: bool,
+    pub lighthouse_analysis: bool,
+    pub delay_between_requests: i64,
 }
 
 impl Default for JobSettings {
     fn default() -> Self {
         Self {
             max_pages: 100,
-            max_depth: 3,
-            respect_robots_txt: true,
-            include_subdomains: false,
-            rate_limit_ms: 1000,
-            user_agent: None,
+            include_external_links: false,
+            check_images: true,
+            mobile_analysis: false,
+            lighthouse_analysis: false,
+            delay_between_requests: 500,
         }
     }
 }

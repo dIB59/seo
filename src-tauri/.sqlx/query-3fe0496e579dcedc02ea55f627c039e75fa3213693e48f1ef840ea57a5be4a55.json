@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT \n                id, url, status, created_at, updated_at, completed_at,\n                max_pages, max_depth, respect_robots_txt, include_subdomains, \n                rate_limit_ms, user_agent,\n                total_pages, pages_crawled, total_issues, \n                critical_issues, warning_issues, info_issues,\n                progress, current_stage, error_message\n            FROM jobs\n            WHERE id = ?\n            ",
+  "query": "\n            SELECT \n                id, url, status, created_at, updated_at, completed_at,\n                max_pages, max_depth, respect_robots_txt, include_subdomains, \n                rate_limit_ms, user_agent, lighthouse_analysis,\n                total_pages, pages_crawled, total_issues, \n                critical_issues, warning_issues, info_issues,\n                progress, current_stage, error_message\n            FROM jobs\n            WHERE status IN ('pending', 'running')\n            ORDER BY created_at ASC\n            ",
   "describe": {
     "columns": [
       {
@@ -64,53 +64,58 @@
         "type_info": "Text"
       },
       {
-        "name": "total_pages",
+        "name": "lighthouse_analysis",
         "ordinal": 12,
         "type_info": "Int64"
       },
       {
-        "name": "pages_crawled",
+        "name": "total_pages",
         "ordinal": 13,
         "type_info": "Int64"
       },
       {
-        "name": "total_issues",
+        "name": "pages_crawled",
         "ordinal": 14,
         "type_info": "Int64"
       },
       {
-        "name": "critical_issues",
+        "name": "total_issues",
         "ordinal": 15,
         "type_info": "Int64"
       },
       {
-        "name": "warning_issues",
+        "name": "critical_issues",
         "ordinal": 16,
         "type_info": "Int64"
       },
       {
-        "name": "info_issues",
+        "name": "warning_issues",
         "ordinal": 17,
         "type_info": "Int64"
       },
       {
-        "name": "progress",
+        "name": "info_issues",
         "ordinal": 18,
+        "type_info": "Int64"
+      },
+      {
+        "name": "progress",
+        "ordinal": 19,
         "type_info": "Float"
       },
       {
         "name": "current_stage",
-        "ordinal": 19,
+        "ordinal": 20,
         "type_info": "Text"
       },
       {
         "name": "error_message",
-        "ordinal": 20,
+        "ordinal": 21,
         "type_info": "Text"
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 0
     },
     "nullable": [
       false,
@@ -132,9 +137,10 @@
       false,
       false,
       false,
+      false,
       true,
       true
     ]
   },
-  "hash": "24eed9804d4d9c9a9a261b7ca959b0b34b2f5dc413faf63f826da7f666ea5a70"
+  "hash": "3fe0496e579dcedc02ea55f627c039e75fa3213693e48f1ef840ea57a5be4a55"
 }

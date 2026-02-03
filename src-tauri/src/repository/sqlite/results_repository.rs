@@ -85,7 +85,7 @@ impl ResultsRepository {
             SELECT 
                 id, url, status, created_at, updated_at, completed_at,
                 max_pages, max_depth, respect_robots_txt, include_subdomains, 
-                rate_limit_ms, user_agent,
+                rate_limit_ms, user_agent, lighthouse_analysis,
                 total_pages, pages_crawled, total_issues, 
                 critical_issues, warning_issues, info_issues,
                 progress, current_stage, error_message
@@ -107,11 +107,11 @@ impl ResultsRepository {
             completed_at: row.completed_at.as_deref().map(parse_datetime),
             settings: JobSettings {
                 max_pages: row.max_pages,
-                max_depth: row.max_depth,
-                respect_robots_txt: row.respect_robots_txt != 0,
-                include_subdomains: row.include_subdomains != 0,
-                rate_limit_ms: row.rate_limit_ms,
-                user_agent: row.user_agent,
+                include_external_links: false,
+                check_images: true,
+                mobile_analysis: false,
+                lighthouse_analysis: row.lighthouse_analysis != 0,
+                delay_between_requests: row.rate_limit_ms,
             },
             summary: JobSummary {
                 total_pages: row.total_pages,

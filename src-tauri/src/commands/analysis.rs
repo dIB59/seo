@@ -47,11 +47,11 @@ impl From<AnalysisSettingsRequest> for JobSettings {
     fn from(req: AnalysisSettingsRequest) -> Self {
         Self {
             max_pages: req.max_pages,
-            max_depth: 3, // Default depth
-            respect_robots_txt: true,
-            include_subdomains: false,
-            rate_limit_ms: req.delay_between_requests,
-            user_agent: None,
+            include_external_links: req.include_external_links,
+            check_images: req.check_images,
+            mobile_analysis: req.mobile_analysis,
+            lighthouse_analysis: req.lighthouse_analysis,
+            delay_between_requests: req.delay_between_requests,
         }
     }
 }

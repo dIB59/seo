@@ -152,6 +152,10 @@ impl<R: tauri::Runtime> JobProcessor<R> {
             return Ok(job.id.clone());
         }
 
+        log::debug!("Auditor selected for job {}: {}", job.id, {
+            let auditor = self.select_auditor(&job.settings);
+            auditor.name()
+        });
         // Run discovery and analysis
         let auditor = self.select_auditor(&job.settings);
         let crawl_result = self
@@ -203,7 +207,7 @@ impl<R: tauri::Runtime> JobProcessor<R> {
     }
 
     fn select_auditor(&self, settings: &JobSettings) -> Arc<dyn Auditor + Send + Sync> {
-        if settings.rate_limit_ms >= 2000 {
+        if settings.lighthouse_analysis {
             if self.deep_auditor.is_available() {
                 self.deep_auditor.clone()
             } else {
@@ -272,7 +276,7 @@ impl<R: tauri::Runtime> JobProcessor<R> {
             .discover(
                 start_url.clone(),
                 job.settings.max_pages,
-                job.settings.rate_limit_ms,
+                job.settings.delay_between_requests,
                 cancel_flag,
                 |_| {},
             )
@@ -461,8 +465,8 @@ impl<R: tauri::Runtime> JobProcessor<R> {
     }
 
     async fn apply_request_delay(&self, settings: &JobSettings) {
-        if settings.rate_limit_ms > 0 {
-            sleep(Duration::from_millis(settings.rate_limit_ms as u64)).await;
+        if settings.delay_between_requests > 0 {
+            sleep(Duration::from_millis(settings.delay_between_requests as u64)).await;
         }
     }
 
