@@ -127,7 +127,19 @@ impl LinkRepository {
         .await
         .context("Failed to fetch broken links")?;
 
-        Ok(rows.into_iter().map(|row| row_to_link(&row)).collect())
+        Ok(rows.into_iter().map(|row| {
+            Link {
+                id: row.id.expect("Id must exist on links with jobs"),
+                job_id: row.job_id,
+                source_page_id: row.source_page_id,
+                target_page_id: row.target_page_id,
+                target_url: row.target_url,
+                link_text: row.link_text,
+                link_type: map_link_type(&row.link_type),
+                is_followed: row.is_followed != 0,
+                status_code: row.status_code,
+            }
+        }).collect())
     }
 
     /// Get link counts by type for a job.
