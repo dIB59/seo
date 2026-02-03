@@ -114,16 +114,15 @@ impl LinkRepository {
 
     /// Get broken links for a job (status_code >= 400 or NULL).
     pub async fn get_broken(&self, job_id: &str) -> Result<Vec<Link>> {
-        let rows = sqlx::query(
+        let rows = sqlx::query!(
             r#"
             SELECT 
                 id, job_id, source_page_id, target_page_id, target_url,
                 link_text, link_type, is_followed, status_code
             FROM links
             WHERE job_id = ? AND (status_code >= 400 OR status_code IS NULL)
-            "#,
+            "#,job_id
         )
-        .bind(job_id)
         .fetch_all(&self.pool)
         .await
         .context("Failed to fetch broken links")?;
