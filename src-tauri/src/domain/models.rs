@@ -359,11 +359,6 @@ pub struct Link {
     pub is_followed: bool,
     pub status_code: Option<i64>,
 }
-impl Link {
-    pub(crate) fn from_row(r: _) -> _ {
-        todo!()
-    }
-}
 
 /// New link to be inserted.
 #[derive(Debug, Clone)]
