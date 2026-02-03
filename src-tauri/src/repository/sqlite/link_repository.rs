@@ -4,10 +4,10 @@
 //! graph queries without joining through page_analysis → analysis_results.
 
 use anyhow::{Context, Result};
-use sqlx::{Row, SqlitePool};
+use sqlx::SqlitePool;
 
-use crate::domain::models::{Link, NewLink};
 use super::map_link_type;
+use crate::domain::models::{Link, NewLink};
 
 pub struct LinkRepository {
     pool: SqlitePool,
@@ -57,83 +57,135 @@ impl LinkRepository {
 
     /// Get all links for a job (FAST: direct FK lookup).
     pub async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<Link>> {
-        let rows = sqlx::query(
+        let rows = sqlx::query!(
             r#"
             SELECT 
-                id, job_id, source_page_id, target_page_id, target_url,
+                id as "id!", job_id, source_page_id, target_page_id, target_url,
                 link_text, link_type, is_followed, status_code
             FROM links
             WHERE job_id = ?
             "#,
+            job_id
         )
-        .bind(job_id)
         .fetch_all(&self.pool)
         .await
         .context("Failed to fetch links for job")?;
 
-        Ok(rows.into_iter().map(|row| row_to_link(&row)).collect())
+        Ok(rows
+            .into_iter()
+            .map(|row| Link {
+                id: row.id,
+                job_id: row.job_id,
+                source_page_id: row.source_page_id,
+                target_page_id: row.target_page_id,
+                target_url: row.target_url,
+                link_text: row.link_text,
+                link_type: map_link_type(row.link_type.as_str()),
+                is_followed: row.is_followed != 0,
+                status_code: row.status_code,
+            })
+            .collect())
     }
 
     /// Get outgoing links from a page.
     pub async fn get_outgoing(&self, source_page_id: &str) -> Result<Vec<Link>> {
-        let rows = sqlx::query(
+        let rows = sqlx::query!(
             r#"
             SELECT 
-                id, job_id, source_page_id, target_page_id, target_url,
+                id as "id!", job_id, source_page_id, target_page_id, target_url,
                 link_text, link_type, is_followed, status_code
             FROM links
             WHERE source_page_id = ?
             "#,
+            source_page_id
         )
-        .bind(source_page_id)
         .fetch_all(&self.pool)
         .await
         .context("Failed to fetch outgoing links")?;
 
-        Ok(rows.into_iter().map(|row| row_to_link(&row)).collect())
+        Ok(rows
+            .into_iter()
+            .map(|row| Link {
+                id: row.id,
+                job_id: row.job_id,
+                source_page_id: row.source_page_id,
+                target_page_id: row.target_page_id,
+                target_url: row.target_url,
+                link_text: row.link_text,
+                link_type: map_link_type(row.link_type.as_str()),
+                is_followed: row.is_followed != 0,
+                status_code: row.status_code,
+            })
+            .collect())
     }
 
     /// Get incoming links to a page.
     pub async fn get_incoming(&self, target_page_id: &str) -> Result<Vec<Link>> {
-        let rows = sqlx::query(
+        let rows = sqlx::query!(
             r#"
             SELECT 
-                id, job_id, source_page_id, target_page_id, target_url,
+                id as "id!", job_id, source_page_id, target_page_id, target_url,
                 link_text, link_type, is_followed, status_code
             FROM links
             WHERE target_page_id = ?
             "#,
+            target_page_id
         )
-        .bind(target_page_id)
         .fetch_all(&self.pool)
         .await
         .context("Failed to fetch incoming links")?;
 
-        Ok(rows.into_iter().map(|row| row_to_link(&row)).collect())
+        Ok(rows
+            .into_iter()
+            .map(|row| Link {
+                id: row.id,
+                job_id: row.job_id,
+                source_page_id: row.source_page_id,
+                target_page_id: row.target_page_id,
+                target_url: row.target_url,
+                link_text: row.link_text,
+                link_type: map_link_type(row.link_type.as_str()),
+                is_followed: row.is_followed != 0,
+                status_code: row.status_code,
+            })
+            .collect())
     }
 
     /// Get broken links for a job (status_code >= 400 or NULL).
     pub async fn get_broken(&self, job_id: &str) -> Result<Vec<Link>> {
-        let rows = sqlx::query(
+        let rows = sqlx::query!(
             r#"
             SELECT 
-                id, job_id, source_page_id, target_page_id, target_url,
+                id as "id!", job_id, source_page_id, target_page_id, target_url,
                 link_text, link_type, is_followed, status_code
             FROM links
             WHERE job_id = ? AND (status_code >= 400 OR status_code IS NULL)
             "#,
+            job_id
         )
-        .bind(job_id)
         .fetch_all(&self.pool)
         .await
         .context("Failed to fetch broken links")?;
 
-        Ok(rows.into_iter().map(|row| row_to_link(&row)).collect())
+        Ok(rows
+            .into_iter()
+            .map(|row| Link {
+                id: row.id,
+                job_id: row.job_id,
+                source_page_id: row.source_page_id,
+                target_page_id: row.target_page_id,
+                target_url: row.target_url,
+                link_text: row.link_text,
+                link_type: map_link_type(row.link_type.as_str()),
+                is_followed: row.is_followed != 0,
+                status_code: row.status_code,
+            })
+            .collect())
     }
 
     /// Get link counts by type for a job.
     pub async fn count_by_type(&self, job_id: &str) -> Result<LinkCounts> {
-        let row = sqlx::query(
+        let row = sqlx::query!(
             r#"
             SELECT 
                 SUM(CASE WHEN link_type = 'internal' THEN 1 ELSE 0 END) as internal,
@@ -142,34 +194,34 @@ impl LinkRepository {
             FROM links
             WHERE job_id = ?
             "#,
+            job_id
         )
-        .bind(job_id)
         .fetch_one(&self.pool)
         .await
         .context("Failed to count links")?;
 
         Ok(LinkCounts {
-            internal: row.get::<Option<i64>, _>("internal").unwrap_or(0),
-            external: row.get::<Option<i64>, _>("external").unwrap_or(0),
-            resource: row.get::<Option<i64>, _>("resource").unwrap_or(0),
+            internal: row.internal.unwrap_or(0) as i64,
+            external: row.external.unwrap_or(0) as i64,
+            resource: row.resource.unwrap_or(0) as i64,
         })
     }
 
     /// Get external domains linked from a job.
     pub async fn get_external_domains(&self, job_id: &str) -> Result<Vec<ExternalDomain>> {
-        let rows = sqlx::query(
+        let rows = sqlx::query!(
             r#"
             SELECT 
-                SUBSTR(target_url, 1, INSTR(SUBSTR(target_url, 9), '/') + 7) as domain,
-                COUNT(*) as count
+                COALESCE(SUBSTR(target_url, 1, INSTR(SUBSTR(target_url, 9), '/') + 7), '') as "domain!: String",
+                COUNT(*) as "count!: i64"
             FROM links
             WHERE job_id = ? AND link_type = 'external'
-            GROUP BY domain
-            ORDER BY count DESC
+            GROUP BY 1
+            ORDER BY 2 DESC
             LIMIT 50
             "#,
+            job_id
         )
-        .bind(job_id)
         .fetch_all(&self.pool)
         .await
         .context("Failed to get external domains")?;
@@ -177,8 +229,8 @@ impl LinkRepository {
         Ok(rows
             .into_iter()
             .map(|row| ExternalDomain {
-                domain: row.get("domain"),
-                link_count: row.get::<i64, _>("count"),
+                domain: row.domain,
+                link_count: row.count,
             })
             .collect())
     }
@@ -192,29 +244,17 @@ impl LinkRepository {
         let mut tx = self.pool.begin().await?;
 
         for (link_id, status_code) in updates {
-            sqlx::query("UPDATE links SET status_code = ? WHERE id = ?")
-                .bind(status_code)
-                .bind(link_id)
-                .execute(&mut *tx)
-                .await?;
+            sqlx::query!(
+                "UPDATE links SET status_code = ? WHERE id = ?",
+                status_code,
+                link_id
+            )
+            .execute(&mut *tx)
+            .await?;
         }
 
         tx.commit().await?;
         Ok(())
-    }
-}
-
-fn row_to_link(row: &sqlx::sqlite::SqliteRow) -> Link {
-    Link {
-        id: row.get("id"),
-        job_id: row.get("job_id"),
-        source_page_id: row.get("source_page_id"),
-        target_page_id: row.get("target_page_id"),
-        target_url: row.get("target_url"),
-        link_text: row.get("link_text"),
-        link_type: map_link_type(row.get("link_type")),
-        is_followed: row.get::<i64, _>("is_followed") != 0,
-        status_code: row.get("status_code"),
     }
 }
 

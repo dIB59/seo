@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT sql\n        FROM sqlite_master\n        WHERE sql IS NOT NULL\n          AND type IN ('table', 'index', 'trigger')\n        ORDER BY type, name;\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "sql",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "f9785bf7bf1387d52b45006a7fab98da9f8d5c07b4b79c34ad7c2c3b81d22f1f"
+}

@@ -1,0 +1,98 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT \n                id, job_id, url, depth, status_code, content_type,\n                title, meta_description, canonical_url, robots_meta,\n                word_count, load_time_ms, response_size_bytes, crawled_at\n            FROM pages\n            WHERE id = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "job_id",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "url",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "depth",
+        "ordinal": 3,
+        "type_info": "Int64"
+      },
+      {
+        "name": "status_code",
+        "ordinal": 4,
+        "type_info": "Int64"
+      },
+      {
+        "name": "content_type",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "title",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "meta_description",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "canonical_url",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "robots_meta",
+        "ordinal": 9,
+        "type_info": "Text"
+      },
+      {
+        "name": "word_count",
+        "ordinal": 10,
+        "type_info": "Int64"
+      },
+      {
+        "name": "load_time_ms",
+        "ordinal": 11,
+        "type_info": "Int64"
+      },
+      {
+        "name": "response_size_bytes",
+        "ordinal": 12,
+        "type_info": "Int64"
+      },
+      {
+        "name": "crawled_at",
+        "ordinal": 13,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "44bde68fc4fec4f4da2b8e29303c1fe59e41e75e84e102029bd4c73118681fbc"
+}

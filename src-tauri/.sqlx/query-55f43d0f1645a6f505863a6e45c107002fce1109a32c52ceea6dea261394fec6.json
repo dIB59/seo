@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO settings (id, theme) VALUES (1, ?)\n                 ON CONFLICT(id) DO UPDATE SET theme = ?, updated_at = datetime('now')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "55f43d0f1645a6f505863a6e45c107002fce1109a32c52ceea6dea261394fec6"
+}

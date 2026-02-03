@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT \n                SUM(CASE WHEN severity = 'critical' THEN 1 ELSE 0 END) as critical,\n                SUM(CASE WHEN severity = 'warning' THEN 1 ELSE 0 END) as warning,\n                SUM(CASE WHEN severity = 'info' THEN 1 ELSE 0 END) as info\n            FROM issues\n            WHERE job_id = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "critical",
+        "ordinal": 0,
+        "type_info": "Int"
+      },
+      {
+        "name": "warning",
+        "ordinal": 1,
+        "type_info": "Int"
+      },
+      {
+        "name": "info",
+        "ordinal": 2,
+        "type_info": "Int"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "28fc94a1f187bd0ac90e9ec44004f33f1bae9b10b23e562f94ea65acdd33e9df"
+}

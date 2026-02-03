@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO ai_insights (job_id, summary, recommendations, raw_response, model, created_at, updated_at)\n            VALUES (?, ?, ?, ?, ?, ?, ?)\n            ON CONFLICT(job_id) DO UPDATE SET\n                summary = excluded.summary,\n                recommendations = excluded.recommendations,\n                raw_response = excluded.raw_response,\n                model = excluded.model,\n                updated_at = excluded.updated_at\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "8f3810fd10295234bd0b1e5620a0cc7f9c2db87911bb40a0023cdba66beead1c"
+}

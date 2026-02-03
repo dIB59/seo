@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT \n                type as issue_type, \n                severity,\n                COUNT(*) as count,\n                GROUP_CONCAT(DISTINCT message) as messages\n            FROM issues\n            WHERE job_id = ?\n            GROUP BY type, severity\n            ORDER BY \n                CASE severity \n                    WHEN 'critical' THEN 1 \n                    WHEN 'warning' THEN 2 \n                    ELSE 3 \n                END,\n                count DESC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "issue_type",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "severity",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "count",
+        "ordinal": 2,
+        "type_info": "Int64"
+      },
+      {
+        "name": "messages",
+        "ordinal": 3,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "3d885ce81970e3ccd4b93d59a392d480f305f67b2ea285216ae74a1d1dfd25ed"
+}

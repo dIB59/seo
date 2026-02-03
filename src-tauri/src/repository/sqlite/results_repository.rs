@@ -5,7 +5,7 @@
 
 use anyhow::{Context, Result};
 use chrono::Utc;
-use sqlx::{Row, SqlitePool};
+use sqlx::SqlitePool;
 
 use crate::domain::models::{
     AiInsight, CompleteJobResult, Issue, Job, JobSettings, JobSummary,
@@ -80,7 +80,7 @@ impl ResultsRepository {
     }
 
     async fn get_job(&self, job_id: &str) -> Result<Job> {
-        let row = sqlx::query(
+        let row = sqlx::query!(
             r#"
             SELECT 
                 id, url, status, created_at, updated_at, completed_at,
@@ -92,43 +92,43 @@ impl ResultsRepository {
             FROM jobs
             WHERE id = ?
             "#,
+            job_id
         )
-        .bind(job_id)
         .fetch_one(&self.pool)
         .await
         .context("Failed to fetch job")?;
 
         Ok(Job {
-            id: row.get("id"),
-            url: row.get("url"),
-            status: map_job_status(row.get::<&str, _>("status")),
-            created_at: parse_datetime(row.get("created_at")),
-            updated_at: parse_datetime(row.get("updated_at")),
-            completed_at: row.get::<Option<&str>, _>("completed_at").map(parse_datetime),
+            id: row.id,
+            url: row.url,
+            status: map_job_status(row.status.as_str()),
+            created_at: parse_datetime(row.created_at.as_str()),
+            updated_at: parse_datetime(row.updated_at.as_str()),
+            completed_at: row.completed_at.as_deref().map(parse_datetime),
             settings: JobSettings {
-                max_pages: row.get("max_pages"),
-                max_depth: row.get("max_depth"),
-                respect_robots_txt: row.get::<i64, _>("respect_robots_txt") != 0,
-                include_subdomains: row.get::<i64, _>("include_subdomains") != 0,
-                rate_limit_ms: row.get("rate_limit_ms"),
-                user_agent: row.get("user_agent"),
+                max_pages: row.max_pages,
+                max_depth: row.max_depth,
+                respect_robots_txt: row.respect_robots_txt != 0,
+                include_subdomains: row.include_subdomains != 0,
+                rate_limit_ms: row.rate_limit_ms,
+                user_agent: row.user_agent,
             },
             summary: JobSummary {
-                total_pages: row.get("total_pages"),
-                pages_crawled: row.get("pages_crawled"),
-                total_issues: row.get("total_issues"),
-                critical_issues: row.get("critical_issues"),
-                warning_issues: row.get("warning_issues"),
-                info_issues: row.get("info_issues"),
+                total_pages: row.total_pages,
+                pages_crawled: row.pages_crawled,
+                total_issues: row.total_issues,
+                critical_issues: row.critical_issues,
+                warning_issues: row.warning_issues,
+                info_issues: row.info_issues,
             },
-            progress: row.get("progress"),
-            current_stage: row.get("current_stage"),
-            error_message: row.get("error_message"),
+            progress: row.progress,
+            current_stage: row.current_stage,
+            error_message: row.error_message,
         })
     }
 
     async fn get_pages(&self, job_id: &str) -> Result<Vec<Page>> {
-        let rows = sqlx::query(
+        let rows = sqlx::query!(
             r#"
             SELECT 
                 id, job_id, url, depth, status_code, content_type,
@@ -138,8 +138,8 @@ impl ResultsRepository {
             WHERE job_id = ?
             ORDER BY depth ASC, url ASC
             "#,
+            job_id
         )
-        .bind(job_id)
         .fetch_all(&self.pool)
         .await
         .context("Failed to fetch pages")?;
@@ -147,29 +147,29 @@ impl ResultsRepository {
         Ok(rows
             .into_iter()
             .map(|row| Page {
-                id: row.get("id"),
-                job_id: row.get("job_id"),
-                url: row.get("url"),
-                depth: row.get("depth"),
-                status_code: row.get("status_code"),
-                content_type: row.get("content_type"),
-                title: row.get("title"),
-                meta_description: row.get("meta_description"),
-                canonical_url: row.get("canonical_url"),
-                robots_meta: row.get("robots_meta"),
-                word_count: row.get("word_count"),
-                load_time_ms: row.get("load_time_ms"),
-                response_size_bytes: row.get("response_size_bytes"),
-                crawled_at: parse_datetime(row.get("crawled_at")),
+                id: row.id,
+                job_id: row.job_id,
+                url: row.url,
+                depth: row.depth,
+                status_code: row.status_code,
+                content_type: row.content_type,
+                title: row.title,
+                meta_description: row.meta_description,
+                canonical_url: row.canonical_url,
+                robots_meta: row.robots_meta,
+                word_count: row.word_count,
+                load_time_ms: row.load_time_ms,
+                response_size_bytes: row.response_size_bytes,
+                crawled_at: parse_datetime(row.crawled_at.as_str()),
             })
             .collect())
     }
 
     async fn get_issues(&self, job_id: &str) -> Result<Vec<Issue>> {
-        let rows = sqlx::query(
+        let rows = sqlx::query!(
             r#"
             SELECT 
-                id, job_id, page_id, type, severity, message, details, created_at
+                id, job_id, page_id, type as issue_type, severity, message, details, created_at
             FROM issues
             WHERE job_id = ?
             ORDER BY 
@@ -180,8 +180,8 @@ impl ResultsRepository {
                 END,
                 type ASC
             "#,
+            job_id
         )
-        .bind(job_id)
         .fetch_all(&self.pool)
         .await
         .context("Failed to fetch issues")?;
@@ -189,20 +189,20 @@ impl ResultsRepository {
         Ok(rows
             .into_iter()
             .map(|row| Issue {
-                id: row.get("id"),
-                job_id: row.get("job_id"),
-                page_id: row.get("page_id"),
-                issue_type: row.get("type"),
-                severity: map_severity(row.get("severity")),
-                message: row.get("message"),
-                details: row.get("details"),
-                created_at: parse_datetime(row.get("created_at")),
+                id: row.id.expect("msg"),
+                job_id: row.job_id,
+                page_id: row.page_id,
+                issue_type: row.issue_type,
+                severity: map_severity(row.severity.as_str()),
+                message: row.message,
+                details: row.details,
+                created_at: parse_datetime(row.created_at.as_str()),
             })
             .collect())
     }
 
     async fn get_links(&self, job_id: &str) -> Result<Vec<Link>> {
-        let rows = sqlx::query(
+        let rows = sqlx::query!(
             r#"
             SELECT 
                 id, job_id, source_page_id, target_page_id, target_url,
@@ -210,8 +210,8 @@ impl ResultsRepository {
             FROM links
             WHERE job_id = ?
             "#,
+            job_id
         )
-        .bind(job_id)
         .fetch_all(&self.pool)
         .await
         .context("Failed to fetch links")?;
@@ -219,21 +219,21 @@ impl ResultsRepository {
         Ok(rows
             .into_iter()
             .map(|row| Link {
-                id: row.get("id"),
-                job_id: row.get("job_id"),
-                source_page_id: row.get("source_page_id"),
-                target_page_id: row.get("target_page_id"),
-                target_url: row.get("target_url"),
-                link_text: row.get("link_text"),
-                link_type: map_link_type(row.get("link_type")),
-                is_followed: row.get::<i64, _>("is_followed") != 0,
-                status_code: row.get("status_code"),
+                id: row.id.expect("Must exist"),
+                job_id: row.job_id,
+                source_page_id: row.source_page_id,
+                target_page_id: row.target_page_id,
+                target_url: row.target_url,
+                link_text: row.link_text,
+                link_type: map_link_type(row.link_type.as_str()),
+                is_followed: row.is_followed != 0,
+                status_code: row.status_code,
             })
             .collect())
     }
 
     async fn get_lighthouse(&self, job_id: &str) -> Result<Vec<LighthouseData>> {
-        let rows = sqlx::query(
+        let rows = sqlx::query!(
             r#"
             SELECT 
                 pl.page_id, pl.performance_score, pl.accessibility_score,
@@ -245,8 +245,8 @@ impl ResultsRepository {
             JOIN pages p ON p.id = pl.page_id
             WHERE p.job_id = ?
             "#,
+            job_id
         )
-        .bind(job_id)
         .fetch_all(&self.pool)
         .await
         .context("Failed to fetch lighthouse data")?;
@@ -254,24 +254,24 @@ impl ResultsRepository {
         Ok(rows
             .into_iter()
             .map(|row| LighthouseData {
-                page_id: row.get("page_id"),
-                performance_score: row.get("performance_score"),
-                accessibility_score: row.get("accessibility_score"),
-                best_practices_score: row.get("best_practices_score"),
-                seo_score: row.get("seo_score"),
-                first_contentful_paint_ms: row.get("first_contentful_paint_ms"),
-                largest_contentful_paint_ms: row.get("largest_contentful_paint_ms"),
-                total_blocking_time_ms: row.get("total_blocking_time_ms"),
-                cumulative_layout_shift: row.get("cumulative_layout_shift"),
-                speed_index: row.get("speed_index"),
-                time_to_interactive_ms: row.get("time_to_interactive_ms"),
-                raw_json: row.get("raw_json"),
+                page_id: row.page_id,
+                performance_score: row.performance_score,
+                accessibility_score: row.accessibility_score,
+                best_practices_score: row.best_practices_score,
+                seo_score: row.seo_score,
+                first_contentful_paint_ms: row.first_contentful_paint_ms,
+                largest_contentful_paint_ms: row.largest_contentful_paint_ms,
+                total_blocking_time_ms: row.total_blocking_time_ms,
+                cumulative_layout_shift: row.cumulative_layout_shift,
+                speed_index: row.speed_index,
+                time_to_interactive_ms: row.time_to_interactive_ms,
+                raw_json: row.raw_json,
             })
             .collect())
     }
 
     async fn get_ai_insights(&self, job_id: &str) -> Result<AiInsight> {
-        let row = sqlx::query(
+        let row = sqlx::query!(
             r#"
             SELECT 
                 id, job_id, summary, recommendations, raw_response,
@@ -279,21 +279,21 @@ impl ResultsRepository {
             FROM ai_insights
             WHERE job_id = ?
             "#,
+            job_id
         )
-        .bind(job_id)
         .fetch_one(&self.pool)
         .await
         .context("Failed to fetch AI insights")?;
 
         Ok(AiInsight {
-            id: row.get("id"),
-            job_id: row.get("job_id"),
-            summary: row.get("summary"),
-            recommendations: row.get("recommendations"),
-            raw_response: row.get("raw_response"),
-            model: row.get("model"),
-            created_at: parse_datetime(row.get("created_at")),
-            updated_at: parse_datetime(row.get("updated_at")),
+            id: row.id.expect("Must Exist"),
+            job_id: row.job_id,
+            summary: row.summary,
+            recommendations: row.recommendations,
+            raw_response: row.raw_response,
+            model: row.model,
+            created_at: parse_datetime(row.created_at.as_str()),
+            updated_at: parse_datetime(row.updated_at.as_str()),
         })
     }
 
@@ -308,7 +308,7 @@ impl ResultsRepository {
     ) -> Result<()> {
         let now = Utc::now().to_rfc3339();
 
-        sqlx::query(
+        sqlx::query!(
             r#"
             INSERT INTO ai_insights (job_id, summary, recommendations, raw_response, model, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -319,14 +319,14 @@ impl ResultsRepository {
                 model = excluded.model,
                 updated_at = excluded.updated_at
             "#,
+            job_id,
+            summary,
+            recommendations,
+            raw_response,
+            model,
+            now,
+            now
         )
-        .bind(job_id)
-        .bind(summary)
-        .bind(recommendations)
-        .bind(raw_response)
-        .bind(model)
-        .bind(&now)
-        .bind(&now)
         .execute(&self.pool)
         .await
         .context("Failed to save AI insights")?;

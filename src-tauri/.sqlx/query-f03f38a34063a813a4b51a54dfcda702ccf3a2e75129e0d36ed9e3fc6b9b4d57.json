@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "PRAGMA cache_size = -65536",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "f03f38a34063a813a4b51a54dfcda702ccf3a2e75129e0d36ed9e3fc6b9b4d57"
+}
