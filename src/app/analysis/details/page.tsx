@@ -2,10 +2,10 @@
 
 import { useSearchParams, useRouter } from "next/navigation"
 import { useAnalysis } from "@/src/hooks/use-analysis"
-import { PageDetailView } from "@/src/components/page-detail-view"
 import { Button } from "@/src/components/ui/button"
 import { ArrowLeft, Loader2 } from "lucide-react"
 import { PageDetailData } from "@/src/lib/types"
+import { PageDetailView } from "@/src/components/page-detail-view/PageDetailView"
 
 export default function PageDetailPage() {
     const searchParams = useSearchParams()
