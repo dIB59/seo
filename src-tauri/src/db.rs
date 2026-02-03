@@ -378,11 +378,11 @@ mod tests {
 
     /// Helper to create a valid jobs record for FK constraint (V2 schema)
     async fn create_test_job(pool: &SqlitePool, id: &str) {
-        sqlx::query!(
+        sqlx::query(
             "INSERT INTO jobs (id, url, status, created_at, updated_at) 
              VALUES (?, 'https://test.com', 'completed', datetime('now'), datetime('now'))",
-            id
         )
+        .bind(id)
         .execute(pool)
         .await
         .unwrap();
