@@ -8,7 +8,7 @@
 //! 5. Summary generation (via triggers)
 
 use crate::domain::models::{
-    IssueSeverity, Job, JobSettings, JobStatus, LinkType, NewIssue, NewLink, Page,
+    IssueSeverity, Job, JobSettings, JobStatus, LighthouseData, LinkType, NewIssue, NewLink, Page,
 };
 use crate::{
     repository::sqlite::*,
@@ -431,6 +431,61 @@ impl<R: tauri::Runtime> JobProcessor<R> {
 
         // Insert page
         let page_id = self.page_db.insert(&page).await?;
+
+        // Store Lighthouse data (scores + audits + perf metrics)
+        let scores = &audit_result.scores;
+        let raw_json = serde_json::json!({
+            "seo_audits": scores.seo_details.clone(),
+            "performance_metrics": scores.performance_metrics.clone(),
+        });
+        let raw_json = serde_json::to_string(&raw_json).ok();
+
+        let normalize_score = |score: Option<f64>| -> Option<f64> {
+            score.map(|s| if s <= 1.0 { s * 100.0 } else { s })
+        };
+
+        let lighthouse = LighthouseData {
+            page_id: page_id.clone(),
+            performance_score: normalize_score(scores.performance),
+            accessibility_score: normalize_score(scores.accessibility),
+            best_practices_score: normalize_score(scores.best_practices),
+            seo_score: normalize_score(scores.seo),
+            first_contentful_paint_ms: audit_result
+                .scores
+                .performance_metrics
+                .as_ref()
+                .and_then(|m| m.first_contentful_paint),
+            largest_contentful_paint_ms: audit_result
+                .scores
+                .performance_metrics
+                .as_ref()
+                .and_then(|m| m.largest_contentful_paint),
+            total_blocking_time_ms: audit_result
+                .scores
+                .performance_metrics
+                .as_ref()
+                .and_then(|m| m.total_blocking_time),
+            cumulative_layout_shift: audit_result
+                .scores
+                .performance_metrics
+                .as_ref()
+                .and_then(|m| m.cumulative_layout_shift),
+            speed_index: audit_result
+                .scores
+                .performance_metrics
+                .as_ref()
+                .and_then(|m| m.speed_index),
+            time_to_interactive_ms: audit_result
+                .scores
+                .performance_metrics
+                .as_ref()
+                .and_then(|m| m.time_to_interactive),
+            raw_json,
+        };
+
+        if let Err(e) = self.page_db.insert_lighthouse(&lighthouse).await {
+            log::warn!("Failed to store Lighthouse data for {}: {}", url, e);
+        }
 
         // Convert and insert issues with the actual page_id
         let issues: Vec<NewIssue> = extracted_issues

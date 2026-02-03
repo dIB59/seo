@@ -5,9 +5,10 @@
 
 use crate::domain::models::{
     AnalysisProgress, AnalysisSummary, CompleteAnalysisResult, AnalysisResults,
-    PageAnalysisData, SeoIssue, IssueType,
+    LighthouseData, PageAnalysisData, SeoIssue, IssueType,
     CompleteJobResult, Issue, IssueSeverity, Job, JobInfo, Page,
 };
+use std::collections::HashMap;
 
 // ============================================================================
 // JOB TO ANALYSIS PROGRESS
@@ -135,7 +136,38 @@ impl From<CompleteJobResult> for CompleteAnalysisResult {
         };
 
         // Convert pages
-        let pages: Vec<PageAnalysisData> = result.pages.into_iter().map(|p| p.into()).collect();
+        // Merge Lighthouse data into pages
+        let lighthouse_by_page: HashMap<String, LighthouseData> = result
+            .lighthouse
+            .into_iter()
+            .map(|l| (l.page_id.clone(), l))
+            .collect();
+
+        let pages: Vec<PageAnalysisData> = result
+            .pages
+            .into_iter()
+            .map(|p| {
+                let page_id = p.id.clone();
+                let mut data: PageAnalysisData = p.into();
+
+                if let Some(lh) = lighthouse_by_page.get(&page_id) {
+                    data.lighthouse_performance = lh.performance_score;
+                    data.lighthouse_accessibility = lh.accessibility_score;
+                    data.lighthouse_best_practices = lh.best_practices_score;
+                    data.lighthouse_seo = lh.seo_score;
+
+                    if let Some(raw) = lh.raw_json.as_deref() {
+                        if let Ok(value) = serde_json::from_str::<serde_json::Value>(raw) {
+                            data.lighthouse_seo_audits = value.get("seo_audits").cloned();
+                            data.lighthouse_performance_metrics =
+                                value.get("performance_metrics").cloned();
+                        }
+                    }
+                }
+
+                data
+            })
+            .collect();
 
         // Convert issues with page URLs
         let issues: Vec<SeoIssue> = result.issues.into_iter().map(|i| i.into()).collect();
