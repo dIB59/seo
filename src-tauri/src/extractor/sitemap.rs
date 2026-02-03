@@ -1,6 +1,6 @@
+use crate::service::http::{create_client, ClientType};
 use anyhow::{Context, Error, Result};
 use quick_xml::events::Event;
-use reqwest::Client;
 use url::Url;
 
 pub const SITE_MAP_PATH: &str = "sitemap.xml";
@@ -63,7 +63,7 @@ impl SitemapFormat {
 }
 
 pub async fn extract_sitemap_urls(start_url: Url) -> Result<Vec<String>, Error> {
-    let client = Client::new();
+    let client = create_client(ClientType::HeavyEmulation).map_err(|e| anyhow::anyhow!(e))?;
     let site_map = start_url.join(SITE_MAP_PATH).expect("Unable join URL");
     let result = client
         .get(site_map)
@@ -143,7 +143,7 @@ https://www.google.com/intl/am/gmail/about/policy/"#;
         <loc>https://test.com</loc> invalid stuff"#;
 
         let urls = extract_url_from_sitemap(text).unwrap();
-        println!("{}", urls.get(0).expect("MISSING"));
+        println!("{}", urls.first().expect("MISSING"));
         assert_eq!(urls.len(), 1);
         assert!(urls.contains(&"https://test.com".to_string()));
     }

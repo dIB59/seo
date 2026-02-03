@@ -22,7 +22,7 @@ const defaultSettings: AnalysisSettingsRequest = {
   check_images: true,
   mobile_analysis: false,
   lighthouse_analysis: false,
-  delay_between_requests: 500,
+  delay_between_requests: 5,
 }
 
 export function UrlInputForm({ onSubmit, isLoading }: UrlInputFormProps) {
@@ -78,7 +78,7 @@ export function UrlInputForm({ onSubmit, isLoading }: UrlInputFormProps) {
                 onChange={(e) => setSettings({ ...settings, max_pages: Number.parseInt(e.target.value) || 100 })}
                 className="bg-background"
                 min={1}
-                max={1000}
+                max={10000}
               />
             </div>
             <div className="space-y-2">
@@ -127,12 +127,15 @@ export function UrlInputForm({ onSubmit, isLoading }: UrlInputFormProps) {
                 onCheckedChange={(checked) => setSettings({ ...settings, mobile_analysis: checked })}
               />
             </div>
-            <div className="flex items-center justify-between space-x-2">
-              <Label htmlFor="lighthouse" className="text-sm">
-                Lighthouse
-              </Label>
+            <div className="flex items-center justify-between space-x-2 col-span-2 md:col-span-1">
+              <div className="flex flex-col">
+                <Label htmlFor="deep-audit" className="text-sm">
+                  Deep Audit
+                </Label>
+                <span className="text-xs text-muted-foreground">Full Chrome analysis (slower but more detailed)</span>
+              </div>
               <Switch
-                id="lighthouse"
+                id="deep-audit"
                 checked={settings.lighthouse_analysis}
                 onCheckedChange={(checked) => setSettings({ ...settings, lighthouse_analysis: checked })}
               />

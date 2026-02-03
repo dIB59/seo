@@ -1,8 +1,11 @@
 name: publish
 
 on:
-  push:
-    branches: [release]
+  workflow_dispatch:          # still allow manual runs
+  workflow_run:
+    workflows: ["Bump version on merge to release"] # exact name of first workflow
+    types:
+      - completed
 
 jobs:
   publish-tauri:
@@ -12,12 +15,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest
-            args: "--target aarch64-apple-darwin"
-          - platform: ubuntu-22.04
-            args: ""
+          #- platform: macos-latest
+           # args: "--target aarch64-apple-darwin"
+          #- platform: ubuntu-22.04
+           # args: ""
           - platform: windows-latest
             args: ""
+          #- platform: windows-latest
+           # args: "--target aarch64-pc-windows-msvc"  
 
     runs-on: ${{ matrix.platform }}
     defaults:
@@ -26,6 +31,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: setup node
         uses: actions/setup-node@v4
@@ -35,7 +42,10 @@ jobs:
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets:
+           # |
+           # ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+            ${{ contains(matrix.args, 'aarch64-pc-windows-msvc') && 'aarch64-pc-windows-msvc' || '' }}
 
       - name: cache Rust
         uses: swatinem/rust-cache@v2
@@ -84,6 +94,31 @@ jobs:
       - name: install frontend dependencies
         run: npm ci
 
+      - name: generate release notes from merged PRs
+        id: release_notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get the latest tag
+          LATEST_TAG=$(git describe --tags --abbrev=0)
+
+          echo "Latest tag: $LATEST_TAG"
+
+          # Get merged PRs since the latest tag
+          NOTES=$(gh pr list \
+            --state merged \
+            --base main \
+            --search "merged:>$LATEST_TAG" \
+            --json number,title,author,url \
+            --jq '.[] | "- #\(.number) \(.title) (by @\(.author.login)) \(.url)"' \
+            | sed ':a;N;$!ba;s/\n/\n/g')
+
+          # Save to environment variable
+          echo "RELEASE_NOTES<<EOF" >> $GITHUB_ENV
+          echo "$NOTES" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+        shell: bash
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -91,6 +126,6 @@ jobs:
           tagName: app-v__VERSION__
           releaseName: "App v__VERSION__"
           releaseBody: "See the assets to download this version and install."
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

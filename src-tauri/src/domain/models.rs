@@ -1,162 +1,604 @@
-//! Rich domain entities - behavior lives WITH data
+//! Domain models for the redesigned schema (v2)
+//!
+//! This module contains domain models that map to the new normalized schema.
+//! Key changes:
+//! - `Job` consolidates job, result, and settings into one entity
+//! - `Page` has direct `job_id` FK for fast queries
+//! - `Issue` has direct `job_id` FK eliminating JOINs
+//! - `Link` represents page edges with direct `job_id`
+//! - Headings and images are normalized into separate tables
 
 use chrono::{DateTime, Utc};
-use scraper::{Html, Selector};
-use url::Url;
+use serde::{Deserialize, Serialize};
 
-// ====== Enums ======
+// ============================================================================
+// JOB - Consolidated job, settings, and summary
+// ============================================================================
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ResourceStatus {
-    Found(String),
-    Unauthorized(String),
-    NotFound,
-}
-
-impl ResourceStatus {
-    pub fn exists(&self) -> bool {
-        matches!(
-            self,
-            ResourceStatus::Found(_) | ResourceStatus::Unauthorized(_)
-        )
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Status of an SEO analysis job.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum JobStatus {
-    Queued,
-    Processing,
+    Pending,
+    Running,
     Completed,
     Failed,
+    Cancelled,
 }
 
 impl JobStatus {
     pub fn as_str(&self) -> &'static str {
         match self {
-            JobStatus::Queued => "queued",
-            JobStatus::Processing => "processing",
-            JobStatus::Completed => "completed",
-            JobStatus::Failed => "failed",
+            Self::Pending => "pending",
+            Self::Running => "running",
+            Self::Completed => "completed",
+            Self::Failed => "failed",
+            Self::Cancelled => "cancelled",
+        }
+    }
+
+    pub fn is_terminal(&self) -> bool {
+        matches!(self, Self::Completed | Self::Failed | Self::Cancelled)
+    }
+
+    pub fn is_active(&self) -> bool {
+        matches!(self, Self::Running)
+    }
+}
+
+impl std::str::FromStr for JobStatus {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "pending" | "queued" => Ok(Self::Pending),
+            "running" | "processing" | "discovering" | "analyzing" => Ok(Self::Running),
+            "completed" => Ok(Self::Completed),
+            "failed" | "error" => Ok(Self::Failed),
+            "cancelled" => Ok(Self::Cancelled),
+            _ => Err(()),
         }
     }
 }
 
-//TODO:
-//Remove AnalysisStatus
-//and use Job status instead
-//merge both of them
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
-pub enum AnalysisStatus {
-    Analyzing,
-    Completed,
-    Error,
-    Paused,
+impl std::fmt::Display for JobStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
 }
 
-impl AnalysisStatus {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            AnalysisStatus::Analyzing => "analyzing",
-            AnalysisStatus::Completed => "completed",
-            AnalysisStatus::Error => "error",
-            AnalysisStatus::Paused => "paused",
+/// Job settings for crawl configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobSettings {
+    pub max_pages: i64,
+    pub max_depth: i64,
+    pub respect_robots_txt: bool,
+    pub include_subdomains: bool,
+    pub rate_limit_ms: i64,
+    pub user_agent: Option<String>,
+}
+
+impl Default for JobSettings {
+    fn default() -> Self {
+        Self {
+            max_pages: 100,
+            max_depth: 3,
+            respect_robots_txt: true,
+            include_subdomains: false,
+            rate_limit_ms: 1000,
+            user_agent: None,
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
-pub enum IssueType {
+/// Summary statistics for a job (denormalized for fast dashboard access).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct JobSummary {
+    pub total_pages: i64,
+    pub pages_crawled: i64,
+    pub total_issues: i64,
+    pub critical_issues: i64,
+    pub warning_issues: i64,
+    pub info_issues: i64,
+}
+
+/// Consolidated job entity - combines job metadata, settings, and summary.
+/// Maps to the `jobs` table in the new schema.
+#[derive(Debug, Clone, Serialize)]
+pub struct Job {
+    pub id: String,
+    pub url: String,
+    pub status: JobStatus,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub completed_at: Option<DateTime<Utc>>,
+
+    // Settings (embedded)
+    pub settings: JobSettings,
+
+    // Summary stats (denormalized)
+    pub summary: JobSummary,
+
+    // Progress tracking
+    pub progress: f64,
+    pub current_stage: Option<String>,
+    pub error_message: Option<String>,
+}
+
+impl Job {
+    /// Create a new job with default settings.
+    pub fn new(url: String) -> Self {
+        let now = Utc::now();
+        Self {
+            id: uuid::Uuid::new_v4().to_string(),
+            url,
+            status: JobStatus::Pending,
+            created_at: now,
+            updated_at: now,
+            completed_at: None,
+            settings: JobSettings::default(),
+            summary: JobSummary::default(),
+            progress: 0.0,
+            current_stage: None,
+            error_message: None,
+        }
+    }
+
+    /// Create a new job with custom settings.
+    pub fn with_settings(url: String, settings: JobSettings) -> Self {
+        let mut job = Self::new(url);
+        job.settings = settings;
+        job
+    }
+}
+
+/// Lightweight job info for listing (without full settings/summary).
+#[derive(Debug, Clone, Serialize)]
+pub struct JobInfo {
+    pub id: String,
+    pub url: String,
+    pub status: JobStatus,
+    pub progress: f64,
+    pub total_pages: i64,
+    pub total_issues: i64,
+    pub created_at: DateTime<Utc>,
+}
+
+// ============================================================================
+// PAGE - Crawled page with direct job reference
+// ============================================================================
+
+/// A crawled page with SEO data.
+/// Maps to the `pages` table in the new schema.
+#[derive(Debug, Clone, Serialize)]
+pub struct Page {
+    pub id: String,
+    pub job_id: String,
+    pub url: String,
+    pub depth: i64,
+    pub status_code: Option<i64>,
+    pub content_type: Option<String>,
+
+    // Core SEO fields
+    pub title: Option<String>,
+    pub meta_description: Option<String>,
+    pub canonical_url: Option<String>,
+    pub robots_meta: Option<String>,
+
+    // Content metrics
+    pub word_count: Option<i64>,
+    pub load_time_ms: Option<i64>,
+    pub response_size_bytes: Option<i64>,
+
+    pub crawled_at: DateTime<Utc>,
+}
+
+/// Lightweight page info for listings.
+#[derive(Debug, Clone, Serialize)]
+pub struct PageInfo {
+    pub id: String,
+    pub url: String,
+    pub title: Option<String>,
+    pub status_code: Option<i64>,
+    pub load_time_ms: Option<i64>,
+    pub issue_count: i64,
+}
+
+// ============================================================================
+// ISSUE - SEO issues with direct job reference
+// ============================================================================
+
+/// Severity level for SEO issues.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum IssueSeverity {
     Critical,
     Warning,
-    Suggestion,
+    Info,
 }
 
-impl IssueType {
+impl IssueSeverity {
     pub fn as_str(&self) -> &'static str {
         match self {
-            IssueType::Critical => "critical",
-            IssueType::Warning => "warning",
-            IssueType::Suggestion => "suggestion",
+            Self::Critical => "critical",
+            Self::Warning => "warning",
+            Self::Info => "info",
         }
     }
 }
 
-// ====== Simple Entities (no behavior needed) ======
+impl std::str::FromStr for IssueSeverity {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "critical" => Ok(Self::Critical),
+            "warning" => Ok(Self::Warning),
+            "info" | "suggestion" => Ok(Self::Info),
+            _ => Err(()),
+        }
+    }
+}
 
-#[derive(Debug, Clone, serde::Serialize)]
+/// An SEO issue found during analysis.
+/// Maps to the `issues` table with direct `job_id` FK.
+#[derive(Debug, Clone, Serialize)]
+pub struct Issue {
+    pub id: i64,
+    pub job_id: String,
+    pub page_id: Option<String>,
+
+    pub issue_type: String,
+    pub severity: IssueSeverity,
+    pub message: String,
+    pub details: Option<String>,
+
+    pub created_at: DateTime<Utc>,
+}
+
+/// Builder for creating issues.
+pub struct IssueBuilder {
+    job_id: String,
+    page_id: Option<String>,
+    issue_type: String,
+    severity: IssueSeverity,
+    message: String,
+    details: Option<String>,
+}
+
+impl IssueBuilder {
+    pub fn new(job_id: String, issue_type: String, severity: IssueSeverity, message: String) -> Self {
+        Self {
+            job_id,
+            page_id: None,
+            issue_type,
+            severity,
+            message,
+            details: None,
+        }
+    }
+
+    pub fn page_id(mut self, page_id: String) -> Self {
+        self.page_id = Some(page_id);
+        self
+    }
+
+    pub fn details(mut self, details: String) -> Self {
+        self.details = Some(details);
+        self
+    }
+
+    pub fn build(self) -> NewIssue {
+        NewIssue {
+            job_id: self.job_id,
+            page_id: self.page_id,
+            issue_type: self.issue_type,
+            severity: self.severity,
+            message: self.message,
+            details: self.details,
+        }
+    }
+}
+
+/// New issue to be inserted (without auto-generated fields).
+#[derive(Debug, Clone)]
+pub struct NewIssue {
+    pub job_id: String,
+    pub page_id: Option<String>,
+    pub issue_type: String,
+    pub severity: IssueSeverity,
+    pub message: String,
+    pub details: Option<String>,
+}
+
+// ============================================================================
+// LINK - Page edges with direct job reference
+// ============================================================================
+
+/// Type of link (internal, external, resource).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LinkType {
+    Internal,
+    External,
+    Resource,
+}
+
+impl LinkType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Internal => "internal",
+            Self::External => "external",
+            Self::Resource => "resource",
+        }
+    }
+}
+
+impl std::str::FromStr for LinkType {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "internal" => Ok(Self::Internal),
+            "external" => Ok(Self::External),
+            "resource" => Ok(Self::Resource),
+            _ => Err(()),
+        }
+    }
+}
+
+/// A link between pages.
+/// Maps to the `links` table with direct `job_id` FK.
+#[derive(Debug, Clone, Serialize)]
+pub struct Link {
+    pub id: i64,
+    pub job_id: String,
+    pub source_page_id: String,
+    pub target_page_id: Option<String>,
+
+    pub target_url: String,
+    pub link_text: Option<String>,
+    pub link_type: LinkType,
+    pub is_followed: bool,
+    pub status_code: Option<i64>,
+}
+
+/// New link to be inserted.
+#[derive(Debug, Clone)]
+pub struct NewLink {
+    pub job_id: String,
+    pub source_page_id: String,
+    pub target_page_id: Option<String>,
+    pub target_url: String,
+    pub link_text: Option<String>,
+    pub link_type: LinkType,
+    pub is_followed: bool,
+    pub status_code: Option<i64>,
+}
+
+// ============================================================================
+// LIGHTHOUSE DATA
+// ============================================================================
+
+/// Lighthouse performance metrics for a page.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct LighthouseData {
+    pub page_id: String,
+
+    // Core Web Vitals scores (0-100)
+    pub performance_score: Option<f64>,
+    pub accessibility_score: Option<f64>,
+    pub best_practices_score: Option<f64>,
+    pub seo_score: Option<f64>,
+
+    // Performance metrics
+    pub first_contentful_paint_ms: Option<f64>,
+    pub largest_contentful_paint_ms: Option<f64>,
+    pub total_blocking_time_ms: Option<f64>,
+    pub cumulative_layout_shift: Option<f64>,
+    pub speed_index: Option<f64>,
+    pub time_to_interactive_ms: Option<f64>,
+
+    // Raw JSON for detailed analysis
+    pub raw_json: Option<String>,
+}
+
+// ============================================================================
+// HEADINGS & IMAGES (Normalized from JSON blobs)
+// ============================================================================
+
+/// A heading element on a page.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Heading {
+    pub id: i64,
+    pub page_id: String,
+    pub level: i64, // 1-6
+    pub text: String,
+    pub position: i64,
+}
+
+/// New heading to be inserted.
+#[derive(Debug, Clone)]
+pub struct NewHeading {
+    pub page_id: String,
+    pub level: i64,
+    pub text: String,
+    pub position: i64,
+}
+
+/// An image element on a page.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Image {
+    pub id: i64,
+    pub page_id: String,
+    pub src: String,
+    pub alt: Option<String>,
+    pub width: Option<i64>,
+    pub height: Option<i64>,
+    pub loading: Option<String>,
+    pub is_decorative: bool,
+}
+
+/// New image to be inserted.
+#[derive(Debug, Clone)]
+pub struct NewImage {
+    pub page_id: String,
+    pub src: String,
+    pub alt: Option<String>,
+    pub width: Option<i64>,
+    pub height: Option<i64>,
+    pub loading: Option<String>,
+    pub is_decorative: bool,
+}
+
+// ============================================================================
+// AI INSIGHTS
+// ============================================================================
+
+/// AI-generated insights for a job.
+#[derive(Debug, Clone, Serialize)]
+pub struct AiInsight {
+    pub id: i64,
+    pub job_id: String,
+    pub summary: Option<String>,
+    pub recommendations: Option<String>,
+    pub raw_response: Option<String>,
+    pub model: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+// ============================================================================
+// GLOBAL SETTINGS
+// ============================================================================
+
+/// Global application settings.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppSettings {
+    pub openai_api_key: Option<String>,
+    pub anthropic_api_key: Option<String>,
+    pub google_api_key: Option<String>,
+    pub default_ai_provider: String,
+    pub default_max_pages: i64,
+    pub default_max_depth: i64,
+    pub default_rate_limit_ms: i64,
+    pub theme: String,
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            openai_api_key: None,
+            anthropic_api_key: None,
+            google_api_key: None,
+            default_ai_provider: "openai".to_string(),
+            default_max_pages: 100,
+            default_max_depth: 3,
+            default_rate_limit_ms: 1000,
+            theme: "system".to_string(),
+        }
+    }
+}
+
+// ============================================================================
+// COMPLETE RESULT (for API responses)
+// ============================================================================
+
+/// Complete analysis result with all related data.
+/// Used for API responses when fetching full job details.
+#[derive(Debug, Clone, Serialize)]
+pub struct CompleteJobResult {
+    pub job: Job,
+    pub pages: Vec<Page>,
+    pub issues: Vec<Issue>,
+    pub links: Vec<Link>,
+    pub lighthouse: Vec<LighthouseData>,
+    pub ai_insights: Option<AiInsight>,
+}
+
+// ============================================================================
+// API RESPONSE TYPES (for frontend compatibility)
+// ============================================================================
+
+/// Resource status (robots.txt, sitemap, SSL)
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ResourceStatus {
+    #[default]
+    NotChecked,
+    Found(String),
+    NotFound,
+    Unauthorized(String),
+    Error,
+}
+
+impl ResourceStatus {
+    /// Returns true if the resource exists (Found or Unauthorized)
+    pub fn exists(&self) -> bool {
+        matches!(self, Self::Found(_) | Self::Unauthorized(_))
+    }
+}
+
+/// Analysis progress for frontend updates
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnalysisProgress {
+    pub job_id: String,
+    pub url: String,
+    pub job_status: String,
+    pub result_id: Option<String>,
+    pub progress: Option<f64>,
+    pub analyzed_pages: Option<i64>,
+    pub total_pages: Option<i64>,
+}
+
+/// Summary of analysis results
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnalysisSummary {
     pub analysis_id: String,
     pub seo_score: i64,
     pub avg_load_time: f64,
     pub total_words: i64,
     pub total_issues: i64,
-    // pub critical_issues: i64,
-    // pub warning_issues: i64,
-    // pub suggestion_issues: i64,
 }
 
-#[derive(Debug, Clone)]
-pub struct AnalysisSettings {
-    pub id: i64,
-    pub max_pages: i64,
-    pub include_external_links: bool,
-    pub check_images: bool,
-    pub mobile_analysis: bool,
-    pub lighthouse_analysis: bool,
-    pub delay_between_requests: i64,
-    pub created_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Clone)]
-pub struct AnalysisJob {
-    pub id: i64,
-    pub url: String,
-    pub settings_id: i64,
-    pub created_at: DateTime<Utc>,
-    pub status: JobStatus,
-    pub result_id: Option<String>,
-}
-
-#[derive(Debug, serde::Serialize)]
-pub struct AnalysisProgress {
-    pub job_id: i64,
-    pub url: String,
-    pub job_status: String,
-    pub result_id: Option<String>,
-    pub analysis_status: Option<String>,
-    pub progress: Option<f64>,
-    pub analyzed_pages: Option<i64>,
-    pub total_pages: Option<i64>,
-}
-
-#[derive(Debug, serde::Serialize)]
-pub struct CompleteAnalysisResult {
-    pub analysis: AnalysisResults,
-    pub pages: Vec<PageAnalysisData>,
-    pub issues: Vec<SeoIssue>,
-    pub summary: AnalysisSummary,
-}
-
-#[derive(Debug, Clone, serde::Serialize)]
+/// Detailed analysis results
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnalysisResults {
     pub id: String,
     pub url: String,
-    pub status: AnalysisStatus,
+    pub status: JobStatus,
     pub progress: f64,
     pub total_pages: i64,
     pub analyzed_pages: i64,
-    pub started_at: Option<chrono::DateTime<Utc>>,
-    pub completed_at: Option<chrono::DateTime<Utc>>,
+    pub started_at: Option<DateTime<Utc>>,
+    pub completed_at: Option<DateTime<Utc>>,
     pub sitemap_found: bool,
     pub robots_txt_found: bool,
     pub ssl_certificate: bool,
     pub created_at: DateTime<Utc>,
 }
 
-// ====== Rich Entity: PageAnalysisData ======
+/// SEO issue (frontend-compatible format)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SeoIssue {
+    pub page_id: String,
+    pub issue_type: IssueType,
+    pub title: String,
+    pub description: String,
+    pub page_url: String,
+    pub element: Option<String>,
+    pub recommendation: String,
+    pub line_number: Option<i32>,
+}
 
-#[derive(Debug, Clone, serde::Serialize)]
+/// Issue severity type (frontend-compatible)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum IssueType {
+    Critical,
+    Warning,
+    Suggestion,
+}
+
+/// Page analysis data (frontend-compatible format)
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PageAnalysisData {
     pub analysis_id: String,
     pub url: String,
@@ -181,292 +623,29 @@ pub struct PageAnalysisData {
     pub lighthouse_accessibility: Option<f64>,
     pub lighthouse_best_practices: Option<f64>,
     pub lighthouse_seo: Option<f64>,
+    pub lighthouse_seo_audits: Option<serde_json::Value>,
+    pub lighthouse_performance_metrics: Option<serde_json::Value>,
+    pub links: Vec<String>,
+    pub headings: Vec<String>,
+    pub images: Vec<String>,
+    pub detailed_links: Vec<LinkDetail>,
 }
 
-impl PageAnalysisData {
-    /// Rich factory: parses HTML and performs initial analysis
-    pub fn analyze(
-        url: String,
-        html: &str,
-        load_time: f64,
-        status_code: i64,
-        content_size: i64,
-    ) -> (Self, Vec<SeoIssue>) {
-        let document = Html::parse_document(html);
-
-        let page = Self {
-            analysis_id: String::new(),
-            url: url.clone(),
-            title: Self::extract_title(&document),
-            meta_description: Self::extract_meta(&document, "description"),
-            meta_keywords: Self::extract_meta(&document, "keywords"),
-            canonical_url: Self::extract_canonical(&document),
-            h1_count: Self::count_headings(&document).0,
-            h2_count: Self::count_headings(&document).1,
-            h3_count: Self::count_headings(&document).2,
-            word_count: Self::count_words(&document),
-            image_count: Self::analyze_images(&document).0,
-            images_without_alt: Self::analyze_images(&document).1,
-            internal_links: Self::count_links(&document, &Url::parse(&url).unwrap()).0,
-            external_links: Self::count_links(&document, &Url::parse(&url).unwrap()).1,
-            load_time,
-            status_code: Some(status_code),
-            content_size,
-            mobile_friendly: true,
-            has_structured_data: Self::check_structured_data(&document),
-            lighthouse_performance: None,
-            lighthouse_accessibility: None,
-            lighthouse_best_practices: None,
-            lighthouse_seo: None,
-        };
-
-        let issues = page.generate_issues();
-        (page, issues)
-    }
-
-    /// Rich behavior: validates itself and generates SEO issues
-    pub fn generate_issues(&self) -> Vec<SeoIssue> {
-        let mut issues = Vec::new();
-        let page_id = uuid::Uuid::new_v4().to_string();
-
-        // Missing title
-        if self.title.is_none() {
-            issues.push(SeoIssue {
-                page_id: page_id.clone(),
-                issue_type: IssueType::Critical,
-                title: "Missing Title Tag".to_string(),
-                description: "Page has no title tag".to_string(),
-                page_url: self.url.clone(),
-                element: Some("title".to_string()),
-                line_number: None,
-                recommendation: "Add a unique, descriptive title tag (50-60 characters)"
-                    .to_string(),
-            });
-        } else if let Some(title) = &self.title {
-            if title.len() < 30 {
-                issues.push(SeoIssue {
-                    page_id: page_id.clone(),
-                    issue_type: IssueType::Warning,
-                    title: "Title Too Short".to_string(),
-                    description: format!("Title is only {} characters", title.len()),
-                    page_url: self.url.clone(),
-                    element: Some("title".to_string()),
-                    line_number: None,
-                    recommendation: "Expand title to 50-60 characters with main keyword"
-                        .to_string(),
-                });
-            } else if title.len() > 60 {
-                issues.push(SeoIssue {
-                    page_id: page_id.clone(),
-                    issue_type: IssueType::Suggestion,
-                    title: "Title Too Long".to_string(),
-                    description: format!("Title is {} characters", title.len()),
-                    page_url: self.url.clone(),
-                    element: Some("title".to_string()),
-                    line_number: None,
-                    recommendation: "Shorten title to display fully in search results".to_string(),
-                });
-            }
-        }
-
-        // Missing meta description
-        if self.meta_description.is_none() {
-            issues.push(SeoIssue {
-                page_id: page_id.clone(),
-                issue_type: IssueType::Warning,
-                title: "Missing Meta Description".to_string(),
-                description: "Page has no meta description".to_string(),
-                page_url: self.url.clone(),
-                element: Some("meta[name=description]".to_string()),
-                line_number: None,
-                recommendation: "Add a compelling meta description (150-160 characters)"
-                    .to_string(),
-            });
-        }
-
-        // Missing H1
-        if self.h1_count == 0 {
-            issues.push(SeoIssue {
-                page_id: page_id.clone(),
-                issue_type: IssueType::Critical,
-                title: "Missing H1 Tag".to_string(),
-                description: "Page has no H1 heading".to_string(),
-                page_url: self.url.clone(),
-                element: Some("h1".to_string()),
-                line_number: None,
-                recommendation: "Add one H1 tag with main keyword near the top".to_string(),
-            });
-        } else if self.h1_count > 1 {
-            issues.push(SeoIssue {
-                page_id: page_id.clone(),
-                issue_type: IssueType::Warning,
-                title: "Multiple H1 Tags".to_string(),
-                description: format!("Page has {} H1 tags", self.h1_count),
-                page_url: self.url.clone(),
-                element: Some("h1".to_string()),
-                line_number: None,
-                recommendation: "Use only one H1 tag per page".to_string(),
-            });
-        }
-
-        // Thin content
-        if self.word_count < 300 {
-            issues.push(SeoIssue {
-                page_id: page_id.clone(),
-                issue_type: IssueType::Warning,
-                title: "Thin Content".to_string(),
-                description: format!("Page only has {} words", self.word_count),
-                page_url: self.url.clone(),
-                element: None,
-                line_number: None,
-                recommendation: "Add more comprehensive content (aim for 500+ words)".to_string(),
-            });
-        }
-
-        // Images without alt text
-        if self.images_without_alt > 0 {
-            issues.push(SeoIssue {
-                page_id: page_id.clone(),
-                issue_type: IssueType::Warning,
-                title: "Images Missing Alt Text".to_string(),
-                description: format!(
-                    "{} of {} images lack alt attribute",
-                    self.images_without_alt, self.image_count
-                ),
-                page_url: self.url.clone(),
-                element: Some("img".to_string()),
-                line_number: None,
-                recommendation: "Add descriptive alt text for accessibility and SEO".to_string(),
-            });
-        }
-
-        // Slow page load
-        if self.load_time > 3.0 {
-            issues.push(SeoIssue {
-                page_id: page_id.clone(),
-                issue_type: IssueType::Warning,
-                title: "Slow Page Load".to_string(),
-                description: format!("Page loads in {:.2} seconds", self.load_time),
-                page_url: self.url.clone(),
-                element: None,
-                line_number: None,
-                recommendation: "Optimize images, enable caching, reduce server response time"
-                    .to_string(),
-            });
-        }
-
-        issues
-    }
-
-    // ====== PRIVATE parsing helpers ======
-
-    fn extract_title(document: &Html) -> Option<String> {
-        Selector::parse("title").ok().and_then(|sel| {
-            document
-                .select(&sel)
-                .next()
-                .map(|el| el.text().collect::<String>().trim().to_string())
-        })
-    }
-
-    fn extract_meta(document: &Html, name: &str) -> Option<String> {
-        Selector::parse(&format!(r#"meta[name="{}"]"#, name))
-            .ok()
-            .and_then(|sel| {
-                document
-                    .select(&sel)
-                    .next()
-                    .and_then(|el| el.value().attr("content").map(|s| s.to_string()))
-            })
-    }
-
-    fn extract_canonical(document: &Html) -> Option<String> {
-        Selector::parse(r#"link[rel="canonical"]"#)
-            .ok()
-            .and_then(|sel| {
-                document
-                    .select(&sel)
-                    .next()
-                    .and_then(|el| el.value().attr("href").map(|s| s.to_string()))
-            })
-    }
-
-    fn count_headings(document: &Html) -> (i64, i64, i64) {
-        let h1 = Selector::parse("h1").unwrap();
-        let h2 = Selector::parse("h2").unwrap();
-        let h3 = Selector::parse("h3").unwrap();
-
-        (
-            document.select(&h1).count() as i64,
-            document.select(&h2).count() as i64,
-            document.select(&h3).count() as i64,
-        )
-    }
-
-    fn count_words(document: &Html) -> i64 {
-        Selector::parse("body")
-            .ok()
-            .and_then(|sel| {
-                document
-                    .select(&sel)
-                    .next()
-                    .map(|body| body.text().collect::<String>().split_whitespace().count() as i64)
-            })
-            .unwrap_or(0)
-    }
-
-    fn analyze_images(document: &Html) -> (i64, i64) {
-        let img_selector = Selector::parse("img").unwrap();
-        let mut count = 0;
-        let mut missing_alt = 0;
-
-        for img in document.select(&img_selector) {
-            count += 1;
-            if img.value().attr("alt").is_none() {
-                missing_alt += 1;
-            }
-        }
-        (count, missing_alt)
-    }
-
-    fn count_links(document: &Html, base_url: &Url) -> (i64, i64) {
-        let a_selector = Selector::parse("a[href]").unwrap();
-        let mut internal = 0;
-        let mut external = 0;
-
-        for link in document.select(&a_selector) {
-            if let Some(href) = link.value().attr("href") {
-                if let Ok(url) = base_url.join(href) {
-                    if url.host_str() == base_url.host_str() {
-                        internal += 1;
-                    } else {
-                        external += 1;
-                    }
-                }
-            }
-        }
-        (internal, external)
-    }
-
-    fn check_structured_data(document: &Html) -> bool {
-        Selector::parse(r#"script[type="application/ld+json"]"#)
-            .ok()
-            .and_then(|sel| document.select(&sel).next())
-            .is_some()
-    }
+/// Link details (frontend-compatible)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LinkDetail {
+    pub url: String,
+    pub text: String,
+    pub is_external: bool,
+    pub is_broken: bool,
+    pub status_code: Option<i64>,
 }
 
-// ====== Simple Entity: SeoIssue ======
-
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct SeoIssue {
-    pub page_id: String,
-    pub issue_type: IssueType,
-    pub title: String,
-    pub description: String,
-    pub page_url: String,
-    pub element: Option<String>,
-    pub line_number: Option<i64>,
-    pub recommendation: String,
+/// Complete analysis result (frontend-compatible format)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompleteAnalysisResult {
+    pub analysis: AnalysisResults,
+    pub pages: Vec<PageAnalysisData>,
+    pub issues: Vec<SeoIssue>,
+    pub summary: AnalysisSummary,
 }
-

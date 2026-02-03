@@ -1,7 +1,7 @@
 // Types matching the Tauri backend
 
 export interface AnalysisJobResponse {
-  job_id: number
+  job_id: string
   url: string
   status: string
 }
@@ -16,7 +16,7 @@ export interface AnalysisSettingsRequest {
 }
 
 export interface AnalysisProgress {
-  job_id: number
+  job_id: string
   url: string
   job_status: string
   result_id: string | null
@@ -49,6 +49,39 @@ export interface AnalysisResults {
   created_at: string
 }
 
+// Detailed Lighthouse audit result for a single check
+export interface LighthouseAuditResult {
+  passed: boolean
+  value: string | null
+  score: number
+  description?: string
+}
+
+// SEO-specific Lighthouse audits
+export interface LighthouseSeoAudits {
+  document_title: LighthouseAuditResult
+  meta_description: LighthouseAuditResult
+  viewport: LighthouseAuditResult
+  canonical: LighthouseAuditResult
+  hreflang: LighthouseAuditResult
+  robots_txt: LighthouseAuditResult
+  crawlable_anchors: LighthouseAuditResult
+  link_text: LighthouseAuditResult
+  image_alt: LighthouseAuditResult
+  http_status_code: LighthouseAuditResult
+  is_crawlable: LighthouseAuditResult
+}
+
+// Core Web Vitals and performance metrics
+export interface LighthousePerformanceMetrics {
+  first_contentful_paint: number | null
+  largest_contentful_paint: number | null
+  speed_index: number | null
+  time_to_interactive: number | null
+  total_blocking_time: number | null
+  cumulative_layout_shift: number | null
+}
+
 export interface PageAnalysisData {
   analysis_id: string
   url: string
@@ -73,9 +106,13 @@ export interface PageAnalysisData {
   lighthouse_accessibility: number | null
   lighthouse_best_practices: number | null
   lighthouse_seo: number | null
+  // Detailed Lighthouse breakdowns
+  lighthouse_seo_audits?: LighthouseSeoAudits | null
+  lighthouse_performance_metrics?: LighthousePerformanceMetrics | null
+  detailed_links?: LinkElement[]
 }
 
-export type IssueType = "Critical" | "Warning" | "Suggestion"
+export type IssueType = "critical" | "warning" | "suggestion"
 
 export interface SeoIssue {
   page_id: string
@@ -93,4 +130,32 @@ export interface CompleteAnalysisResult {
   pages: PageAnalysisData[]
   issues: SeoIssue[]
   summary: AnalysisSummary
+}
+
+// ============================================================================
+// Extended types for detailed page view (backend will populate these)
+// ============================================================================
+
+export interface HeadingElement {
+  tag: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'
+  text: string
+}
+
+export interface ImageElement {
+  src: string
+  alt: string | null
+}
+
+export interface LinkElement {
+  href: string
+  text: string
+  is_internal: boolean
+  status_code: number | null
+}
+
+// Extended page data with detailed elements
+export interface PageDetailData extends PageAnalysisData {
+  headings?: HeadingElement[]
+  images?: ImageElement[]
+  detailed_links?: LinkElement[]
 }

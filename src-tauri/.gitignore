@@ -3,3 +3,4 @@
 /target/
 /gen
 Cargo.lock
+test.db
