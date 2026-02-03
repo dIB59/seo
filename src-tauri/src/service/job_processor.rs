@@ -418,7 +418,7 @@ impl<R: tauri::Runtime> JobProcessor<R> {
     fn create_http_error_issue(&self, page_id: &str, url: &str, status: i64) -> SeoIssue {
         SeoIssue {
             page_id: page_id.to_string(),
-            issue_type: IssueType::Critical,
+            severity: IssueSeverity::Critical,
             title: "HTTP Error".to_string(),
             description: format!("Page returned HTTP {}", status),
             page_url: url.to_string(),

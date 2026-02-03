@@ -145,8 +145,8 @@ const calculateNodeDegrees = (
 const getNodeColor = (issues: CompleteAnalysisResult['issues'], pageUrl: string): string => {
     const pageIssues = issues.filter(issue => issue.page_url === pageUrl)
 
-    if (pageIssues.some(i => i.issue_type === "Critical")) return NODE_COLORS.critical
-    if (pageIssues.some(i => i.issue_type === "Warning")) return NODE_COLORS.warning
+    if (pageIssues.some(i => i.severity === "critical")) return NODE_COLORS.critical
+    if (pageIssues.some(i => i.severity === "warning")) return NODE_COLORS.warning
 
     return NODE_COLORS.healthy
 }

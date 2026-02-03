@@ -65,7 +65,7 @@ pub async fn set_up_benchmark_db() -> SqlitePool {
 /// Made public for use in benches/
 pub mod generators {
     use crate::domain::models::{
-        HeadingElement, ImageElement, IssueType, LinkDetail, PageAnalysisData, SeoIssue,
+        HeadingElement, ImageElement, IssueSeverity, LinkDetail, PageAnalysisData, SeoIssue,
     };
 
     /// Generate mock pages for benchmarking write operations
@@ -138,14 +138,14 @@ pub mod generators {
     /// Generate mock SEO issues for benchmarking
     pub fn generate_mock_issues(count: usize, page_id: &str, page_url: &str) -> Vec<SeoIssue> {
         let issue_templates = [
-            (IssueType::Critical, "Missing Title Tag", "Page has no title tag defined"),
-            (IssueType::Critical, "Missing Meta Description", "No meta description found"),
-            (IssueType::Warning, "Title Too Long", "Title exceeds 60 characters"),
-            (IssueType::Warning, "Multiple H1 Tags", "Page has more than one H1 tag"),
-            (IssueType::Warning, "Images Missing Alt Text", "Some images lack alt attributes"),
-            (IssueType::Suggestion, "Thin Content", "Page has less than 300 words"),
-            (IssueType::Suggestion, "No Schema Markup", "Consider adding structured data"),
-            (IssueType::Suggestion, "Slow Page Load", "Page load time exceeds 3 seconds"),
+            (IssueSeverity::Critical, "Missing Title Tag", "Page has no title tag defined"),
+            (IssueSeverity::Critical, "Missing Meta Description", "No meta description found"),
+            (IssueSeverity::Warning, "Title Too Long", "Title exceeds 60 characters"),
+            (IssueSeverity::Warning, "Multiple H1 Tags", "Page has more than one H1 tag"),
+            (IssueSeverity::Warning, "Images Missing Alt Text", "Some images lack alt attributes"),
+            (IssueSeverity::Info, "Thin Content", "Page has less than 300 words"),
+            (IssueSeverity::Info, "No Schema Markup", "Consider adding structured data"),
+            (IssueSeverity::Info, "Slow Page Load", "Page load time exceeds 3 seconds"),
         ];
 
         (0..count)
@@ -153,7 +153,7 @@ pub mod generators {
                 let template = &issue_templates[i % issue_templates.len()];
                 SeoIssue {
                     page_id: page_id.to_string(),
-                    issue_type: template.0.clone(),
+                    severity: template.0.clone(),
                     title: template.1.to_string(),
                     description: template.2.to_string(),
                     page_url: page_url.to_string(),

@@ -3,9 +3,9 @@ import { getScoreLabel } from "./seo-metrics";
 
 export function generateReport(result: CompleteAnalysisResult): string {
     const { analysis, summary, pages, issues } = result;
-    const criticalIssues = issues.filter((i) => i.issue_type === "Critical");
-    const warningIssues = issues.filter((i) => i.issue_type === "Warning");
-    const suggestionIssues = issues.filter((i) => i.issue_type === "Suggestion");
+    const criticalIssues = issues.filter((i) => i.severity === "critical");
+    const warningIssues = issues.filter((i) => i.severity === "warning");
+    const suggestionIssues = issues.filter((i) => i.severity === "info");
 
     return `
 SEO ANALYSIS REPORT

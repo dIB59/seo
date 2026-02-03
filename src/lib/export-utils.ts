@@ -360,9 +360,9 @@ export async function generatePDF(result: CompleteAnalysisResult): Promise<void>
     // ========================================================================
     // ISSUES BREAKDOWN
     // ========================================================================
-    const criticalIssues = issues.filter((i) => i.issue_type === "Critical")
-    const warningIssues = issues.filter((i) => i.issue_type === "Warning")
-    // const suggestionIssues = issues.filter((i) => i.issue_type === "Suggestion")
+    const criticalIssues = issues.filter((i) => i.severity === "critical")
+    const warningIssues = issues.filter((i) => i.severity === "warning")
+    const infoIssues = issues.filter((i) => i.severity === "info")
 
     // Critical Issues
     if (criticalIssues.length > 0) {

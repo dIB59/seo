@@ -597,7 +597,7 @@ pub struct AnalysisResults {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SeoIssue {
     pub page_id: String,
-    pub issue_type: IssueType,
+    pub severity: IssueSeverity,
     pub title: String,
     pub description: String,
     pub page_url: String,
@@ -606,14 +606,7 @@ pub struct SeoIssue {
     pub line_number: Option<i32>,
 }
 
-/// Issue severity type (frontend-compatible)
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum IssueType {
-    Critical,
-    Warning,
-    Suggestion,
-}
+
 
 /// Page analysis data (frontend-compatible format)
 #[derive(Debug, Clone, Serialize, Deserialize)]

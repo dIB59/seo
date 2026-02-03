@@ -4,8 +4,7 @@
 //! API response types used by the frontend.
 
 use crate::domain::models::{
-    AnalysisProgress, Issue, IssueSeverity, IssueType, Job, JobInfo, Page, PageAnalysisData,
-    SeoIssue,
+    AnalysisProgress, Issue, Job, JobInfo, Page, PageAnalysisData, SeoIssue,
 };
 
 // ============================================================================
@@ -84,21 +83,11 @@ impl From<Page> for PageAnalysisData {
 // ISSUE CONVERSION
 // ============================================================================
 
-impl From<IssueSeverity> for IssueType {
-    fn from(severity: IssueSeverity) -> Self {
-        match severity {
-            IssueSeverity::Critical => IssueType::Critical,
-            IssueSeverity::Warning => IssueType::Warning,
-            IssueSeverity::Info => IssueType::Suggestion,
-        }
-    }
-}
-
 impl From<Issue> for SeoIssue {
     fn from(issue: Issue) -> Self {
         Self {
             page_id: issue.page_id.unwrap_or_default(),
-            issue_type: issue.severity.into(),
+            severity: issue.severity,
             title: issue.issue_type.clone(),
             description: issue.message,
             page_url: String::new(), // Will be populated from page data if needed

@@ -13,9 +13,9 @@ export function ScoreCard({
     summary: CompleteAnalysisResult["summary"]
     issues: SeoIssue[]
 }) {
-    const criticalCount = issues.filter((i) => i.issue_type === "critical").length
-    const warningCount = issues.filter((i) => i.issue_type === "warning").length
-    const suggestionCount = issues.filter((i) => i.issue_type === "suggestion").length
+    const criticalCount = issues.filter((i) => i.severity === "critical").length
+    const warningCount = issues.filter((i) => i.severity === "warning").length
+    const suggestionCount = issues.filter((i) => i.severity === "info").length
     return (
         <Card>
             <CardContent className="p-6">
@@ -32,9 +32,9 @@ export function ScoreCard({
                         <div className="pt-1">
                             <p className="text-xs text-muted-foreground mb-2">Issues Found</p>
                             <div className="flex flex-wrap gap-2">
-                                <IssueBadge type="Critical" count={criticalCount} />
-                                <IssueBadge type="Warning" count={warningCount} />
-                                <IssueBadge type="Suggestion" count={suggestionCount} />
+                                <IssueBadge type="critical" count={criticalCount} />
+                                <IssueBadge type="warning" count={warningCount} />
+                                <IssueBadge type="info" count={suggestionCount} />
                             </div>
                         </div>
                     </div>

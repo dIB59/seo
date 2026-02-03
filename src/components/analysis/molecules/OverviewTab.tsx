@@ -3,9 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { ProgressRow } from "../atoms/ProgressRow";
 
 export function OverviewTab({ issues, pages }: { issues: SeoIssue[]; pages: PageAnalysisData[] }) {
-    const criticalCount = issues.filter((i) => i.issue_type === "Critical").length
-    const warningCount = issues.filter((i) => i.issue_type === "Warning").length
-    const suggestionCount = issues.filter((i) => i.issue_type === "Suggestion").length
+    const criticalCount = issues.filter((i) => i.severity === "critical").length
+    const warningCount = issues.filter((i) => i.severity === "warning").length
+    const suggestionCount = issues.filter((i) => i.severity === "info").length
 
     const fastPages = pages.filter((p) => p.load_time < 1).length
     const mediumPages = pages.filter((p) => p.load_time >= 1 && p.load_time < 2).length

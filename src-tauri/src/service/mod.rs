@@ -3,6 +3,7 @@ pub mod discovery;
 pub mod gemini;
 pub mod http;
 pub mod job_processor_v2;
+pub mod analysis_assembler;
 pub mod lighthouse;
 
 pub use auditor::{AuditMode, AuditResult, AuditScores, Auditor, DeepAuditor, LightAuditor};

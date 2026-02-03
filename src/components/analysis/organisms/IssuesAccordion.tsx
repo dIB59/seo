@@ -29,9 +29,9 @@ export function IssuesAccordion({ issues }: { issues: SeoIssue[] }) {
                 <AccordionItem key={title} value={title} className="border rounded-lg px-4 ">
                     <AccordionTrigger className="hover:no-underline p-2">
                         <div className="flex items-center gap-3 p-2">
-                            <IssueIcon type={issueGroup[0].issue_type} />
+                            <IssueIcon type={issueGroup[0].severity} />
                             <span className="font-medium">{title}</span>
-                            <IssueBadge type={issueGroup[0].issue_type} />
+                            <IssueBadge type={issueGroup[0].severity} />
                             <span className="text-xs text-muted-foreground">
                                 {issueGroup.length} {issueGroup.length === 1 ? "page" : "pages"}
                             </span>
