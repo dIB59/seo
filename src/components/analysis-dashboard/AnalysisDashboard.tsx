@@ -8,10 +8,10 @@ import { SiteHealthCard } from "./molecules/SiteHealthCard";
 import { SeoSummaryCard } from "./molecules/SeoSummaryCard";
 import { PageDetailModal } from "./organisms/PageDetailModal";
 import { IssuesAccordion } from "./organisms/IssuesAccordion";
-import { GraphView } from "../graph-view";
 import { AnalysisHeader } from "./organisms/AnalysisHeader";
 import { Network } from "lucide-react";
 import { OverviewTab } from "./molecules/OverviewTab";
+import GraphView from "../graph-view/GraphView";
 
 export default function AnalysisDashboard({ data, onBack, onSelectPage }:
     {
