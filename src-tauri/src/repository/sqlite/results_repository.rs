@@ -3,8 +3,6 @@
 //! This provides a high-level API to fetch complete job results with
 //! all related data in optimized queries.
 
-use std::any::Any;
-
 use anyhow::{Context, Result};
 use chrono::Utc;
 use sqlx::SqlitePool;

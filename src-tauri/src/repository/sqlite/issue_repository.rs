@@ -59,7 +59,7 @@ impl IssueRepository {
         let rows = sqlx::query!(
             r#"
             SELECT 
-                id, job_id, page_id, type as issue_type, severity, message, details, created_at
+                id as "id!", job_id, page_id, type as issue_type, severity, message, details, created_at
             FROM issues
             WHERE job_id = ?
             ORDER BY 
@@ -79,7 +79,7 @@ impl IssueRepository {
         Ok(rows
             .into_iter()
             .map(|row| Issue {
-                id: row.id.expect("Must exist"),
+                id: row.id,
                 job_id: row.job_id,
                 page_id: row.page_id,
                 issue_type: row.issue_type,
@@ -96,7 +96,7 @@ impl IssueRepository {
         let rows = sqlx::query!(
             r#"
             SELECT 
-                id, job_id, page_id, type as issue_type, severity, message, details, created_at
+                id as "id!", job_id, page_id, type as issue_type, severity, message, details, created_at
             FROM issues
             WHERE page_id = ?
             ORDER BY 
@@ -115,7 +115,7 @@ impl IssueRepository {
         Ok(rows
             .into_iter()
             .map(|row| Issue {
-                id: row.id.expect("Must exist"),
+                id: row.id,
                 job_id: row.job_id,
                 page_id: row.page_id,
                 issue_type: row.issue_type,
@@ -137,7 +137,7 @@ impl IssueRepository {
         let rows = sqlx::query!(
             r#"
             SELECT 
-                id, job_id, page_id, type as issue_type, severity, message, details, created_at
+                id as "id!", job_id, page_id, type as issue_type, severity, message, details, created_at
             FROM issues
             WHERE job_id = ? AND severity = ?
             ORDER BY type ASC
@@ -152,7 +152,7 @@ impl IssueRepository {
         Ok(rows
             .into_iter()
             .map(|row| Issue {
-                id: row.id.expect("Must exist"),
+                id: row.id,
                 job_id: row.job_id,
                 page_id: row.page_id,
                 issue_type: row.issue_type,

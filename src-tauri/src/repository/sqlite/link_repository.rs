@@ -60,7 +60,7 @@ impl LinkRepository {
         let rows = sqlx::query!(
             r#"
             SELECT 
-                id, job_id, source_page_id, target_page_id, target_url,
+                id as "id!", job_id, source_page_id, target_page_id, target_url,
                 link_text, link_type, is_followed, status_code
             FROM links
             WHERE job_id = ?
@@ -92,7 +92,7 @@ impl LinkRepository {
         let rows = sqlx::query!(
             r#"
             SELECT 
-                id, job_id, source_page_id, target_page_id, target_url,
+                id as "id!", job_id, source_page_id, target_page_id, target_url,
                 link_text, link_type, is_followed, status_code
             FROM links
             WHERE source_page_id = ?
@@ -124,7 +124,7 @@ impl LinkRepository {
         let rows = sqlx::query!(
             r#"
             SELECT 
-                id, job_id, source_page_id, target_page_id, target_url,
+                id as "id!", job_id, source_page_id, target_page_id, target_url,
                 link_text, link_type, is_followed, status_code
             FROM links
             WHERE target_page_id = ?
@@ -156,7 +156,7 @@ impl LinkRepository {
         let rows = sqlx::query!(
             r#"
             SELECT 
-                id, job_id, source_page_id, target_page_id, target_url,
+                id as "id!", job_id, source_page_id, target_page_id, target_url,
                 link_text, link_type, is_followed, status_code
             FROM links
             WHERE job_id = ? AND (status_code >= 400 OR status_code IS NULL)
@@ -170,13 +170,13 @@ impl LinkRepository {
         Ok(rows
             .into_iter()
             .map(|row| Link {
-                id: row.id.expect("Id must exist on links with jobs"),
+                id: row.id,
                 job_id: row.job_id,
                 source_page_id: row.source_page_id,
                 target_page_id: row.target_page_id,
                 target_url: row.target_url,
                 link_text: row.link_text,
-                link_type: map_link_type(&row.link_type),
+                link_type: map_link_type(row.link_type.as_str()),
                 is_followed: row.is_followed != 0,
                 status_code: row.status_code,
             })
@@ -212,12 +212,12 @@ impl LinkRepository {
         let rows = sqlx::query!(
             r#"
             SELECT 
-                SUBSTR(target_url, 1, INSTR(SUBSTR(target_url, 9), '/') + 7) as domain,
-                COUNT(*) as count
+                COALESCE(SUBSTR(target_url, 1, INSTR(SUBSTR(target_url, 9), '/') + 7), '') as "domain!: String",
+                COUNT(*) as "count!: i64"
             FROM links
             WHERE job_id = ? AND link_type = 'external'
-            GROUP BY domain
-            ORDER BY count DESC
+            GROUP BY 1
+            ORDER BY 2 DESC
             LIMIT 50
             "#,
             job_id
@@ -229,8 +229,8 @@ impl LinkRepository {
         Ok(rows
             .into_iter()
             .map(|row| ExternalDomain {
-                domain: row.domain.unwrap_or_default(),
-                link_count: row.count.unwrap_or(0),
+                domain: row.domain,
+                link_count: row.count,
             })
             .collect())
     }
