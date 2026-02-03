@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT \n                p.id, p.url, p.title, p.status_code, p.load_time_ms,\n                COUNT(i.id) as issue_count\n            FROM pages p\n            LEFT JOIN issues i ON i.page_id = p.id\n            WHERE p.job_id = ?\n            GROUP BY p.id\n            ORDER BY issue_count DESC, p.url ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "url",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "title",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "status_code",
+        "ordinal": 3,
+        "type_info": "Int64"
+      },
+      {
+        "name": "load_time_ms",
+        "ordinal": 4,
+        "type_info": "Int64"
+      },
+      {
+        "name": "issue_count",
+        "ordinal": 5,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "ba081c07b106820dc17df6bdc26acf63d0e979c496e72553fef61435ce4e9b30"
+}

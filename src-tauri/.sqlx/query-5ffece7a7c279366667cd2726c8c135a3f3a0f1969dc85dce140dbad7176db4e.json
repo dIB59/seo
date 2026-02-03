@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT \n                pl.page_id, pl.performance_score, pl.accessibility_score,\n                pl.best_practices_score, pl.seo_score,\n                pl.first_contentful_paint_ms, pl.largest_contentful_paint_ms,\n                pl.total_blocking_time_ms, pl.cumulative_layout_shift,\n                pl.speed_index, pl.time_to_interactive_ms, pl.raw_json\n            FROM page_lighthouse pl\n            JOIN pages p ON p.id = pl.page_id\n            WHERE p.job_id = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "page_id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "performance_score",
+        "ordinal": 1,
+        "type_info": "Float"
+      },
+      {
+        "name": "accessibility_score",
+        "ordinal": 2,
+        "type_info": "Float"
+      },
+      {
+        "name": "best_practices_score",
+        "ordinal": 3,
+        "type_info": "Float"
+      },
+      {
+        "name": "seo_score",
+        "ordinal": 4,
+        "type_info": "Float"
+      },
+      {
+        "name": "first_contentful_paint_ms",
+        "ordinal": 5,
+        "type_info": "Float"
+      },
+      {
+        "name": "largest_contentful_paint_ms",
+        "ordinal": 6,
+        "type_info": "Float"
+      },
+      {
+        "name": "total_blocking_time_ms",
+        "ordinal": 7,
+        "type_info": "Float"
+      },
+      {
+        "name": "cumulative_layout_shift",
+        "ordinal": 8,
+        "type_info": "Float"
+      },
+      {
+        "name": "speed_index",
+        "ordinal": 9,
+        "type_info": "Float"
+      },
+      {
+        "name": "time_to_interactive_ms",
+        "ordinal": 10,
+        "type_info": "Float"
+      },
+      {
+        "name": "raw_json",
+        "ordinal": 11,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "5ffece7a7c279366667cd2726c8c135a3f3a0f1969dc85dce140dbad7176db4e"
+}

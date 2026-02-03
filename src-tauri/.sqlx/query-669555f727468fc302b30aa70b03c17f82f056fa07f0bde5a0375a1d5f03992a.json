@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO settings (id, anthropic_api_key) VALUES (1, ?)\n                 ON CONFLICT(id) DO UPDATE SET anthropic_api_key = ?, updated_at = datetime('now')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "669555f727468fc302b30aa70b03c17f82f056fa07f0bde5a0375a1d5f03992a"
+}

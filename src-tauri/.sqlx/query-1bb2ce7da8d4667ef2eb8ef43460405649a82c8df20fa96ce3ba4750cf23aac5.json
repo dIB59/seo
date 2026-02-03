@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT OR REPLACE INTO page_lighthouse (\n                page_id, performance_score, accessibility_score, \n                best_practices_score, seo_score,\n                first_contentful_paint_ms, largest_contentful_paint_ms,\n                total_blocking_time_ms, cumulative_layout_shift,\n                speed_index, time_to_interactive_ms, raw_json, created_at\n            )\n            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 13
+    },
+    "nullable": []
+  },
+  "hash": "1bb2ce7da8d4667ef2eb8ef43460405649a82c8df20fa96ce3ba4750cf23aac5"
+}

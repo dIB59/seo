@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT \n                SUM(CASE WHEN link_type = 'internal' THEN 1 ELSE 0 END) as internal,\n                SUM(CASE WHEN link_type = 'external' THEN 1 ELSE 0 END) as external,\n                SUM(CASE WHEN link_type = 'resource' THEN 1 ELSE 0 END) as resource\n            FROM links\n            WHERE job_id = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "internal",
+        "ordinal": 0,
+        "type_info": "Int"
+      },
+      {
+        "name": "external",
+        "ordinal": 1,
+        "type_info": "Int"
+      },
+      {
+        "name": "resource",
+        "ordinal": 2,
+        "type_info": "Int"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "9aa3ca640ebb9021591e1c9b80ef87259d3a2ab888aca1c1dea760ac5b3965f5"
+}

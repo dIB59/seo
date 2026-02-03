@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO settings (id, default_rate_limit_ms) VALUES (1, ?)\n                 ON CONFLICT(id) DO UPDATE SET default_rate_limit_ms = ?, updated_at = datetime('now')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "50f4e40601f4f5e025f4dd7065e5e9e3b1e239eb67080d705b4c69c23d4460e0"
+}

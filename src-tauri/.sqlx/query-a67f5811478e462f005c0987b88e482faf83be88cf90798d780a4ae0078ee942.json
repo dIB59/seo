@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "PRAGMA temp_store = MEMORY",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "a67f5811478e462f005c0987b88e482faf83be88cf90798d780a4ae0078ee942"
+}

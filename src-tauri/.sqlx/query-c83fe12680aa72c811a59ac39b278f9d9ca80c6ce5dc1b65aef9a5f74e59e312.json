@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT \n                id, job_id, summary, recommendations, raw_response,\n                model, created_at, updated_at\n            FROM ai_insights\n            WHERE job_id = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "job_id",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "summary",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "recommendations",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "raw_response",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "model",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 7,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "c83fe12680aa72c811a59ac39b278f9d9ca80c6ce5dc1b65aef9a5f74e59e312"
+}

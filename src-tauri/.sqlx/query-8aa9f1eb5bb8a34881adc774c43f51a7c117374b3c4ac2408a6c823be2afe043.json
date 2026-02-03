@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO settings (id, default_ai_provider) VALUES (1, ?)\n                 ON CONFLICT(id) DO UPDATE SET default_ai_provider = ?, updated_at = datetime('now')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "8aa9f1eb5bb8a34881adc774c43f51a7c117374b3c4ac2408a6c823be2afe043"
+}
