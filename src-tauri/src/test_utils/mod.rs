@@ -11,11 +11,7 @@ pub async fn set_up_test_db_with_prod_data() -> SqlitePool {
         .await
         .expect("Failed to run migrations");
     
-    // Apply performance pragmas (same as production)
-    sqlx::query!("PRAGMA synchronous = NORMAL").execute(&pool).await.ok();
-    sqlx::query!("PRAGMA cache_size = -65536").execute(&pool).await.ok();
-    sqlx::query!("PRAGMA temp_store = MEMORY").execute(&pool).await.ok();
-    
+    // Apply performance pragmas (same as production)  
     pool
 }
 
@@ -30,10 +26,6 @@ pub async fn connect_test_db_no_migrate() -> SqlitePool {
         .expect("Failed to connect");
     
     // Apply performance pragmas (same as production)
-    sqlx::query!("PRAGMA synchronous = NORMAL").execute(&pool).await.ok();
-    sqlx::query!("PRAGMA cache_size = -65536").execute(&pool).await.ok();
-    sqlx::query!("PRAGMA temp_store = MEMORY").execute(&pool).await.ok();
-    
     pool
 }
 
@@ -48,10 +40,6 @@ pub async fn connect_test_db_v1() -> SqlitePool {
         .expect("Failed to connect to V1 test database");
     
     // Apply performance pragmas (same as production)
-    sqlx::query!("PRAGMA synchronous = NORMAL").execute(&pool).await.ok();
-    sqlx::query!("PRAGMA cache_size = -65536").execute(&pool).await.ok();
-    sqlx::query!("PRAGMA temp_store = MEMORY").execute(&pool).await.ok();
-    
     pool
 }
 
@@ -69,10 +57,7 @@ pub async fn set_up_benchmark_db() -> SqlitePool {
         .expect("Failed to run migrations");
     
     // Apply performance pragmas (same as production, except WAL which doesn't work with :memory:)
-    sqlx::query!("PRAGMA synchronous = NORMAL").execute(&pool).await.ok();
-    sqlx::query!("PRAGMA cache_size = -65536").execute(&pool).await.ok();
-    sqlx::query!("PRAGMA temp_store = MEMORY").execute(&pool).await.ok();
-    
+ 
     pool
 }
 

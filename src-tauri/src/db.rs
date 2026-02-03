@@ -71,13 +71,6 @@ pub async fn init_db(app: &AppHandle) -> Result<SqlitePool> {
         .min_connections(2)            // Keep 2 connections warm
         .acquire_timeout(Duration::from_secs(5))  // Timeout for acquiring a connection
         .idle_timeout(Duration::from_secs(600))   // Close idle connections after 10 minutes
-        .after_connect(|conn, _meta| {
-            Box::pin(async move {
-                // Configure pragmas for each new connection
-                configure_sqlite_pragmas(conn).await?;
-                Ok(())
-            })
-        })
         .connect(&db_url)
         .await
         .context(format!(

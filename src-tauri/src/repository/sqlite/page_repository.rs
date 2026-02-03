@@ -27,7 +27,7 @@ impl PageRepository {
         };
 
         let crawled_at_str = page.crawled_at.to_rfc3339();
-        sqlx::query!(
+        let row = sqlx::query!(
             r#"
             INSERT INTO pages (
                 id, job_id, url, depth, status_code, content_type,
@@ -35,6 +35,19 @@ impl PageRepository {
                 word_count, load_time_ms, response_size_bytes, crawled_at
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(job_id, url) DO UPDATE SET
+                depth = excluded.depth,
+                status_code = excluded.status_code,
+                content_type = excluded.content_type,
+                title = excluded.title,
+                meta_description = excluded.meta_description,
+                canonical_url = excluded.canonical_url,
+                robots_meta = excluded.robots_meta,
+                word_count = excluded.word_count,
+                load_time_ms = excluded.load_time_ms,
+                response_size_bytes = excluded.response_size_bytes,
+                crawled_at = excluded.crawled_at
+            RETURNING id
             "#,
             id,
             page.job_id,
@@ -51,11 +64,11 @@ impl PageRepository {
             page.response_size_bytes,
             crawled_at_str
         )
-        .execute(&self.pool)
+        .fetch_one(&self.pool)
         .await
-        .context("Failed to insert page")?;
+        .with_context(|| format!("Failed to upsert page (job_id={}, url={})", page.job_id, page.url))?;
 
-        Ok(id)
+        Ok(row.id)
     }
 
     /// Insert multiple pages in a batch.
@@ -99,7 +112,7 @@ impl PageRepository {
                     .push_bind(page.crawled_at.to_rfc3339());
             });
 
-            qb.build().execute(&mut *tx).await?;
+            qb.build().execute(&mut *tx).await.context("Failed to batch insert pages")?;
         }
 
         tx.commit().await?;
