@@ -272,6 +272,11 @@ impl<R: tauri::Runtime> JobProcessor<R> {
             .await?;
 
         // Discover pages first using the discovery service
+        // Use a small helper to emit discovery progress events for clarity.
+        let app_handle = self.app_handle.clone();
+        let job_id = job.id.clone();
+        let max_pages = job.settings.max_pages as usize;
+
         let mut discovered = self
             .discovery
             .discover(
@@ -279,7 +284,9 @@ impl<R: tauri::Runtime> JobProcessor<R> {
                 job.settings.max_pages,
                 job.settings.delay_between_requests,
                 cancel_flag,
-                |_| {},
+                move |count| {
+                    emit_discovery_progress_event(&app_handle, &job_id, count, max_pages);
+                },
             )
             .await
             .context("Page discovery failed")?;
@@ -336,6 +343,9 @@ impl<R: tauri::Runtime> JobProcessor<R> {
             let progress = (pages_analyzed as f64 / max_pages as f64) * 100.0;
             self.report_progress(&job.id, progress, pages_analyzed as i64)
                 .await;
+
+            // Emit discovery-style progress so frontend sees current/total while auditing
+            emit_discovery_progress_event(&self.app_handle, &job.id, pages_analyzed as usize, max_pages);
 
             // Apply rate limiting
             self.apply_request_delay(&job.settings).await;
@@ -602,6 +612,27 @@ impl<R: tauri::Runtime> JobProcessor<R> {
         self.cancel_map
             .get(job_id)
             .is_some_and(|flag| flag.load(Ordering::Relaxed))
+    }
+}
+
+// ============================================================================
+// Helper helpers
+// ============================================================================
+
+fn emit_discovery_progress_event<R: tauri::Runtime>(app_handle: &tauri::AppHandle<R>, job_id: &str, count: usize, total_pages: usize) {
+    #[derive(Clone, Serialize)]
+    struct DiscoveryProgressEvent {
+        job_id: String,
+        count: usize,
+        total_pages: usize,
+    }
+
+    if let Err(e) = app_handle.emit("discovery-progress", DiscoveryProgressEvent {
+        job_id: job_id.to_string(),
+        count,
+        total_pages,
+    }) {
+        log::warn!("Failed to emit discovery progress: {}", e);
     }
 }
 

@@ -1,10 +1,8 @@
-// src/components/analysis/organisms/SiteVisualizer.tsx
-
-import { GraphView } from "@/src/components/graph-view";
 import { Network, Maximize2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { CompleteAnalysisResult, PageAnalysisData } from "@/src/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
+import GraphView from "../../graph-view/GraphView";
 
 interface SiteVisualizerProps {
     data: CompleteAnalysisResult;
