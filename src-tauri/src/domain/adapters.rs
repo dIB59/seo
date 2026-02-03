@@ -4,11 +4,9 @@
 //! API response types used by the frontend.
 
 use crate::domain::models::{
-    AnalysisProgress, AnalysisSummary, CompleteAnalysisResult, AnalysisResults,
-    LighthouseData, PageAnalysisData, SeoIssue, IssueType,
-    CompleteJobResult, Issue, IssueSeverity, Job, JobInfo, Page,
+    AnalysisProgress, Issue, IssueSeverity, IssueType, Job, JobInfo, Page, PageAnalysisData,
+    SeoIssue,
 };
-use std::collections::HashMap;
 
 // ============================================================================
 // JOB TO ANALYSIS PROGRESS
@@ -111,101 +109,7 @@ impl From<Issue> for SeoIssue {
     }
 }
 
-// ============================================================================
-// COMPLETE RESULT CONVERSION
-// ============================================================================
 
-impl From<CompleteJobResult> for CompleteAnalysisResult {
-    fn from(result: CompleteJobResult) -> Self {
-        let job = &result.job;
-        
-        // Build AnalysisResults from Job
-        let analysis = AnalysisResults {
-            id: job.id.clone(),
-            url: job.url.clone(),
-            status: job.status.clone(),
-            progress: job.progress,
-            total_pages: job.summary.total_pages,
-            analyzed_pages: job.summary.pages_crawled,
-            started_at: Some(job.created_at),
-            completed_at: job.completed_at,
-            sitemap_found: false, // TODO: store in job metadata
-            robots_txt_found: false,
-            ssl_certificate: job.url.starts_with("https"),
-            created_at: job.created_at,
-        };
-
-        // Convert pages
-        // Merge Lighthouse data into pages
-        let lighthouse_by_page: HashMap<String, LighthouseData> = result
-            .lighthouse
-            .into_iter()
-            .map(|l| (l.page_id.clone(), l))
-            .collect();
-
-        let pages: Vec<PageAnalysisData> = result
-            .pages
-            .into_iter()
-            .map(|p| {
-                let page_id = p.id.clone();
-                let mut data: PageAnalysisData = p.into();
-
-                if let Some(lh) = lighthouse_by_page.get(&page_id) {
-                    data.lighthouse_performance = lh.performance_score;
-                    data.lighthouse_accessibility = lh.accessibility_score;
-                    data.lighthouse_best_practices = lh.best_practices_score;
-                    data.lighthouse_seo = lh.seo_score;
-
-                    if let Some(raw) = lh.raw_json.as_deref() {
-                        if let Ok(value) = serde_json::from_str::<serde_json::Value>(raw) {
-                            data.lighthouse_seo_audits = value.get("seo_audits").cloned();
-                            data.lighthouse_performance_metrics =
-                                value.get("performance_metrics").cloned();
-                        }
-                    }
-                }
-
-                data
-            })
-            .collect();
-
-        // Convert issues with page URLs
-        let issues: Vec<SeoIssue> = result.issues.into_iter().map(|i| i.into()).collect();
-
-        // Build summary from job stats
-        let summary = AnalysisSummary {
-            analysis_id: job.id.clone(),
-            seo_score: calculate_seo_score(job),
-            avg_load_time: 0.0, // TODO: calculate from pages
-            total_words: pages.iter().map(|p| p.word_count).sum(),
-            total_issues: job.summary.total_issues,
-        };
-
-        Self {
-            analysis,
-            pages,
-            issues,
-            summary,
-        }
-    }
-}
-
-/// Calculate a simple SEO score based on issue counts.
-fn calculate_seo_score(job: &Job) -> i64 {
-    let total = job.summary.total_issues;
-    let critical = job.summary.critical_issues;
-    let warning = job.summary.warning_issues;
-    
-    if total == 0 {
-        return 100;
-    }
-    
-    // Deduct points for issues: 10 for critical, 5 for warning, 1 for info
-    let deductions = (critical * 10) + (warning * 5) + (total - critical - warning);
-    let score = 100 - deductions;
-    
-    score.clamp(0, 100)
-}
 
 // ============================================================================
 // RESPONSE TYPES FOR NEW API

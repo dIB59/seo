@@ -449,6 +449,24 @@ pub struct NewImage {
 }
 
 // ============================================================================
+// FRONTEND ELEMENT TYPES
+// ============================================================================
+
+/// Heading element for frontend display.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HeadingElement {
+    pub tag: String,
+    pub text: String,
+}
+
+/// Image element for frontend display.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImageElement {
+    pub src: String,
+    pub alt: Option<String>,
+}
+
+// ============================================================================
 // AI INSIGHTS
 // ============================================================================
 
@@ -626,14 +644,15 @@ pub struct PageAnalysisData {
     pub lighthouse_seo_audits: Option<serde_json::Value>,
     pub lighthouse_performance_metrics: Option<serde_json::Value>,
     pub links: Vec<String>,
-    pub headings: Vec<String>,
-    pub images: Vec<String>,
+    pub headings: Vec<HeadingElement>,
+    pub images: Vec<ImageElement>,
     pub detailed_links: Vec<LinkDetail>,
 }
 
 /// Link details (frontend-compatible)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LinkDetail {
+    #[serde(rename = "href", alias = "url")]
     pub url: String,
     pub text: String,
     pub is_external: bool,

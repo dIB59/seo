@@ -8,7 +8,8 @@
 //! 5. Summary generation (via triggers)
 
 use crate::domain::models::{
-    IssueSeverity, Job, JobSettings, JobStatus, LighthouseData, LinkType, NewIssue, NewLink, Page,
+    IssueSeverity, Job, JobSettings, JobStatus, LighthouseData, LinkType, NewHeading, NewImage,
+    NewIssue, NewLink, Page,
 };
 use crate::{
     repository::sqlite::*,
@@ -354,7 +355,7 @@ impl<R: tauri::Runtime> JobProcessor<R> {
         let audit_result = auditor.analyze(url).await?;
 
         // Parse HTML and extract all data BEFORE any awaits
-        let (page, extracted_issues, new_urls, edges) = {
+        let (page, extracted_issues, new_urls, edges, headings, images) = {
             let html = Html::parse_document(&audit_result.html);
 
             // Extract basic page data
@@ -365,6 +366,10 @@ impl<R: tauri::Runtime> JobProcessor<R> {
 
             // Extract links
             let (internal_links, _external_links, all_links) = extract_links(&html, url);
+
+            // Extract headings and images
+            let headings: Vec<ExtractedHeading> = extract_headings(&html);
+            let images: Vec<ExtractedImage> = extract_images(&html, url);
 
             // Create Page
             let page = Page {
@@ -385,7 +390,7 @@ impl<R: tauri::Runtime> JobProcessor<R> {
             };
 
             // Generate SEO issues
-            let mut issues = Vec::new();
+            let mut issues: Vec<(String, String, String, IssueSeverity)> = Vec::new();
 
             if title.is_none() || title.as_ref().map(|t| t.is_empty()).unwrap_or(true) {
                 issues.push((
@@ -421,12 +426,12 @@ impl<R: tauri::Runtime> JobProcessor<R> {
             }
 
             // Build edges for link tracking
-            let edges: Vec<_> = all_links
+            let edges: Vec<(String, i32)> = all_links
                 .into_iter()
                 .map(|(href, is_internal)| (href, if is_internal { 200i32 } else { 0i32 }))
                 .collect();
 
-            (page, issues, internal_links, edges)
+            (page, issues, internal_links, edges, headings, images)
         };
 
         // Insert page
@@ -485,6 +490,38 @@ impl<R: tauri::Runtime> JobProcessor<R> {
 
         if let Err(e) = self.page_db.insert_lighthouse(&lighthouse).await {
             log::warn!("Failed to store Lighthouse data for {}: {}", url, e);
+        }
+
+        // Store headings and images
+        let heading_rows: Vec<NewHeading> = headings
+            .into_iter()
+            .map(|h| NewHeading {
+                page_id: page_id.clone(),
+                level: h.level,
+                text: h.text,
+                position: h.position,
+            })
+            .collect();
+
+        if let Err(e) = self.page_db.replace_headings(&page_id, &heading_rows).await {
+            log::warn!("Failed to store headings for {}: {}", url, e);
+        }
+
+        let image_rows: Vec<NewImage> = images
+            .into_iter()
+            .map(|img| NewImage {
+                page_id: page_id.clone(),
+                src: img.src,
+                alt: img.alt,
+                width: img.width,
+                height: img.height,
+                loading: img.loading,
+                is_decorative: img.is_decorative,
+            })
+            .collect();
+
+        if let Err(e) = self.page_db.replace_images(&page_id, &image_rows).await {
+            log::warn!("Failed to store images for {}: {}", url, e);
         }
 
         // Convert and insert issues with the actual page_id
@@ -611,6 +648,23 @@ struct PageResult {
     edges: Vec<PageEdge>,
 }
 
+#[derive(Debug, Clone)]
+struct ExtractedHeading {
+    level: i64,
+    text: String,
+    position: i64,
+}
+
+#[derive(Debug, Clone)]
+struct ExtractedImage {
+    src: String,
+    alt: Option<String>,
+    width: Option<i64>,
+    height: Option<i64>,
+    loading: Option<String>,
+    is_decorative: bool,
+}
+
 /// Site-level resource check results.
 #[allow(dead_code)]
 struct SiteResources {
@@ -687,6 +741,69 @@ fn extract_word_count(html: &Html) -> i64 {
         .next()
         .map(|body| body.text().collect::<String>().split_whitespace().count() as i64)
         .unwrap_or(0)
+}
+
+fn extract_headings(html: &Html) -> Vec<ExtractedHeading> {
+    static SELECTOR: OnceLock<Selector> = OnceLock::new();
+    let selector = SELECTOR.get_or_init(|| Selector::parse("h1, h2, h3, h4, h5, h6").unwrap());
+
+    html.select(selector)
+        .enumerate()
+        .filter_map(|(idx, element)| {
+            let tag = element.value().name();
+            let level = tag.trim_start_matches('h').parse::<i64>().ok()?;
+            let text = element.text().collect::<String>().trim().to_string();
+            if text.is_empty() {
+                return None;
+            }
+
+            Some(ExtractedHeading {
+                level,
+                text,
+                position: idx as i64,
+            })
+        })
+        .collect()
+}
+
+fn extract_images(html: &Html, base_url: &str) -> Vec<ExtractedImage> {
+    static SELECTOR: OnceLock<Selector> = OnceLock::new();
+    let selector = SELECTOR.get_or_init(|| Selector::parse("img[src]").unwrap());
+    let base = Url::parse(base_url).ok();
+
+    html.select(selector)
+        .filter_map(|element| {
+            let src = element.value().attr("src")?.trim().to_string();
+            if src.is_empty() {
+                return None;
+            }
+
+            let resolved_src = if let Some(ref base) = base {
+                base.join(&src)
+                    .map(|u| u.to_string())
+                    .unwrap_or(src)
+            } else {
+                src
+            };
+
+            let alt = element.value().attr("alt").map(|s| s.trim().to_string());
+            let width = element.value().attr("width").and_then(|w| w.parse::<i64>().ok());
+            let height = element.value().attr("height").and_then(|h| h.parse::<i64>().ok());
+            let loading = element.value().attr("loading").map(|s| s.to_string());
+            let is_decorative = alt.as_deref().map(|a| a.is_empty()).unwrap_or(false)
+                || element.value().attr("role") == Some("presentation")
+                || element.value().attr("aria-hidden") == Some("true");
+
+            Some(ExtractedImage {
+                src: resolved_src,
+                alt,
+                width,
+                height,
+                loading,
+                is_decorative,
+            })
+        })
+        .collect()
 }
 
 fn extract_links(html: &Html, base_url: &str) -> (Vec<String>, Vec<String>, Vec<(String, bool)>) {

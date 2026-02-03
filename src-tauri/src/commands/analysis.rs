@@ -143,10 +143,9 @@ pub async fn get_result(
     let repository = ResultsRepository::new(pool.clone());
 
     let result = repository
-        .get_complete_result(&job_id)
+        .get_complete_analysis_result(&job_id)
         .await
         .map_err(CommandError::from)?;
 
-    // Convert V2 CompleteJobResult to V1 CompleteAnalysisResult
-    Ok(result.into())
+    Ok(result)
 }

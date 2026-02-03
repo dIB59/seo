@@ -52,7 +52,7 @@ export function BrokenPageRow({ page, onClick }: { page: PageAnalysisData; onCli
             <TableCell className="text-center">
                 {page.lighthouse_seo ? (
                     <span className={cn("text-sm font-medium", getScoreColor(page.lighthouse_seo))}>
-                        {page.lighthouse_seo}
+                        {page.lighthouse_seo.toPrecision(2)}
                     </span>
                 ) : (
                     <span className="text-muted-foreground">-</span>
@@ -109,7 +109,7 @@ export function HealthyPageRow({ page, onClick }: { page: PageAnalysisData; onCl
             </TableCell>
             <TableCell className="text-center">
                 {page.lighthouse_seo ? (
-                    <span className={cn("text-sm font-medium", getScoreColor(page.lighthouse_seo))}>{page.lighthouse_seo}</span>
+                    <span className={cn("text-sm font-medium", getScoreColor(page.lighthouse_seo))}>{page.lighthouse_seo.toPrecision(2)}</span>
                 ) : (
                     <span className="text-muted-foreground">-</span>
                 )}

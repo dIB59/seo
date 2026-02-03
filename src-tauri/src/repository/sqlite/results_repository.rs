@@ -8,10 +8,13 @@ use chrono::Utc;
 use sqlx::SqlitePool;
 
 use crate::domain::models::{
-    AiInsight, CompleteJobResult, Issue, Job, JobSettings, JobSummary,
-    LighthouseData, Link, Page,
+    AiInsight, AnalysisResults, AnalysisSummary, CompleteAnalysisResult, CompleteJobResult,
+    Heading, HeadingElement, Image, ImageElement, Issue, IssueSeverity, IssueType, Job,
+    JobSettings, JobSummary, LighthouseData, Link, LinkDetail, LinkType, Page, PageAnalysisData,
+    SeoIssue,
 };
 use super::{map_job_status, map_link_type, map_severity};
+use url::Url;
 
 pub struct ResultsRepository {
     pool: SqlitePool,
@@ -56,6 +59,7 @@ impl ResultsRepository {
         let lighthouse = self.get_lighthouse(job_id).await?;
         log::debug!("Fetched {} lighthouse records", lighthouse.len());
 
+
         // 6. Get AI insights (optional)
         let ai_insights = self.get_ai_insights(job_id).await.ok();
 
@@ -76,6 +80,163 @@ impl ResultsRepository {
             links,
             lighthouse,
             ai_insights,
+        })
+    }
+
+    /// Get complete analysis result (frontend-compatible) with headings/images populated per page.
+    pub async fn get_complete_analysis_result(&self, job_id: &str) -> Result<CompleteAnalysisResult> {
+        let job = self.get_job(job_id).await?;
+        let pages = self.get_pages(job_id).await?;
+        let issues = self.get_issues(job_id).await?;
+        let links = self.get_links(job_id).await?;
+        let lighthouse = self.get_lighthouse(job_id).await?;
+        let headings = self.get_headings(job_id).await?;
+        let images = self.get_images(job_id).await?;
+
+        let page_url_by_id: std::collections::HashMap<String, String> = pages
+            .iter()
+            .map(|p| (p.id.clone(), p.url.clone()))
+            .collect();
+
+        let mut detailed_links_by_page: std::collections::HashMap<String, Vec<LinkDetail>> =
+            std::collections::HashMap::new();
+        for link in &links {
+            let entry = detailed_links_by_page
+                .entry(link.source_page_id.clone())
+                .or_default();
+
+            let source_url = page_url_by_id.get(&link.source_page_id);
+            let is_external = is_external_by_url(source_url, &link.target_url, &link.link_type);
+
+            entry.push(LinkDetail {
+                url: link.target_url.clone(),
+                text: link.link_text.clone().unwrap_or_default(),
+                is_external,
+                is_broken: link.status_code.map(|c| c >= 400).unwrap_or(false),
+                status_code: link.status_code,
+            });
+        }
+
+        let headings_by_page: std::collections::HashMap<String, Vec<HeadingElement>> = headings
+            .into_iter()
+            .fold(std::collections::HashMap::new(), |mut acc, heading| {
+                let tag = format!("h{}", heading.level);
+                acc.entry(heading.page_id)
+                    .or_insert_with(Vec::new)
+                    .push(HeadingElement { tag, text: heading.text });
+                acc
+            });
+
+        let images_by_page: std::collections::HashMap<String, Vec<ImageElement>> = images
+            .into_iter()
+            .fold(std::collections::HashMap::new(), |mut acc, image| {
+                acc.entry(image.page_id)
+                    .or_insert_with(Vec::new)
+                    .push(ImageElement { src: image.src, alt: image.alt });
+                acc
+            });
+
+        let lighthouse_by_page: std::collections::HashMap<String, LighthouseData> = lighthouse
+            .into_iter()
+            .map(|l| (l.page_id.clone(), l))
+            .collect();
+
+        let pages: Vec<PageAnalysisData> = pages
+            .into_iter()
+            .map(|p| {
+                let page_id = p.id.clone();
+                let mut data: PageAnalysisData = p.into();
+
+                if let Some(lh) = lighthouse_by_page.get(&page_id) {
+                    data.lighthouse_performance = lh.performance_score;
+                    data.lighthouse_accessibility = lh.accessibility_score;
+                    data.lighthouse_best_practices = lh.best_practices_score;
+                    data.lighthouse_seo = lh.seo_score;
+
+                    if let Some(raw) = lh.raw_json.as_deref() {
+                        if let Ok(value) = serde_json::from_str::<serde_json::Value>(raw) {
+                            data.lighthouse_seo_audits = value.get("seo_audits").cloned();
+                            data.lighthouse_performance_metrics =
+                                value.get("performance_metrics").cloned();
+                        }
+                    }
+                }
+
+                if let Some(links) = detailed_links_by_page.get(&page_id) {
+                    data.detailed_links = links.clone();
+                    data.links = links.iter().map(|l| l.url.clone()).collect();
+                    data.internal_links = links.iter().filter(|l| !l.is_external).count() as i64;
+                    data.external_links = links.iter().filter(|l| l.is_external).count() as i64;
+                }
+
+                if let Some(headings) = headings_by_page.get(&page_id) {
+                    data.h1_count = headings.iter().filter(|h| h.tag == "h1").count() as i64;
+                    data.h2_count = headings.iter().filter(|h| h.tag == "h2").count() as i64;
+                    data.h3_count = headings.iter().filter(|h| h.tag == "h3").count() as i64;
+                    data.headings = headings.clone();
+                }
+
+                if let Some(images) = images_by_page.get(&page_id) {
+                    data.image_count = images.len() as i64;
+                    data.images_without_alt = images
+                        .iter()
+                        .filter(|img| img.alt.as_deref().unwrap_or("").is_empty())
+                        .count() as i64;
+                    data.images = images.clone();
+                }
+
+                data
+            })
+            .collect();
+
+        let issues: Vec<SeoIssue> = issues
+            .into_iter()
+            .map(|issue| {
+                let issue_type = map_issue_type(issue.severity);
+                let page_id = issue.page_id.clone().unwrap_or_default();
+                let page_url = page_url_by_id.get(&page_id).cloned().unwrap_or_default();
+
+                SeoIssue {
+                    page_id,
+                    issue_type,
+                    title: issue.issue_type,
+                    description: issue.message,
+                    page_url,
+                    element: issue.details.clone(),
+                    recommendation: issue.details.unwrap_or_default(),
+                    line_number: None,
+                }
+            })
+            .collect();
+
+        let analysis = AnalysisResults {
+            id: job.id.clone(),
+            url: job.url.clone(),
+            status: job.status.clone(),
+            progress: job.progress,
+            total_pages: job.summary.total_pages,
+            analyzed_pages: job.summary.pages_crawled,
+            started_at: Some(job.created_at),
+            completed_at: job.completed_at,
+            sitemap_found: false,
+            robots_txt_found: false,
+            ssl_certificate: job.url.starts_with("https"),
+            created_at: job.created_at,
+        };
+
+        let summary = AnalysisSummary {
+            analysis_id: job.id.clone(),
+            seo_score: calculate_seo_score(&job),
+            avg_load_time: 0.0,
+            total_words: pages.iter().map(|p| p.word_count).sum(),
+            total_issues: job.summary.total_issues,
+        };
+
+        Ok(CompleteAnalysisResult {
+            analysis,
+            pages,
+            issues,
+            summary,
         })
     }
 
@@ -270,6 +431,66 @@ impl ResultsRepository {
             .collect())
     }
 
+    async fn get_headings(&self, job_id: &str) -> Result<Vec<Heading>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT 
+                ph.id, ph.page_id, ph.level, ph.text, ph.position
+            FROM page_headings ph
+            JOIN pages p ON p.id = ph.page_id
+            WHERE p.job_id = ?
+            ORDER BY ph.page_id, ph.position
+            "#,
+            job_id
+        )
+        .fetch_all(&self.pool)
+        .await
+        .context("Failed to fetch headings")?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| Heading {
+                id: row.id.expect("Must exist"),
+                page_id: row.page_id,
+                level: row.level,
+                text: row.text,
+                position: row.position,
+            })
+            .collect())
+    }
+
+    async fn get_images(&self, job_id: &str) -> Result<Vec<Image>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT 
+                pi.id, pi.page_id, pi.src, pi.alt, pi.width, pi.height,
+                pi.loading, pi.is_decorative
+            FROM page_images pi
+            JOIN pages p ON p.id = pi.page_id
+            WHERE p.job_id = ?
+            ORDER BY pi.page_id, pi.id
+            "#,
+            job_id
+        )
+        .fetch_all(&self.pool)
+        .await
+        .context("Failed to fetch images")?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| Image {
+                id: row.id.expect("Must exist"),
+                page_id: row.page_id,
+                src: row.src,
+                alt: row.alt,
+                width: row.width,
+                height: row.height,
+                loading: row.loading,
+                is_decorative: row.is_decorative != 0,
+            })
+            .collect())
+    }
+
     async fn get_ai_insights(&self, job_id: &str) -> Result<AiInsight> {
         let row = sqlx::query!(
             r#"
@@ -340,4 +561,49 @@ fn parse_datetime(s: &str) -> chrono::DateTime<Utc> {
     chrono::DateTime::parse_from_rfc3339(s)
         .map(|dt| dt.with_timezone(&Utc))
         .unwrap_or_else(|_| Utc::now())
+}
+
+fn map_issue_type(severity: IssueSeverity) -> IssueType {
+    match severity {
+        IssueSeverity::Critical => IssueType::Critical,
+        IssueSeverity::Warning => IssueType::Warning,
+        IssueSeverity::Info => IssueType::Suggestion,
+    }
+}
+
+fn is_internal_link(link_type: &LinkType) -> bool {
+    matches!(link_type, LinkType::Internal)
+}
+
+fn is_external_by_url(source_url: Option<&String>, target_url: &str, link_type: &LinkType) -> bool {
+    let source_url = match source_url {
+        Some(url) => url,
+        None => return !is_internal_link(link_type),
+    };
+
+    let source = Url::parse(source_url).ok();
+    let target = Url::parse(target_url).ok();
+
+    if let (Some(source), Some(target)) = (source, target) {
+        let same_host = source.host_str() == target.host_str();
+        let same_port = source.port() == target.port();
+        return !(same_host && same_port);
+    }
+
+    !is_internal_link(link_type)
+}
+
+fn calculate_seo_score(job: &Job) -> i64 {
+    let total = job.summary.total_issues;
+    let critical = job.summary.critical_issues;
+    let warning = job.summary.warning_issues;
+
+    if total == 0 {
+        return 100;
+    }
+
+    let deductions = (critical * 10) + (warning * 5) + (total - critical - warning);
+    let score = 100 - deductions;
+
+    score.clamp(0, 100)
 }

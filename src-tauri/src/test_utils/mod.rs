@@ -64,7 +64,9 @@ pub async fn set_up_benchmark_db() -> SqlitePool {
 /// Benchmark data generators for realistic test data
 /// Made public for use in benches/
 pub mod generators {
-    use crate::domain::models::{IssueType, SeoIssue, PageAnalysisData, LinkDetail};
+    use crate::domain::models::{
+        HeadingElement, ImageElement, IssueType, LinkDetail, PageAnalysisData, SeoIssue,
+    };
 
     /// Generate mock pages for benchmarking write operations
     pub fn generate_mock_pages(count: usize, analysis_id: &str) -> Vec<PageAnalysisData> {
@@ -99,8 +101,20 @@ pub mod generators {
                 lighthouse_seo_audits: None,
                 lighthouse_performance_metrics: None,
                 links: vec![],
-                headings: vec![format!("h1: Main Heading {}", i), format!("h2: Subheading {}", i)],
-                images: vec![format!("/images/img-{}.jpg", i)],
+                headings: vec![
+                    HeadingElement {
+                        tag: "h1".to_string(),
+                        text: format!("Main Heading {}", i),
+                    },
+                    HeadingElement {
+                        tag: "h2".to_string(),
+                        text: format!("Subheading {}", i),
+                    },
+                ],
+                images: vec![ImageElement {
+                    src: format!("/images/img-{}.jpg", i),
+                    alt: Some(format!("Image {}", i)),
+                }],
                 detailed_links: vec![
                     LinkDetail {
                         url: format!("/page-{}", (i + 1) % count.max(1)),
