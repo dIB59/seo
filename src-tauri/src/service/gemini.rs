@@ -313,11 +313,11 @@ mod tests {
 
         // Create a jobs record to satisfy FK constraint when caching (V2 schema)
         let test_job_id = "cache_test_job";
-        sqlx::query(
+        sqlx::query!(
             "INSERT INTO jobs (id, url, status, created_at, updated_at) 
-             VALUES (?, 'https://test.com', 'completed', datetime('now'), datetime('now'))"
+             VALUES (?, 'https://test.com', 'completed', datetime('now'), datetime('now'))",
+            test_job_id
         )
-        .bind(test_job_id)
         .execute(&pool)
         .await
         .unwrap();

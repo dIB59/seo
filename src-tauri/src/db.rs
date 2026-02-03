@@ -104,19 +104,18 @@ pub async fn init_db(app: &AppHandle) -> Result<SqlitePool> {
     Ok(pool)
 }
 
-use sqlx::Row;
 use std::fs::File;
 use std::io::Write;
 
 async fn dump_schema(pool: &SqlitePool, output_path: &std::path::Path) -> anyhow::Result<()> {
-    let rows = sqlx::query(
+    let rows = sqlx::query!(
         r#"
         SELECT sql
         FROM sqlite_master
         WHERE sql IS NOT NULL
           AND type IN ('table', 'index', 'trigger')
         ORDER BY type, name;
-        "#,
+        "#
     )
     .fetch_all(pool)
     .await
@@ -130,8 +129,9 @@ async fn dump_schema(pool: &SqlitePool, output_path: &std::path::Path) -> anyhow
     )?;
 
     for row in rows {
-        let sql: String = row.get("sql");
-        writeln!(file, "{};\n", sql)?;
+        if let Some(sql) = row.sql {
+            writeln!(file, "{};\n", sql)?;
+        }
     }
 
     Ok(())
@@ -186,18 +186,99 @@ pub async fn set_setting(pool: &SqlitePool, key: &str, value: &str) -> Result<()
     };
 
     // V2 schema: single row with id=1, upsert the specific column
-    let query = format!(
-        "INSERT INTO settings (id, {column}) VALUES (1, ?)
-         ON CONFLICT(id) DO UPDATE SET {column} = ?, updated_at = datetime('now')",
-        column = column
-    );
-    
-    sqlx::query(&query)
-        .bind(value)
-        .bind(value)
-        .execute(pool)
-        .await
-        .context("Failed to set setting in database")?;
+    match column {
+        "openai_api_key" => {
+            sqlx::query!(
+                "INSERT INTO settings (id, openai_api_key) VALUES (1, ?)
+                 ON CONFLICT(id) DO UPDATE SET openai_api_key = ?, updated_at = datetime('now')",
+                value,
+                value
+            )
+            .execute(pool)
+            .await
+            .context("Failed to set setting in database")?;
+        }
+        "anthropic_api_key" => {
+            sqlx::query!(
+                "INSERT INTO settings (id, anthropic_api_key) VALUES (1, ?)
+                 ON CONFLICT(id) DO UPDATE SET anthropic_api_key = ?, updated_at = datetime('now')",
+                value,
+                value
+            )
+            .execute(pool)
+            .await
+            .context("Failed to set setting in database")?;
+        }
+        "google_api_key" => {
+            sqlx::query!(
+                "INSERT INTO settings (id, google_api_key) VALUES (1, ?)
+                 ON CONFLICT(id) DO UPDATE SET google_api_key = ?, updated_at = datetime('now')",
+                value,
+                value
+            )
+            .execute(pool)
+            .await
+            .context("Failed to set setting in database")?;
+        }
+        "default_ai_provider" => {
+            sqlx::query!(
+                "INSERT INTO settings (id, default_ai_provider) VALUES (1, ?)
+                 ON CONFLICT(id) DO UPDATE SET default_ai_provider = ?, updated_at = datetime('now')",
+                value,
+                value
+            )
+            .execute(pool)
+            .await
+            .context("Failed to set setting in database")?;
+        }
+        "default_max_pages" => {
+            sqlx::query!(
+                "INSERT INTO settings (id, default_max_pages) VALUES (1, ?)
+                 ON CONFLICT(id) DO UPDATE SET default_max_pages = ?, updated_at = datetime('now')",
+                value,
+                value
+            )
+            .execute(pool)
+            .await
+            .context("Failed to set setting in database")?;
+        }
+        "default_max_depth" => {
+            sqlx::query!(
+                "INSERT INTO settings (id, default_max_depth) VALUES (1, ?)
+                 ON CONFLICT(id) DO UPDATE SET default_max_depth = ?, updated_at = datetime('now')",
+                value,
+                value
+            )
+            .execute(pool)
+            .await
+            .context("Failed to set setting in database")?;
+        }
+        "default_rate_limit_ms" => {
+            sqlx::query!(
+                "INSERT INTO settings (id, default_rate_limit_ms) VALUES (1, ?)
+                 ON CONFLICT(id) DO UPDATE SET default_rate_limit_ms = ?, updated_at = datetime('now')",
+                value,
+                value
+            )
+            .execute(pool)
+            .await
+            .context("Failed to set setting in database")?;
+        }
+        "theme" => {
+            sqlx::query!(
+                "INSERT INTO settings (id, theme) VALUES (1, ?)
+                 ON CONFLICT(id) DO UPDATE SET theme = ?, updated_at = datetime('now')",
+                value,
+                value
+            )
+            .execute(pool)
+            .await
+            .context("Failed to set setting in database")?;
+        }
+        _ => {
+            return Err(anyhow::anyhow!("Unknown setting key: {}", key));
+        }
+    }
 
     Ok(())
 }
@@ -219,13 +300,13 @@ pub async fn get_ai_insights(pool: &SqlitePool, job_id: &str) -> Result<Option<S
 /// Save AI insights to the database (V2 schema)
 /// For backward compatibility, stores insights as the summary field.
 pub async fn save_ai_insights(pool: &SqlitePool, job_id: &str, insights: &str) -> Result<()> {
-    sqlx::query(
+    sqlx::query!(
         "INSERT INTO ai_insights (job_id, summary, created_at, updated_at) VALUES (?, ?, datetime('now'), datetime('now'))
-         ON CONFLICT(job_id) DO UPDATE SET summary = ?, updated_at = datetime('now')"
+         ON CONFLICT(job_id) DO UPDATE SET summary = ?, updated_at = datetime('now')",
+        job_id,
+        insights,
+        insights
     )
-    .bind(job_id)
-    .bind(insights)
-    .bind(insights)
     .execute(pool)
     .await
     .context("Failed to save ai insights to database")?;
@@ -297,11 +378,11 @@ mod tests {
 
     /// Helper to create a valid jobs record for FK constraint (V2 schema)
     async fn create_test_job(pool: &SqlitePool, id: &str) {
-        sqlx::query(
+        sqlx::query!(
             "INSERT INTO jobs (id, url, status, created_at, updated_at) 
-             VALUES (?, 'https://test.com', 'completed', datetime('now'), datetime('now'))"
+             VALUES (?, 'https://test.com', 'completed', datetime('now'), datetime('now'))",
+            id
         )
-        .bind(id)
         .execute(pool)
         .await
         .unwrap();
