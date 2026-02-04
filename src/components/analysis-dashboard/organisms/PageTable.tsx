@@ -4,10 +4,23 @@ import { Table, TableBody, TableHeader, TableRow, TableHead } from "@/src/compon
 import { BrokenPageRow, HealthyPageRow } from "../molecules/PageRow";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/src/components/ui/tooltip";
 import { Search } from "lucide-react";
+import { useVirtualizer } from '@tanstack/react-virtual';
+import React from "react";
 
 export function PageTable({ pages, onSelectPage }: { pages: PageAnalysisData[], onSelectPage: (p: number) => void }) {
+    
+    const parentRef = React.useRef(null)
+
+    // The virtualizer
+    const rowVirtualizer = useVirtualizer({
+        count: pages.length,
+        getScrollElement: () => parentRef.current,
+        estimateSize: () => 35,
+        overscan: 10
+    })
+    
     return (
-        <Table>
+        <Table ref={parentRef} className="overflow-auto" style={{ maxHeight: "calc(100vh - 200px)" }}>
             <TableHeader>
                 <TableRow>
                     <TableHead>Page</TableHead>
@@ -33,12 +46,19 @@ export function PageTable({ pages, onSelectPage }: { pages: PageAnalysisData[], 
                     <TableHead className="w-[40px]"></TableHead>
                 </TableRow>
             </TableHeader>
-            <TableBody>
-                {pages.map((page, idx) => (
-                    page.status_code && (page.status_code >= 400 || page.status_code < 200)
-                        ? <BrokenPageRow key={idx} page={page} onClick={() => onSelectPage(idx)} />
-                        : <HealthyPageRow key={idx} page={page} onClick={() => onSelectPage(idx)} />
-                ))}
+            <TableBody 
+            style={{
+            height: `${rowVirtualizer.getTotalSize()}px`,
+            width: '100%',
+            position: 'relative',
+            }}>
+                {rowVirtualizer.getVirtualItems().map((virtualItem)  => {
+                    const page = pages[virtualItem.index];
+                    return (page.status_code && (page.status_code >= 400 || page.status_code < 200)
+                        ? <BrokenPageRow key={virtualItem.key} page={page} onClick={() => onSelectPage(virtualItem.index)} />
+                        : <HealthyPageRow key={virtualItem.key} page={page} onClick={() => onSelectPage(virtualItem.index)} />
+                    );
+                })}
             </TableBody>
         </Table>
     );
