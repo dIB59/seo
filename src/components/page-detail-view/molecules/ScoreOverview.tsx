@@ -13,7 +13,7 @@ export default function ScoreOverview({ page }: { page: PageDetailData }) {
         <div className="grid grid-cols-4 gap-4">
             {scores.map((score) => (
                 <div key={score.label} className="flex flex-col items-center gap-2 p-4 rounded-lg bg-muted/50">
-                    <ScoreRing score={score.value || 0} size="md" />
+                    <ScoreRing score={Number(score.value?.toPrecision(3)) || 0} size="md" />
                     <div className="flex items-center gap-1.5">
                         <span className="text-sm font-medium">{score.label}</span>
                     </div>

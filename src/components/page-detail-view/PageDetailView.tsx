@@ -1,60 +1,9 @@
 "use client"
 
 import { useEffect, useCallback, useState } from "react"
-import {
-    ArrowLeft,
-    ChevronLeft,
-    ChevronRight,
-    FileText,
-    Clock,
-    Link2,
-    ImageIcon,
-    Heading,
-    ExternalLink,
-    AlertCircle,
-    CheckCircle2,
-    Globe,
-    Hash,
-    Search,
-    ChevronsUpDown,
-    Gauge,
-    Zap,
-    Eye,
-    Shield,
-    Activity,
-    LayoutPanelTop,
-    MousePointer,
-    XCircle,
-} from "lucide-react"
-import { Button } from "@/src/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/src/components/ui/tabs"
 import { Badge } from "@/src/components/ui/badge"
-import { Separator } from "@/src/components/ui/separator"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table"
-import {
-    Command,
-    CommandEmpty,
-    CommandGroup,
-    CommandInput,
-    CommandItem,
-    CommandList,
-} from "@/src/components/ui/command"
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from "@/src/components/ui/popover"
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from "@/src/components/ui/tooltip"
-import { cn } from "@/src/lib/utils"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/src/components/ui/dialog"
-import type { PageDetailData, HeadingElement, ImageElement, LinkElement } from "@/src/lib/types"
-import { ScoreRing } from "../analysis-dashboard/atoms/ScoreRing"
+import type { PageDetailData } from "@/src/lib/types"
 import PageHeader from "./organisms/PageHeader"
 import PageInfoCard from "./molecules/PageInfoCard"
 import MetaTab from "./molecules/MetaTab"
@@ -62,26 +11,6 @@ import SeoAuditTab from "./molecules/SeoAuditTab"
 import HeadingsTab from "./molecules/HeadingsTab"
 import ImagesTab from "./molecules/ImagesTab"
 import LinksTab from "./molecules/LinksTab"
-
-// ============================================================================
-// UTILITY COMPONENTS
-// ============================================================================
-
-
-
-// ============================================================================
-// TAB COMPONENTS
-// ============================================================================
-
-
-
-
-
-
-
-// ============================================================================
-// MAIN COMPONENT
-// ============================================================================
 
 interface PageDetailViewProps {
     page: PageDetailData
