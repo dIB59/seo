@@ -264,7 +264,6 @@ impl<R: tauri::Runtime> JobProcessor<R> {
         cancel_flag: &Arc<AtomicBool>,
     ) -> Result<CrawlResult> {
         let mut result = CrawlResult::default();
-        let max_pages = job.settings.max_pages as usize;
 
         // Update status to running (analyzing phase)
         self.job_db
@@ -307,10 +306,7 @@ impl<R: tauri::Runtime> JobProcessor<R> {
             }
 
             // Fetch and analyze page (depth is not tracked by discovery, use 0)
-            let analysis = match self
-                .analyze_page(url.as_str(), &job.id, 0, &auditor)
-                .await
-            {
+            let analysis = match self.analyze_page(url.as_str(), &job.id, 0, &auditor).await {
                 Ok(result) => Ok(result),
                 Err(e) => {
                     if auditor.name() == "Deep (Lighthouse)" {
@@ -345,7 +341,7 @@ impl<R: tauri::Runtime> JobProcessor<R> {
                 .await;
 
             // Emit discovery-style progress so frontend sees current/total while auditing
-            emit_discovery_progress_event(&self.app_handle, &job.id, pages_analyzed as usize, max_pages);
+            emit_discovery_progress_event(&self.app_handle, &job.id, pages_analyzed, max_pages);
 
             // Apply rate limiting
             self.apply_request_delay(&job.settings).await;
@@ -411,8 +407,7 @@ impl<R: tauri::Runtime> JobProcessor<R> {
                 ));
             }
 
-            if meta_description
-                .is_none()
+            if meta_description.is_none()
                 || meta_description
                     .as_ref()
                     .map(|d| d.is_empty())
@@ -438,7 +433,7 @@ impl<R: tauri::Runtime> JobProcessor<R> {
             // Build edges for link tracking (include link text as tuple - page_id is not available yet)
             let edges: Vec<(String, i32, Option<String>)> = all_links
                 .into_iter()
-                .map(|(href, is_internal, text)| (href, if is_internal { 200i32 } else { 0i32 }, text))
+                .map(|link| (link.href, if link.is_internal { 200i32 } else { 0i32 }, link.text))
                 .collect();
 
             (page, issues, internal_links, edges, headings, images)
@@ -568,7 +563,10 @@ impl<R: tauri::Runtime> JobProcessor<R> {
 
     async fn apply_request_delay(&self, settings: &JobSettings) {
         if settings.delay_between_requests > 0 {
-            sleep(Duration::from_millis(settings.delay_between_requests as u64)).await;
+            sleep(Duration::from_millis(
+                settings.delay_between_requests as u64,
+            ))
+            .await;
         }
     }
 
@@ -633,18 +631,26 @@ impl<R: tauri::Runtime> DiscoveryProgressEmitter for tauri::AppHandle<R> {
             total_pages: usize,
         }
 
-        if let Err(e) = self.emit("discovery-progress", DiscoveryProgressEvent {
-            job_id: job_id.to_string(),
-            count,
-            total_pages,
-        }) {
+        if let Err(e) = self.emit(
+            "discovery-progress",
+            DiscoveryProgressEvent {
+                job_id: job_id.to_string(),
+                count,
+                total_pages,
+            },
+        ) {
             log::warn!("Failed to emit discovery progress: {}", e);
         }
     }
 }
 
 /// Generic helper that delegates to the provided emitter.
-fn emit_discovery_progress_event<E: DiscoveryProgressEmitter>(emitter: &E, job_id: &str, count: usize, total_pages: usize) {
+fn emit_discovery_progress_event<E: DiscoveryProgressEmitter>(
+    emitter: &E,
+    job_id: &str,
+    count: usize,
+    total_pages: usize,
+) {
     emitter.emit_discovery_progress(job_id, count, total_pages);
 }
 
@@ -866,16 +872,20 @@ fn extract_images(html: &Html, base_url: &str) -> Vec<ExtractedImage> {
             }
 
             let resolved_src = if let Some(ref base) = base {
-                base.join(&src)
-                    .map(|u| u.to_string())
-                    .unwrap_or(src)
+                base.join(&src).map(|u| u.to_string()).unwrap_or(src)
             } else {
                 src
             };
 
             let alt = element.value().attr("alt").map(|s| s.trim().to_string());
-            let width = element.value().attr("width").and_then(|w| w.parse::<i64>().ok());
-            let height = element.value().attr("height").and_then(|h| h.parse::<i64>().ok());
+            let width = element
+                .value()
+                .attr("width")
+                .and_then(|w| w.parse::<i64>().ok());
+            let height = element
+                .value()
+                .attr("height")
+                .and_then(|h| h.parse::<i64>().ok());
             let loading = element.value().attr("loading").map(|s| s.to_string());
             let is_decorative = alt.as_deref().map(|a| a.is_empty()).unwrap_or(false)
                 || element.value().attr("role") == Some("presentation")
@@ -893,7 +903,19 @@ fn extract_images(html: &Html, base_url: &str) -> Vec<ExtractedImage> {
         .collect()
 }
 
-fn extract_links(html: &Html, base_url: &str) -> (Vec<String>, Vec<String>, Vec<(String, bool, Option<String>)>) {
+#[derive(Debug, Clone)]
+pub struct ExtractedLink {
+    pub href: String,
+    pub is_internal: bool,
+    pub text: Option<String>,
+}
+
+pub type LinkLists = (Vec<String>, Vec<String>, Vec<ExtractedLink>);
+
+fn extract_links(
+    html: &Html,
+    base_url: &str,
+) -> LinkLists {
     static SELECTOR: OnceLock<Selector> = OnceLock::new();
     let selector = SELECTOR.get_or_init(|| Selector::parse("a[href]").unwrap());
 
@@ -901,7 +923,10 @@ fn extract_links(html: &Html, base_url: &str) -> (Vec<String>, Vec<String>, Vec<
     let img_selector = IMG_SELECTOR.get_or_init(|| Selector::parse("img").unwrap());
 
     let base = Url::parse(base_url).ok();
-    let base_host = base.as_ref().and_then(|u| u.host_str()).map(|s| s.to_string());
+    let base_host = base
+        .as_ref()
+        .and_then(|u| u.host_str())
+        .map(|s| s.to_string());
     let base_port = base.as_ref().and_then(|u| u.port());
 
     let mut internal = Vec::new();
@@ -924,7 +949,11 @@ fn extract_links(html: &Html, base_url: &str) -> (Vec<String>, Vec<String>, Vec<
             // Determine visible/accessible text for the anchor (fallbacks: aria-label/title/img alt)
             let mut text = element.text().collect::<String>().trim().to_string();
             if text.is_empty() {
-                if let Some(attr) = element.value().attr("aria-label").or_else(|| element.value().attr("title")) {
+                if let Some(attr) = element
+                    .value()
+                    .attr("aria-label")
+                    .or_else(|| element.value().attr("title"))
+                {
                     text = attr.trim().to_string();
                 }
             }
@@ -956,7 +985,7 @@ fn extract_links(html: &Html, base_url: &str) -> (Vec<String>, Vec<String>, Vec<
                 false
             };
 
-            all.push((resolved.clone(), is_internal, link_text));
+            all.push(ExtractedLink { href: resolved.clone(), is_internal, text: link_text });
 
             if is_internal {
                 internal.push(resolved);
