@@ -3,7 +3,7 @@
 //! Uses a bundled sidecar binary (lighthouse-runner) to run comprehensive
 //! Lighthouse audits. Slower but provides detailed scores and metrics.
 
-use super::{AuditResult, AuditScores, Auditor, CheckResult, PerformanceMetrics, SeoAuditDetails};
+use super::{AuditResult, AuditScores, Auditor, CheckResult, PerformanceMetrics, SeoAuditDetails, Score};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use serde::Deserialize;
@@ -95,10 +95,10 @@ impl DeepAuditor {
         let perf = response.performance_metrics.as_ref();
 
         AuditScores {
-            performance: scores.and_then(|s| s.performance),
-            accessibility: scores.and_then(|s| s.accessibility),
-            best_practices: scores.and_then(|s| s.best_practices),
-            seo: scores.and_then(|s| s.seo),
+            performance: scores.and_then(|s| s.performance.map(|v| Score::from(v))),
+            accessibility: scores.and_then(|s| s.accessibility.map(|v| Score::from(v))),
+            best_practices: scores.and_then(|s| s.best_practices.map(|v| Score::from(v))),
+            seo: scores.and_then(|s| s.seo.map(|v| Score::from(v))),
             seo_details: Self::convert_seo_audits(audits),
             performance_metrics: perf.map(|p| PerformanceMetrics {
                 first_contentful_paint: p.first_contentful_paint,
@@ -116,7 +116,7 @@ impl DeepAuditor {
             audit.map(|a| CheckResult {
                 passed: a.passed,
                 value: a.value.clone(),
-                score: a.score,
+                score: Score::from(a.score),
                 description: a.description.clone(),
             }).unwrap_or_default()
         };

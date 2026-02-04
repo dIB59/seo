@@ -43,10 +43,10 @@ pub struct LighthouseScores {
 impl From<crate::service::auditor::AuditScores> for LighthouseScores {
     fn from(scores: crate::service::auditor::AuditScores) -> Self {
         Self {
-            performance: scores.performance,
-            accessibility: scores.accessibility,
-            best_practices: scores.best_practices,
-            seo: scores.seo,
+            performance: scores.performance.map(|s| s.raw()),
+            accessibility: scores.accessibility.map(|s| s.raw()),
+            best_practices: scores.best_practices.map(|s| s.raw()),
+            seo: scores.seo.map(|s| s.raw()),
             seo_audits: scores.seo_details.into(),
             performance_metrics: scores.performance_metrics.map(|pm| pm.into()),
         }
@@ -92,7 +92,7 @@ impl From<crate::service::auditor::CheckResult> for AuditResult {
         Self {
             passed: cr.passed,
             value: cr.value,
-            score: cr.score,
+            score: cr.score.raw(),
             description: cr.description,
         }
     }

@@ -455,8 +455,8 @@ impl<R: tauri::Runtime> JobProcessor<R> {
         });
         let raw_json = serde_json::to_string(&raw_json).ok();
 
-        let normalize_score = |score: Option<f64>| -> Option<f64> {
-            score.map(|s| if s <= 1.0 { s * 100.0 } else { s })
+        let normalize_score = |score: Option<crate::service::auditor::Score>| -> Option<f64> {
+            score.map(|s| s.percent())
         };
 
         let lighthouse = LighthouseData {
