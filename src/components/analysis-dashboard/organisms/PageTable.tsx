@@ -2,7 +2,7 @@
 import { useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { PageAnalysisData } from "@/src/lib/types";
-import { BrokenPageRow, HealthyPageRow } from "../molecules/PageRow";
+import { PageRow } from "../molecules/PageRow";
 
 export function PageTable({
   pages,
@@ -49,8 +49,6 @@ export function PageTable({
         >
           {virtualItems.map((virtualItem) => {
             const page = pages[virtualItem.index];
-            const isBroken = page.status_code && (page.status_code >= 400 || page.status_code < 200);
-            const RowComponent = isBroken ? BrokenPageRow : HealthyPageRow;
 
             return (
               <div
@@ -64,7 +62,7 @@ export function PageTable({
                   transform: `translateY(${virtualItem.start}px)`,
                 }}
               >
-                <RowComponent
+                <PageRow
                   page={page}
                   index={virtualItem.index}
                   onClick={onSelectPage}
