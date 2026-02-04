@@ -19,7 +19,8 @@ export default function LinksTab({ links }: { links: LinkElement[] }) {
         )
     }
 
-    const internalLinks = links.filter((l) => l.is_internal).length
+    console.log("LinksTab links:", links);
+    const internalLinks = links.filter((l) => !l.is_external).length
     const externalLinks = links.length - internalLinks
 
     return (
@@ -78,8 +79,8 @@ export default function LinksTab({ links }: { links: LinkElement[] }) {
                                     )}
                                 </TableCell>
                                 <TableCell className="text-center">
-                                    <Badge variant="outline" className={cn("text-xs", link.is_internal ? "bg-primary/15 text-primary border-primary/20" : "bg-muted")}>
-                                        {link.is_internal ? "Int" : "Ext"}
+                                    <Badge variant="outline" className={cn("text-xs", link.is_external ? "bg-muted": "bg-primary/15 text-primary border-primary/20")}>
+                                        {link.is_external ? "Ext" : "Int"}
                                     </Badge>
                                 </TableCell>
                                 <TableCell className="text-center">

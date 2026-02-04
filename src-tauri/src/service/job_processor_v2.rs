@@ -619,20 +619,74 @@ impl<R: tauri::Runtime> JobProcessor<R> {
 // Helper helpers
 // ============================================================================
 
-fn emit_discovery_progress_event<R: tauri::Runtime>(app_handle: &tauri::AppHandle<R>, job_id: &str, count: usize, total_pages: usize) {
-    #[derive(Clone, Serialize)]
-    struct DiscoveryProgressEvent {
-        job_id: String,
-        count: usize,
-        total_pages: usize,
+/// Trait abstracting discovery progress emission so it can be mocked in tests.
+pub trait DiscoveryProgressEmitter {
+    fn emit_discovery_progress(&self, job_id: &str, count: usize, total_pages: usize);
+}
+
+impl<R: tauri::Runtime> DiscoveryProgressEmitter for tauri::AppHandle<R> {
+    fn emit_discovery_progress(&self, job_id: &str, count: usize, total_pages: usize) {
+        #[derive(Clone, Serialize)]
+        struct DiscoveryProgressEvent {
+            job_id: String,
+            count: usize,
+            total_pages: usize,
+        }
+
+        if let Err(e) = self.emit("discovery-progress", DiscoveryProgressEvent {
+            job_id: job_id.to_string(),
+            count,
+            total_pages,
+        }) {
+            log::warn!("Failed to emit discovery progress: {}", e);
+        }
+    }
+}
+
+/// Generic helper that delegates to the provided emitter.
+fn emit_discovery_progress_event<E: DiscoveryProgressEmitter>(emitter: &E, job_id: &str, count: usize, total_pages: usize) {
+    emitter.emit_discovery_progress(job_id, count, total_pages);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{Arc, Mutex};
+
+    /// Simple mock emitter capturing the last emitted values.
+    struct MockEmitter {
+        last: Arc<Mutex<Option<(String, usize, usize)>>>,
     }
 
-    if let Err(e) = app_handle.emit("discovery-progress", DiscoveryProgressEvent {
-        job_id: job_id.to_string(),
-        count,
-        total_pages,
-    }) {
-        log::warn!("Failed to emit discovery progress: {}", e);
+    impl MockEmitter {
+        fn new() -> Self {
+            Self {
+                last: Arc::new(Mutex::new(None)),
+            }
+        }
+
+        fn last_clone(&self) -> Arc<Mutex<Option<(String, usize, usize)>>> {
+            self.last.clone()
+        }
+    }
+
+    impl DiscoveryProgressEmitter for MockEmitter {
+        fn emit_discovery_progress(&self, job_id: &str, count: usize, total_pages: usize) {
+            let mut lock = self.last.lock().unwrap();
+            *lock = Some((job_id.to_string(), count, total_pages));
+        }
+    }
+
+    #[test]
+    fn emits_discovery_progress_using_emitter_trait() {
+        let mock = MockEmitter::new();
+        let last_ref = mock.last_clone();
+        emit_discovery_progress_event(&mock, "job-123", 5, 20);
+        let guard = last_ref.lock().unwrap();
+        let v = guard.as_ref().unwrap();
+        assert_eq!(v.0, "job-123");
+        assert_eq!(v.1, 5);
+        assert_eq!(v.2, 20);
     }
 }
 

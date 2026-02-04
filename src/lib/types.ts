@@ -149,7 +149,7 @@ export interface ImageElement {
 export interface LinkElement {
   href: string
   text: string
-  is_internal: boolean
+  is_external: boolean
   status_code: number | null
 }
 
