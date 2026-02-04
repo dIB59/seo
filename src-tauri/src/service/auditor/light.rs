@@ -290,11 +290,47 @@ impl LightAuditor {
         let mut poor_text = 0;
         let bad_texts = ["click here", "read more", "learn more", "here", "link"];
 
+        // Selector for images inside anchors (used as fallback)
+        static IMG_SELECTOR: OnceLock<Selector> = OnceLock::new();
+        let img_selector = IMG_SELECTOR.get_or_init(|| Selector::parse("img").unwrap());
+
         for anchor in document.select(selector) {
             total += 1;
-            let text = anchor.text().collect::<String>().trim().to_lowercase();
-            
-            if text.is_empty() || bad_texts.contains(&text.as_str()) {
+
+            // Primary: visible text inside the anchor
+            let mut text = anchor.text().collect::<String>().trim().to_lowercase();
+
+            // Fallbacks: aria-label or title attribute
+            if text.is_empty() {
+                if let Some(attr) = anchor.value().attr("aria-label").or_else(|| anchor.value().attr("title")) {
+                    text = attr.trim().to_lowercase();
+                }
+            }
+
+            // Fallback: use alt text from first child img if present
+            if text.is_empty() {
+                for img in anchor.select(img_selector) {
+                    if let Some(alt) = img.value().attr("alt") {
+                        if !alt.trim().is_empty() {
+                            text = alt.trim().to_lowercase();
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Normalize text: remove punctuation/symbols and collapse whitespace
+            let normalized = text
+                .chars()
+                .map(|c| if c.is_alphanumeric() || c.is_whitespace() { c } else { ' ' })
+                .collect::<String>()
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .trim()
+                .to_string();
+
+            if normalized.is_empty() || bad_texts.iter().any(|b| normalized.contains(b)) {
                 poor_text += 1;
             }
         }
@@ -531,5 +567,45 @@ mod tests {
         let score = details.calculate_score();
         // 8/9 checks pass = ~0.889
         assert!(score.raw() > 0.8 && score.raw() < 0.95);
+    }
+
+    #[test]
+    fn test_check_link_text_various() {
+        let auditor = LightAuditor::new();
+
+        // Good text
+        let html = r#"<html><body><a href=\"/a\">Read this article</a></body></html>"#;
+        let doc = Html::parse_document(html);
+        let result = auditor.check_link_text(&doc);
+        assert!(result.passed);
+        assert_eq!(result.score, crate::service::auditor::Score::from(1.0));
+
+        // Real-world example with classes (user-provided)
+        let html = r#"<html><body><a class=\"px-6 py-3 border border-foreground/20 rounded-full font-medium hover:bg-foreground/5 transition-colors\" href=\"/leetcode\">LeetCode Progress</a></body></html>"#;
+        let doc = Html::parse_document(html);
+        let result = auditor.check_link_text(&doc);
+        assert!(result.passed);
+        assert_eq!(result.score, crate::service::auditor::Score::from(1.0));
+
+        // Generic text with arrow/icon - should be flagged
+        let html = r#"<html><body><a href=\"/a\">Read more →</a></body></html>"#;
+        let doc = Html::parse_document(html);
+        let result = auditor.check_link_text(&doc);
+        assert!(!result.passed);
+        assert_eq!(result.score, crate::service::auditor::Score::from(0.0));
+
+        // Anchor with image alt text - should be considered descriptive
+        let html = r#"<html><body><a href="a"><img src=\"a.jpg\" alt=\"Product image\"></a></body></html>"#;
+        let doc = Html::parse_document(html);
+        let result = auditor.check_link_text(&doc);
+        assert!(result.passed);
+        assert_eq!(result.score, crate::service::auditor::Score::from(1.0));
+
+        // aria-label fallback
+        let html = r#"<html><body><a href=\"/a\" aria-label=\"Download PDF\"><svg/></a></body></html>"#;
+        let doc = Html::parse_document(html);
+        let result = auditor.check_link_text(&doc);
+        assert!(result.passed);
+        assert_eq!(result.score, crate::service::auditor::Score::from(1.0));
     }
 }

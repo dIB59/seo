@@ -232,7 +232,7 @@ impl<R: tauri::Runtime> JobProcessor<R> {
                 source_page_id: e.from_page_id.clone(),
                 target_page_id: None,
                 target_url: e.to_url.clone(),
-                link_text: None,
+                link_text: e.link_text.clone(),
                 link_type: if e.is_internal(&job.url) {
                     LinkType::Internal
                 } else {
@@ -435,10 +435,10 @@ impl<R: tauri::Runtime> JobProcessor<R> {
                 ));
             }
 
-            // Build edges for link tracking
-            let edges: Vec<(String, i32)> = all_links
+            // Build edges for link tracking (include link text as tuple - page_id is not available yet)
+            let edges: Vec<(String, i32, Option<String>)> = all_links
                 .into_iter()
-                .map(|(href, is_internal)| (href, if is_internal { 200i32 } else { 0i32 }))
+                .map(|(href, is_internal, text)| (href, if is_internal { 200i32 } else { 0i32 }, text))
                 .collect();
 
             (page, issues, internal_links, edges, headings, images)
@@ -551,10 +551,10 @@ impl<R: tauri::Runtime> JobProcessor<R> {
             self.issue_db.insert_batch(&issues).await?;
         }
 
-        // Build final edges with page_id
+        // Build final edges with page_id (now we have the actual page id)
         let final_edges: Vec<PageEdge> = edges
             .into_iter()
-            .map(|(href, status_code)| PageEdge::new(&page_id, &href, status_code))
+            .map(|(href, status_code, text)| PageEdge::new(&page_id, &href, status_code, text))
             .collect();
 
         Ok((
@@ -700,14 +700,16 @@ struct PageEdge {
     from_page_id: String,
     to_url: String,
     status_code: i32,
+    link_text: Option<String>,
 }
 
 impl PageEdge {
-    fn new(from_page_id: &str, to_url: &str, status_code: i32) -> Self {
+    fn new(from_page_id: &str, to_url: &str, status_code: i32, link_text: Option<String>) -> Self {
         Self {
             from_page_id: from_page_id.to_string(),
             to_url: to_url.to_string(),
             status_code,
+            link_text,
         }
     }
 
@@ -891,9 +893,12 @@ fn extract_images(html: &Html, base_url: &str) -> Vec<ExtractedImage> {
         .collect()
 }
 
-fn extract_links(html: &Html, base_url: &str) -> (Vec<String>, Vec<String>, Vec<(String, bool)>) {
+fn extract_links(html: &Html, base_url: &str) -> (Vec<String>, Vec<String>, Vec<(String, bool, Option<String>)>) {
     static SELECTOR: OnceLock<Selector> = OnceLock::new();
     let selector = SELECTOR.get_or_init(|| Selector::parse("a[href]").unwrap());
+
+    static IMG_SELECTOR: OnceLock<Selector> = OnceLock::new();
+    let img_selector = IMG_SELECTOR.get_or_init(|| Selector::parse("img").unwrap());
 
     let base = Url::parse(base_url).ok();
     let base_host = base.as_ref().and_then(|u| u.host_str()).map(|s| s.to_string());
@@ -916,6 +921,26 @@ fn extract_links(html: &Html, base_url: &str) -> (Vec<String>, Vec<String>, Vec<
                 continue;
             }
 
+            // Determine visible/accessible text for the anchor (fallbacks: aria-label/title/img alt)
+            let mut text = element.text().collect::<String>().trim().to_string();
+            if text.is_empty() {
+                if let Some(attr) = element.value().attr("aria-label").or_else(|| element.value().attr("title")) {
+                    text = attr.trim().to_string();
+                }
+            }
+            if text.is_empty() {
+                for img in element.select(img_selector) {
+                    if let Some(alt) = img.value().attr("alt") {
+                        if !alt.trim().is_empty() {
+                            text = alt.trim().to_string();
+                            break;
+                        }
+                    }
+                }
+            }
+
+            let link_text = if text.is_empty() { None } else { Some(text) };
+
             let resolved = if let Some(ref base) = base {
                 base.join(href)
                     .map(|u| u.to_string())
@@ -931,7 +956,7 @@ fn extract_links(html: &Html, base_url: &str) -> (Vec<String>, Vec<String>, Vec<
                 false
             };
 
-            all.push((resolved.clone(), is_internal));
+            all.push((resolved.clone(), is_internal, link_text));
 
             if is_internal {
                 internal.push(resolved);
