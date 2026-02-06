@@ -15,7 +15,7 @@ interface JobItemProps {
 }
 
 export function JobItem({ job, onViewResult, onCancel }: JobItemProps) {
-    const discoveryCount = useDiscoveryProgress(job.job_id, job.job_status)
+    const discovery = useDiscoveryProgress(job.job_id, job.job_status)
 
     return (
         <div
@@ -26,16 +26,16 @@ export function JobItem({ job, onViewResult, onCancel }: JobItemProps) {
             <div className="flex-1 min-w-0">
                 <JobItemHeader job={job} />
 
-                {job.job_status === "processing" && job.progress !== null && (
+                {(job.job_status === "processing" || job.job_status === "running") && job.progress !== null && (
                     <JobProgressBar
                         progress={job.progress}
-                        current={job.analyzed_pages}
-                        total={job.total_pages}
+                        current={discovery.count ?? job.analyzed_pages}
+                        total={discovery.total ?? job.total_pages}
                     />
                 )}
 
                 {job.job_status === "discovering" && (
-                    <DiscoveryProgress count={discoveryCount} />
+                    <DiscoveryProgress count={discovery.count} total={discovery.total} />
                 )}
             </div>
 

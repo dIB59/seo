@@ -43,10 +43,10 @@ pub struct LighthouseScores {
 impl From<crate::service::auditor::AuditScores> for LighthouseScores {
     fn from(scores: crate::service::auditor::AuditScores) -> Self {
         Self {
-            performance: scores.performance,
-            accessibility: scores.accessibility,
-            best_practices: scores.best_practices,
-            seo: scores.seo,
+            performance: scores.performance.map(|s| s.raw()),
+            accessibility: scores.accessibility.map(|s| s.raw()),
+            best_practices: scores.best_practices.map(|s| s.raw()),
+            seo: scores.seo.map(|s| s.raw()),
             seo_audits: scores.seo_details.into(),
             performance_metrics: scores.performance_metrics.map(|pm| pm.into()),
         }
@@ -92,7 +92,7 @@ impl From<crate::service::auditor::CheckResult> for AuditResult {
         Self {
             passed: cr.passed,
             value: cr.value,
-            score: cr.score,
+            score: cr.score.raw(),
             description: cr.description,
         }
     }
@@ -679,10 +679,12 @@ impl LighthouseService {
     /// Shutdown the persistent sidecar process if running
     pub async fn shutdown(&self) -> Result<()> {
         let mut process = self.persistent_process.lock().await;
-        
+
         if let Some(mut p) = process.take() {
-            log::info!("[LIGHTHOUSE-SIDECAR] Shutting down persistent process");
-            
+            // Log PID if available
+            let pid = p.child.id();
+            log::info!("[LIGHTHOUSE-SIDECAR] Shutting down persistent process (pid: {:?})", pid);
+
             // Send shutdown command
             let shutdown_req = PersistentRequest {
                 action: "shutdown".to_string(),
@@ -693,16 +695,31 @@ impl LighthouseService {
                 let _ = p.stdin.write_all(b"\n").await;
                 let _ = p.stdin.flush().await;
             }
-            
-            // Wait briefly then kill if needed
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-            let _ = p.child.kill().await;
-            
+
+            // Wait for graceful exit with timeout, otherwise kill
+            let wait_duration = tokio::time::Duration::from_secs(2);
+            match tokio::time::timeout(wait_duration, p.child.wait()).await {
+                Ok(Ok(status)) => {
+                    log::info!("[LIGHTHOUSE-SIDECAR] Persistent process exited gracefully: {:?}", status);
+                }
+                Ok(Err(e)) => {
+                    log::warn!("[LIGHTHOUSE-SIDECAR] Error while waiting for child to exit: {}. Attempting to kill.", e);
+                    let _ = p.child.kill().await;
+                    // Best-effort wait after kill
+                    let _ = tokio::time::timeout(tokio::time::Duration::from_secs(1), p.child.wait()).await;
+                }
+                Err(_) => {
+                    log::warn!("[LIGHTHOUSE-SIDECAR] Timeout waiting for persistent process to exit, killing...");
+                    let _ = p.child.kill().await;
+                    let _ = tokio::time::timeout(tokio::time::Duration::from_secs(1), p.child.wait()).await;
+                }
+            }
+
             log::info!("[LIGHTHOUSE-SIDECAR] Persistent process shut down");
         } else {
             log::debug!("[LIGHTHOUSE-SIDECAR] No persistent process to shut down");
         }
-        
+
         Ok(())
     }
 }
@@ -754,5 +771,61 @@ mod tests {
         let response: SidecarResponse = serde_json::from_str(json).unwrap();
         assert!(!response.success);
         assert_eq!(response.error, Some("Connection refused".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_shutdown_graceful() {
+        // Spawn a helper process that reads one line from stdin and exits (simulates sidecar that exits on shutdown command)
+        let mut child = Command::new("bash")
+            .arg("-lc")
+            .arg("read line; exit 0")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("failed to spawn helper");
+
+        let stdin = child.stdin.take().expect("stdin");
+        let stdout = child.stdout.take().expect("stdout");
+
+        let pp = PersistentProcess { child, stdin, stdout: BufReader::new(stdout) };
+
+        let service = LighthouseService::new();
+        {
+            let mut guard = service.persistent_process.lock().await;
+            *guard = Some(pp);
+        }
+
+        // Shutdown should send a newline and the helper will exit gracefully
+        let res = service.shutdown().await;
+        assert!(res.is_ok());
+        assert!(!service.is_persistent_running().await);
+    }
+
+    #[tokio::test]
+    async fn test_shutdown_timeout_kill() {
+        // Spawn a helper process that ignores stdin (sleep) so shutdown times out and then we kill it
+        let mut child = Command::new("sleep")
+            .arg("10")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("failed to spawn sleeper");
+
+        let stdin = child.stdin.take().expect("stdin");
+        let stdout = child.stdout.take().expect("stdout");
+
+        let pp = PersistentProcess { child, stdin, stdout: BufReader::new(stdout) };
+
+        let service = LighthouseService::new();
+        {
+            let mut guard = service.persistent_process.lock().await;
+            *guard = Some(pp);
+        }
+
+        // Wrap in a timeout to keep test from hanging in the unlikely event of failure
+        let res = tokio::time::timeout(tokio::time::Duration::from_secs(5), service.shutdown()).await;
+        assert!(res.is_ok());
+        assert!(res.unwrap().is_ok());
+        assert!(!service.is_persistent_running().await);
     }
 }

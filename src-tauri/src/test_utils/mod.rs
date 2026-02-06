@@ -11,11 +11,7 @@ pub async fn set_up_test_db_with_prod_data() -> SqlitePool {
         .await
         .expect("Failed to run migrations");
     
-    // Apply performance pragmas (same as production)
-    sqlx::query!("PRAGMA synchronous = NORMAL").execute(&pool).await.ok();
-    sqlx::query!("PRAGMA cache_size = -65536").execute(&pool).await.ok();
-    sqlx::query!("PRAGMA temp_store = MEMORY").execute(&pool).await.ok();
-    
+    // Apply performance pragmas (same as production)  
     pool
 }
 
@@ -30,10 +26,6 @@ pub async fn connect_test_db_no_migrate() -> SqlitePool {
         .expect("Failed to connect");
     
     // Apply performance pragmas (same as production)
-    sqlx::query!("PRAGMA synchronous = NORMAL").execute(&pool).await.ok();
-    sqlx::query!("PRAGMA cache_size = -65536").execute(&pool).await.ok();
-    sqlx::query!("PRAGMA temp_store = MEMORY").execute(&pool).await.ok();
-    
     pool
 }
 
@@ -48,10 +40,6 @@ pub async fn connect_test_db_v1() -> SqlitePool {
         .expect("Failed to connect to V1 test database");
     
     // Apply performance pragmas (same as production)
-    sqlx::query!("PRAGMA synchronous = NORMAL").execute(&pool).await.ok();
-    sqlx::query!("PRAGMA cache_size = -65536").execute(&pool).await.ok();
-    sqlx::query!("PRAGMA temp_store = MEMORY").execute(&pool).await.ok();
-    
     pool
 }
 
@@ -69,17 +57,16 @@ pub async fn set_up_benchmark_db() -> SqlitePool {
         .expect("Failed to run migrations");
     
     // Apply performance pragmas (same as production, except WAL which doesn't work with :memory:)
-    sqlx::query!("PRAGMA synchronous = NORMAL").execute(&pool).await.ok();
-    sqlx::query!("PRAGMA cache_size = -65536").execute(&pool).await.ok();
-    sqlx::query!("PRAGMA temp_store = MEMORY").execute(&pool).await.ok();
-    
+ 
     pool
 }
 
 /// Benchmark data generators for realistic test data
 /// Made public for use in benches/
 pub mod generators {
-    use crate::domain::models::{IssueType, SeoIssue, PageAnalysisData, LinkDetail};
+    use crate::domain::models::{
+        HeadingElement, ImageElement, IssueSeverity, LinkDetail, PageAnalysisData, SeoIssue,
+    };
 
     /// Generate mock pages for benchmarking write operations
     pub fn generate_mock_pages(count: usize, analysis_id: &str) -> Vec<PageAnalysisData> {
@@ -114,8 +101,20 @@ pub mod generators {
                 lighthouse_seo_audits: None,
                 lighthouse_performance_metrics: None,
                 links: vec![],
-                headings: vec![format!("h1: Main Heading {}", i), format!("h2: Subheading {}", i)],
-                images: vec![format!("/images/img-{}.jpg", i)],
+                headings: vec![
+                    HeadingElement {
+                        tag: "h1".to_string(),
+                        text: format!("Main Heading {}", i),
+                    },
+                    HeadingElement {
+                        tag: "h2".to_string(),
+                        text: format!("Subheading {}", i),
+                    },
+                ],
+                images: vec![ImageElement {
+                    src: format!("/images/img-{}.jpg", i),
+                    alt: Some(format!("Image {}", i)),
+                }],
                 detailed_links: vec![
                     LinkDetail {
                         url: format!("/page-{}", (i + 1) % count.max(1)),
@@ -139,14 +138,14 @@ pub mod generators {
     /// Generate mock SEO issues for benchmarking
     pub fn generate_mock_issues(count: usize, page_id: &str, page_url: &str) -> Vec<SeoIssue> {
         let issue_templates = [
-            (IssueType::Critical, "Missing Title Tag", "Page has no title tag defined"),
-            (IssueType::Critical, "Missing Meta Description", "No meta description found"),
-            (IssueType::Warning, "Title Too Long", "Title exceeds 60 characters"),
-            (IssueType::Warning, "Multiple H1 Tags", "Page has more than one H1 tag"),
-            (IssueType::Warning, "Images Missing Alt Text", "Some images lack alt attributes"),
-            (IssueType::Suggestion, "Thin Content", "Page has less than 300 words"),
-            (IssueType::Suggestion, "No Schema Markup", "Consider adding structured data"),
-            (IssueType::Suggestion, "Slow Page Load", "Page load time exceeds 3 seconds"),
+            (IssueSeverity::Critical, "Missing Title Tag", "Page has no title tag defined"),
+            (IssueSeverity::Critical, "Missing Meta Description", "No meta description found"),
+            (IssueSeverity::Warning, "Title Too Long", "Title exceeds 60 characters"),
+            (IssueSeverity::Warning, "Multiple H1 Tags", "Page has more than one H1 tag"),
+            (IssueSeverity::Warning, "Images Missing Alt Text", "Some images lack alt attributes"),
+            (IssueSeverity::Info, "Thin Content", "Page has less than 300 words"),
+            (IssueSeverity::Info, "No Schema Markup", "Consider adding structured data"),
+            (IssueSeverity::Info, "Slow Page Load", "Page load time exceeds 3 seconds"),
         ];
 
         (0..count)
@@ -154,7 +153,7 @@ pub mod generators {
                 let template = &issue_templates[i % issue_templates.len()];
                 SeoIssue {
                     page_id: page_id.to_string(),
-                    issue_type: template.0.clone(),
+                    severity: template.0.clone(),
                     title: template.1.to_string(),
                     description: template.2.to_string(),
                     page_url: page_url.to_string(),

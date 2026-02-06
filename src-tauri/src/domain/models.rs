@@ -70,22 +70,22 @@ impl std::fmt::Display for JobStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobSettings {
     pub max_pages: i64,
-    pub max_depth: i64,
-    pub respect_robots_txt: bool,
-    pub include_subdomains: bool,
-    pub rate_limit_ms: i64,
-    pub user_agent: Option<String>,
+    pub include_external_links: bool,
+    pub check_images: bool,
+    pub mobile_analysis: bool,
+    pub lighthouse_analysis: bool,
+    pub delay_between_requests: i64,
 }
 
 impl Default for JobSettings {
     fn default() -> Self {
         Self {
             max_pages: 100,
-            max_depth: 3,
-            respect_robots_txt: true,
-            include_subdomains: false,
-            rate_limit_ms: 1000,
-            user_agent: None,
+            include_external_links: false,
+            check_images: true,
+            mobile_analysis: false,
+            lighthouse_analysis: false,
+            delay_between_requests: 500,
         }
     }
 }
@@ -449,6 +449,24 @@ pub struct NewImage {
 }
 
 // ============================================================================
+// FRONTEND ELEMENT TYPES
+// ============================================================================
+
+/// Heading element for frontend display.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HeadingElement {
+    pub tag: String,
+    pub text: String,
+}
+
+/// Image element for frontend display.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImageElement {
+    pub src: String,
+    pub alt: Option<String>,
+}
+
+// ============================================================================
 // AI INSIGHTS
 // ============================================================================
 
@@ -579,7 +597,7 @@ pub struct AnalysisResults {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SeoIssue {
     pub page_id: String,
-    pub issue_type: IssueType,
+    pub severity: IssueSeverity,
     pub title: String,
     pub description: String,
     pub page_url: String,
@@ -588,14 +606,7 @@ pub struct SeoIssue {
     pub line_number: Option<i32>,
 }
 
-/// Issue severity type (frontend-compatible)
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum IssueType {
-    Critical,
-    Warning,
-    Suggestion,
-}
+
 
 /// Page analysis data (frontend-compatible format)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -626,14 +637,15 @@ pub struct PageAnalysisData {
     pub lighthouse_seo_audits: Option<serde_json::Value>,
     pub lighthouse_performance_metrics: Option<serde_json::Value>,
     pub links: Vec<String>,
-    pub headings: Vec<String>,
-    pub images: Vec<String>,
+    pub headings: Vec<HeadingElement>,
+    pub images: Vec<ImageElement>,
     pub detailed_links: Vec<LinkDetail>,
 }
 
 /// Link details (frontend-compatible)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LinkDetail {
+    #[serde(rename = "href", alias = "url")]
     pub url: String,
     pub text: String,
     pub is_external: bool,

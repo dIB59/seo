@@ -1,0 +1,146 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT \n                id, url, status, created_at, updated_at, completed_at,\n                max_pages, max_depth, respect_robots_txt, include_subdomains, \n                rate_limit_ms, user_agent, lighthouse_analysis,\n                total_pages, pages_crawled, total_issues, \n                critical_issues, warning_issues, info_issues,\n                progress, current_stage, error_message\n            FROM jobs\n            WHERE id = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "url",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "status",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "completed_at",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "max_pages",
+        "ordinal": 6,
+        "type_info": "Int64"
+      },
+      {
+        "name": "max_depth",
+        "ordinal": 7,
+        "type_info": "Int64"
+      },
+      {
+        "name": "respect_robots_txt",
+        "ordinal": 8,
+        "type_info": "Int64"
+      },
+      {
+        "name": "include_subdomains",
+        "ordinal": 9,
+        "type_info": "Int64"
+      },
+      {
+        "name": "rate_limit_ms",
+        "ordinal": 10,
+        "type_info": "Int64"
+      },
+      {
+        "name": "user_agent",
+        "ordinal": 11,
+        "type_info": "Text"
+      },
+      {
+        "name": "lighthouse_analysis",
+        "ordinal": 12,
+        "type_info": "Int64"
+      },
+      {
+        "name": "total_pages",
+        "ordinal": 13,
+        "type_info": "Int64"
+      },
+      {
+        "name": "pages_crawled",
+        "ordinal": 14,
+        "type_info": "Int64"
+      },
+      {
+        "name": "total_issues",
+        "ordinal": 15,
+        "type_info": "Int64"
+      },
+      {
+        "name": "critical_issues",
+        "ordinal": 16,
+        "type_info": "Int64"
+      },
+      {
+        "name": "warning_issues",
+        "ordinal": 17,
+        "type_info": "Int64"
+      },
+      {
+        "name": "info_issues",
+        "ordinal": 18,
+        "type_info": "Int64"
+      },
+      {
+        "name": "progress",
+        "ordinal": 19,
+        "type_info": "Float"
+      },
+      {
+        "name": "current_stage",
+        "ordinal": 20,
+        "type_info": "Text"
+      },
+      {
+        "name": "error_message",
+        "ordinal": 21,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "da4928fbd7b30f6bba406730704183caf3895ec548d5eb8c11295ccf0fee31ca"
+}

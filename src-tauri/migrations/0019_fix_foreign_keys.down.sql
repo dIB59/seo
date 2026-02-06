@@ -1,0 +1,1 @@
+-- No-op down migration for 0019 (foreign key fix)

@@ -55,13 +55,3 @@ pub enum AuditMode {
     /// Full Lighthouse audit (~5-10s per page)
     Deep,
 }
-
-impl AuditMode {
-    pub fn from_deep_enabled(deep: bool) -> Self {
-        if deep {
-            Self::Deep
-        } else {
-            Self::Light
-        }
-    }
-}

@@ -8,9 +8,10 @@ use chrono::Utc;
 use sqlx::SqlitePool;
 
 use crate::domain::models::{
-    AiInsight, CompleteJobResult, Issue, Job, JobSettings, JobSummary,
-    LighthouseData, Link, Page,
+    AiInsight, CompleteAnalysisResult, CompleteJobResult, Heading, Image, Issue, Job,
+    JobSettings, JobSummary, LighthouseData, Link, Page,
 };
+
 use super::{map_job_status, map_link_type, map_severity};
 
 pub struct ResultsRepository {
@@ -56,6 +57,7 @@ impl ResultsRepository {
         let lighthouse = self.get_lighthouse(job_id).await?;
         log::debug!("Fetched {} lighthouse records", lighthouse.len());
 
+
         // 6. Get AI insights (optional)
         let ai_insights = self.get_ai_insights(job_id).await.ok();
 
@@ -79,13 +81,20 @@ impl ResultsRepository {
         })
     }
 
-    async fn get_job(&self, job_id: &str) -> Result<Job> {
+    /// Get complete analysis result (frontend-compatible) with headings/images populated per page.
+    pub async fn get_complete_analysis_result(&self, job_id: &str) -> Result<CompleteAnalysisResult> {
+        // Delegate assembly to AnalysisAssembler to keep repo small and focused on DB access
+        let assembler = crate::service::analysis_assembler::AnalysisAssembler::new(self.pool.clone());
+        assembler.assemble(job_id).await
+    }
+
+    pub async fn get_job(&self, job_id: &str) -> Result<Job> {
         let row = sqlx::query!(
             r#"
             SELECT 
                 id, url, status, created_at, updated_at, completed_at,
                 max_pages, max_depth, respect_robots_txt, include_subdomains, 
-                rate_limit_ms, user_agent,
+                rate_limit_ms, user_agent, lighthouse_analysis,
                 total_pages, pages_crawled, total_issues, 
                 critical_issues, warning_issues, info_issues,
                 progress, current_stage, error_message
@@ -107,11 +116,11 @@ impl ResultsRepository {
             completed_at: row.completed_at.as_deref().map(parse_datetime),
             settings: JobSettings {
                 max_pages: row.max_pages,
-                max_depth: row.max_depth,
-                respect_robots_txt: row.respect_robots_txt != 0,
-                include_subdomains: row.include_subdomains != 0,
-                rate_limit_ms: row.rate_limit_ms,
-                user_agent: row.user_agent,
+                include_external_links: false,
+                check_images: true,
+                mobile_analysis: false,
+                lighthouse_analysis: row.lighthouse_analysis != 0,
+                delay_between_requests: row.rate_limit_ms,
             },
             summary: JobSummary {
                 total_pages: row.total_pages,
@@ -127,7 +136,7 @@ impl ResultsRepository {
         })
     }
 
-    async fn get_pages(&self, job_id: &str) -> Result<Vec<Page>> {
+    pub async fn get_pages(&self, job_id: &str) -> Result<Vec<Page>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -165,7 +174,7 @@ impl ResultsRepository {
             .collect())
     }
 
-    async fn get_issues(&self, job_id: &str) -> Result<Vec<Issue>> {
+    pub async fn get_issues(&self, job_id: &str) -> Result<Vec<Issue>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -201,7 +210,7 @@ impl ResultsRepository {
             .collect())
     }
 
-    async fn get_links(&self, job_id: &str) -> Result<Vec<Link>> {
+    pub async fn get_links(&self, job_id: &str) -> Result<Vec<Link>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -232,7 +241,7 @@ impl ResultsRepository {
             .collect())
     }
 
-    async fn get_lighthouse(&self, job_id: &str) -> Result<Vec<LighthouseData>> {
+    pub async fn get_lighthouse(&self, job_id: &str) -> Result<Vec<LighthouseData>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -270,7 +279,67 @@ impl ResultsRepository {
             .collect())
     }
 
-    async fn get_ai_insights(&self, job_id: &str) -> Result<AiInsight> {
+    pub async fn get_headings(&self, job_id: &str) -> Result<Vec<Heading>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT 
+                ph.id, ph.page_id, ph.level, ph.text, ph.position
+            FROM page_headings ph
+            JOIN pages p ON p.id = ph.page_id
+            WHERE p.job_id = ?
+            ORDER BY ph.page_id, ph.position
+            "#,
+            job_id
+        )
+        .fetch_all(&self.pool)
+        .await
+        .context("Failed to fetch headings")?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| Heading {
+                id: row.id.expect("Must exist"),
+                page_id: row.page_id,
+                level: row.level,
+                text: row.text,
+                position: row.position,
+            })
+            .collect())
+    }
+
+    pub async fn get_images(&self, job_id: &str) -> Result<Vec<Image>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT 
+                pi.id, pi.page_id, pi.src, pi.alt, pi.width, pi.height,
+                pi.loading, pi.is_decorative
+            FROM page_images pi
+            JOIN pages p ON p.id = pi.page_id
+            WHERE p.job_id = ?
+            ORDER BY pi.page_id, pi.id
+            "#,
+            job_id
+        )
+        .fetch_all(&self.pool)
+        .await
+        .context("Failed to fetch images")?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| Image {
+                id: row.id.expect("Must exist"),
+                page_id: row.page_id,
+                src: row.src,
+                alt: row.alt,
+                width: row.width,
+                height: row.height,
+                loading: row.loading,
+                is_decorative: row.is_decorative != 0,
+            })
+            .collect())
+    }
+
+    pub async fn get_ai_insights(&self, job_id: &str) -> Result<AiInsight> {
         let row = sqlx::query!(
             r#"
             SELECT 
@@ -341,3 +410,5 @@ fn parse_datetime(s: &str) -> chrono::DateTime<Utc> {
         .map(|dt| dt.with_timezone(&Utc))
         .unwrap_or_else(|_| Utc::now())
 }
+
+

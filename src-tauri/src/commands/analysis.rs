@@ -47,11 +47,11 @@ impl From<AnalysisSettingsRequest> for JobSettings {
     fn from(req: AnalysisSettingsRequest) -> Self {
         Self {
             max_pages: req.max_pages,
-            max_depth: 3, // Default depth
-            respect_robots_txt: true,
-            include_subdomains: false,
-            rate_limit_ms: req.delay_between_requests,
-            user_agent: None,
+            include_external_links: req.include_external_links,
+            check_images: req.check_images,
+            mobile_analysis: req.mobile_analysis,
+            lighthouse_analysis: req.lighthouse_analysis,
+            delay_between_requests: req.delay_between_requests,
         }
     }
 }
@@ -143,10 +143,9 @@ pub async fn get_result(
     let repository = ResultsRepository::new(pool.clone());
 
     let result = repository
-        .get_complete_result(&job_id)
+        .get_complete_analysis_result(&job_id)
         .await
         .map_err(CommandError::from)?;
 
-    // Convert V2 CompleteJobResult to V1 CompleteAnalysisResult
-    Ok(result.into())
+    Ok(result)
 }

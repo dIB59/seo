@@ -4,7 +4,7 @@ import { useSearchParams, useRouter } from "next/navigation"
 import { useAnalysis } from "@/src/hooks/use-analysis"
 import { Button } from "@/src/components/ui/button"
 import { ArrowLeft, Loader2 } from "lucide-react"
-import AnalysisDashboard from "@/src/components/analysis/AnalysisDashboard"
+import AnalysisDashboard from "@/src/components/analysis-dashboard/AnalysisDashboard"
 
 export default function AnalysisPage() {
     const searchParams = useSearchParams()

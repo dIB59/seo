@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use sqlx::SqlitePool;
 
-use crate::domain::models::{LighthouseData, Page, PageInfo};
+use crate::domain::models::{LighthouseData, NewHeading, NewImage, Page, PageInfo};
 
 pub struct PageRepository {
     pool: SqlitePool,
@@ -27,7 +27,7 @@ impl PageRepository {
         };
 
         let crawled_at_str = page.crawled_at.to_rfc3339();
-        sqlx::query!(
+        let row = sqlx::query!(
             r#"
             INSERT INTO pages (
                 id, job_id, url, depth, status_code, content_type,
@@ -35,6 +35,19 @@ impl PageRepository {
                 word_count, load_time_ms, response_size_bytes, crawled_at
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(job_id, url) DO UPDATE SET
+                depth = excluded.depth,
+                status_code = excluded.status_code,
+                content_type = excluded.content_type,
+                title = excluded.title,
+                meta_description = excluded.meta_description,
+                canonical_url = excluded.canonical_url,
+                robots_meta = excluded.robots_meta,
+                word_count = excluded.word_count,
+                load_time_ms = excluded.load_time_ms,
+                response_size_bytes = excluded.response_size_bytes,
+                crawled_at = excluded.crawled_at
+            RETURNING id
             "#,
             id,
             page.job_id,
@@ -51,11 +64,11 @@ impl PageRepository {
             page.response_size_bytes,
             crawled_at_str
         )
-        .execute(&self.pool)
+        .fetch_one(&self.pool)
         .await
-        .context("Failed to insert page")?;
+        .with_context(|| format!("Failed to upsert page (job_id={}, url={})", page.job_id, page.url))?;
 
-        Ok(id)
+        Ok(row.id)
     }
 
     /// Insert multiple pages in a batch.
@@ -99,7 +112,7 @@ impl PageRepository {
                     .push_bind(page.crawled_at.to_rfc3339());
             });
 
-            qb.build().execute(&mut *tx).await?;
+            qb.build().execute(&mut *tx).await.context("Failed to batch insert pages")?;
         }
 
         tx.commit().await?;
@@ -211,6 +224,69 @@ impl PageRepository {
             response_size_bytes: row.response_size_bytes,
             crawled_at: parse_datetime(row.crawled_at.as_str()),
         })
+    }
+
+    /// Replace all headings for a page.
+    pub async fn replace_headings(&self, page_id: &str, headings: &[NewHeading]) -> Result<()> {
+        sqlx::query!("DELETE FROM page_headings WHERE page_id = ?", page_id)
+            .execute(&self.pool)
+            .await
+            .context("Failed to clear page headings")?;
+
+        if headings.is_empty() {
+            return Ok(());
+        }
+
+        let mut qb = sqlx::QueryBuilder::new(
+            "INSERT INTO page_headings (page_id, level, text, position) ",
+        );
+
+        qb.push_values(headings, |mut b, h| {
+            b.push_bind(&h.page_id)
+                .push_bind(h.level)
+                .push_bind(&h.text)
+                .push_bind(h.position);
+        });
+
+        qb.build()
+            .execute(&self.pool)
+            .await
+            .context("Failed to insert page headings")?;
+
+        Ok(())
+    }
+
+    /// Replace all images for a page.
+    pub async fn replace_images(&self, page_id: &str, images: &[NewImage]) -> Result<()> {
+        sqlx::query!("DELETE FROM page_images WHERE page_id = ?", page_id)
+            .execute(&self.pool)
+            .await
+            .context("Failed to clear page images")?;
+
+        if images.is_empty() {
+            return Ok(());
+        }
+
+        let mut qb = sqlx::QueryBuilder::new(
+            "INSERT INTO page_images (page_id, src, alt, width, height, loading, is_decorative) ",
+        );
+
+        qb.push_values(images, |mut b, i| {
+            b.push_bind(&i.page_id)
+                .push_bind(&i.src)
+                .push_bind(&i.alt)
+                .push_bind(i.width)
+                .push_bind(i.height)
+                .push_bind(&i.loading)
+                .push_bind(if i.is_decorative { 1 } else { 0 });
+        });
+
+        qb.build()
+            .execute(&self.pool)
+            .await
+            .context("Failed to insert page images")?;
+
+        Ok(())
     }
 
     /// Get page count for a job (FAST: uses index).

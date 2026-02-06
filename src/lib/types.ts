@@ -112,18 +112,18 @@ export interface PageAnalysisData {
   detailed_links?: LinkElement[]
 }
 
-export type IssueType = "critical" | "warning" | "suggestion"
+export type IssueType = "critical" | "warning" | "info"
 
 export interface SeoIssue {
   page_id: string
-  issue_type: IssueType
+  severity: IssueType
   title: string
   description: string
   page_url: string
   element: string | null
   line_number: number | null
   recommendation: string
-}
+} 
 
 export interface CompleteAnalysisResult {
   analysis: AnalysisResults
@@ -149,7 +149,7 @@ export interface ImageElement {
 export interface LinkElement {
   href: string
   text: string
-  is_internal: boolean
+  is_external: boolean
   status_code: number | null
 }
 

@@ -28,28 +28,33 @@ impl JobRepository {
     pub async fn create(&self, url: &str, settings: &JobSettings) -> Result<String> {
         let id = uuid::Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
-        let respect_robots = if settings.respect_robots_txt { 1i32 } else { 0 };
-        let include_subs = if settings.include_subdomains { 1i32 } else { 0 };
+        let respect_robots = 1i32;
+        let include_subs = 0i32;
+        let max_depth = 3i64;
+        let user_agent: Option<String> = None;
+
+        let lighthouse_analysis = if settings.lighthouse_analysis { 1i32 } else { 0 };
 
         sqlx::query!(
             r#"
             INSERT INTO jobs (
                 id, url, status, created_at, updated_at,
                 max_pages, max_depth, respect_robots_txt, include_subdomains, 
-                rate_limit_ms, user_agent
+                rate_limit_ms, user_agent, lighthouse_analysis
             )
-            VALUES (?1, ?2, 'pending', ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+            VALUES (?1, ?2, 'pending', ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
             "#,
             id,
             url,
             now,
             now,
             settings.max_pages,
-            settings.max_depth,
+            max_depth,
             respect_robots,
             include_subs,
-            settings.rate_limit_ms,
-            settings.user_agent,
+            settings.delay_between_requests,
+            user_agent,
+            lighthouse_analysis,
         )
         .execute(&self.pool)
         .await
@@ -66,7 +71,7 @@ impl JobRepository {
             SELECT 
                 id, url, status, created_at, updated_at, completed_at,
                 max_pages, max_depth, respect_robots_txt, include_subdomains, 
-                rate_limit_ms, user_agent,
+                rate_limit_ms, user_agent, lighthouse_analysis,
                 total_pages, pages_crawled, total_issues, 
                 critical_issues, warning_issues, info_issues,
                 progress, current_stage, error_message
@@ -88,11 +93,11 @@ impl JobRepository {
             completed_at: row.completed_at.as_deref().map(parse_datetime),
             settings: JobSettings {
                 max_pages: row.max_pages,
-                max_depth: row.max_depth,
-                respect_robots_txt: row.respect_robots_txt != 0,
-                include_subdomains: row.include_subdomains != 0,
-                rate_limit_ms: row.rate_limit_ms,
-                user_agent: row.user_agent,
+                include_external_links: false,
+                check_images: true,
+                mobile_analysis: false,
+                lighthouse_analysis: row.lighthouse_analysis != 0,
+                delay_between_requests: row.rate_limit_ms,
             },
             summary: JobSummary {
                 total_pages: row.total_pages,
@@ -144,7 +149,7 @@ impl JobRepository {
             SELECT 
                 id, url, status, created_at, updated_at, completed_at,
                 max_pages, max_depth, respect_robots_txt, include_subdomains, 
-                rate_limit_ms, user_agent,
+                rate_limit_ms, user_agent, lighthouse_analysis,
                 total_pages, pages_crawled, total_issues, 
                 critical_issues, warning_issues, info_issues,
                 progress, current_stage, error_message
@@ -168,11 +173,11 @@ impl JobRepository {
                 completed_at: row.completed_at.as_deref().map(parse_datetime),
                 settings: JobSettings {
                     max_pages: row.max_pages,
-                    max_depth: row.max_depth,
-                    respect_robots_txt: row.respect_robots_txt != 0,
-                    include_subdomains: row.include_subdomains != 0,
-                    rate_limit_ms: row.rate_limit_ms,
-                    user_agent: row.user_agent,
+                    include_external_links: false,
+                    check_images: true,
+                    mobile_analysis: false,
+                    lighthouse_analysis: row.lighthouse_analysis != 0,
+                    delay_between_requests: row.rate_limit_ms,
                 },
                 summary: JobSummary {
                     total_pages: row.total_pages,

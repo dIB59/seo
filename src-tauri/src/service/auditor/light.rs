@@ -3,7 +3,7 @@
 //! Performs quick SEO analysis using direct HTTP fetching and HTML parsing.
 //! Much faster than Lighthouse (~1-2s vs ~5-10s) but less comprehensive.
 
-use super::{AuditResult, AuditScores, Auditor, CheckResult, SeoAuditDetails};
+use super::{AuditResult, AuditScores, Auditor, CheckResult, SeoAuditDetails, Score};
 use crate::service::http::{create_client, ClientType};
 use anyhow::Result;
 use async_trait::async_trait;
@@ -62,7 +62,7 @@ impl LightAuditor {
             crawlable_anchors: self.check_crawlable_anchors(document),
             link_text: self.check_link_text(document),
             image_alt: self.check_image_alt(document),
-            http_status_code: CheckResult { passed: true, score: 1.0, ..Default::default() },
+            http_status_code: CheckResult { passed: true, score: Score::from(1.0), ..Default::default() },
             is_crawlable: self.check_is_crawlable(document),
         }
     }
@@ -80,11 +80,11 @@ impl LightAuditor {
             Some(t) if !t.is_empty() => {
                 let len = t.len();
                 let (passed, score, desc) = if len < 30 {
-                    (false, 0.5, format!("Title too short ({} chars, recommend 30-60)", len))
+                    (false, Score::from(0.5), format!("Title too short ({} chars, recommend 30-60)", len))
                 } else if len > 60 {
-                    (false, 0.7, format!("Title too long ({} chars, recommend 30-60)", len))
+                    (false, Score::from(0.7), format!("Title too long ({} chars, recommend 30-60)", len))
                 } else {
-                    (true, 1.0, format!("Title length is good ({} chars)", len))
+                    (true, Score::from(1.0), format!("Title length is good ({} chars)", len))
                 };
                 CheckResult {
                     passed,
@@ -96,7 +96,7 @@ impl LightAuditor {
             _ => CheckResult {
                 passed: false,
                 value: None,
-                score: 0.0,
+                score: Score::from(0.0),
                 description: Some("Missing document title".to_string()),
             },
         }
@@ -118,11 +118,11 @@ impl LightAuditor {
             Some(d) if !d.is_empty() => {
                 let len = d.len();
                 let (passed, score, desc) = if len < 70 {
-                    (false, 0.5, format!("Description too short ({} chars, recommend 70-160)", len))
+                    (false, Score::from(0.5), format!("Description too short ({} chars, recommend 70-160)", len))
                 } else if len > 160 {
-                    (false, 0.7, format!("Description too long ({} chars, recommend 70-160)", len))
+                    (false, Score::from(0.7), format!("Description too long ({} chars, recommend 70-160)", len))
                 } else {
-                    (true, 1.0, format!("Description length is good ({} chars)", len))
+                    (true, Score::from(1.0), format!("Description length is good ({} chars)", len))
                 };
                 CheckResult {
                     passed,
@@ -134,7 +134,7 @@ impl LightAuditor {
             _ => CheckResult {
                 passed: false,
                 value: None,
-                score: 0.0,
+                score: Score::from(0.0),
                 description: Some("Missing meta description".to_string()),
             },
         }
@@ -156,19 +156,19 @@ impl LightAuditor {
             Some(v) if v.contains("width=device-width") => CheckResult {
                 passed: true,
                 value: Some(v),
-                score: 1.0,
+                score: Score::from(1.0),
                 description: Some("Viewport is properly configured".to_string()),
             },
             Some(v) => CheckResult {
                 passed: false,
                 value: Some(v),
-                score: 0.5,
+                score: Score::from(0.5),
                 description: Some("Viewport missing width=device-width".to_string()),
             },
             None => CheckResult {
                 passed: false,
                 value: None,
-                score: 0.0,
+                score: Score::from(0.0),
                 description: Some("Missing viewport meta tag".to_string()),
             },
         }
@@ -194,7 +194,7 @@ impl LightAuditor {
                 CheckResult {
                     passed: true,
                     value: Some(c),
-                    score: 1.0,
+                    score: Score::from(1.0),
                     description: Some(if matches {
                         "Canonical URL matches page URL".to_string()
                     } else {
@@ -205,7 +205,7 @@ impl LightAuditor {
             _ => CheckResult {
                 passed: false,
                 value: None,
-                score: 0.0,
+                score: Score::from(0.0),
                 description: Some("Missing canonical URL".to_string()),
             },
         }
@@ -223,7 +223,7 @@ impl LightAuditor {
             CheckResult {
                 passed: true,
                 value: Some(format!("{} hreflang tags", count)),
-                score: 1.0,
+                score: Score::from(1.0),
                 description: Some(format!("Found {} hreflang tags for internationalization", count)),
             }
         } else {
@@ -231,7 +231,7 @@ impl LightAuditor {
             CheckResult {
                 passed: true,
                 value: None,
-                score: 1.0,
+                score: Score::from(1.0),
                 description: Some("No hreflang tags (optional for single-language sites)".to_string()),
             }
         }
@@ -261,14 +261,14 @@ impl LightAuditor {
             return CheckResult {
                 passed: true,
                 value: Some("0 links".to_string()),
-                score: 1.0,
+                score: Score::from(1.0),
                 description: Some("No links found on page".to_string()),
             };
         }
 
         let crawlable_pct = ((total - uncrawlable) as f64 / total as f64) * 100.0;
         let passed = uncrawlable == 0;
-        let score = if passed { 1.0 } else { crawlable_pct / 100.0 };
+        let score = if passed { Score::from(1.0) } else { Score::from(crawlable_pct / 100.0) };
 
         CheckResult {
             passed,
@@ -290,11 +290,47 @@ impl LightAuditor {
         let mut poor_text = 0;
         let bad_texts = ["click here", "read more", "learn more", "here", "link"];
 
+        // Selector for images inside anchors (used as fallback)
+        static IMG_SELECTOR: OnceLock<Selector> = OnceLock::new();
+        let img_selector = IMG_SELECTOR.get_or_init(|| Selector::parse("img").unwrap());
+
         for anchor in document.select(selector) {
             total += 1;
-            let text = anchor.text().collect::<String>().trim().to_lowercase();
-            
-            if text.is_empty() || bad_texts.contains(&text.as_str()) {
+
+            // Primary: visible text inside the anchor
+            let mut text = anchor.text().collect::<String>().trim().to_lowercase();
+
+            // Fallbacks: aria-label or title attribute
+            if text.is_empty() {
+                if let Some(attr) = anchor.value().attr("aria-label").or_else(|| anchor.value().attr("title")) {
+                    text = attr.trim().to_lowercase();
+                }
+            }
+
+            // Fallback: use alt text from first child img if present
+            if text.is_empty() {
+                for img in anchor.select(img_selector) {
+                    if let Some(alt) = img.value().attr("alt") {
+                        if !alt.trim().is_empty() {
+                            text = alt.trim().to_lowercase();
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Normalize text: remove punctuation/symbols and collapse whitespace
+            let normalized = text
+                .chars()
+                .map(|c| if c.is_alphanumeric() || c.is_whitespace() { c } else { ' ' })
+                .collect::<String>()
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .trim()
+                .to_string();
+
+            if normalized.is_empty() || bad_texts.iter().any(|b| normalized.contains(b)) {
                 poor_text += 1;
             }
         }
@@ -302,7 +338,7 @@ impl LightAuditor {
         if total == 0 {
             return CheckResult {
                 passed: true,
-                score: 1.0,
+                score: Score::from(1.0),
                 value: None,
                 description: Some("No links found".to_string()),
             };
@@ -314,7 +350,7 @@ impl LightAuditor {
         CheckResult {
             passed,
             value: Some(format!("{}/{} with good text", total - poor_text, total)),
-            score: good_pct / 100.0,
+            score: Score::from(good_pct / 100.0),
             description: Some(if poor_text > 0 {
                 format!("{} links have generic/empty text", poor_text)
             } else {
@@ -341,14 +377,14 @@ impl LightAuditor {
         if total == 0 {
             return CheckResult {
                 passed: true,
-                score: 1.0,
+                score: Score::from(1.0),
                 value: Some("0 images".to_string()),
                 description: Some("No images found on page".to_string()),
             };
         }
 
         let with_alt = total - missing_alt;
-        let score = with_alt as f64 / total as f64;
+        let score = Score::from(with_alt as f64 / total as f64);
         let passed = missing_alt == 0;
 
         CheckResult {
@@ -379,19 +415,19 @@ impl LightAuditor {
             Some(r) if r.contains("noindex") => CheckResult {
                 passed: false,
                 value: Some(r),
-                score: 0.0,
+                score: Score::from(0.0),
                 description: Some("Page has noindex directive".to_string()),
             },
             Some(r) => CheckResult {
                 passed: true,
                 value: Some(r),
-                score: 1.0,
+                score: Score::from(1.0),
                 description: Some("Page is crawlable".to_string()),
             },
             None => CheckResult {
                 passed: true,
                 value: None,
-                score: 1.0,
+                score: Score::from(1.0),
                 description: Some("No robots meta tag (page is crawlable by default)".to_string()),
             },
         }
@@ -435,7 +471,7 @@ impl Auditor for LightAuditor {
             scores.seo_details.http_status_code = CheckResult {
                 passed: false,
                 value: Some(status_code.to_string()),
-                score: 0.0,
+                score: Score::from(0.0),
                 description: Some(format!("HTTP error status: {}", status_code)),
             };
             // Recalculate SEO score
@@ -445,7 +481,7 @@ impl Auditor for LightAuditor {
         log::info!(
             "[LIGHT] Complete - status: {}, size: {} bytes, load: {:.2}ms, seo: {:.1}%",
             status_code, content_size, load_time_ms,
-            scores.seo.unwrap_or(0.0) * 100.0
+            scores.seo.map(|s| s.percent()).unwrap_or(0.0)
         );
 
         Ok(AuditResult {
@@ -476,21 +512,21 @@ mod tests {
         let doc = Html::parse_document(html);
         let result = auditor.check_title(&doc);
         assert!(result.passed, "Title should pass: {:?}", result);
-        assert_eq!(result.score, 1.0);
+        assert_eq!(result.score, crate::service::auditor::Score::from(1.0));
 
         // Too short (<30 chars)
         let html = "<html><head><title>Short</title></head></html>";
         let doc = Html::parse_document(html);
         let result = auditor.check_title(&doc);
         assert!(!result.passed);
-        assert_eq!(result.score, 0.5);
+        assert_eq!(result.score, crate::service::auditor::Score::from(0.5));
 
         // Missing
         let html = "<html><head></head></html>";
         let doc = Html::parse_document(html);
         let result = auditor.check_title(&doc);
         assert!(!result.passed);
-        assert_eq!(result.score, 0.0);
+        assert_eq!(result.score, crate::service::auditor::Score::from(0.0));
     }
 
     #[test]
@@ -502,34 +538,74 @@ mod tests {
         let doc = Html::parse_document(html);
         let result = auditor.check_image_alt(&doc);
         assert!(result.passed);
-        assert_eq!(result.score, 1.0);
+        assert_eq!(result.score, crate::service::auditor::Score::from(1.0));
 
         // One missing alt
         let html = r#"<html><body><img src="a.jpg" alt="desc"><img src="b.jpg"></body></html>"#;
         let doc = Html::parse_document(html);
         let result = auditor.check_image_alt(&doc);
         assert!(!result.passed);
-        assert_eq!(result.score, 0.5);
+        assert_eq!(result.score, crate::service::auditor::Score::from(0.5));
     }
 
     #[test]
     fn test_seo_score_calculation() {
         let details = SeoAuditDetails {
-            document_title: CheckResult { passed: true, score: 1.0, ..Default::default() },
-            meta_description: CheckResult { passed: true, score: 1.0, ..Default::default() },
-            viewport: CheckResult { passed: true, score: 1.0, ..Default::default() },
-            canonical: CheckResult { passed: false, score: 0.0, ..Default::default() },
-            hreflang: CheckResult { passed: true, score: 1.0, ..Default::default() },
-            robots_txt: CheckResult { passed: true, score: 1.0, ..Default::default() },
-            crawlable_anchors: CheckResult { passed: true, score: 1.0, ..Default::default() },
-            link_text: CheckResult { passed: true, score: 1.0, ..Default::default() },
-            image_alt: CheckResult { passed: true, score: 1.0, ..Default::default() },
-            http_status_code: CheckResult { passed: true, score: 1.0, ..Default::default() },
-            is_crawlable: CheckResult { passed: true, score: 1.0, ..Default::default() },
+            document_title: CheckResult { passed: true, score: crate::service::auditor::Score::from(1.0), ..Default::default() },
+            meta_description: CheckResult { passed: true, score: crate::service::auditor::Score::from(1.0), ..Default::default() },
+            viewport: CheckResult { passed: true, score: crate::service::auditor::Score::from(1.0), ..Default::default() },
+            canonical: CheckResult { passed: false, score: crate::service::auditor::Score::from(0.0), ..Default::default() },
+            hreflang: CheckResult { passed: true, score: crate::service::auditor::Score::from(1.0), ..Default::default() },
+            robots_txt: CheckResult { passed: true, score: crate::service::auditor::Score::from(1.0), ..Default::default() },
+            crawlable_anchors: CheckResult { passed: true, score: crate::service::auditor::Score::from(1.0), ..Default::default() },
+            link_text: CheckResult { passed: true, score: crate::service::auditor::Score::from(1.0), ..Default::default() },
+            image_alt: CheckResult { passed: true, score: crate::service::auditor::Score::from(1.0), ..Default::default() },
+            http_status_code: CheckResult { passed: true, score: crate::service::auditor::Score::from(1.0), ..Default::default() },
+            is_crawlable: CheckResult { passed: true, score: crate::service::auditor::Score::from(1.0), ..Default::default() },
         };
 
         let score = details.calculate_score();
         // 8/9 checks pass = ~0.889
-        assert!(score > 0.8 && score < 0.95);
+        assert!(score.raw() > 0.8 && score.raw() < 0.95);
+    }
+
+    #[test]
+    fn test_check_link_text_various() {
+        let auditor = LightAuditor::new();
+
+        // Good text
+        let html = r#"<html><body><a href=\"/a\">Read this article</a></body></html>"#;
+        let doc = Html::parse_document(html);
+        let result = auditor.check_link_text(&doc);
+        assert!(result.passed);
+        assert_eq!(result.score, crate::service::auditor::Score::from(1.0));
+
+        // Real-world example with classes (user-provided)
+        let html = r#"<html><body><a class=\"px-6 py-3 border border-foreground/20 rounded-full font-medium hover:bg-foreground/5 transition-colors\" href=\"/leetcode\">LeetCode Progress</a></body></html>"#;
+        let doc = Html::parse_document(html);
+        let result = auditor.check_link_text(&doc);
+        assert!(result.passed);
+        assert_eq!(result.score, crate::service::auditor::Score::from(1.0));
+
+        // Generic text with arrow/icon - should be flagged
+        let html = r#"<html><body><a href=\"/a\">Read more →</a></body></html>"#;
+        let doc = Html::parse_document(html);
+        let result = auditor.check_link_text(&doc);
+        assert!(!result.passed);
+        assert_eq!(result.score, crate::service::auditor::Score::from(0.0));
+
+        // Anchor with image alt text - should be considered descriptive
+        let html = r#"<html><body><a href="a"><img src=\"a.jpg\" alt=\"Product image\"></a></body></html>"#;
+        let doc = Html::parse_document(html);
+        let result = auditor.check_link_text(&doc);
+        assert!(result.passed);
+        assert_eq!(result.score, crate::service::auditor::Score::from(1.0));
+
+        // aria-label fallback
+        let html = r#"<html><body><a href=\"/a\" aria-label=\"Download PDF\"><svg/></a></body></html>"#;
+        let doc = Html::parse_document(html);
+        let result = auditor.check_link_text(&doc);
+        assert!(result.passed);
+        assert_eq!(result.score, crate::service::auditor::Score::from(1.0));
     }
 }

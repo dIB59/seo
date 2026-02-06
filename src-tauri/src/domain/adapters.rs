@@ -4,9 +4,7 @@
 //! API response types used by the frontend.
 
 use crate::domain::models::{
-    AnalysisProgress, AnalysisSummary, CompleteAnalysisResult, AnalysisResults,
-    PageAnalysisData, SeoIssue, IssueType,
-    CompleteJobResult, Issue, IssueSeverity, Job, JobInfo, Page,
+    AnalysisProgress, Issue, Job, JobInfo, Page, PageAnalysisData, SeoIssue,
 };
 
 // ============================================================================
@@ -85,21 +83,11 @@ impl From<Page> for PageAnalysisData {
 // ISSUE CONVERSION
 // ============================================================================
 
-impl From<IssueSeverity> for IssueType {
-    fn from(severity: IssueSeverity) -> Self {
-        match severity {
-            IssueSeverity::Critical => IssueType::Critical,
-            IssueSeverity::Warning => IssueType::Warning,
-            IssueSeverity::Info => IssueType::Suggestion,
-        }
-    }
-}
-
 impl From<Issue> for SeoIssue {
     fn from(issue: Issue) -> Self {
         Self {
             page_id: issue.page_id.unwrap_or_default(),
-            issue_type: issue.severity.into(),
+            severity: issue.severity,
             title: issue.issue_type.clone(),
             description: issue.message,
             page_url: String::new(), // Will be populated from page data if needed
@@ -110,70 +98,7 @@ impl From<Issue> for SeoIssue {
     }
 }
 
-// ============================================================================
-// COMPLETE RESULT CONVERSION
-// ============================================================================
 
-impl From<CompleteJobResult> for CompleteAnalysisResult {
-    fn from(result: CompleteJobResult) -> Self {
-        let job = &result.job;
-        
-        // Build AnalysisResults from Job
-        let analysis = AnalysisResults {
-            id: job.id.clone(),
-            url: job.url.clone(),
-            status: job.status.clone(),
-            progress: job.progress,
-            total_pages: job.summary.total_pages,
-            analyzed_pages: job.summary.pages_crawled,
-            started_at: Some(job.created_at),
-            completed_at: job.completed_at,
-            sitemap_found: false, // TODO: store in job metadata
-            robots_txt_found: false,
-            ssl_certificate: job.url.starts_with("https"),
-            created_at: job.created_at,
-        };
-
-        // Convert pages
-        let pages: Vec<PageAnalysisData> = result.pages.into_iter().map(|p| p.into()).collect();
-
-        // Convert issues with page URLs
-        let issues: Vec<SeoIssue> = result.issues.into_iter().map(|i| i.into()).collect();
-
-        // Build summary from job stats
-        let summary = AnalysisSummary {
-            analysis_id: job.id.clone(),
-            seo_score: calculate_seo_score(job),
-            avg_load_time: 0.0, // TODO: calculate from pages
-            total_words: pages.iter().map(|p| p.word_count).sum(),
-            total_issues: job.summary.total_issues,
-        };
-
-        Self {
-            analysis,
-            pages,
-            issues,
-            summary,
-        }
-    }
-}
-
-/// Calculate a simple SEO score based on issue counts.
-fn calculate_seo_score(job: &Job) -> i64 {
-    let total = job.summary.total_issues;
-    let critical = job.summary.critical_issues;
-    let warning = job.summary.warning_issues;
-    
-    if total == 0 {
-        return 100;
-    }
-    
-    // Deduct points for issues: 10 for critical, 5 for warning, 1 for info
-    let deductions = (critical * 10) + (warning * 5) + (total - critical - warning);
-    let score = 100 - deductions;
-    
-    score.clamp(0, 100)
-}
 
 // ============================================================================
 // RESPONSE TYPES FOR NEW API

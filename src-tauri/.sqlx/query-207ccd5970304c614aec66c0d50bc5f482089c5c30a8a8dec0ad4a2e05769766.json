@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT \n                pi.id, pi.page_id, pi.src, pi.alt, pi.width, pi.height,\n                pi.loading, pi.is_decorative\n            FROM page_images pi\n            JOIN pages p ON p.id = pi.page_id\n            WHERE p.job_id = ?\n            ORDER BY pi.page_id, pi.id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "page_id",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "src",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "alt",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "width",
+        "ordinal": 4,
+        "type_info": "Int64"
+      },
+      {
+        "name": "height",
+        "ordinal": 5,
+        "type_info": "Int64"
+      },
+      {
+        "name": "loading",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "is_decorative",
+        "ordinal": 7,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "207ccd5970304c614aec66c0d50bc5f482089c5c30a8a8dec0ad4a2e05769766"
+}
