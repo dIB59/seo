@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT \n                ph.id, ph.page_id, ph.level, ph.text, ph.position\n            FROM page_headings ph\n            JOIN pages p ON p.id = ph.page_id\n            WHERE p.job_id = ?\n            ORDER BY ph.page_id, ph.position\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "page_id",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "level",
+        "ordinal": 2,
+        "type_info": "Int64"
+      },
+      {
+        "name": "text",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "position",
+        "ordinal": 4,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "66d907aac67bde4fdbce6fa99cfa8e87596d20ccf6f4f31ef0bd5244faef5065"
+}

@@ -3,7 +3,9 @@
 //! Uses a bundled sidecar binary (lighthouse-runner) to run comprehensive
 //! Lighthouse audits. Slower but provides detailed scores and metrics.
 
-use super::{AuditResult, AuditScores, Auditor, CheckResult, PerformanceMetrics, SeoAuditDetails, Score};
+use super::{
+    AuditResult, AuditScores, Auditor, CheckResult, PerformanceMetrics, Score, SeoAuditDetails,
+};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use serde::Deserialize;
@@ -12,13 +14,13 @@ use std::process::Stdio;
 use tokio::process::Command;
 
 /// Deep auditor using Lighthouse via bundled sidecar binary.
-/// 
+///
 /// Provides comprehensive SEO analysis including:
 /// - Performance scores and Core Web Vitals
 /// - Accessibility audit
 /// - Best practices check
 /// - Detailed SEO audits
-/// 
+///
 /// Trade-off: ~5-10 seconds per page due to Chrome rendering.
 pub struct DeepAuditor {
     sidecar_path: PathBuf,
@@ -73,20 +75,30 @@ impl DeepAuditor {
 
     fn get_target_triple() -> &'static str {
         #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-        { "aarch64-apple-darwin" }
+        {
+            "aarch64-apple-darwin"
+        }
         #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-        { "x86_64-apple-darwin" }
+        {
+            "x86_64-apple-darwin"
+        }
         #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-        { "x86_64-unknown-linux-gnu" }
+        {
+            "x86_64-unknown-linux-gnu"
+        }
         #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-        { "x86_64-pc-windows-msvc.exe" }
+        {
+            "x86_64-pc-windows-msvc.exe"
+        }
         #[cfg(not(any(
             all(target_os = "macos", target_arch = "aarch64"),
             all(target_os = "macos", target_arch = "x86_64"),
             all(target_os = "linux", target_arch = "x86_64"),
             all(target_os = "windows", target_arch = "x86_64"),
         )))]
-        { "unknown" }
+        {
+            "unknown"
+        }
     }
 
     fn convert_scores(&self, response: &SidecarResponse) -> AuditScores {
@@ -95,10 +107,10 @@ impl DeepAuditor {
         let perf = response.performance_metrics.as_ref();
 
         AuditScores {
-            performance: scores.and_then(|s| s.performance.map(|v| Score::from(v))),
-            accessibility: scores.and_then(|s| s.accessibility.map(|v| Score::from(v))),
-            best_practices: scores.and_then(|s| s.best_practices.map(|v| Score::from(v))),
-            seo: scores.and_then(|s| s.seo.map(|v| Score::from(v))),
+            performance: scores.and_then(|s| s.performance.map(Score::from)),
+            accessibility: scores.and_then(|s| s.accessibility.map(Score::from)),
+            best_practices: scores.and_then(|s| s.best_practices.map(Score::from)),
+            seo: scores.and_then(|s| s.seo.map(Score::from)),
             seo_details: Self::convert_seo_audits(audits),
             performance_metrics: perf.map(|p| PerformanceMetrics {
                 first_contentful_paint: p.first_contentful_paint,
@@ -113,12 +125,14 @@ impl DeepAuditor {
 
     fn convert_seo_audits(audits: Option<&SidecarSeoAudits>) -> SeoAuditDetails {
         let convert = |audit: Option<&SidecarAudit>| -> CheckResult {
-            audit.map(|a| CheckResult {
-                passed: a.passed,
-                value: a.value.clone(),
-                score: Score::from(a.score),
-                description: a.description.clone(),
-            }).unwrap_or_default()
+            audit
+                .map(|a| CheckResult {
+                    passed: a.passed,
+                    value: a.value.clone(),
+                    score: Score::from(a.score),
+                    description: a.description.clone(),
+                })
+                .unwrap_or_default()
         };
 
         SeoAuditDetails {
@@ -160,10 +174,7 @@ impl Auditor for DeepAuditor {
         log::info!("[DEEP] Starting analysis: {}", url);
 
         if !self.is_available() {
-            anyhow::bail!(
-                "Lighthouse sidecar not found at: {:?}",
-                self.sidecar_path
-            );
+            anyhow::bail!("Lighthouse sidecar not found at: {:?}", self.sidecar_path);
         }
 
         let start_time = std::time::Instant::now();
@@ -189,12 +200,16 @@ impl Auditor for DeepAuditor {
         if !output.status.success() {
             anyhow::bail!(
                 "Lighthouse failed: {}",
-                if !stderr.is_empty() { stderr.to_string() } else { "Unknown error".into() }
+                if !stderr.is_empty() {
+                    stderr.to_string()
+                } else {
+                    "Unknown error".into()
+                }
             );
         }
 
-        let response: SidecarResponse = serde_json::from_str(&stdout)
-            .context("Failed to parse lighthouse output")?;
+        let response: SidecarResponse =
+            serde_json::from_str(&stdout).context("Failed to parse lighthouse output")?;
 
         if !response.success {
             anyhow::bail!(
@@ -206,7 +221,9 @@ impl Auditor for DeepAuditor {
         let scores = self.convert_scores(&response);
 
         // Load time priority: TTI -> HTTP time -> process time
-        let load_time_ms = scores.performance_metrics.as_ref()
+        let load_time_ms = scores
+            .performance_metrics
+            .as_ref()
             .and_then(|pm| pm.time_to_interactive)
             .or(response.load_time_ms)
             .unwrap_or(process_time_ms);
@@ -222,7 +239,9 @@ impl Auditor for DeepAuditor {
 
         log::info!(
             "[DEEP] Complete - status: {}, size: {} bytes, load: {:.2}ms",
-            status_code, content_size, load_time_ms
+            status_code,
+            content_size,
+            load_time_ms
         );
 
         Ok(AuditResult {
