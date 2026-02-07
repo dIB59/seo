@@ -1,6 +1,7 @@
 use tauri::{command, State};
 
-use crate::db::{get_setting, set_setting, DbState};
+use crate::db::DbState;
+use crate::repository::sqlite::SettingsRepository;
 use crate::service::{generate_gemini_analysis, GeminiRequest};
 
 #[command]
@@ -10,7 +11,9 @@ pub async fn get_gemini_insights(
 ) -> Result<String, String> {
     // Check if AI is enabled globally
     log::info!("Analysis Id for AI insight: {:?}", request.analysis_id);
-    let enabled = get_setting(&db.0, "gemini_enabled")
+    let repo = SettingsRepository::new(db.0.clone());
+    let enabled = repo
+        .get_setting("gemini_enabled")
         .await
         .map_err(|e| format!("Failed to check AI settings: {}", e))?;
 
@@ -28,7 +31,9 @@ pub async fn get_gemini_insights(
 
 #[command]
 pub async fn get_gemini_enabled(db: State<'_, DbState>) -> Result<bool, String> {
-    let val = get_setting(&db.0, "gemini_enabled")
+    let repo = SettingsRepository::new(db.0.clone());
+    let val = repo
+        .get_setting("gemini_enabled")
         .await
         .map_err(|e| format!("Failed to check AI settings: {}", e))?;
 
@@ -38,46 +43,48 @@ pub async fn get_gemini_enabled(db: State<'_, DbState>) -> Result<bool, String> 
 
 #[command]
 pub async fn set_gemini_enabled(db: State<'_, DbState>, enabled: bool) -> Result<(), String> {
-    set_setting(
-        &db.0,
-        "gemini_enabled",
-        if enabled { "true" } else { "false" },
-    )
-    .await
-    .map_err(|e| format!("Failed to update AI settings: {}", e))
+    let repo = SettingsRepository::new(db.0.clone());
+    repo.set_setting("gemini_enabled", if enabled { "true" } else { "false" })
+        .await
+        .map_err(|e| format!("Failed to update AI settings: {}", e))
 }
 
 #[command]
 pub async fn get_gemini_api_key(db: State<'_, DbState>) -> Result<Option<String>, String> {
-    get_setting(&db.0, "gemini_api_key")
+    let repo = SettingsRepository::new(db.0.clone());
+    repo.get_setting("gemini_api_key")
         .await
         .map_err(|e| format!("Failed to get API key: {}", e))
 }
 
 #[command]
 pub async fn set_gemini_api_key(db: State<'_, DbState>, api_key: String) -> Result<(), String> {
-    set_setting(&db.0, "gemini_api_key", &api_key)
+    let repo = SettingsRepository::new(db.0.clone());
+    repo.set_setting("gemini_api_key", &api_key)
         .await
         .map_err(|e| format!("Failed to set API key: {}", e))
 }
 
 #[command]
 pub async fn get_gemini_persona(db: State<'_, DbState>) -> Result<Option<String>, String> {
-    get_setting(&db.0, "gemini_persona")
+    let repo = SettingsRepository::new(db.0.clone());
+    repo.get_setting("gemini_persona")
         .await
         .map_err(|e| format!("Failed to get persona: {}", e))
 }
 
 #[command]
 pub async fn set_gemini_persona(db: State<'_, DbState>, persona: String) -> Result<(), String> {
-    set_setting(&db.0, "gemini_persona", &persona)
+    let repo = SettingsRepository::new(db.0.clone());
+    repo.set_setting("gemini_persona", &persona)
         .await
         .map_err(|e| format!("Failed to set persona: {}", e))
 }
 
 #[command]
 pub async fn get_gemini_requirements(db: State<'_, DbState>) -> Result<Option<String>, String> {
-    get_setting(&db.0, "gemini_requirements")
+    let repo = SettingsRepository::new(db.0.clone());
+    repo.get_setting("gemini_requirements")
         .await
         .map_err(|e| format!("Failed to get requirements: {}", e))
 }
@@ -87,14 +94,16 @@ pub async fn set_gemini_requirements(
     db: State<'_, DbState>,
     requirements: String,
 ) -> Result<(), String> {
-    set_setting(&db.0, "gemini_requirements", &requirements)
+    let repo = SettingsRepository::new(db.0.clone());
+    repo.set_setting("gemini_requirements", &requirements)
         .await
         .map_err(|e| format!("Failed to set requirements: {}", e))
 }
 
 #[command]
 pub async fn get_gemini_context_options(db: State<'_, DbState>) -> Result<Option<String>, String> {
-    get_setting(&db.0, "gemini_context_options")
+    let repo = SettingsRepository::new(db.0.clone());
+    repo.get_setting("gemini_context_options")
         .await
         .map_err(|e| format!("Failed to get context options: {}", e))
 }
@@ -104,14 +113,16 @@ pub async fn set_gemini_context_options(
     db: State<'_, DbState>,
     options: String,
 ) -> Result<(), String> {
-    set_setting(&db.0, "gemini_context_options", &options)
+    let repo = SettingsRepository::new(db.0.clone());
+    repo.set_setting("gemini_context_options", &options)
         .await
         .map_err(|e| format!("Failed to set context options: {}", e))
 }
 
 #[command]
 pub async fn get_gemini_prompt_blocks(db: State<'_, DbState>) -> Result<Option<String>, String> {
-    get_setting(&db.0, "gemini_prompt_blocks")
+    let repo = SettingsRepository::new(db.0.clone());
+    repo.get_setting("gemini_prompt_blocks")
         .await
         .map_err(|e| format!("Failed to get prompt blocks: {}", e))
 }
@@ -121,7 +132,8 @@ pub async fn set_gemini_prompt_blocks(
     db: State<'_, DbState>,
     blocks: String,
 ) -> Result<(), String> {
-    set_setting(&db.0, "gemini_prompt_blocks", &blocks)
+    let repo = SettingsRepository::new(db.0.clone());
+    repo.set_setting("gemini_prompt_blocks", &blocks)
         .await
         .map_err(|e| format!("Failed to set prompt blocks: {}", e))
 }

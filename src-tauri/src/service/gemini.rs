@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::SqlitePool;
 
-use crate::db;
+use crate::repository::sqlite::{AiRepository, SettingsRepository};
 
 /// The Gemini API endpoint path (without base URL)
 pub const GEMINI_API_PATH: &str = "/v1beta/models/gemini-2.0-flash:generateContent";
@@ -41,7 +41,8 @@ pub async fn generate_gemini_analysis(
     api_base_url: Option<String>,
 ) -> Result<String> {
     // 1. Check cache first
-    if let Ok(Some(cached_insights)) = db::get_ai_insights(pool, &request.analysis_id).await {
+    let ai_repo = AiRepository::new(pool.clone());
+    if let Ok(Some(cached_insights)) = ai_repo.get_ai_insights(&request.analysis_id).await {
         log::info!(
             "Using cached AI insights for analysis {}",
             request.analysis_id
@@ -49,8 +50,10 @@ pub async fn generate_gemini_analysis(
         return Ok(cached_insights);
     }
 
+    let settings_repo = SettingsRepository::new(pool.clone());
+
     // Get API key from database
-    let api_key = match db::get_setting(pool, "gemini_api_key").await? {
+    let api_key = match settings_repo.get_setting("gemini_api_key").await? {
         Some(key) if !key.is_empty() => key,
         _ => {
             anyhow::bail!("API_KEY_MISSING: Please configure your Gemini API key");
@@ -58,13 +61,14 @@ pub async fn generate_gemini_analysis(
     };
 
     // Get persona from database
-    let persona = match db::get_setting(pool, "gemini_persona").await? {
+    let persona = match settings_repo.get_setting("gemini_persona").await? {
         Some(p) if !p.is_empty() => p,
         _ => "You are an expert SEO consultant. Your tone is professional, encouraging, and data-driven.".to_string(),
     };
 
     // Get prompt blocks from database
-    let blocks_json = db::get_setting(pool, "gemini_prompt_blocks")
+    let blocks_json = settings_repo
+        .get_setting("gemini_prompt_blocks")
         .await?
         .unwrap_or_else(|| "[]".to_string());
 
@@ -139,7 +143,7 @@ pub async fn generate_gemini_analysis(
         .to_string();
 
     // 2. Save to cache
-    if let Err(e) = db::save_ai_insights(pool, &request.analysis_id, &text).await {
+    if let Err(e) = ai_repo.save_ai_insights(&request.analysis_id, &text).await {
         log::error!("Failed to save AI insights to cache: {}", e);
     }
 
@@ -217,7 +221,8 @@ mod tests {
 
         // 1. Setup DB with API Key
         let pool = fixtures::setup_test_db().await;
-        db::set_setting(&pool, "gemini_api_key", "test_key")
+        let repo = SettingsRepository::new(pool.clone());
+        repo.set_setting("gemini_api_key", "test_key")
             .await
             .unwrap();
 
@@ -276,9 +281,8 @@ mod tests {
         use crate::test_utils::fixtures;
 
         let pool = fixtures::setup_test_db().await;
-        db::set_setting(&pool, "gemini_api_key", "bad_key")
-            .await
-            .unwrap();
+        let repo = SettingsRepository::new(pool.clone());
+        repo.set_setting("gemini_api_key", "bad_key").await.unwrap();
 
         let mut server = mockito::Server::new_async().await;
         let api_path = format!("{}?key=bad_key", GEMINI_API_PATH);
@@ -307,7 +311,8 @@ mod tests {
         use crate::test_utils::{fixtures, mocks};
 
         let pool = fixtures::setup_test_db().await;
-        db::set_setting(&pool, "gemini_api_key", "test_key")
+        let repo = SettingsRepository::new(pool.clone());
+        repo.set_setting("gemini_api_key", "test_key")
             .await
             .unwrap();
 
