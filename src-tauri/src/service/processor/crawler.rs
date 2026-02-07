@@ -1,5 +1,6 @@
 use crate::domain::models::JobSettings;
-use crate::service::{DiscoveryProgressEmitter, PageDiscovery, ResourceChecker};
+use crate::service::discovery::{PageDiscovery, ResourceChecker};
+use crate::service::DiscoveryProgressEmitter;
 use anyhow::{Context, Result};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;

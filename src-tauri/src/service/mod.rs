@@ -1,25 +1,22 @@
 pub mod analysis_assembler;
-pub mod analyzer_service;
-use tauri::Emitter;
 pub mod auditor;
-pub mod crawler;
+use tauri::Emitter;
 pub mod discovery;
 pub mod gemini;
 pub mod http;
-pub mod job_canceler;
-pub mod job_processor_v2;
-pub mod job_queue;
 pub mod lighthouse;
-pub mod progress_reporter;
+pub mod processor;
 
+pub use analysis_assembler::AnalysisAssembler;
 pub use auditor::{AuditMode, AuditResult, AuditScores, Auditor, DeepAuditor, LightAuditor};
 pub use discovery::{PageDiscovery, ResourceChecker};
 pub use gemini::{generate_gemini_analysis, GeminiRequest};
-pub use job_processor_v2::JobProcessor;
-// Re-export lighthouse types (used by domain models)
 pub use lighthouse::{
     AuditResult as LighthouseAuditResult, LighthouseRequest, LighthouseScores, LighthouseService,
     PageFetchResult, PerformanceMetrics, SeoAuditDetails,
+};
+pub use processor::{
+    AnalyzerService, Crawler, JobCanceler, JobProcessor, JobQueue, ProgressReporter,
 };
 
 /// Trait abstracting discovery progress emission.

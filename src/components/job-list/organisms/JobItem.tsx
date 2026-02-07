@@ -43,7 +43,7 @@ export function JobItem({ job, onViewResult, onCancel }: JobItemProps) {
                 {job.job_status === "completed" && (
                     <ViewResultButton onClick={() => onViewResult(job.job_id)} />
                 )}
-                {(job.job_status === "queued" || job.job_status === "processing" || job.job_status === "discovering") && (
+                {(job.job_status === "queued" || job.job_status === "processing" || job.job_status === "discovering" || job.job_status === "running" || job.job_status === "pending") && (
                     <CancelButton onClick={() => onCancel(job.job_id)} />
                 )}
             </div>

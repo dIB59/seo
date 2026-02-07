@@ -1,27 +1,22 @@
 //! Job processing orchestration for SEO analysis (V2 schema).
-//!
-//! This module coordinates the analysis pipeline:
-//! 1. Resource checking (robots.txt, sitemap, SSL)
-//! 2. Page discovery and crawling
-//! 3. SEO analysis (light or deep audit)
-//! 4. Issue detection and persistence
-//! 5. Summary generation (via triggers)
+
+mod analyzer;
+mod canceler;
+mod crawler;
+mod queue;
+mod reporter;
+
+pub use analyzer::{AnalyzerService, PageEdge, PageResult};
+pub use canceler::JobCanceler;
+pub use crawler::{CrawlContext, Crawler, SiteResources};
+pub use queue::JobQueue;
+pub use reporter::ProgressReporter;
 
 use crate::domain::models::{Job, JobStatus, LinkType, NewLink};
 use crate::repository::sqlite::LinkRepository;
-use crate::service::analyzer_service::AnalyzerService;
-use crate::service::crawler::{CrawlContext, Crawler};
-use crate::service::job_canceler::JobCanceler;
-use crate::service::job_queue::JobQueue;
-use crate::service::progress_reporter::ProgressReporter;
-
 use anyhow::Result;
 use sqlx::SqlitePool;
 use std::sync::atomic::Ordering;
-
-// ============================================================================
-// JOB PROCESSOR V2
-// ============================================================================
 
 /// Orchestrates SEO analysis jobs using the normalized schema.
 pub struct JobProcessor<R: tauri::Runtime = tauri::Wry> {
@@ -37,10 +32,6 @@ pub struct JobProcessor<R: tauri::Runtime = tauri::Wry> {
 }
 
 impl<R: tauri::Runtime> JobProcessor<R> {
-    // ========================================================================
-    // CONSTRUCTION
-    // ========================================================================
-
     pub fn new(pool: SqlitePool, app_handle: tauri::AppHandle<R>) -> Self {
         Self {
             job_queue: JobQueue::new(pool.clone()),
@@ -51,10 +42,6 @@ impl<R: tauri::Runtime> JobProcessor<R> {
             link_db: LinkRepository::new(pool),
         }
     }
-
-    // ========================================================================
-    // JOB POLLING
-    // ========================================================================
 
     /// Main polling loop - fetches and processes pending jobs.
     pub async fn run(&self) -> Result<()> {
@@ -77,10 +64,6 @@ impl<R: tauri::Runtime> JobProcessor<R> {
         self.canceler.set_cancelled(job_id);
         self.job_queue.mark_cancelled(job_id).await
     }
-
-    // ========================================================================
-    // JOB LIFECYCLE
-    // ========================================================================
 
     /// Processes a single analysis job through its full lifecycle.
     pub(crate) async fn process_job(&self, mut job: Job) -> Result<String> {
@@ -117,6 +100,12 @@ impl<R: tauri::Runtime> JobProcessor<R> {
             .discover_pages(&crawl_context, self.progress_reporter.clone())
             .await?;
 
+        // Early exit if cancelled
+        if self.canceler.is_cancelled(&job.id) {
+            log::warn!("Job {} cancelled before analysis", job.id);
+            return Ok(job.id.clone());
+        }
+
         let max_pages = job.settings.max_pages as usize;
         let auditor = self.analyzer.select_auditor(&job.settings);
 
@@ -138,35 +127,13 @@ impl<R: tauri::Runtime> JobProcessor<R> {
                 .analyze_page(url.as_str(), &job.id, 0, &auditor)
                 .await;
 
-            // Handle retry logic (deep -> light fallback)
-            let analysis = match analysis {
-                Ok(res) => Ok(res),
-                Err(e) => {
-                    if auditor.name() == "Deep (Lighthouse)" {
-                        log::warn!(
-                            "Deep auditor failed for {} ({}), retrying with light auditor",
-                            url,
-                            e
-                        );
-                        // For now we just log failure as we don't have easy access to light auditor
-                        // unless we change signature.
-                        // TODO: Improve failover in AnalyzerService
-                        Err(e)
-                    } else {
-                        Err(e)
-                    }
-                }
-            };
-
             match analysis {
                 Ok((page_result, _new_urls)) => {
                     crawl_result.pages += 1;
                     crawl_result.issues += page_result.issues.len();
                     crawl_result.edges.extend(page_result.edges);
                 }
-                Err(e) => {
-                    log::warn!("Failed to analyze {}: {:#}", url, e);
-                }
+                Err(e) => log::warn!("Failed to analyze {}: {:#}", url, e),
             }
 
             // Report progress
@@ -197,11 +164,7 @@ impl<R: tauri::Runtime> JobProcessor<R> {
         Ok(job.id.clone())
     }
 
-    async fn persist_links(
-        &self,
-        job: &Job,
-        edges: &[crate::service::analyzer_service::PageEdge],
-    ) -> Result<()> {
+    async fn persist_links(&self, job: &Job, edges: &[PageEdge]) -> Result<()> {
         if edges.is_empty() {
             return Ok(());
         }
@@ -249,5 +212,5 @@ impl JobTimer {
 struct CrawlResult {
     pages: usize,
     issues: usize,
-    edges: Vec<crate::service::analyzer_service::PageEdge>,
+    edges: Vec<PageEdge>,
 }

@@ -1,3 +1,4 @@
+use crate::service::DiscoveryProgressEmitter;
 use serde::Serialize;
 use tauri::Emitter;
 
@@ -39,8 +40,6 @@ impl<R: tauri::Runtime> ProgressReporter<R> {
         }
     }
 }
-
-use crate::service::DiscoveryProgressEmitter;
 
 impl<R: tauri::Runtime> DiscoveryProgressEmitter for ProgressReporter<R> {
     fn emit_discovery_progress(&self, job_id: &str, count: usize, total_pages: usize) {
