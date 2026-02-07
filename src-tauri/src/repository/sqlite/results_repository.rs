@@ -8,8 +8,8 @@ use chrono::Utc;
 use sqlx::SqlitePool;
 
 use crate::domain::models::{
-    AiInsight, CompleteAnalysisResult, CompleteJobResult, Heading, Image, Issue, Job,
-    JobSettings, JobSummary, LighthouseData, Link, Page,
+    AiInsight, CompleteAnalysisResult, CompleteJobResult, Heading, Image, Issue, Job, JobSettings,
+    JobSummary, LighthouseData, Link, Page,
 };
 
 use super::{map_job_status, map_link_type, map_severity};
@@ -43,7 +43,11 @@ impl ResultsRepository {
 
         // 2. Get pages (direct FK lookup - FAST!)
         let pages = self.get_pages(job_id).await?;
-        log::debug!("Fetched {} pages in {:?}", pages.len(), query_start.elapsed());
+        log::debug!(
+            "Fetched {} pages in {:?}",
+            pages.len(),
+            query_start.elapsed()
+        );
 
         // 3. Get issues (direct FK lookup - FAST!)
         let issues = self.get_issues(job_id).await?;
@@ -56,7 +60,6 @@ impl ResultsRepository {
         // 5. Get lighthouse data
         let lighthouse = self.get_lighthouse(job_id).await?;
         log::debug!("Fetched {} lighthouse records", lighthouse.len());
-
 
         // 6. Get AI insights (optional)
         let ai_insights = self.get_ai_insights(job_id).await.ok();
@@ -79,13 +82,6 @@ impl ResultsRepository {
             lighthouse,
             ai_insights,
         })
-    }
-
-    /// Get complete analysis result (frontend-compatible) with headings/images populated per page.
-    pub async fn get_complete_analysis_result(&self, job_id: &str) -> Result<CompleteAnalysisResult> {
-        // Delegate assembly to AnalysisAssembler to keep repo small and focused on DB access
-        let assembler = crate::service::analysis_assembler::AnalysisAssembler::new(self.pool.clone());
-        assembler.assemble(job_id).await
     }
 
     pub async fn get_job(&self, job_id: &str) -> Result<Job> {
@@ -410,5 +406,3 @@ fn parse_datetime(s: &str) -> chrono::DateTime<Utc> {
         .map(|dt| dt.with_timezone(&Utc))
         .unwrap_or_else(|_| Utc::now())
 }
-
-

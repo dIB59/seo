@@ -6,8 +6,8 @@ use url::Url;
 
 use crate::{
     db::DbState,
-    domain::models::{AnalysisProgress, CompleteAnalysisResult, JobStatus},
     domain::models::JobSettings,
+    domain::models::{AnalysisProgress, CompleteAnalysisResult, JobStatus},
     error::CommandError,
     repository::sqlite::{JobRepository, ResultsRepository},
     service::JobProcessor,
@@ -115,7 +115,7 @@ pub async fn get_all_jobs(db: State<'_, DbState>) -> Result<Vec<AnalysisProgress
     let repository = JobRepository::new(pool.clone());
 
     let jobs = repository.get_all().await.map_err(CommandError::from)?;
-    
+
     // Convert V2 Jobs to V1 AnalysisProgress
     let progress: Vec<AnalysisProgress> = jobs.into_iter().map(|j| j.into()).collect();
     log::trace!("{:?}", progress.first());
@@ -140,10 +140,10 @@ pub async fn get_result(
     log::trace!("Getting result ID for job: {}", job_id);
 
     let pool = &db.0;
-    let repository = ResultsRepository::new(pool.clone());
+    let assembler = crate::service::AnalysisAssembler::new(pool.clone());
 
-    let result = repository
-        .get_complete_analysis_result(&job_id)
+    let result = assembler
+        .assemble(&job_id)
         .await
         .map_err(CommandError::from)?;
 
