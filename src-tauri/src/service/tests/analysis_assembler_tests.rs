@@ -1,8 +1,8 @@
-use chrono::Utc;
+use crate::domain::models::{JobSettings, LighthouseData, LinkType, NewLink, Page};
+use crate::repository::sqlite::{JobRepository, LinkRepository, PageRepository};
 use crate::service::analysis_assembler::AnalysisAssembler;
-use crate::repository::sqlite::{JobRepository, PageRepository, LinkRepository};
-use crate::domain::models::{Page, LighthouseData, NewLink, LinkType, JobSettings};
 use crate::test_utils::fixtures;
+use chrono::Utc;
 
 #[tokio::test]
 async fn test_mobile_detection_and_structured_data_from_lighthouse() {
@@ -12,7 +12,10 @@ async fn test_mobile_detection_and_structured_data_from_lighthouse() {
     let page_repo = PageRepository::new(pool.clone());
 
     // Create job
-    let job_id = job_repo.create("https://example.com", &JobSettings::default()).await.unwrap();
+    let job_id = job_repo
+        .create("https://example.com", &JobSettings::default())
+        .await
+        .unwrap();
 
     // Insert a page with large load time (4s) so fallback would be false
     let page = Page {
@@ -61,8 +64,14 @@ async fn test_mobile_detection_and_structured_data_from_lighthouse() {
     let page = &result.pages[0];
 
     // Lighthouse viewport passed should override slow load time
-    assert!(page.mobile_friendly, "expected mobile_friendly=true from Lighthouse viewport");
-    assert!(page.has_structured_data, "expected structured data detected from Lighthouse raw JSON");
+    assert!(
+        page.mobile_friendly,
+        "expected mobile_friendly=true from Lighthouse viewport"
+    );
+    assert!(
+        page.has_structured_data,
+        "expected structured data detected from Lighthouse raw JSON"
+    );
 }
 
 #[tokio::test]
@@ -72,7 +81,10 @@ async fn test_mobile_detection_fallback_to_load_time() {
     let job_repo = JobRepository::new(pool.clone());
     let page_repo = PageRepository::new(pool.clone());
 
-    let job_id = job_repo.create("https://example.com", &JobSettings::default()).await.unwrap();
+    let job_id = job_repo
+        .create("https://example.com", &JobSettings::default())
+        .await
+        .unwrap();
 
     // Insert a page with short load time (1s) and no lighthouse data
     let page = Page {
@@ -101,7 +113,10 @@ async fn test_mobile_detection_fallback_to_load_time() {
     let page = &result.pages[0];
 
     // No Lighthouse viewport present; fallback to load_time <= 2s
-    assert!(page.mobile_friendly, "expected mobile_friendly=true from load time heuristic");
+    assert!(
+        page.mobile_friendly,
+        "expected mobile_friendly=true from load time heuristic"
+    );
 }
 
 #[tokio::test]
@@ -112,7 +127,10 @@ async fn test_link_classification_fallback_when_target_unparsable() {
     let page_repo = PageRepository::new(pool.clone());
     let link_repo = LinkRepository::new(pool.clone());
 
-    let job_id = job_repo.create("https://example.com", &JobSettings::default()).await.unwrap();
+    let job_id = job_repo
+        .create("https://example.com", &JobSettings::default())
+        .await
+        .unwrap();
 
     // Insert source page
     let page = Page {
@@ -136,26 +154,22 @@ async fn test_link_classification_fallback_when_target_unparsable() {
 
     // Insert links with unparsable target URL
     let links = vec![
-        NewLink {
-            job_id: job_id.clone(),
-            source_page_id: page_id.clone(),
-            target_page_id: None,
-            target_url: "javascript:void(0)".to_string(),
-            link_text: Some("void link".to_string()),
-            link_type: LinkType::Internal,
-            is_followed: true,
-            status_code: None,
-        },
-        NewLink {
-            job_id: job_id.clone(),
-            source_page_id: page_id.clone(),
-            target_page_id: None,
-            target_url: "javascript:void(0)".to_string(),
-            link_text: Some("void link external".to_string()),
-            link_type: LinkType::External,
-            is_followed: true,
-            status_code: None,
-        },
+        NewLink::create(
+            &job_id,
+            &page_id,
+            "javascript:void(0)",
+            Some("void link".to_string()),
+            None,
+            "https://example.com/page-a",
+        ),
+        NewLink::create(
+            &job_id,
+            &page_id,
+            "javascript:void(0)",
+            Some("void link external".to_string()),
+            None,
+            "https://example.com/page-a",
+        ),
     ];
 
     link_repo.insert_batch(&links).await.unwrap();

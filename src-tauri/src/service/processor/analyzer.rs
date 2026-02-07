@@ -16,12 +16,6 @@ pub struct AnalyzerService {
     deep_auditor: Arc<DeepAuditor>,
 }
 
-pub struct PageAnalysisResult {
-    pub pages: usize,
-    pub issues: usize,
-    pub edges: Vec<PageEdge>,
-}
-
 #[derive(Debug, Clone)]
 pub struct PageEdge {
     pub from_page_id: String,
@@ -42,16 +36,6 @@ impl PageEdge {
             to_url: to_url.to_string(),
             status_code,
             link_text,
-        }
-    }
-
-    /// Check if this edge points to an internal URL for the given job.
-    pub fn is_internal(&self, base_url: &str) -> bool {
-        if let (Ok(edge_url), Ok(base)) = (url::Url::parse(&self.to_url), url::Url::parse(base_url))
-        {
-            edge_url.host_str() == base.host_str() && edge_url.port() == base.port()
-        } else {
-            false
         }
     }
 }

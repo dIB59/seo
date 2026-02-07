@@ -12,7 +12,7 @@ pub use crawler::{CrawlContext, Crawler, SiteResources};
 pub use queue::JobQueue;
 pub use reporter::ProgressReporter;
 
-use crate::domain::models::{Job, JobStatus, LinkType, NewLink};
+use crate::domain::models::{Job, JobStatus, NewLink};
 use crate::repository::sqlite::LinkRepository;
 use anyhow::Result;
 use sqlx::SqlitePool;
@@ -171,19 +171,15 @@ impl<R: tauri::Runtime> JobProcessor<R> {
 
         let links: Vec<NewLink> = edges
             .iter()
-            .map(|e| NewLink {
-                job_id: job.id.to_string(),
-                source_page_id: e.from_page_id.clone(),
-                target_page_id: None,
-                target_url: e.to_url.clone(),
-                link_text: e.link_text.clone(),
-                link_type: if e.is_internal(&job.url) {
-                    LinkType::Internal
-                } else {
-                    LinkType::External
-                },
-                is_followed: true,
-                status_code: Some(e.status_code as i64),
+            .map(|e| {
+                NewLink::create(
+                    &job.id,
+                    &e.from_page_id,
+                    &e.to_url,
+                    e.link_text.clone(),
+                    Some(e.status_code as i64),
+                    &job.url,
+                )
             })
             .collect();
 

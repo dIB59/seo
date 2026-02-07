@@ -265,7 +265,12 @@ pub struct IssueBuilder {
 }
 
 impl IssueBuilder {
-    pub fn new(job_id: String, issue_type: String, severity: IssueSeverity, message: String) -> Self {
+    pub fn new(
+        job_id: String,
+        issue_type: String,
+        severity: IssueSeverity,
+        message: String,
+    ) -> Self {
         Self {
             job_id,
             page_id: None,
@@ -371,6 +376,43 @@ pub struct NewLink {
     pub link_type: LinkType,
     pub is_followed: bool,
     pub status_code: Option<i64>,
+}
+
+impl NewLink {
+    /// Create a new link, automatically determining if it is internal or external.
+    pub fn create(
+        job_id: &str,
+        source_page_id: &str,
+        target_url: &str,
+        link_text: Option<String>,
+        status_code: Option<i64>,
+        base_url: &str,
+    ) -> Self {
+        let link_type = if Self::is_internal(target_url, base_url) {
+            LinkType::Internal
+        } else {
+            LinkType::External
+        };
+
+        Self {
+            job_id: job_id.to_string(),
+            source_page_id: source_page_id.to_string(),
+            target_page_id: None,
+            target_url: target_url.to_string(),
+            link_text,
+            link_type,
+            is_followed: true,
+            status_code,
+        }
+    }
+
+    fn is_internal(target_url: &str, base_url: &str) -> bool {
+        if let (Ok(edge_url), Ok(base)) = (url::Url::parse(target_url), url::Url::parse(base_url)) {
+            edge_url.host_str() == base.host_str() && edge_url.port() == base.port()
+        } else {
+            false
+        }
+    }
 }
 
 // ============================================================================
@@ -605,8 +647,6 @@ pub struct SeoIssue {
     pub recommendation: String,
     pub line_number: Option<i32>,
 }
-
-
 
 /// Page analysis data (frontend-compatible format)
 #[derive(Debug, Clone, Serialize, Deserialize)]
