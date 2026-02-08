@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO ai_insights (job_id, summary, created_at, updated_at) VALUES (?, ?, datetime('now'), datetime('now'))\n             ON CONFLICT(job_id) DO UPDATE SET summary = ?, updated_at = datetime('now')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "af5be9e3fd23b2a8be6afe32501bd35992103a5c7ab09dffde0abfbf1af31b5c"
+}

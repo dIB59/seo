@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO settings (id, openai_api_key) VALUES (1, ?)\n                     ON CONFLICT(id) DO UPDATE SET openai_api_key = ?, updated_at = datetime('now')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "8bd33cc09c051be431694a5dc983392ef86a867c4582a531d82deadc8553e668"
+}
