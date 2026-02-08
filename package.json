@@ -2,13 +2,14 @@
     "name": "my-v0-project",
     "version": "0.3.3",
     "private": true,
+    "type": "module",
     "scripts": {
         "build": "next build",
         "dev": "next dev",
         "lint": "eslint .",
         "start": "next start",
         "tauri": "tauri",
-        "test": "jest --passWithNoTests"
+        "test": "wdio run wdio.conf.js"
     },
     "dependencies": {
         "@cosmograph/cosmos": "^1.6.1",
@@ -83,6 +84,10 @@
         "@types/node": "^22",
         "@types/react": "^19",
         "@types/react-dom": "^19",
+        "@wdio/cli": "^9.23.3",
+        "@wdio/local-runner": "^9.23.3",
+        "@wdio/mocha-framework": "^9.23.3",
+        "@wdio/spec-reporter": "^9.23.3",
         "esbuild": "^0.27.2",
         "eslint": "^9.39.2",
         "eslint-plugin-react": "^7.37.5",

@@ -8,8 +8,8 @@ use chrono::Utc;
 use sqlx::SqlitePool;
 
 use crate::domain::models::{
-    AiInsight, CompleteAnalysisResult, CompleteJobResult, Heading, Image, Issue, Job, JobSettings,
-    JobSummary, LighthouseData, Link, Page,
+    AiInsight, CompleteJobResult, Heading, Image, Issue, Job, JobSettings, JobSummary,
+    LighthouseData, Link, Page,
 };
 
 use super::{map_job_status, map_link_type, map_severity};

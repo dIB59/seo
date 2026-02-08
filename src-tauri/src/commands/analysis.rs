@@ -9,7 +9,7 @@ use crate::{
     domain::models::JobSettings,
     domain::models::{AnalysisProgress, CompleteAnalysisResult, JobStatus},
     error::CommandError,
-    repository::sqlite::{JobRepository, ResultsRepository},
+    repository::sqlite::JobRepository,
     service::JobProcessor,
 };
 
