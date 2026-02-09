@@ -1,17 +1,15 @@
-// lifecycle/mod.rs
-use tauri::{App, AppHandle, Manager, RunEvent};
-
 use crate::lifecycle::app_state::AppState;
+use tauri::{App, AppHandle, Manager, RunEvent};
 
 pub mod app_state;
 
 pub fn init_logging() {
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
+            tracing_subscriber::EnvFilter::default()
                 .add_directive("sqlx=warn".parse().unwrap())
                 .add_directive("app=debug".parse().unwrap())
-                .add_directive("info".parse().unwrap())
+                .add_directive("debug".parse().unwrap()),
         )
         .compact()
         .with_target(false)
@@ -21,15 +19,15 @@ pub fn init_logging() {
 
 pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     // Build entire dependency graph in ONE place
-    let state : AppState = tauri::async_runtime::block_on(async {
+    let state: AppState = tauri::async_runtime::block_on(async {
         AppState::new(app.handle().clone())
             .await
             .expect("Failed to initialize application state")
     });
-    
+
     // Register SINGLE managed state object
     app.manage(state);
-    
+
     Ok(())
 }
 
@@ -46,11 +44,11 @@ fn shutdown_services(app_handle: &AppHandle) {
     if let Some(app_state) = app_handle.try_state::<AppState>() {
         let lighthouse = app_state.lighthouse_service.clone();
         tauri::async_runtime::block_on(async move {
-            log::info!("Shutting down Lighthouse service...");
+            tracing::info!("Shutting down Lighthouse service...");
             if let Err(e) = lighthouse.shutdown().await {
-                log::error!("Error shutting down Lighthouse: {}", e);
+                tracing::error!("Error shutting down Lighthouse: {}", e);
             } else {
-                log::info!("Lighthouse service shut down successfully");
+                tracing::info!("Lighthouse service shut down successfully");
             }
         });
     }

@@ -2,8 +2,8 @@ use crate::domain::models::{
     IssueSeverity, JobSettings, LighthouseData, NewHeading, NewImage, NewIssue, Page,
 };
 use crate::extractor::page_extractor::{ExtractedHeading, ExtractedImage, PageExtractor};
+use crate::repository::{IssueRepository as IssueRepoTrait, PageRepository as PageRepoTrait};
 use crate::service::auditor::{Auditor, DeepAuditor, LightAuditor};
-use crate::repository::{PageRepository as PageRepoTrait, IssueRepository as IssueRepoTrait};
 use anyhow::Result;
 use scraper::Html;
 use std::sync::Arc;
@@ -45,7 +45,6 @@ pub struct PageResult {
 }
 
 impl AnalyzerService {
-
     /// Create analyzer with mocked or alternate repos (DI-friendly, for tests).
     /// Create analyzer with mocked or alternate repos (DI-only).
     pub fn new(page_db: Arc<dyn PageRepoTrait>, issue_db: Arc<dyn IssueRepoTrait>) -> Self {
@@ -62,7 +61,7 @@ impl AnalyzerService {
             if self.deep_auditor.is_available() {
                 self.deep_auditor.clone()
             } else {
-                log::warn!("[JOB] Deep auditor unavailable, falling back to light auditor");
+                tracing::warn!("[JOB] Deep auditor unavailable, falling back to light auditor");
                 self.light_auditor.clone()
             }
         } else {
@@ -222,7 +221,7 @@ impl AnalyzerService {
         };
 
         if let Err(e) = self.page_db.insert_lighthouse(&lighthouse).await {
-            log::warn!("Failed to store Lighthouse data for {}: {}", url, e);
+            tracing::warn!("Failed to store Lighthouse data for {}: {}", url, e);
         }
 
         // Store headings and images
@@ -237,7 +236,7 @@ impl AnalyzerService {
             .collect();
 
         if let Err(e) = self.page_db.replace_headings(&page_id, &heading_rows).await {
-            log::warn!("Failed to store headings for {}: {}", url, e);
+            tracing::warn!("Failed to store headings for {}: {}", url, e);
         }
 
         let image_rows: Vec<NewImage> = images
@@ -254,7 +253,7 @@ impl AnalyzerService {
             .collect();
 
         if let Err(e) = self.page_db.replace_images(&page_id, &image_rows).await {
-            log::warn!("Failed to store images for {}: {}", url, e);
+            tracing::warn!("Failed to store images for {}: {}", url, e);
         }
 
         // Convert and insert issues with the actual page_id

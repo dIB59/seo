@@ -68,7 +68,7 @@ impl Crawler {
             .context("Page discovery failed")?;
 
         if discovered.is_empty() {
-            log::warn!("[JOB] Discovery returned no pages, falling back to start URL");
+            tracing::warn!("[JOB] Discovery returned no pages, falling back to start URL");
             discovered.push(context.start_url.clone());
         }
 

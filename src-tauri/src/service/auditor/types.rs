@@ -116,7 +116,7 @@ impl SeoAuditDetails {
             &self.link_text,
             &self.crawlable_anchors,
         ];
-        
+
         let total: f64 = checks.iter().map(|c| c.score.raw()).sum();
         Score::from(total / checks.len() as f64)
     }
@@ -125,17 +125,94 @@ impl SeoAuditDetails {
     /// Scores returned here are percentages with 2 decimal precision.
     pub fn breakdown(&self) -> Vec<AuditCheck> {
         vec![
-            AuditCheck { key: "document_title", label: "Document Title", passed: self.document_title.passed, score: self.document_title.score.percent(), value: self.document_title.value.clone(), description: self.document_title.description.clone() },
-            AuditCheck { key: "meta_description", label: "Meta Description", passed: self.meta_description.passed, score: self.meta_description.score.percent(), value: self.meta_description.value.clone(), description: self.meta_description.description.clone() },
-            AuditCheck { key: "viewport", label: "Viewport Meta Tag", passed: self.viewport.passed, score: self.viewport.score.percent(), value: self.viewport.value.clone(), description: self.viewport.description.clone() },
-            AuditCheck { key: "canonical", label: "Canonical URL", passed: self.canonical.passed, score: self.canonical.score.percent(), value: self.canonical.value.clone(), description: self.canonical.description.clone() },
-            AuditCheck { key: "hreflang", label: "Hreflang Tags", passed: self.hreflang.passed, score: self.hreflang.score.percent(), value: self.hreflang.value.clone(), description: self.hreflang.description.clone() },
-            AuditCheck { key: "robots_txt", label: "Robots.txt Valid", passed: self.robots_txt.passed, score: self.robots_txt.score.percent(), value: self.robots_txt.value.clone(), description: self.robots_txt.description.clone() },
-            AuditCheck { key: "crawlable_anchors", label: "Crawlable Anchors", passed: self.crawlable_anchors.passed, score: self.crawlable_anchors.score.percent(), value: self.crawlable_anchors.value.clone(), description: self.crawlable_anchors.description.clone() },
-            AuditCheck { key: "link_text", label: "Descriptive Link Text", passed: self.link_text.passed, score: self.link_text.score.percent(), value: self.link_text.value.clone(), description: self.link_text.description.clone() },
-            AuditCheck { key: "image_alt", label: "Image Alt Attributes", passed: self.image_alt.passed, score: self.image_alt.score.percent(), value: self.image_alt.value.clone(), description: self.image_alt.description.clone() },
-            AuditCheck { key: "http_status_code", label: "HTTP Status Code", passed: self.http_status_code.passed, score: self.http_status_code.score.percent(), value: self.http_status_code.value.clone(), description: self.http_status_code.description.clone() },
-            AuditCheck { key: "is_crawlable", label: "Page is Crawlable", passed: self.is_crawlable.passed, score: self.is_crawlable.score.percent(), value: self.is_crawlable.value.clone(), description: self.is_crawlable.description.clone() },
+            AuditCheck {
+                key: "document_title",
+                label: "Document Title",
+                passed: self.document_title.passed,
+                score: self.document_title.score.percent(),
+                value: self.document_title.value.clone(),
+                description: self.document_title.description.clone(),
+            },
+            AuditCheck {
+                key: "meta_description",
+                label: "Meta Description",
+                passed: self.meta_description.passed,
+                score: self.meta_description.score.percent(),
+                value: self.meta_description.value.clone(),
+                description: self.meta_description.description.clone(),
+            },
+            AuditCheck {
+                key: "viewport",
+                label: "Viewport Meta Tag",
+                passed: self.viewport.passed,
+                score: self.viewport.score.percent(),
+                value: self.viewport.value.clone(),
+                description: self.viewport.description.clone(),
+            },
+            AuditCheck {
+                key: "canonical",
+                label: "Canonical URL",
+                passed: self.canonical.passed,
+                score: self.canonical.score.percent(),
+                value: self.canonical.value.clone(),
+                description: self.canonical.description.clone(),
+            },
+            AuditCheck {
+                key: "hreflang",
+                label: "Hreflang Tags",
+                passed: self.hreflang.passed,
+                score: self.hreflang.score.percent(),
+                value: self.hreflang.value.clone(),
+                description: self.hreflang.description.clone(),
+            },
+            AuditCheck {
+                key: "robots_txt",
+                label: "Robots.txt Valid",
+                passed: self.robots_txt.passed,
+                score: self.robots_txt.score.percent(),
+                value: self.robots_txt.value.clone(),
+                description: self.robots_txt.description.clone(),
+            },
+            AuditCheck {
+                key: "crawlable_anchors",
+                label: "Crawlable Anchors",
+                passed: self.crawlable_anchors.passed,
+                score: self.crawlable_anchors.score.percent(),
+                value: self.crawlable_anchors.value.clone(),
+                description: self.crawlable_anchors.description.clone(),
+            },
+            AuditCheck {
+                key: "link_text",
+                label: "Descriptive Link Text",
+                passed: self.link_text.passed,
+                score: self.link_text.score.percent(),
+                value: self.link_text.value.clone(),
+                description: self.link_text.description.clone(),
+            },
+            AuditCheck {
+                key: "image_alt",
+                label: "Image Alt Attributes",
+                passed: self.image_alt.passed,
+                score: self.image_alt.score.percent(),
+                value: self.image_alt.value.clone(),
+                description: self.image_alt.description.clone(),
+            },
+            AuditCheck {
+                key: "http_status_code",
+                label: "HTTP Status Code",
+                passed: self.http_status_code.passed,
+                score: self.http_status_code.score.percent(),
+                value: self.http_status_code.value.clone(),
+                description: self.http_status_code.description.clone(),
+            },
+            AuditCheck {
+                key: "is_crawlable",
+                label: "Page is Crawlable",
+                passed: self.is_crawlable.passed,
+                score: self.is_crawlable.score.percent(),
+                value: self.is_crawlable.value.clone(),
+                description: self.is_crawlable.description.clone(),
+            },
         ]
     }
 }
@@ -158,5 +235,3 @@ mod tests {
         assert_eq!(meta.score, 33.33);
     }
 }
-
-

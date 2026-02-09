@@ -41,7 +41,7 @@ impl<R: tauri::Runtime> DiscoveryProgressEmitter for tauri::AppHandle<R> {
                 total_pages,
             },
         ) {
-            log::warn!("Failed to emit discovery progress: {}", e);
+            tracing::warn!("Failed to emit discovery progress: {}", e);
         }
     }
 }

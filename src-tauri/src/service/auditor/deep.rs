@@ -30,7 +30,7 @@ impl DeepAuditor {
     /// Create a new DeepAuditor, locating the sidecar binary.
     pub fn new() -> Self {
         let sidecar_path = Self::find_sidecar_path();
-        log::info!("[DEEP] Sidecar path: {:?}", sidecar_path);
+        tracing::info!("[DEEP] Sidecar path: {:?}", sidecar_path);
         Self { sidecar_path }
     }
 
@@ -151,7 +151,7 @@ impl DeepAuditor {
     }
 
     async fn fetch_html_fallback(&self, url: &str) -> Result<String> {
-        log::warn!("[DEEP] Falling back to direct HTML fetch for URL: {}", url);
+        tracing::warn!("[DEEP] Falling back to direct HTML fetch for URL: {}", url);
         let client = rquest::Client::new();
         let response = client
             .get(url)
@@ -171,7 +171,7 @@ impl Default for DeepAuditor {
 #[async_trait]
 impl Auditor for DeepAuditor {
     async fn analyze(&self, url: &str) -> Result<AuditResult> {
-        log::info!("[DEEP] Starting analysis: {}", url);
+        tracing::info!("[DEEP] Starting analysis: {}", url);
 
         if !self.is_available() {
             anyhow::bail!("Lighthouse sidecar not found at: {:?}", self.sidecar_path);
@@ -188,13 +188,13 @@ impl Auditor for DeepAuditor {
             .context("Failed to spawn lighthouse-runner")?;
 
         let process_time_ms = start_time.elapsed().as_secs_f64() * 1000.0;
-        log::info!("[DEEP] Process completed in {:.2}ms", process_time_ms);
+        tracing::info!("[DEEP] Process completed in {:.2}ms", process_time_ms);
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
 
         if !stderr.is_empty() {
-            log::debug!("[DEEP] stderr: {}", stderr.trim());
+            tracing::debug!("[DEEP] stderr: {}", stderr.trim());
         }
 
         if !output.status.success() {
@@ -237,7 +237,7 @@ impl Auditor for DeepAuditor {
         let content_size = response.content_size.unwrap_or(html.len());
         let status_code = response.status_code.unwrap_or(200);
 
-        log::info!(
+        tracing::info!(
             "[DEEP] Complete - status: {}, size: {} bytes, load: {:.2}ms",
             status_code,
             content_size,
@@ -259,7 +259,7 @@ impl Auditor for DeepAuditor {
     }
 
     async fn shutdown(&self) -> Result<()> {
-        log::info!("[DEEP] Shutdown (no-op for sidecar approach)");
+        tracing::info!("[DEEP] Shutdown (no-op for sidecar approach)");
         Ok(())
     }
 }

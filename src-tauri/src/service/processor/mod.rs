@@ -51,14 +51,14 @@ impl<R: tauri::Runtime> JobProcessor<R> {
 
     /// Main polling loop - fetches and processes pending jobs.
     pub async fn run(&self) -> Result<()> {
-        log::info!("JobProcessor: Starting job polling loop");
+        tracing::info!("JobProcessor: Starting job polling loop");
 
         loop {
             // Fetch next job from queue
             if let Some(job) = self.job_queue.fetch_next_job().await {
-                log::info!("Processing job: {} ({})", job.id, job.url);
+                tracing::info!("Processing job: {} ({})", job.id, job.url);
                 if let Err(e) = self.process_job(job).await {
-                    log::error!("Job failed: {}", e);
+                    tracing::error!("Job failed: {}", e);
                 }
             }
         }
@@ -66,7 +66,7 @@ impl<R: tauri::Runtime> JobProcessor<R> {
 
     /// Cancels a running job.
     pub async fn cancel(&self, job_id: &str) -> Result<()> {
-        log::info!("Cancelling job {}", job_id);
+        tracing::info!("Cancelling job {}", job_id);
         self.canceler.set_cancelled(job_id);
         self.job_queue.mark_cancelled(job_id).await
     }
@@ -88,7 +88,7 @@ impl<R: tauri::Runtime> JobProcessor<R> {
 
         // Early exit if cancelled
         if self.canceler.is_cancelled(&job.id) {
-            log::warn!("Job {} cancelled before crawl", job.id);
+            tracing::warn!("Job {} cancelled before crawl", job.id);
             return Ok(job.id.clone());
         }
 
@@ -108,7 +108,7 @@ impl<R: tauri::Runtime> JobProcessor<R> {
 
         // Early exit if cancelled
         if self.canceler.is_cancelled(&job.id) {
-            log::warn!("Job {} cancelled before analysis", job.id);
+            tracing::warn!("Job {} cancelled before analysis", job.id);
             return Ok(job.id.clone());
         }
 
@@ -119,7 +119,7 @@ impl<R: tauri::Runtime> JobProcessor<R> {
 
         for (idx, url) in discovered_urls.iter().enumerate() {
             if cancel_flag.load(Ordering::Relaxed) {
-                log::info!("Job {} cancelled during analysis", job.id);
+                tracing::info!("Job {} cancelled during analysis", job.id);
                 break;
             }
 
@@ -139,7 +139,7 @@ impl<R: tauri::Runtime> JobProcessor<R> {
                     crawl_result.issues += page_result.issues.len();
                     crawl_result.edges.extend(page_result.edges);
                 }
-                Err(e) => log::warn!("Failed to analyze {}: {:#}", url, e),
+                Err(e) => tracing::warn!("Failed to analyze {}: {:#}", url, e),
             }
 
             // Report progress
@@ -165,7 +165,7 @@ impl<R: tauri::Runtime> JobProcessor<R> {
         // Finalize job
         self.job_queue.mark_completed(&job.id).await?;
 
-        log::info!("Job {} completed in {}ms", job.id, timer.elapsed_ms());
+        tracing::info!("Job {} completed in {}ms", job.id, timer.elapsed_ms());
 
         Ok(job.id.clone())
     }

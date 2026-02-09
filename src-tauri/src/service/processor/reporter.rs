@@ -36,7 +36,7 @@ impl<R: tauri::Runtime> ProgressReporter<R> {
         };
 
         if let Err(e) = self.app_handle.emit("analysis:progress", &event) {
-            log::warn!("Failed to emit progress event: {}", e);
+            tracing::warn!("Failed to emit progress event: {}", e);
         }
     }
 }

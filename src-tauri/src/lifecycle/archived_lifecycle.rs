@@ -93,10 +93,13 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let lighthouse_clone = lighthouse.clone();
     tauri::async_runtime::spawn(async move {
         if let Err(e) = lighthouse_clone.start_persistent().await {
-            log::warn!("Failed to start Lighthouse persistent mode: {}", e);
-            log::info!("Lighthouse will use one-shot mode (slower but still works)");
+            tracing::
+warn!("Failed to start Lighthouse persistent mode: {}", e);
+            tracing::
+info!("Lighthouse will use one-shot mode (slower but still works)");
         } else {
-            log::info!("Lighthouse persistent mode started successfully");
+            tracing::
+info!("Lighthouse persistent mode started successfully");
         }
     });
 
@@ -121,11 +124,14 @@ fn shutdown_services(app_handle: &AppHandle) {
     if let Some(lighthouse) = app_handle.try_state::<LighthouseState>() {
         let lighthouse = lighthouse.0.clone();
         tauri::async_runtime::block_on(async move {
-            log::info!("Shutting down Lighthouse service...");
+            tracing::
+info!("Shutting down Lighthouse service...");
             if let Err(e) = lighthouse.shutdown().await {
-                log::error!("Error shutting down Lighthouse: {}", e);
+                tracing::
+error!("Error shutting down Lighthouse: {}", e);
             } else {
-                log::info!("Lighthouse service shut down successfully");
+                tracing::
+info!("Lighthouse service shut down successfully");
             }
         });
     }

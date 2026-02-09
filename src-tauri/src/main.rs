@@ -2,10 +2,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use app::{commands, lifecycle};
+use specta_typescript::BigIntExportBehavior;
 #[cfg(debug_assertions)]
 use specta_typescript::Typescript;
 use tauri_specta::{collect_commands, Builder};
-use specta_typescript::{BigIntExportBehavior};
 
 fn main() {
     lifecycle::init_logging();
@@ -31,14 +31,16 @@ fn main() {
             commands::ai::set_gemini_prompt_blocks,
             commands::ai::get_gemini_enabled,
             commands::ai::set_gemini_enabled,
-            ]);
+        ]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
     builder
         .export(
             Typescript::default()
-            .formatter(specta_typescript::formatter::prettier)
-            .bigint(BigIntExportBehavior::Number), "../src/bindings.ts")
+                .formatter(specta_typescript::formatter::prettier)
+                .bigint(BigIntExportBehavior::Number),
+            "../src/bindings.ts",
+        )
         .expect("Failed to export typescript bindings");
 
     tauri::Builder::default()

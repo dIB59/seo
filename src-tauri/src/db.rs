@@ -42,7 +42,7 @@ pub async fn init_db(app: &AppHandle) -> Result<SqlitePool> {
         .app_data_dir()
         .context("failed to get app data dir")?;
 
-    log::info!("App data directory: {}", app_data_dir.display());
+    tracing::info!("App data directory: {}", app_data_dir.display());
 
     // Ensure the directory exists
     std::fs::create_dir_all(&app_data_dir).context(format!(
@@ -61,7 +61,7 @@ pub async fn init_db(app: &AppHandle) -> Result<SqlitePool> {
     let db_path = app_data_dir.join("analysisdev.db");
     let db_url = format!("sqlite://{}?mode=rwc", db_path.display());
 
-    log::info!("Database URL: {}", db_url);
+    tracing::info!("Database URL: {}", db_url);
 
     // Connect with optimized pool configuration
     let pool = SqlitePoolOptions::new()
@@ -88,7 +88,7 @@ pub async fn init_db(app: &AppHandle) -> Result<SqlitePool> {
         .await
         .context("failed to run migrations")?;
 
-    log::info!(
+    tracing::info!(
         "Database initialized successfully at {} with optimized settings",
         db_path.display()
     );
@@ -99,7 +99,7 @@ pub async fn init_db(app: &AppHandle) -> Result<SqlitePool> {
         .await
         .context("failed to dump schema")?;
 
-    log::info!("Schema dumped to {}", schema_path.display());
+    tracing::info!("Schema dumped to {}", schema_path.display());
 
     Ok(pool)
 }

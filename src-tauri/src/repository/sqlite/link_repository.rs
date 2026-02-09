@@ -51,7 +51,7 @@ impl LinkRepository {
         }
 
         tx.commit().await?;
-        log::debug!("Inserted {} links", links.len());
+        tracing::debug!("Inserted {} links", links.len());
         Ok(())
     }
 
@@ -258,8 +258,8 @@ impl LinkRepository {
     }
 }
 
-use async_trait::async_trait;
 use crate::repository::LinkRepository as LinkRepositoryTrait;
+use async_trait::async_trait;
 
 #[async_trait]
 impl LinkRepositoryTrait for LinkRepository {
@@ -287,7 +287,10 @@ impl LinkRepositoryTrait for LinkRepository {
         LinkRepository::count_by_type(self, job_id).await
     }
 
-    async fn get_external_domains(&self, job_id: &str) -> Result<Vec<crate::repository::sqlite::ExternalDomain>> {
+    async fn get_external_domains(
+        &self,
+        job_id: &str,
+    ) -> Result<Vec<crate::repository::sqlite::ExternalDomain>> {
         LinkRepository::get_external_domains(self, job_id).await
     }
 

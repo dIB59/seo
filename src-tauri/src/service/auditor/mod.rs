@@ -18,7 +18,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 /// Strategy trait for URL auditing.
-/// 
+///
 /// Implementations provide different trade-offs between speed and depth:
 /// - `LightAuditor`: ~1-2s per page, basic SEO checks
 /// - `DeepAuditor`: ~5-10s per page, full Lighthouse analysis
@@ -26,7 +26,7 @@ use async_trait::async_trait;
 pub trait Auditor: Send + Sync {
     /// Analyze a single URL and return audit results.
     async fn analyze(&self, url: &str) -> Result<AuditResult>;
-    
+
     /// Analyze multiple URLs sequentially.
     /// Default implementation calls `analyze` for each URL.
     async fn analyze_urls(&self, urls: &[String]) -> Vec<Result<AuditResult>> {
@@ -36,10 +36,10 @@ pub trait Auditor: Send + Sync {
         }
         results
     }
-    
+
     /// Human-readable name for this auditor.
     fn name(&self) -> &'static str;
-    
+
     /// Shutdown and cleanup resources.
     async fn shutdown(&self) -> Result<()> {
         Ok(())

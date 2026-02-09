@@ -20,35 +20,38 @@ pub enum AppError {
     /// Invalid or malformed URL
     #[error("Invalid URL: {0}")]
     InvalidUrl(String),
-    
+
     /// Network request failed
     #[error("Network error: {0}")]
     NetworkError(String),
-    
+
     /// Failed to parse HTML content
     #[error("HTML parsing error: {0}")]
     ParseError(String),
-    
+
     /// Database operation failed
     #[error("Database error: {0}")]
     DatabaseError(String),
-    
+
     /// Job not found
     #[error("Job not found: {0}")]
     JobNotFound(i64),
-    
+
     /// Analysis result not found
     #[error("Analysis not found: {0}")]
     AnalysisNotFound(String),
-    
+
     /// External service error (Lighthouse, Gemini, etc.)
     #[error("Service error ({service}): {message}")]
-    ServiceError { service: &'static str, message: String },
-    
+    ServiceError {
+        service: &'static str,
+        message: String,
+    },
+
     /// Job was cancelled
     #[error("Job cancelled")]
     Cancelled,
-    
+
     /// Generic error with context
     #[error("{0}")]
     Other(#[from] anyhow::Error),
@@ -59,12 +62,15 @@ impl AppError {
     pub fn network(msg: impl Into<String>) -> Self {
         Self::NetworkError(msg.into())
     }
-    
+
     /// Create a service error
     pub fn service(service: &'static str, msg: impl Into<String>) -> Self {
-        Self::ServiceError { service, message: msg.into() }
+        Self::ServiceError {
+            service,
+            message: msg.into(),
+        }
     }
-    
+
     /// Create a database error
     pub fn database(msg: impl Into<String>) -> Self {
         Self::DatabaseError(msg.into())
@@ -82,7 +88,7 @@ pub type Result<T> = std::result::Result<T, AppError>;
 /// This type is serializable and can be sent to the frontend.
 #[derive(Debug, Type, Serialize)]
 #[specta(transparent)] // Tells Specta: "In TS, this is just a string"
-#[serde(transparent)]  // Tells Serde: "In JSON, this is just a string"
+#[serde(transparent)] // Tells Serde: "In JSON, this is just a string"
 pub struct CommandError(String);
 
 impl From<anyhow::Error> for CommandError {

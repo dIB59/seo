@@ -5,9 +5,14 @@ use specta::Type;
 use tauri::State;
 use url::Url;
 
-
 use crate::{
-    domain::models::{AnalysisProgress, AnalysisResults, AnalysisSummary, CompleteAnalysisResult, ImageElement, JobSettings, JobStatus, PageAnalysisData, SeoIssue}, error::CommandError, lifecycle::app_state::AppState, service::JobProcessor
+    domain::models::{
+        AnalysisProgress, AnalysisResults, AnalysisSummary, CompleteAnalysisResult, ImageElement,
+        JobSettings, JobStatus, PageAnalysisData, SeoIssue,
+    },
+    error::CommandError,
+    lifecycle::app_state::AppState,
+    service::JobProcessor,
 };
 
 #[derive(Debug, serde::Serialize, Type)]
@@ -212,8 +217,8 @@ pub async fn start_analysis(
     settings: Option<AnalysisSettingsRequest>,
     app_state: State<'_, AppState>,
 ) -> Result<AnalysisJobResponse, CommandError> {
-    log::info!("Starting analysis: {}", url);
-    log::info!("Settings: {:?}", settings);
+    tracing::info!("Starting analysis: {}", url);
+    tracing::info!("Settings: {:?}", settings);
     let parsed_url = validate_url(&url).context("Bad URL")?;
 
     let analysis_settings: JobSettings = settings.unwrap_or_default().into();
@@ -237,7 +242,7 @@ pub async fn get_analysis_progress(
     job_id: String,
     app_state: State<'_, AppState>,
 ) -> Result<AnalysisProgress, CommandError> {
-    log::info!("Getting analysis progress for job: {}", job_id);
+    tracing::info!("Getting analysis progress for job: {}", job_id);
 
     let repository = app_state.job_repo.clone();
 
@@ -254,8 +259,10 @@ pub async fn get_analysis_progress(
 //Implement pagination
 #[tauri::command]
 #[specta::specta]
-pub async fn get_all_jobs(app_state: State<'_, AppState>) -> Result<Vec<AnalysisProgress>, CommandError> {
-    log::info!("Fetching all analysis jobs");
+pub async fn get_all_jobs(
+    app_state: State<'_, AppState>,
+) -> Result<Vec<AnalysisProgress>, CommandError> {
+    tracing::info!("Fetching all analysis jobs");
 
     let repository = app_state.job_repo.clone();
 
@@ -263,7 +270,7 @@ pub async fn get_all_jobs(app_state: State<'_, AppState>) -> Result<Vec<Analysis
 
     // Convert V2 Jobs to V1 AnalysisProgress
     let progress: Vec<AnalysisProgress> = jobs.into_iter().map(|j| j.into()).collect();
-    log::trace!("{:?}", progress.first());
+    tracing::trace!("{:?}", progress.first());
 
     Ok(progress)
 }
@@ -274,8 +281,11 @@ pub async fn cancel_analysis(
     job_id: String,
     job_processor: State<'_, Arc<JobProcessor>>,
 ) -> Result<(), CommandError> {
-    log::trace!("Cancelling analysis job: {}", job_id);
-    job_processor.cancel(&job_id).await.map_err(CommandError::from)
+    tracing::trace!("Cancelling analysis job: {}", job_id);
+    job_processor
+        .cancel(&job_id)
+        .await
+        .map_err(CommandError::from)
 }
 
 #[tauri::command]
@@ -284,7 +294,7 @@ pub async fn get_result(
     job_id: String,
     app_state: State<'_, AppState>,
 ) -> Result<CompleteAnalysisResponse, CommandError> {
-    log::trace!("Getting result ID for job: {}", job_id);
+    tracing::trace!("Getting result ID for job: {}", job_id);
 
     let repo = app_state.results_repo.clone();
     let assembler = crate::service::AnalysisAssembler::new(repo);

@@ -41,8 +41,8 @@ impl SitemapFormat {
                     match e.decode() {
                         Ok(txt) => urls.push(txt.to_string()),
                         Err(e) => {
-                            log::warn!("Invalid URL text: {:?}", reader.buffer_position());
-                            log::warn!("{}", e);
+                            tracing::warn!("Invalid URL text: {:?}", reader.buffer_position());
+                            tracing::warn!("{}", e);
                         }
                     }
                     in_loc_tag = false;

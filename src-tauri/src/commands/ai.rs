@@ -1,15 +1,18 @@
-use tauri::{State, command};
+use tauri::{command, State};
 
-use crate::{lifecycle::{ app_state::AppState}, service::{GeminiRequest, generate_gemini_analysis}};
+use crate::{
+    lifecycle::app_state::AppState,
+    service::{generate_gemini_analysis, GeminiRequest},
+};
 
 #[command]
 #[specta::specta]
 pub async fn get_gemini_insights(
     request: GeminiRequest,
-    app_state: State<'_, AppState>
+    app_state: State<'_, AppState>,
 ) -> Result<String, String> {
     // Check if AI is enabled globally
-    log::info!("Analysis Id for AI insight: {:?}", request.analysis_id);
+    tracing::info!("Analysis Id for AI insight: {:?}", request.analysis_id);
     let settings_repo = app_state.settings_repo.clone();
     let ai_repo = app_state.ai_repo.clone();
     let enabled = settings_repo
@@ -19,7 +22,7 @@ pub async fn get_gemini_insights(
 
     if let Some(val) = enabled {
         if val == "false" {
-            log::info!("AI analysis skipped (disabled by user)");
+            tracing::info!("AI analysis skipped (disabled by user)");
             return Ok("".to_string());
         }
     }
@@ -31,9 +34,7 @@ pub async fn get_gemini_insights(
 
 #[command]
 #[specta::specta]
-pub async fn get_gemini_enabled(
-    app_state: State<'_, AppState>,
-) -> Result<bool, String> {
+pub async fn get_gemini_enabled(app_state: State<'_, AppState>) -> Result<bool, String> {
     let repo = app_state.settings_repo.clone();
     let val = repo
         .get_setting("gemini_enabled")
@@ -58,9 +59,7 @@ pub async fn set_gemini_enabled(
 
 #[command]
 #[specta::specta]
-pub async fn get_gemini_api_key(
-    app_state: State<'_, AppState>,
-) -> Result<Option<String>, String> {
+pub async fn get_gemini_api_key(app_state: State<'_, AppState>) -> Result<Option<String>, String> {
     let repo = app_state.settings_repo.clone();
     repo.get_setting("gemini_api_key")
         .await
@@ -77,18 +76,16 @@ pub async fn set_gemini_api_key(
     repo.set_setting("gemini_api_key", api_key.as_str())
         .await
         .map_err(|e| format!("Failed to set API key: {}", e))
-} 
+}
 
 #[command]
 #[specta::specta]
-pub async fn get_gemini_persona(
-    app_state: State<'_, AppState>,
-) -> Result<Option<String>, String> {
+pub async fn get_gemini_persona(app_state: State<'_, AppState>) -> Result<Option<String>, String> {
     let repo = app_state.settings_repo.clone();
     repo.get_setting("gemini_persona")
         .await
         .map_err(|e| format!("Failed to get persona: {}", e))
-} 
+}
 
 #[command]
 #[specta::specta]
@@ -100,7 +97,7 @@ pub async fn set_gemini_persona(
     repo.set_setting("gemini_persona", persona.as_str())
         .await
         .map_err(|e| format!("Failed to set persona: {}", e))
-} 
+}
 
 #[command]
 #[specta::specta]
@@ -111,7 +108,7 @@ pub async fn get_gemini_requirements(
     repo.get_setting("gemini_requirements")
         .await
         .map_err(|e| format!("Failed to get requirements: {}", e))
-} 
+}
 
 #[command]
 #[specta::specta]
@@ -123,7 +120,7 @@ pub async fn set_gemini_requirements(
     repo.set_setting("gemini_requirements", requirements.as_str())
         .await
         .map_err(|e| format!("Failed to set requirements: {}", e))
-} 
+}
 
 #[command]
 #[specta::specta]
@@ -134,7 +131,7 @@ pub async fn get_gemini_context_options(
     repo.get_setting("gemini_context_options")
         .await
         .map_err(|e| format!("Failed to get context options: {}", e))
-} 
+}
 
 #[command]
 #[specta::specta]
@@ -146,7 +143,7 @@ pub async fn set_gemini_context_options(
     repo.set_setting("gemini_context_options", options.as_str())
         .await
         .map_err(|e| format!("Failed to set context options: {}", e))
-} 
+}
 
 #[command]
 #[specta::specta]
@@ -157,7 +154,7 @@ pub async fn get_gemini_prompt_blocks(
     repo.get_setting("gemini_prompt_blocks")
         .await
         .map_err(|e| format!("Failed to get prompt blocks: {}", e))
-} 
+}
 
 #[command]
 #[specta::specta]
@@ -169,4 +166,4 @@ pub async fn set_gemini_prompt_blocks(
     repo.set_setting("gemini_prompt_blocks", blocks.as_str())
         .await
         .map_err(|e| format!("Failed to set prompt blocks: {}", e))
-} 
+}

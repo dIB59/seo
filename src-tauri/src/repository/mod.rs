@@ -1,6 +1,6 @@
-use async_trait::async_trait;
-use anyhow::Result;
 use crate::domain::models::{Job, JobInfo, JobSettings, JobStatus};
+use anyhow::Result;
+use async_trait::async_trait;
 
 pub mod sqlite;
 
@@ -29,13 +29,27 @@ pub trait PageRepository: Send + Sync {
     async fn insert(&self, page: &crate::domain::models::Page) -> Result<String>;
     async fn insert_batch(&self, pages: &[crate::domain::models::Page]) -> Result<()>;
     async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::models::Page>>;
-    async fn get_info_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::models::PageInfo>>;
+    async fn get_info_by_job_id(
+        &self,
+        job_id: &str,
+    ) -> Result<Vec<crate::domain::models::PageInfo>>;
     async fn get_by_id(&self, page_id: &str) -> Result<crate::domain::models::Page>;
-    async fn replace_headings(&self, page_id: &str, headings: &[crate::domain::models::NewHeading]) -> Result<()>;
-    async fn replace_images(&self, page_id: &str, images: &[crate::domain::models::NewImage]) -> Result<()>;
+    async fn replace_headings(
+        &self,
+        page_id: &str,
+        headings: &[crate::domain::models::NewHeading],
+    ) -> Result<()>;
+    async fn replace_images(
+        &self,
+        page_id: &str,
+        images: &[crate::domain::models::NewImage],
+    ) -> Result<()>;
     async fn count_by_job_id(&self, job_id: &str) -> Result<i64>;
     async fn insert_lighthouse(&self, data: &crate::domain::models::LighthouseData) -> Result<()>;
-    async fn get_lighthouse_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::models::LighthouseData>>;
+    async fn get_lighthouse_by_job_id(
+        &self,
+        job_id: &str,
+    ) -> Result<Vec<crate::domain::models::LighthouseData>>;
 }
 
 /// Settings repository trait - key/value configuration store.
@@ -54,7 +68,10 @@ pub trait LinkRepository: Send + Sync {
     async fn get_incoming(&self, target_page_id: &str) -> Result<Vec<crate::domain::models::Link>>;
     async fn get_broken(&self, job_id: &str) -> Result<Vec<crate::domain::models::Link>>;
     async fn count_by_type(&self, job_id: &str) -> Result<crate::repository::sqlite::LinkCounts>;
-    async fn get_external_domains(&self, job_id: &str) -> Result<Vec<crate::repository::sqlite::ExternalDomain>>;
+    async fn get_external_domains(
+        &self,
+        job_id: &str,
+    ) -> Result<Vec<crate::repository::sqlite::ExternalDomain>>;
     async fn update_status_codes(&self, updates: &[(i64, i64)]) -> Result<()>;
 }
 
@@ -64,25 +81,48 @@ pub trait IssueRepository: Send + Sync {
     async fn insert_batch(&self, issues: &[crate::domain::models::NewIssue]) -> Result<()>;
     async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::models::Issue>>;
     async fn get_by_page_id(&self, page_id: &str) -> Result<Vec<crate::domain::models::Issue>>;
-    async fn get_by_job_and_severity(&self, job_id: &str, severity: crate::domain::models::IssueSeverity) -> Result<Vec<crate::domain::models::Issue>>;
-    async fn count_by_severity(&self, job_id: &str) -> Result<crate::repository::sqlite::IssueCounts>;
+    async fn get_by_job_and_severity(
+        &self,
+        job_id: &str,
+        severity: crate::domain::models::IssueSeverity,
+    ) -> Result<Vec<crate::domain::models::Issue>>;
+    async fn count_by_severity(
+        &self,
+        job_id: &str,
+    ) -> Result<crate::repository::sqlite::IssueCounts>;
     async fn count_by_job_id(&self, job_id: &str) -> Result<i64>;
-    async fn get_grouped_by_type(&self, job_id: &str) -> Result<Vec<crate::repository::sqlite::IssueGroup>>;
+    async fn get_grouped_by_type(
+        &self,
+        job_id: &str,
+    ) -> Result<Vec<crate::repository::sqlite::IssueGroup>>;
 }
 
 /// Results repository trait - high-level getters for assembled results.
 #[async_trait]
 pub trait ResultsRepository: Send + Sync {
-    async fn get_complete_result(&self, job_id: &str) -> Result<crate::domain::models::CompleteJobResult>;
+    async fn get_complete_result(
+        &self,
+        job_id: &str,
+    ) -> Result<crate::domain::models::CompleteJobResult>;
     async fn get_job(&self, job_id: &str) -> Result<crate::domain::models::Job>;
     async fn get_pages(&self, job_id: &str) -> Result<Vec<crate::domain::models::Page>>;
     async fn get_issues(&self, job_id: &str) -> Result<Vec<crate::domain::models::Issue>>;
     async fn get_links(&self, job_id: &str) -> Result<Vec<crate::domain::models::Link>>;
-    async fn get_lighthouse(&self, job_id: &str) -> Result<Vec<crate::domain::models::LighthouseData>>;
+    async fn get_lighthouse(
+        &self,
+        job_id: &str,
+    ) -> Result<Vec<crate::domain::models::LighthouseData>>;
     async fn get_headings(&self, job_id: &str) -> Result<Vec<crate::domain::models::Heading>>;
     async fn get_images(&self, job_id: &str) -> Result<Vec<crate::domain::models::Image>>;
     async fn get_ai_insights(&self, job_id: &str) -> Result<crate::domain::models::AiInsight>;
-    async fn save_ai_insights(&self, job_id: &str, summary: Option<&str>, recommendations: Option<&str>, raw_response: Option<&str>, model: Option<&str>) -> Result<()>;
+    async fn save_ai_insights(
+        &self,
+        job_id: &str,
+        summary: Option<&str>,
+        recommendations: Option<&str>,
+        raw_response: Option<&str>,
+        model: Option<&str>,
+    ) -> Result<()>;
 }
 
 /// AI repository trait - simple caching interface.

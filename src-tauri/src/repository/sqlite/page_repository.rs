@@ -66,7 +66,12 @@ impl PageRepository {
         )
         .fetch_one(&self.pool)
         .await
-        .with_context(|| format!("Failed to upsert page (job_id={}, url={})", page.job_id, page.url))?;
+        .with_context(|| {
+            format!(
+                "Failed to upsert page (job_id={}, url={})",
+                page.job_id, page.url
+            )
+        })?;
 
         Ok(row.id)
     }
@@ -112,11 +117,14 @@ impl PageRepository {
                     .push_bind(page.crawled_at.to_rfc3339());
             });
 
-            qb.build().execute(&mut *tx).await.context("Failed to batch insert pages")?;
+            qb.build()
+                .execute(&mut *tx)
+                .await
+                .context("Failed to batch insert pages")?;
         }
 
         tx.commit().await?;
-        log::debug!("Inserted {} pages", pages.len());
+        tracing::debug!("Inserted {} pages", pages.len());
         Ok(())
     }
 
@@ -237,9 +245,8 @@ impl PageRepository {
             return Ok(());
         }
 
-        let mut qb = sqlx::QueryBuilder::new(
-            "INSERT INTO page_headings (page_id, level, text, position) ",
-        );
+        let mut qb =
+            sqlx::QueryBuilder::new("INSERT INTO page_headings (page_id, level, text, position) ");
 
         qb.push_values(headings, |mut b, h| {
             b.push_bind(&h.page_id)
@@ -383,8 +390,8 @@ fn parse_datetime(s: &str) -> chrono::DateTime<Utc> {
         .unwrap_or_else(|_| Utc::now())
 }
 
-use async_trait::async_trait;
 use crate::repository::PageRepository as PageRepositoryTrait;
+use async_trait::async_trait;
 
 #[async_trait]
 impl PageRepositoryTrait for PageRepository {
@@ -400,7 +407,10 @@ impl PageRepositoryTrait for PageRepository {
         PageRepository::get_by_job_id(self, job_id).await
     }
 
-    async fn get_info_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::models::PageInfo>> {
+    async fn get_info_by_job_id(
+        &self,
+        job_id: &str,
+    ) -> Result<Vec<crate::domain::models::PageInfo>> {
         PageRepository::get_info_by_job_id(self, job_id).await
     }
 
@@ -408,11 +418,19 @@ impl PageRepositoryTrait for PageRepository {
         PageRepository::get_by_id(self, page_id).await
     }
 
-    async fn replace_headings(&self, page_id: &str, headings: &[crate::domain::models::NewHeading]) -> Result<()> {
+    async fn replace_headings(
+        &self,
+        page_id: &str,
+        headings: &[crate::domain::models::NewHeading],
+    ) -> Result<()> {
         PageRepository::replace_headings(self, page_id, headings).await
     }
 
-    async fn replace_images(&self, page_id: &str, images: &[crate::domain::models::NewImage]) -> Result<()> {
+    async fn replace_images(
+        &self,
+        page_id: &str,
+        images: &[crate::domain::models::NewImage],
+    ) -> Result<()> {
         PageRepository::replace_images(self, page_id, images).await
     }
 
@@ -424,7 +442,10 @@ impl PageRepositoryTrait for PageRepository {
         PageRepository::insert_lighthouse(self, data).await
     }
 
-    async fn get_lighthouse_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::models::LighthouseData>> {
+    async fn get_lighthouse_by_job_id(
+        &self,
+        job_id: &str,
+    ) -> Result<Vec<crate::domain::models::LighthouseData>> {
         PageRepository::get_lighthouse_by_job_id(self, job_id).await
     }
 }

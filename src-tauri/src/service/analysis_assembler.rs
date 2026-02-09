@@ -64,24 +64,32 @@ impl AnalysisAssembler {
             });
         }
 
-        let headings_by_page: HashMap<String, Vec<HeadingElement>> = headings
-            .into_iter()
-            .fold(std::collections::HashMap::new(), |mut acc, heading| {
-                let tag = format!("h{}", heading.level);
-                acc.entry(heading.page_id)
-                    .or_insert_with(Vec::new)
-                    .push(HeadingElement { tag, text: heading.text });
-                acc
-            });
+        let headings_by_page: HashMap<String, Vec<HeadingElement>> =
+            headings
+                .into_iter()
+                .fold(std::collections::HashMap::new(), |mut acc, heading| {
+                    let tag = format!("h{}", heading.level);
+                    acc.entry(heading.page_id)
+                        .or_insert_with(Vec::new)
+                        .push(HeadingElement {
+                            tag,
+                            text: heading.text,
+                        });
+                    acc
+                });
 
-        let images_by_page: HashMap<String, Vec<ImageElement>> = images
-            .into_iter()
-            .fold(std::collections::HashMap::new(), |mut acc, image| {
-                acc.entry(image.page_id)
-                    .or_insert_with(Vec::new)
-                    .push(ImageElement { src: image.src, alt: image.alt });
-                acc
-            });
+        let images_by_page: HashMap<String, Vec<ImageElement>> =
+            images
+                .into_iter()
+                .fold(std::collections::HashMap::new(), |mut acc, image| {
+                    acc.entry(image.page_id)
+                        .or_insert_with(Vec::new)
+                        .push(ImageElement {
+                            src: image.src,
+                            alt: image.alt,
+                        });
+                    acc
+                });
 
         let lighthouse_by_page: HashMap<String, LighthouseData> = lighthouse
             .into_iter()
@@ -117,10 +125,15 @@ impl AnalysisAssembler {
                     if let Some(raw) = lh.raw_json.as_deref() {
                         if let Ok(value) = serde_json::from_str::<serde_json::Value>(raw) {
                             lighthouse_seo_audits = value.get("seo_audits").cloned();
-                            lighthouse_performance_metrics = value.get("performance_metrics").cloned();
+                            lighthouse_performance_metrics =
+                                value.get("performance_metrics").cloned();
 
-                            if let Some(viewport) = value.get("seo_audits").and_then(|s| s.get("viewport")) {
-                                if let Some(passed) = viewport.get("passed").and_then(|p| p.as_bool()) {
+                            if let Some(viewport) =
+                                value.get("seo_audits").and_then(|s| s.get("viewport"))
+                            {
+                                if let Some(passed) =
+                                    viewport.get("passed").and_then(|p| p.as_bool())
+                                {
                                     mobile_friendly = passed;
                                 }
                             }
@@ -133,37 +146,40 @@ impl AnalysisAssembler {
                 }
 
                 // Links
-                let (detailed_links, links_vec, internal_links, external_links) = if let Some(links) = detailed_links_by_page.get(&page_id) {
-                    let detailed = links.clone();
-                    let links_v = detailed.iter().map(|l| l.url.clone()).collect();
-                    let internal = detailed.iter().filter(|l| !l.is_external).count() as i64;
-                    let external = detailed.iter().filter(|l| l.is_external).count() as i64;
-                    (detailed, links_v, internal, external)
-                } else {
-                    (vec![], vec![], 0i64, 0i64)
-                };
+                let (detailed_links, links_vec, internal_links, external_links) =
+                    if let Some(links) = detailed_links_by_page.get(&page_id) {
+                        let detailed = links.clone();
+                        let links_v = detailed.iter().map(|l| l.url.clone()).collect();
+                        let internal = detailed.iter().filter(|l| !l.is_external).count() as i64;
+                        let external = detailed.iter().filter(|l| l.is_external).count() as i64;
+                        (detailed, links_v, internal, external)
+                    } else {
+                        (vec![], vec![], 0i64, 0i64)
+                    };
 
                 // Headings
-                let (h1_count, h2_count, h3_count, headings_vec) = if let Some(headings) = headings_by_page.get(&page_id) {
-                    let h1 = headings.iter().filter(|h| h.tag == "h1").count() as i64;
-                    let h2 = headings.iter().filter(|h| h.tag == "h2").count() as i64;
-                    let h3 = headings.iter().filter(|h| h.tag == "h3").count() as i64;
-                    (h1, h2, h3, headings.clone())
-                } else {
-                    (0i64, 0i64, 0i64, vec![])
-                };
+                let (h1_count, h2_count, h3_count, headings_vec) =
+                    if let Some(headings) = headings_by_page.get(&page_id) {
+                        let h1 = headings.iter().filter(|h| h.tag == "h1").count() as i64;
+                        let h2 = headings.iter().filter(|h| h.tag == "h2").count() as i64;
+                        let h3 = headings.iter().filter(|h| h.tag == "h3").count() as i64;
+                        (h1, h2, h3, headings.clone())
+                    } else {
+                        (0i64, 0i64, 0i64, vec![])
+                    };
 
                 // Images
-                let (image_count, images_without_alt, images_vec) = if let Some(images) = images_by_page.get(&page_id) {
-                    let img_count = images.len() as i64;
-                    let without_alt = images
-                        .iter()
-                        .filter(|img| img.alt.as_deref().unwrap_or("").is_empty())
-                        .count() as i64;
-                    (img_count, without_alt, images.clone())
-                } else {
-                    (0i64, 0i64, vec![])
-                };
+                let (image_count, images_without_alt, images_vec) =
+                    if let Some(images) = images_by_page.get(&page_id) {
+                        let img_count = images.len() as i64;
+                        let without_alt = images
+                            .iter()
+                            .filter(|img| img.alt.as_deref().unwrap_or("").is_empty())
+                            .count() as i64;
+                        (img_count, without_alt, images.clone())
+                    } else {
+                        (0i64, 0i64, vec![])
+                    };
 
                 // Fallback mobile-friendly heuristic
                 if !mobile_friendly {
@@ -240,9 +256,11 @@ impl AnalysisAssembler {
             created_at: job.created_at,
         };
 
-
-
-        fn is_external_by_url(source_url: Option<&String>, target_url: &str, link_type: &LinkType) -> bool {
+        fn is_external_by_url(
+            source_url: Option<&String>,
+            target_url: &str,
+            link_type: &LinkType,
+        ) -> bool {
             let source_url = match source_url {
                 Some(url) => url,
                 None => return !matches!(link_type, LinkType::Internal),
@@ -276,17 +294,19 @@ impl AnalysisAssembler {
         }
 
         // Compute summary metrics from page data
-        let (total_load, load_count) = pages
-            .iter()
-            .fold((0.0f64, 0usize), |(sum, cnt), p| {
-                if p.load_time > 0.0 {
-                    (sum + p.load_time, cnt + 1)
-                } else {
-                    (sum, cnt)
-                }
-            });
+        let (total_load, load_count) = pages.iter().fold((0.0f64, 0usize), |(sum, cnt), p| {
+            if p.load_time > 0.0 {
+                (sum + p.load_time, cnt + 1)
+            } else {
+                (sum, cnt)
+            }
+        });
 
-        let avg_load_time = if load_count > 0 { total_load / load_count as f64 } else { 0.0 };
+        let avg_load_time = if load_count > 0 {
+            total_load / load_count as f64
+        } else {
+            0.0
+        };
 
         let summary = AnalysisSummary {
             analysis_id: job.id.clone(),
@@ -308,10 +328,10 @@ impl AnalysisAssembler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
-    use crate::repository::sqlite::{JobRepository, PageRepository, LinkRepository};
-    use crate::domain::models::{Page, LighthouseData, NewLink, LinkType, JobSettings};
+    use crate::domain::models::{JobSettings, LighthouseData, LinkType, NewLink, Page};
+    use crate::repository::sqlite::{JobRepository, LinkRepository, PageRepository};
     use crate::test_utils::fixtures;
+    use chrono::Utc;
 
     #[tokio::test]
     async fn test_mobile_detection_and_structured_data_from_lighthouse() {
@@ -321,7 +341,10 @@ mod tests {
         let page_repo = PageRepository::new(pool.clone());
 
         // Create job
-        let job_id = job_repo.create("https://example.com", &JobSettings::default()).await.unwrap();
+        let job_id = job_repo
+            .create("https://example.com", &JobSettings::default())
+            .await
+            .unwrap();
 
         // Insert a page with large load time (4s) so fallback would be false
         let page = Page {
@@ -371,8 +394,14 @@ mod tests {
         let page = &result.pages[0];
 
         // Lighthouse viewport passed should override slow load time
-        assert!(page.mobile_friendly, "expected mobile_friendly=true from Lighthouse viewport");
-        assert!(page.has_structured_data, "expected structured data detected from Lighthouse raw JSON");
+        assert!(
+            page.mobile_friendly,
+            "expected mobile_friendly=true from Lighthouse viewport"
+        );
+        assert!(
+            page.has_structured_data,
+            "expected structured data detected from Lighthouse raw JSON"
+        );
     }
 
     #[tokio::test]
@@ -382,7 +411,10 @@ mod tests {
         let job_repo = JobRepository::new(pool.clone());
         let page_repo = PageRepository::new(pool.clone());
 
-        let job_id = job_repo.create("https://example.com", &JobSettings::default()).await.unwrap();
+        let job_id = job_repo
+            .create("https://example.com", &JobSettings::default())
+            .await
+            .unwrap();
 
         // Insert a page with short load time (1s) and no lighthouse data
         let page = Page {
@@ -412,7 +444,10 @@ mod tests {
         let page = &result.pages[0];
 
         // No Lighthouse viewport present; fallback to load_time <= 2s
-        assert!(page.mobile_friendly, "expected mobile_friendly=true from load time heuristic");
+        assert!(
+            page.mobile_friendly,
+            "expected mobile_friendly=true from load time heuristic"
+        );
     }
 
     #[tokio::test]
@@ -423,7 +458,10 @@ mod tests {
         let page_repo = PageRepository::new(pool.clone());
         let link_repo = LinkRepository::new(pool.clone());
 
-        let job_id = job_repo.create("https://example.com", &JobSettings::default()).await.unwrap();
+        let job_id = job_repo
+            .create("https://example.com", &JobSettings::default())
+            .await
+            .unwrap();
 
         // Insert source page
         let page = Page {
@@ -484,14 +522,28 @@ mod tests {
         assert_eq!(page.detailed_links.len(), 2);
 
         // Find links by link text so we don't depend on insertion order
-        let void_link = page.detailed_links.iter().find(|l| l.text == "void link").expect("expected void link");
-        let void_link_external = page.detailed_links.iter().find(|l| l.text == "void link external").expect("expected void link external");
+        let void_link = page
+            .detailed_links
+            .iter()
+            .find(|l| l.text == "void link")
+            .expect("expected void link");
+        let void_link_external = page
+            .detailed_links
+            .iter()
+            .find(|l| l.text == "void link external")
+            .expect("expected void link external");
 
         // First link: internal link_type and unparsable target (empty string) -> fallback to link_type -> is_external = false
         assert_eq!(void_link.url, "", "expected empty target url");
-        assert_eq!(void_link.is_external, false, "empty target should be treated as internal when link_type is Internal");
+        assert_eq!(
+            void_link.is_external, false,
+            "empty target should be treated as internal when link_type is Internal"
+        );
 
         // Second link: external link_type and unparsable target -> is_external = true
-        assert_eq!(void_link_external.is_external, true, "javascript:external:void(0) should be treated as external when link_type is External");
+        assert_eq!(
+            void_link_external.is_external, true,
+            "javascript:external:void(0) should be treated as external when link_type is External"
+        );
     }
 }

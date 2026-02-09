@@ -1,8 +1,8 @@
 use crate::domain::models::{Job, JobStatus};
 use crate::repository::JobRepository as JobRepositoryTrait;
 use anyhow::Result;
-use std::time::Duration;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::time::sleep;
 
 /// Polling interval when no pending jobs are found
@@ -31,11 +31,11 @@ impl JobQueue {
                     return Some(jobs[0].clone());
                 }
                 Ok(_) => {
-                    log::trace!("No pending jobs, sleeping...");
+                    tracing::trace!("No pending jobs, sleeping...");
                     sleep(JOB_POLL_INTERVAL).await;
                 }
                 Err(e) => {
-                    log::error!("Failed to fetch pending jobs: {}", e);
+                    tracing::error!("Failed to fetch pending jobs: {}", e);
                     sleep(JOB_FETCH_RETRY_DELAY).await;
                 }
             }
@@ -59,7 +59,7 @@ impl JobQueue {
         // Ideally we would save the error message too, but Job model might not have an error field yet
         // If it does, we should update it. Checking domain models...
         // Assuming for now we just mark failed.
-        log::error!("Job {} failed: {}", job_id, error);
+        tracing::error!("Job {} failed: {}", job_id, error);
         Ok(())
     }
 

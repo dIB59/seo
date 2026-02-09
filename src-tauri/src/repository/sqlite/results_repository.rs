@@ -43,7 +43,7 @@ impl ResultsRepository {
 
         // 2. Get pages (direct FK lookup - FAST!)
         let pages = self.get_pages(job_id).await?;
-        log::debug!(
+        tracing::debug!(
             "Fetched {} pages in {:?}",
             pages.len(),
             query_start.elapsed()
@@ -51,21 +51,21 @@ impl ResultsRepository {
 
         // 3. Get issues (direct FK lookup - FAST!)
         let issues = self.get_issues(job_id).await?;
-        log::debug!("Fetched {} issues", issues.len());
+        tracing::debug!("Fetched {} issues", issues.len());
 
         // 4. Get links (direct FK lookup - FAST!)
         let links = self.get_links(job_id).await?;
-        log::debug!("Fetched {} links", links.len());
+        tracing::debug!("Fetched {} links", links.len());
 
         // 5. Get lighthouse data
         let lighthouse = self.get_lighthouse(job_id).await?;
-        log::debug!("Fetched {} lighthouse records", lighthouse.len());
+        tracing::debug!("Fetched {} lighthouse records", lighthouse.len());
 
         // 6. Get AI insights (optional)
         let ai_insights = self.get_ai_insights(job_id).await.ok();
 
         let total_time = query_start.elapsed();
-        log::info!(
+        tracing::info!(
             "Loaded complete result for job {} with {} pages, {} issues, {} links in {:?}",
             job_id,
             pages.len(),
@@ -400,12 +400,15 @@ impl ResultsRepository {
     }
 }
 
-use async_trait::async_trait;
 use crate::repository::ResultsRepository as ResultsRepositoryTrait;
+use async_trait::async_trait;
 
 #[async_trait]
 impl ResultsRepositoryTrait for ResultsRepository {
-    async fn get_complete_result(&self, job_id: &str) -> Result<crate::domain::models::CompleteJobResult> {
+    async fn get_complete_result(
+        &self,
+        job_id: &str,
+    ) -> Result<crate::domain::models::CompleteJobResult> {
         ResultsRepository::get_complete_result(self, job_id).await
     }
 
@@ -425,7 +428,10 @@ impl ResultsRepositoryTrait for ResultsRepository {
         ResultsRepository::get_links(self, job_id).await
     }
 
-    async fn get_lighthouse(&self, job_id: &str) -> Result<Vec<crate::domain::models::LighthouseData>> {
+    async fn get_lighthouse(
+        &self,
+        job_id: &str,
+    ) -> Result<Vec<crate::domain::models::LighthouseData>> {
         ResultsRepository::get_lighthouse(self, job_id).await
     }
 
@@ -441,8 +447,23 @@ impl ResultsRepositoryTrait for ResultsRepository {
         ResultsRepository::get_ai_insights(self, job_id).await
     }
 
-    async fn save_ai_insights(&self, job_id: &str, summary: Option<&str>, recommendations: Option<&str>, raw_response: Option<&str>, model: Option<&str>) -> Result<()> {
-        ResultsRepository::save_ai_insights(self, job_id, summary, recommendations, raw_response, model).await
+    async fn save_ai_insights(
+        &self,
+        job_id: &str,
+        summary: Option<&str>,
+        recommendations: Option<&str>,
+        raw_response: Option<&str>,
+        model: Option<&str>,
+    ) -> Result<()> {
+        ResultsRepository::save_ai_insights(
+            self,
+            job_id,
+            summary,
+            recommendations,
+            raw_response,
+            model,
+        )
+        .await
     }
 }
 

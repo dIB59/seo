@@ -1,15 +1,12 @@
-// lifecycle/app_state.rs
+use crate::{
+    repository::sqlite::{
+        AiRepository, IssueRepository, JobRepository, LinkRepository, PageRepository,
+        ResultsRepository, SettingsRepository,
+    },
+    service::{processor::AnalyzerService, JobProcessor, LighthouseService},
+};
 use std::sync::Arc;
 use tauri::AppHandle;
-use crate::{
-    repository::
-        sqlite::{
-            JobRepository, LinkRepository, PageRepository, IssueRepository,
-            SettingsRepository, AiRepository, ResultsRepository,
-        }
-    ,
-    service::{JobProcessor, LighthouseService, processor::AnalyzerService},
-};
 
 /// Complete dependency graph for the application
 pub struct AppState {
@@ -18,10 +15,10 @@ pub struct AppState {
     pub ai_repo: Arc<AiRepository>,
     pub job_repo: Arc<JobRepository>,
     pub results_repo: Arc<ResultsRepository>,
-    
+
     // Services exposed to commands
     pub lighthouse_service: Arc<LighthouseService>,
-    
+
     // Background services (not exposed to commands, but kept alive via AppState)
     _job_processor: Arc<JobProcessor>, // underscore = intentionally unused but kept alive
 }
@@ -31,7 +28,7 @@ impl AppState {
     pub(crate) async fn new(app_handle: AppHandle) -> Result<Self, Box<dyn std::error::Error>> {
         // 1. Initialize database
         let pool = crate::db::init_db(&app_handle).await?;
-        
+
         // 2. Build repositories (bottom layer of dependency graph)
         let job_repo = Arc::new(JobRepository::new(pool.clone()));
         let link_repo = Arc::new(LinkRepository::new(pool.clone()));
@@ -40,7 +37,7 @@ impl AppState {
         let results_repo = Arc::new(ResultsRepository::new(pool.clone()));
         let settings_repo = Arc::new(SettingsRepository::new(pool.clone()));
         let ai_repo = Arc::new(AiRepository::new(pool.clone()));
-        
+
         // 3. Build services (middle layer)
         let analyzer = AnalyzerService::new(pages_repo, issues_repo);
         let job_processor = Arc::new(JobProcessor::new(
@@ -49,7 +46,7 @@ impl AppState {
             analyzer,
             app_handle.clone(),
         ));
-        
+
         // 4. Start background tasks
         let proc_clone = job_processor.clone();
         tauri::async_runtime::spawn(async move {
@@ -57,7 +54,7 @@ impl AppState {
                 tracing::error!("Job processor crashed: {}", e);
             }
         });
-        
+
         let lighthouse = Arc::new(LighthouseService::new());
         let lh_clone = lighthouse.clone();
         tauri::async_runtime::spawn(async move {
@@ -69,7 +66,7 @@ impl AppState {
                 ),
             }
         });
-        
+
         // 5. Return composed state (only expose what commands need)
         Ok(AppState {
             settings_repo,

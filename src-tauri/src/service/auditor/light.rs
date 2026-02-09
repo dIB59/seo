@@ -488,7 +488,7 @@ impl Default for LightAuditor {
 #[async_trait]
 impl Auditor for LightAuditor {
     async fn analyze(&self, url: &str) -> Result<AuditResult> {
-        log::info!("[LIGHT] Starting analysis: {}", url);
+        tracing::info!("[LIGHT] Starting analysis: {}", url);
         let start_time = std::time::Instant::now();
 
         let parsed_url = Url::parse(url)?;
@@ -503,7 +503,7 @@ impl Auditor for LightAuditor {
         let load_time_ms = start_time.elapsed().as_secs_f64() * 1000.0;
         let content_size = content_length.unwrap_or(html.len() as u64) as usize;
 
-        log::debug!(
+        tracing::debug!(
             "[LIGHT] Fetched {} bytes in {:.2}ms",
             content_size,
             load_time_ms
@@ -524,7 +524,7 @@ impl Auditor for LightAuditor {
             scores.seo = Some(scores.seo_details.calculate_score());
         }
 
-        log::info!(
+        tracing::info!(
             "[LIGHT] Complete - status: {}, size: {} bytes, load: {:.2}ms, seo: {:.1}%",
             status_code,
             content_size,

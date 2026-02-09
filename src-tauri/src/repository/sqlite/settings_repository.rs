@@ -70,7 +70,10 @@ impl crate::repository::SettingsRepository for SettingsRepository {
             "theme" => "theme",
             "gemini_enabled" => "gemini_enabled",
             _ => {
-                log::warn!("Unknown setting key requested for structured table: {}", key);
+                tracing::warn!(
+                    "Unknown setting key requested for structured table: {}",
+                    key
+                );
                 return Ok(None);
             }
         };
@@ -88,14 +91,15 @@ impl crate::repository::SettingsRepository for SettingsRepository {
         let k = SettingsRepository::canonical_key(key);
 
         // Try key/value upsert first
-        let kv_res: std::result::Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> = sqlx::query(
-            "INSERT INTO settings (key, value) VALUES (?, ?)
+        let kv_res: std::result::Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> =
+            sqlx::query(
+                "INSERT INTO settings (key, value) VALUES (?, ?)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')",
-        )
-        .bind(k)
-        .bind(value)
-        .execute(&self.pool)
-        .await;
+            )
+            .bind(k)
+            .bind(value)
+            .execute(&self.pool)
+            .await;
 
         match kv_res {
             Ok(_) => return Ok(()),
