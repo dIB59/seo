@@ -41,9 +41,13 @@ impl PageDiscovery {
         cancel_flag: &AtomicBool,
         on_discovered: impl Fn(usize) + Send + Sync,
     ) -> Result<Vec<Url>> {
-        log::info!("[DISCOVERY] Starting page discovery from: {}", start_url);
-        log::debug!("[DISCOVERY] Max pages: {}, Delay: {}ms", max_pages, delay_ms);
-        
+        tracing::info!("[DISCOVERY] Starting page discovery from: {}", start_url);
+        tracing::debug!(
+            "[DISCOVERY] Max pages: {}, Delay: {}ms",
+            max_pages,
+            delay_ms
+        );
+
         let mut visited = HashSet::new();
         let mut to_visit = vec![start_url.clone()];
 
@@ -51,50 +55,62 @@ impl PageDiscovery {
             .host_str()
             .ok_or_else(|| anyhow::anyhow!("Invalid host"))?;
         let base_port = start_url.port();
-        log::debug!("[DISCOVERY] Base host: {}, port: {:?}", base_host, base_port);
+        tracing::debug!(
+            "[DISCOVERY] Base host: {}, port: {:?}",
+            base_host,
+            base_port
+        );
 
         while let Some(url) = to_visit.pop() {
             if cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
-                log::warn!("[DISCOVERY] Discovery cancelled by user at {} pages", visited.len());
+                tracing::warn!(
+                    "[DISCOVERY] Discovery cancelled by user at {} pages",
+                    visited.len()
+                );
                 return Ok(visited.into_iter().collect());
             }
             if visited.contains(&url) {
-                log::trace!("[DISCOVERY] Skipping already visited: {}", url);
+                tracing::trace!("[DISCOVERY] Skipping already visited: {}", url);
                 continue;
             }
 
             if visited.len() >= max_pages as usize {
-                log::info!("[DISCOVERY] Reached max pages limit: {}", max_pages);
+                tracing::info!("[DISCOVERY] Reached max pages limit: {}", max_pages);
                 break;
             }
 
             visited.insert(url.clone());
-            log::info!("[DISCOVERY] Discovered page {}/{}: {}", visited.len(), max_pages, url);
+            tracing::info!(
+                "[DISCOVERY] Discovered page {}/{}: {}",
+                visited.len(),
+                max_pages,
+                url
+            );
             on_discovered(visited.len());
 
             if delay_ms > 0 {
-                log::trace!("[DISCOVERY] Waiting {}ms before next request", delay_ms);
+                tracing::trace!("[DISCOVERY] Waiting {}ms before next request", delay_ms);
             }
             sleep(Duration::from_millis(delay_ms as u64)).await;
 
-            log::trace!("[DISCOVERY] Fetching page: {}", url);
+            tracing::trace!("[DISCOVERY] Fetching page: {}", url);
             let Ok(response) = self.client.get(url.as_str()).send().await else {
-                log::debug!("[DISCOVERY] Failed to fetch: {}", url);
+                tracing::debug!("[DISCOVERY] Failed to fetch: {}", url);
                 continue;
             };
 
             let Ok(body) = response.text().await else {
-                log::debug!("[DISCOVERY] Failed to read response body for: {}", url);
+                tracing::debug!("[DISCOVERY] Failed to read response body for: {}", url);
                 continue;
             };
-            log::trace!("[DISCOVERY] Received {} bytes from {}", body.len(), url);
+            tracing::trace!("[DISCOVERY] Received {} bytes from {}", body.len(), url);
 
             let links: Vec<Url> = Self::extract_links(&body, &url)
                 .into_iter()
                 .filter_map(|s| Url::parse(&s).ok())
                 .collect();
-            
-            log::debug!("[DISCOVERY] Found {} links on {}", links.len(), url);
+
+            tracing::debug!("[DISCOVERY] Found {} links on {}", links.len(), url);
 
             let mut new_links_count = 0;
             for link in links {
@@ -107,10 +123,17 @@ impl PageDiscovery {
                     new_links_count += 1;
                 }
             }
-            log::trace!("[DISCOVERY] Queued {} new internal links (queue size: {})", new_links_count, to_visit.len());
+            tracing::trace!(
+                "[DISCOVERY] Queued {} new internal links (queue size: {})",
+                new_links_count,
+                to_visit.len()
+            );
         }
 
-        log::info!("[DISCOVERY] Discovery complete - found {} pages", visited.len());
+        tracing::info!(
+            "[DISCOVERY] Discovery complete - found {} pages",
+            visited.len()
+        );
         Ok(visited.into_iter().collect())
     }
 
@@ -120,14 +143,14 @@ impl PageDiscovery {
     pub fn extract_links(html: &str, base_url: &Url) -> Vec<String> {
         static SELECTOR: OnceLock<Selector> = OnceLock::new();
         let selector = SELECTOR.get_or_init(|| Selector::parse("a[href]").unwrap());
-        
+
         Html::parse_document(html)
             .select(selector)
             .filter_map(|a| a.value().attr("href"))
-            .filter(|raw| !raw.starts_with('#'))  // Skip fragment-only links
+            .filter(|raw| !raw.starts_with('#')) // Skip fragment-only links
             .filter_map(|raw| base_url.join(raw).ok())
             .map(|mut u| {
-                u.set_fragment(None);  // Strip fragments from all links
+                u.set_fragment(None); // Strip fragments from all links
                 u.to_string()
             })
             .collect()
@@ -154,43 +177,47 @@ impl ResourceChecker {
 
     /// Check robots.txt exists
     pub async fn check_robots_txt(&self, base_url: Url) -> Result<ResourceStatus> {
-        log::debug!("[RESOURCE] Checking robots.txt for {}", base_url);
+        tracing::debug!("[RESOURCE] Checking robots.txt for {}", base_url);
         self.check_resource(base_url, "robots.txt").await
     }
 
     /// Check sitemap.xml exists
     pub async fn check_sitemap_xml(&self, base_url: Url) -> Result<ResourceStatus> {
-        log::debug!("[RESOURCE] Checking sitemap.xml for {}", base_url);
+        tracing::debug!("[RESOURCE] Checking sitemap.xml for {}", base_url);
         self.check_resource(base_url, "sitemap.xml").await
     }
 
     /// Check SSL certificate (HTTPS)
     pub fn check_ssl_certificate(&self, url: &Url) -> bool {
         let has_ssl = url.scheme() == "https";
-        log::debug!("[RESOURCE] SSL check for {}: {}", url, has_ssl);
+        tracing::debug!("[RESOURCE] SSL check for {}: {}", url, has_ssl);
         has_ssl
     }
 
     async fn check_resource(&self, base_url: Url, path: &str) -> Result<ResourceStatus> {
         let resource_url = base_url.join(path)?;
-        log::trace!("[RESOURCE] Fetching: {}", resource_url);
+        tracing::trace!("[RESOURCE] Fetching: {}", resource_url);
         let response = self.client.get(resource_url.clone()).send().await?;
 
         let status = match response.status() {
             rquest::StatusCode::OK => {
-                log::debug!("[RESOURCE] Found: {}", resource_url);
+                tracing::debug!("[RESOURCE] Found: {}", resource_url);
                 ResourceStatus::Found(resource_url.to_string())
             }
             rquest::StatusCode::UNAUTHORIZED | rquest::StatusCode::FORBIDDEN => {
-                log::debug!("[RESOURCE] Unauthorized: {}", resource_url);
+                tracing::debug!("[RESOURCE] Unauthorized: {}", resource_url);
                 ResourceStatus::Unauthorized(resource_url.to_string())
             }
             rquest::StatusCode::NOT_FOUND => {
-                log::debug!("[RESOURCE] Not found: {}", resource_url);
+                tracing::debug!("[RESOURCE] Not found: {}", resource_url);
                 ResourceStatus::NotFound
             }
             status => {
-                log::debug!("[RESOURCE] Unexpected status {} for: {}", status, resource_url);
+                tracing::debug!(
+                    "[RESOURCE] Unexpected status {} for: {}",
+                    status,
+                    resource_url
+                );
                 ResourceStatus::NotFound
             }
         };

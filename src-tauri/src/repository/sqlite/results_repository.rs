@@ -8,8 +8,8 @@ use chrono::Utc;
 use sqlx::SqlitePool;
 
 use crate::domain::models::{
-    AiInsight, CompleteAnalysisResult, CompleteJobResult, Heading, Image, Issue, Job,
-    JobSettings, JobSummary, LighthouseData, Link, Page,
+    AiInsight, CompleteJobResult, Heading, Image, Issue, Job, JobSettings, JobSummary,
+    LighthouseData, Link, Page,
 };
 
 use super::{map_job_status, map_link_type, map_severity};
@@ -43,26 +43,29 @@ impl ResultsRepository {
 
         // 2. Get pages (direct FK lookup - FAST!)
         let pages = self.get_pages(job_id).await?;
-        log::debug!("Fetched {} pages in {:?}", pages.len(), query_start.elapsed());
+        tracing::debug!(
+            "Fetched {} pages in {:?}",
+            pages.len(),
+            query_start.elapsed()
+        );
 
         // 3. Get issues (direct FK lookup - FAST!)
         let issues = self.get_issues(job_id).await?;
-        log::debug!("Fetched {} issues", issues.len());
+        tracing::debug!("Fetched {} issues", issues.len());
 
         // 4. Get links (direct FK lookup - FAST!)
         let links = self.get_links(job_id).await?;
-        log::debug!("Fetched {} links", links.len());
+        tracing::debug!("Fetched {} links", links.len());
 
         // 5. Get lighthouse data
         let lighthouse = self.get_lighthouse(job_id).await?;
-        log::debug!("Fetched {} lighthouse records", lighthouse.len());
-
+        tracing::debug!("Fetched {} lighthouse records", lighthouse.len());
 
         // 6. Get AI insights (optional)
         let ai_insights = self.get_ai_insights(job_id).await.ok();
 
         let total_time = query_start.elapsed();
-        log::info!(
+        tracing::info!(
             "Loaded complete result for job {} with {} pages, {} issues, {} links in {:?}",
             job_id,
             pages.len(),
@@ -79,13 +82,6 @@ impl ResultsRepository {
             lighthouse,
             ai_insights,
         })
-    }
-
-    /// Get complete analysis result (frontend-compatible) with headings/images populated per page.
-    pub async fn get_complete_analysis_result(&self, job_id: &str) -> Result<CompleteAnalysisResult> {
-        // Delegate assembly to AnalysisAssembler to keep repo small and focused on DB access
-        let assembler = crate::service::analysis_assembler::AnalysisAssembler::new(self.pool.clone());
-        assembler.assemble(job_id).await
     }
 
     pub async fn get_job(&self, job_id: &str) -> Result<Job> {
@@ -404,11 +400,76 @@ impl ResultsRepository {
     }
 }
 
+use crate::repository::ResultsRepository as ResultsRepositoryTrait;
+use async_trait::async_trait;
+
+#[async_trait]
+impl ResultsRepositoryTrait for ResultsRepository {
+    async fn get_complete_result(
+        &self,
+        job_id: &str,
+    ) -> Result<crate::domain::models::CompleteJobResult> {
+        ResultsRepository::get_complete_result(self, job_id).await
+    }
+
+    async fn get_job(&self, job_id: &str) -> Result<crate::domain::models::Job> {
+        ResultsRepository::get_job(self, job_id).await
+    }
+
+    async fn get_pages(&self, job_id: &str) -> Result<Vec<crate::domain::models::Page>> {
+        ResultsRepository::get_pages(self, job_id).await
+    }
+
+    async fn get_issues(&self, job_id: &str) -> Result<Vec<crate::domain::models::Issue>> {
+        ResultsRepository::get_issues(self, job_id).await
+    }
+
+    async fn get_links(&self, job_id: &str) -> Result<Vec<crate::domain::models::Link>> {
+        ResultsRepository::get_links(self, job_id).await
+    }
+
+    async fn get_lighthouse(
+        &self,
+        job_id: &str,
+    ) -> Result<Vec<crate::domain::models::LighthouseData>> {
+        ResultsRepository::get_lighthouse(self, job_id).await
+    }
+
+    async fn get_headings(&self, job_id: &str) -> Result<Vec<crate::domain::models::Heading>> {
+        ResultsRepository::get_headings(self, job_id).await
+    }
+
+    async fn get_images(&self, job_id: &str) -> Result<Vec<crate::domain::models::Image>> {
+        ResultsRepository::get_images(self, job_id).await
+    }
+
+    async fn get_ai_insights(&self, job_id: &str) -> Result<crate::domain::models::AiInsight> {
+        ResultsRepository::get_ai_insights(self, job_id).await
+    }
+
+    async fn save_ai_insights(
+        &self,
+        job_id: &str,
+        summary: Option<&str>,
+        recommendations: Option<&str>,
+        raw_response: Option<&str>,
+        model: Option<&str>,
+    ) -> Result<()> {
+        ResultsRepository::save_ai_insights(
+            self,
+            job_id,
+            summary,
+            recommendations,
+            raw_response,
+            model,
+        )
+        .await
+    }
+}
+
 /// Parse datetime string to UTC DateTime.
 fn parse_datetime(s: &str) -> chrono::DateTime<Utc> {
     chrono::DateTime::parse_from_rfc3339(s)
         .map(|dt| dt.with_timezone(&Utc))
         .unwrap_or_else(|_| Utc::now())
 }
-
-

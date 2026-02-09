@@ -2,21 +2,19 @@ use crate::service::http::{create_client, ClientType};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sqlx::SqlitePool;
-
-use crate::db;
+use specta::Type;
 
 /// The Gemini API endpoint path (without base URL)
 pub const GEMINI_API_PATH: &str = "/v1beta/models/gemini-2.0-flash:generateContent";
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Type)]
 pub struct PromptBlock {
     pub id: String,
     pub r#type: String, // "text" or "variable"
     pub content: String,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Type)]
 pub struct GeminiRequest {
     pub analysis_id: String, // Added for caching
     pub url: String,
@@ -36,13 +34,14 @@ pub struct GeminiRequest {
 
 /// Generate AI-powered SEO analysis using Google Gemini API
 pub async fn generate_gemini_analysis(
-    pool: &SqlitePool,
+    ai_repo: std::sync::Arc<dyn crate::repository::AiRepository>,
+    settings_repo: std::sync::Arc<dyn crate::repository::SettingsRepository>,
     request: GeminiRequest,
     api_base_url: Option<String>,
 ) -> Result<String> {
     // 1. Check cache first
-    if let Ok(Some(cached_insights)) = db::get_ai_insights(pool, &request.analysis_id).await {
-        log::info!(
+    if let Ok(Some(cached_insights)) = ai_repo.get_ai_insights(&request.analysis_id).await {
+        tracing::info!(
             "Using cached AI insights for analysis {}",
             request.analysis_id
         );
@@ -50,7 +49,7 @@ pub async fn generate_gemini_analysis(
     }
 
     // Get API key from database
-    let api_key = match db::get_setting(pool, "gemini_api_key").await? {
+    let api_key = match settings_repo.get_setting("gemini_api_key").await? {
         Some(key) if !key.is_empty() => key,
         _ => {
             anyhow::bail!("API_KEY_MISSING: Please configure your Gemini API key");
@@ -58,13 +57,14 @@ pub async fn generate_gemini_analysis(
     };
 
     // Get persona from database
-    let persona = match db::get_setting(pool, "gemini_persona").await? {
+    let persona = match settings_repo.get_setting("gemini_persona").await? {
         Some(p) if !p.is_empty() => p,
         _ => "You are an expert SEO consultant. Your tone is professional, encouraging, and data-driven.".to_string(),
     };
 
     // Get prompt blocks from database
-    let blocks_json = db::get_setting(pool, "gemini_prompt_blocks")
+    let blocks_json = settings_repo
+        .get_setting("gemini_prompt_blocks")
         .await?
         .unwrap_or_else(|| "[]".to_string());
 
@@ -139,8 +139,8 @@ pub async fn generate_gemini_analysis(
         .to_string();
 
     // 2. Save to cache
-    if let Err(e) = db::save_ai_insights(pool, &request.analysis_id, &text).await {
-        log::error!("Failed to save AI insights to cache: {}", e);
+    if let Err(e) = ai_repo.save_ai_insights(&request.analysis_id, &text).await {
+        tracing::error!("Failed to save AI insights to cache: {}", e);
     }
 
     Ok(text)
@@ -182,6 +182,7 @@ pub fn replace_prompt_vars(text: &str, request: &GeminiRequest) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::repository::sqlite::SettingsRepository;
 
     #[test]
     fn test_replace_prompt_vars() {
@@ -217,7 +218,8 @@ mod tests {
 
         // 1. Setup DB with API Key
         let pool = fixtures::setup_test_db().await;
-        db::set_setting(&pool, "gemini_api_key", "test_key")
+        let repo = SettingsRepository::new(pool.clone());
+        repo.set_setting("gemini_api_key", "test_key")
             .await
             .unwrap();
 
@@ -237,7 +239,12 @@ mod tests {
         request.analysis_id = "integration_test".into();
         request.url = "https://test.com".into();
 
-        let result = generate_gemini_analysis(&pool, request, Some(server.url()))
+        let ai_repo =
+            std::sync::Arc::new(crate::repository::sqlite::AiRepository::new(pool.clone()));
+        let settings_repo = std::sync::Arc::new(
+            crate::repository::sqlite::SettingsRepository::new(pool.clone()),
+        );
+        let result = generate_gemini_analysis(ai_repo, settings_repo, request, Some(server.url()))
             .await
             .unwrap();
 
@@ -260,7 +267,12 @@ mod tests {
 
         let request = fixtures::minimal_gemini_request();
 
-        let result = generate_gemini_analysis(&pool, request, None).await;
+        let ai_repo =
+            std::sync::Arc::new(crate::repository::sqlite::AiRepository::new(pool.clone()));
+        let settings_repo = std::sync::Arc::new(
+            crate::repository::sqlite::SettingsRepository::new(pool.clone()),
+        );
+        let result = generate_gemini_analysis(ai_repo, settings_repo, request, None).await;
 
         assert!(result.is_err(), "Should fail when API key is missing");
         let err = result.unwrap_err().to_string();
@@ -276,9 +288,8 @@ mod tests {
         use crate::test_utils::fixtures;
 
         let pool = fixtures::setup_test_db().await;
-        db::set_setting(&pool, "gemini_api_key", "bad_key")
-            .await
-            .unwrap();
+        let repo = SettingsRepository::new(pool.clone());
+        repo.set_setting("gemini_api_key", "bad_key").await.unwrap();
 
         let mut server = mockito::Server::new_async().await;
         let api_path = format!("{}?key=bad_key", GEMINI_API_PATH);
@@ -291,7 +302,13 @@ mod tests {
 
         let request = fixtures::minimal_gemini_request();
 
-        let result = generate_gemini_analysis(&pool, request, Some(server.url())).await;
+        let ai_repo =
+            std::sync::Arc::new(crate::repository::sqlite::AiRepository::new(pool.clone()));
+        let settings_repo = std::sync::Arc::new(
+            crate::repository::sqlite::SettingsRepository::new(pool.clone()),
+        );
+        let result =
+            generate_gemini_analysis(ai_repo, settings_repo, request, Some(server.url())).await;
 
         assert!(result.is_err(), "Should fail when API returns error");
         let err = result.unwrap_err().to_string();
@@ -307,7 +324,8 @@ mod tests {
         use crate::test_utils::{fixtures, mocks};
 
         let pool = fixtures::setup_test_db().await;
-        db::set_setting(&pool, "gemini_api_key", "test_key")
+        let repo = SettingsRepository::new(pool.clone());
+        repo.set_setting("gemini_api_key", "test_key")
             .await
             .unwrap();
 
@@ -338,16 +356,26 @@ mod tests {
         request.analysis_id = test_job_id.to_string();
 
         // First call - should hit API
-        let result1 = generate_gemini_analysis(&pool, request.clone(), Some(server.url()))
-            .await
-            .unwrap();
+        let ai_repo =
+            std::sync::Arc::new(crate::repository::sqlite::AiRepository::new(pool.clone()));
+        let settings_repo = std::sync::Arc::new(
+            crate::repository::sqlite::SettingsRepository::new(pool.clone()),
+        );
+        let result1 = generate_gemini_analysis(
+            ai_repo.clone(),
+            settings_repo.clone(),
+            request.clone(),
+            Some(server.url()),
+        )
+        .await
+        .unwrap();
         assert!(
             result1.contains("Cached"),
             "First call should return API result"
         );
 
         // Second call with same analysis_id - should use cache
-        let result2 = generate_gemini_analysis(&pool, request, Some(server.url()))
+        let result2 = generate_gemini_analysis(ai_repo, settings_repo, request, Some(server.url()))
             .await
             .unwrap();
         assert!(

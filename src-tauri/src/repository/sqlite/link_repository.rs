@@ -51,7 +51,7 @@ impl LinkRepository {
         }
 
         tx.commit().await?;
-        log::debug!("Inserted {} links", links.len());
+        tracing::debug!("Inserted {} links", links.len());
         Ok(())
     }
 
@@ -255,6 +255,47 @@ impl LinkRepository {
 
         tx.commit().await?;
         Ok(())
+    }
+}
+
+use crate::repository::LinkRepository as LinkRepositoryTrait;
+use async_trait::async_trait;
+
+#[async_trait]
+impl LinkRepositoryTrait for LinkRepository {
+    async fn insert_batch(&self, links: &[crate::domain::models::NewLink]) -> Result<()> {
+        LinkRepository::insert_batch(self, links).await
+    }
+
+    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::models::Link>> {
+        LinkRepository::get_by_job_id(self, job_id).await
+    }
+
+    async fn get_outgoing(&self, source_page_id: &str) -> Result<Vec<crate::domain::models::Link>> {
+        LinkRepository::get_outgoing(self, source_page_id).await
+    }
+
+    async fn get_incoming(&self, target_page_id: &str) -> Result<Vec<crate::domain::models::Link>> {
+        LinkRepository::get_incoming(self, target_page_id).await
+    }
+
+    async fn get_broken(&self, job_id: &str) -> Result<Vec<crate::domain::models::Link>> {
+        LinkRepository::get_broken(self, job_id).await
+    }
+
+    async fn count_by_type(&self, job_id: &str) -> Result<crate::repository::sqlite::LinkCounts> {
+        LinkRepository::count_by_type(self, job_id).await
+    }
+
+    async fn get_external_domains(
+        &self,
+        job_id: &str,
+    ) -> Result<Vec<crate::repository::sqlite::ExternalDomain>> {
+        LinkRepository::get_external_domains(self, job_id).await
+    }
+
+    async fn update_status_codes(&self, updates: &[(i64, i64)]) -> Result<()> {
+        LinkRepository::update_status_codes(self, updates).await
     }
 }
 

@@ -1,6 +1,6 @@
 import useSWR from "swr";
 import { getResult } from "@/src/api/analysis";
-import { CompleteAnalysisResult } from "@/src/lib/types";
+import { CompleteAnalysisResponse } from "../bindings";
 
 // Helper for SWR
 const fetchAnalysis = async (id: string) => {
@@ -9,7 +9,7 @@ const fetchAnalysis = async (id: string) => {
 };
 
 export function useAnalysis(id: string) {
-    const { data, error, isLoading, mutate } = useSWR<CompleteAnalysisResult>(
+    const { data, error, isLoading, mutate } = useSWR<CompleteAnalysisResponse>(
         id ? `analysis-${id}` : null,
         () => fetchAnalysis(id),
         {

@@ -10,8 +10,8 @@ pub async fn set_up_test_db_with_prod_data() -> SqlitePool {
         .run(&pool)
         .await
         .expect("Failed to run migrations");
-    
-    // Apply performance pragmas (same as production)  
+
+    // Apply performance pragmas (same as production)
     pool
 }
 
@@ -24,7 +24,7 @@ pub async fn connect_test_db_no_migrate() -> SqlitePool {
         .connect("sqlite:src/test_utils/test.db")
         .await
         .expect("Failed to connect");
-    
+
     // Apply performance pragmas (same as production)
     pool
 }
@@ -38,7 +38,7 @@ pub async fn connect_test_db_v1() -> SqlitePool {
         .connect("sqlite:src/test_utils/test_v1.db")
         .await
         .expect("Failed to connect to V1 test database");
-    
+
     // Apply performance pragmas (same as production)
     pool
 }
@@ -55,9 +55,9 @@ pub async fn set_up_benchmark_db() -> SqlitePool {
         .run(&pool)
         .await
         .expect("Failed to run migrations");
-    
+
     // Apply performance pragmas (same as production, except WAL which doesn't work with :memory:)
- 
+
     pool
 }
 
@@ -138,14 +138,46 @@ pub mod generators {
     /// Generate mock SEO issues for benchmarking
     pub fn generate_mock_issues(count: usize, page_id: &str, page_url: &str) -> Vec<SeoIssue> {
         let issue_templates = [
-            (IssueSeverity::Critical, "Missing Title Tag", "Page has no title tag defined"),
-            (IssueSeverity::Critical, "Missing Meta Description", "No meta description found"),
-            (IssueSeverity::Warning, "Title Too Long", "Title exceeds 60 characters"),
-            (IssueSeverity::Warning, "Multiple H1 Tags", "Page has more than one H1 tag"),
-            (IssueSeverity::Warning, "Images Missing Alt Text", "Some images lack alt attributes"),
-            (IssueSeverity::Info, "Thin Content", "Page has less than 300 words"),
-            (IssueSeverity::Info, "No Schema Markup", "Consider adding structured data"),
-            (IssueSeverity::Info, "Slow Page Load", "Page load time exceeds 3 seconds"),
+            (
+                IssueSeverity::Critical,
+                "Missing Title Tag",
+                "Page has no title tag defined",
+            ),
+            (
+                IssueSeverity::Critical,
+                "Missing Meta Description",
+                "No meta description found",
+            ),
+            (
+                IssueSeverity::Warning,
+                "Title Too Long",
+                "Title exceeds 60 characters",
+            ),
+            (
+                IssueSeverity::Warning,
+                "Multiple H1 Tags",
+                "Page has more than one H1 tag",
+            ),
+            (
+                IssueSeverity::Warning,
+                "Images Missing Alt Text",
+                "Some images lack alt attributes",
+            ),
+            (
+                IssueSeverity::Info,
+                "Thin Content",
+                "Page has less than 300 words",
+            ),
+            (
+                IssueSeverity::Info,
+                "No Schema Markup",
+                "Consider adding structured data",
+            ),
+            (
+                IssueSeverity::Info,
+                "Slow Page Load",
+                "Page load time exceeds 3 seconds",
+            ),
         ];
 
         (0..count)

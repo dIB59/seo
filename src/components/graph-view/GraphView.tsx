@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback } from "react"
 import { useTheme } from "next-themes"
-import type { CompleteAnalysisResult } from "@/src/lib/types"
+import type { CompleteAnalysisResponse, PageAnalysisDataResponse } from "@/src/lib/types"
 import GraphControls from "./molecules/GraphControls"
 import SelectedNodePanel from "./atoms/SelectedNodePanel"
 import NodeTooltip from "./atoms/NodeTooltip"
@@ -11,7 +11,7 @@ import GraphLegend from "./atoms/GraphLegend"
 import { useGraphData, useContainerDimensions } from "./atoms/hooks"
 
 interface GraphViewProps {
-    data: CompleteAnalysisResult
+    data: CompleteAnalysisResponse
     onNodeClick?: (url: string) => void
     onSelectPage?: (index: number) => void
 }

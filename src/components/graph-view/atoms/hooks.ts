@@ -1,9 +1,9 @@
 import { useMemo, useEffect, useState } from "react"
-import type { CompleteAnalysisResult } from "@/src/lib/types"
+import type { CompleteAnalysisResponse } from "@/src/lib/types"
 import { normalizeUrl, resolveInternalUrl } from "./url-utils"
 import { calculateNodeDegrees } from "./node-utils"
 
-export const useGraphData = (data: CompleteAnalysisResult, selectedNodeId: string | null) => {
+export const useGraphData = (data: CompleteAnalysisResponse, selectedNodeId: string | null) => {
     return useMemo(() => {
         type GraphNode = any
         type GraphLink = any
@@ -38,7 +38,7 @@ export const useGraphData = (data: CompleteAnalysisResult, selectedNodeId: strin
             if (!page.detailed_links) return
 
             page.detailed_links.forEach(link => {
-                if (!link.is_internal) return
+                if (link.is_external) return
 
                 const targetUrl = resolveInternalUrl(link.href, page.url, validUrls)
                 if (!targetUrl) return

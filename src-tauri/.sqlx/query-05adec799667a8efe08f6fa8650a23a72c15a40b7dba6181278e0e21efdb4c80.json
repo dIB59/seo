@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO settings (id, default_max_pages) VALUES (1, ?)\n                     ON CONFLICT(id) DO UPDATE SET default_max_pages = ?, updated_at = datetime('now')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "05adec799667a8efe08f6fa8650a23a72c15a40b7dba6181278e0e21efdb4c80"
+}

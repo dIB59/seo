@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO settings (id, default_max_depth) VALUES (1, ?)\n                     ON CONFLICT(id) DO UPDATE SET default_max_depth = ?, updated_at = datetime('now')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "614679d31b2675cc36da90670bedb3c4dbdc0894d665d1cd7e502df62aa7fe1b"
+}

@@ -3,17 +3,21 @@
 //! This module provides data access for the normalized schema.
 //! All queries use direct `job_id` foreign keys eliminating expensive JOINs.
 
-mod job_repository;
-mod page_repository;
+mod ai_repository;
 mod issue_repository;
+mod job_repository;
 mod link_repository;
+mod page_repository;
 mod results_repository;
+mod settings_repository;
 
+pub use ai_repository::AiRepository;
+pub use issue_repository::{IssueCounts, IssueGroup, IssueRepository};
 pub use job_repository::JobRepository;
+pub use link_repository::{ExternalDomain, LinkCounts, LinkRepository};
 pub use page_repository::PageRepository;
-pub use issue_repository::{IssueRepository, IssueCounts, IssueGroup};
-pub use link_repository::{LinkRepository, LinkCounts, ExternalDomain};
 pub use results_repository::ResultsRepository;
+pub use settings_repository::SettingsRepository;
 
 use crate::domain::models::{IssueSeverity, JobStatus, LinkType};
 

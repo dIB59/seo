@@ -1,17 +1,18 @@
-import { CompleteAnalysisResult, SeoIssue } from "@/src/lib/types"
+import { SeoIssue } from "@/src/lib/types"
 import { cn } from "@/src/lib/utils"
 import { Card, CardContent } from "../../ui/card"
 import { Separator } from "../../ui/separator"
 import { ScoreRing } from "../atoms/ScoreRing"
 import { IssueBadge } from "../atoms/IssueBadge"
 import { getScoreColor, getScoreLabel } from "@/src/lib/seo-metrics"
+import { CompleteAnalysisResponse, SeoIssueResponse } from "@/src/lib/types"
 
 export function ScoreCard({
     summary,
     issues,
 }: {
-    summary: CompleteAnalysisResult["summary"]
-    issues: SeoIssue[]
+    summary: CompleteAnalysisResponse["summary"]
+    issues: SeoIssueResponse[]
 }) {
     const criticalCount = issues.filter((i) => i.severity === "critical").length
     const warningCount = issues.filter((i) => i.severity === "warning").length

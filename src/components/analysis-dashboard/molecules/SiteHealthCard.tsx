@@ -1,13 +1,14 @@
-import { CompleteAnalysisResult, PageAnalysisData } from "@/src/lib/types"
+import {  PageAnalysisData } from "@/src/lib/types"
 import { Separator } from "@radix-ui/react-dropdown-menu"
 import { Card, CardContent } from "../../ui/card"
 import HealthIndicator from "../atoms/HealthIndicator"
+import { CompleteAnalysisResponse } from "@/src/lib/types"
 
 export function SiteHealthCard({
     analysis,
     pages,
 }: {
-    analysis: CompleteAnalysisResult["analysis"]
+    analysis: CompleteAnalysisResponse["analysis"]
     pages: PageAnalysisData[]
 }) {
     const mobilePages = pages.filter((p) => p.mobile_friendly).length
