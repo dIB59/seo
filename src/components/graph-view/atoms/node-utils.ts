@@ -1,4 +1,4 @@
-import type { CompleteAnalysisResponse } from "@/src/bindings"
+import type { CompleteAnalysisResponse } from "@/src/lib/types"
 
 export const calculateNodeDegrees = (
     pages: CompleteAnalysisResponse['pages'],

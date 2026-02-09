@@ -1,7 +1,7 @@
 import { Clock, FileText, ImageIcon, Link2 } from "lucide-react"
 import { Card, CardContent } from "../../ui/card"
 import { StatItem } from "../atoms/Stat"
-import { CompleteAnalysisResponse } from "@/src/bindings"
+import { CompleteAnalysisResponse } from "@/src/lib/types"
 
 export function QuickStatsCard({
 	summary,

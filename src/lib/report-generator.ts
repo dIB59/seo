@@ -1,4 +1,4 @@
-import type { CompleteAnalysisResponse } from "@/src/bindings";
+import type { CompleteAnalysisResponse } from "@/src/lib/types";
 import { getScoreLabel } from "./seo-metrics";
 
 export function generateReport(result: CompleteAnalysisResponse): string {

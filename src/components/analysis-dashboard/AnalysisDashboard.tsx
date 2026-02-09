@@ -12,7 +12,7 @@ import { AnalysisHeader } from "./organisms/AnalysisHeader";
 import { Network } from "lucide-react";
 import { OverviewTab } from "./molecules/OverviewTab";
 import GraphView from "../graph-view/GraphView";
-import { CompleteAnalysisResponse, PageAnalysisDataResponse } from "@/src/bindings";
+import { CompleteAnalysisResponse, PageAnalysisDataResponse } from "@/src/lib/types";
 
 export default function AnalysisDashboard({ data, onBack, onSelectPage }:
     {

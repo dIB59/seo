@@ -6,7 +6,7 @@ import { Button } from "@/src/components/ui/button"
 import { ArrowLeft, Loader2 } from "lucide-react"
 import { PageDetailData } from "@/src/lib/types"
 import { PageDetailView } from "@/src/components/page-detail-view/PageDetailView"
-import type { PageAnalysisDataResponse } from "@/src/bindings"
+import type { PageAnalysisData } from "@/src/lib/types"
 
 export default function PageDetailPage() {
     const searchParams = useSearchParams()
@@ -41,7 +41,7 @@ export default function PageDetailPage() {
         )
     }
 
-    const pages = (result.pages as PageAnalysisDataResponse[]).map((p) => ({ ...p } as PageDetailData))
+    const pages = (result.pages as PageAnalysisData[]).map((p) => ({ ...p } as PageDetailData))
     const page = pages[currentIndex]
 
     return (

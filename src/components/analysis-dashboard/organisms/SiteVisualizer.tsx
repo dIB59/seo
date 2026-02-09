@@ -2,7 +2,7 @@ import { Network, Maximize2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import GraphView from "../../graph-view/GraphView";
-import { CompleteAnalysisResponse, PageAnalysisDataResponse } from "@/src/bindings";
+import { CompleteAnalysisResponse, PageAnalysisDataResponse } from "@/src/lib/types";
 
 interface SiteVisualizerProps {
     data: CompleteAnalysisResponse;

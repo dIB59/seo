@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback } from "react"
 import { useTheme } from "next-themes"
-import type { CompleteAnalysisResponse, PageAnalysisDataResponse } from "@/src/bindings"
+import type { CompleteAnalysisResponse, PageAnalysisDataResponse } from "@/src/lib/types"
 import GraphControls from "./molecules/GraphControls"
 import SelectedNodePanel from "./atoms/SelectedNodePanel"
 import NodeTooltip from "./atoms/NodeTooltip"

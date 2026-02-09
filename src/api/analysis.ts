@@ -1,18 +1,28 @@
-import { execute } from "@/src/lib/tauri"
-import type { AnalysisProgress, AnalysisSettingsRequest } from "@/src/lib/types"
-import { CompleteAnalysisResponse } from "../bindings";
+import { commands } from "@/src/bindings"
+import type { AnalysisProgress, AnalysisSettingsRequest, CompleteAnalysisResult, AnalysisJobResponse } from "@/src/lib/types"
+import { Result } from "@/src/lib/result"
 
-export const startAnalysis = (url: string, settings: AnalysisSettingsRequest) =>
-    execute<{ job_id: string }>("start_analysis", { url, settings });
+export const startAnalysis = async (url: string, settings: AnalysisSettingsRequest): Promise<Result<AnalysisJobResponse, string>> => {
+    const res = await commands.startAnalysis(url, settings || null)
+    return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error as string)
+}
 
-export const getAllJobs = () =>
-    execute<AnalysisProgress[]>("get_all_jobs");
+export const getAllJobs = async (): Promise<Result<AnalysisProgress[], string>> => {
+    const res = await commands.getAllJobs()
+    return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error as string)
+}
 
-export const getResult = (jobId: string) =>
-    execute<CompleteAnalysisResponse>("get_result", { jobId });
+export const getResult = async (jobId: string): Promise<Result<CompleteAnalysisResult, string>> => {
+    const res = await commands.getResult(jobId)
+    return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error as string)
+}
 
-export const cancelAnalysis = (jobId: string) =>
-    execute<void>("cancel_analysis", { jobId });
+export const cancelAnalysis = async (jobId: string): Promise<Result<null, string>> => {
+    const res = await commands.cancelAnalysis(jobId)
+    return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error as string)
+}
 
-export const getAnalysisProgress = (jobId: string) =>
-    execute<AnalysisProgress>("get_analysis_progress", { jobId });
+export const getAnalysisProgress = async (jobId: string): Promise<Result<AnalysisProgress, string>> => {
+    const res = await commands.getAnalysisProgress(jobId)
+    return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error as string)
+}

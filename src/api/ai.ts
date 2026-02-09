@@ -1,7 +1,8 @@
-import { execute } from "@/src/lib/tauri"
 import { toast } from "sonner"
 import { Result } from "../lib/result";
-import { CompleteAnalysisResponse } from "../bindings";
+import type { CompleteAnalysisResponse, SeoIssue } from "@/src/lib/types";
+import { commands } from "@/src/bindings";
+
 
 export const AiError = {
     MissingKey: "MISSING_KEY",
@@ -18,14 +19,14 @@ export type AiError = typeof AiError[keyof typeof AiError];
  * Get Gemini API key from database 
  */
 async function getStoredApiKey(): Promise<Result<string, string>> {
-    const existingKeyResult = await execute<string | null>("get_gemini_api_key")
+    const res = await commands.getGeminiApiKey()
+    if (res.status === "ok") {
+        const key = res.data
+        if (key && key.trim().length > 0) return Result.Ok(key)
+        return Result.Err("API_KEY_MISSING")
+    }
 
-    return existingKeyResult.andThen(key => {
-        if (key && key.trim().length > 0) {
-            return Result.Ok(key);
-        }
-        return Result.Err("API_KEY_MISSING");
-    });
+    return Result.Err(res.error ?? "API_KEY_MISSING")
 }
 
 /**
@@ -58,34 +59,31 @@ export async function generateGeminiAnalysis(
 
     const { analysis, summary, issues, pages } = result;
 
-    // 2. Call Backend
-    const insightsResult = await execute<string>("get_gemini_insights", {
-        request: {
-            analysisId: analysis.id,
-            url: analysis.url,
-            seoScore: summary.seo_score,
-            pagesCount: pages.length,
-            totalIssues: summary.total_issues,
-            criticalIssues: issues.filter(i => i.severity === "critical").length,
-            warningIssues: issues.filter(i => i.severity === "warning").length,
-            suggestionIssues: issues.filter(i => i.severity === "info").length,
-            topIssues: issues.slice(0, 10).map(i => `- ${i.title}`),
-            avgLoadTime: summary.avg_load_time,
-            totalWords: summary.total_words,
-            sslCertificate: analysis.ssl_certificate,
-            sitemapFound: analysis.sitemap_found,
-            robotsTxtFound: analysis.robots_txt_found,
-        }
+    // 2. Call Backend via generated bindings
+    const insightsResult = await commands.getGeminiInsights({
+        analysis_id: analysis.id,
+        url: analysis.url,
+        seo_score: summary.seo_score,
+        pages_count: pages.length,
+        total_issues: summary.total_issues,
+        critical_issues: issues.filter((i: SeoIssue) => i.severity === "critical").length,
+        warning_issues: issues.filter((i: SeoIssue) => i.severity === "warning").length,
+        suggestion_issues: issues.filter((i: SeoIssue) => i.severity === "info").length,
+        top_issues: issues.slice(0, 10).map((i: SeoIssue) => `- ${i.title}`),
+        avg_load_time: summary.avg_load_time,
+        total_words: summary.total_words,
+        ssl_certificate: analysis.ssl_certificate,
+        sitemap_found: analysis.sitemap_found,
+        robots_txt_found: analysis.robots_txt_found,
     });
 
-    return insightsResult.match<Result<string, AiError>>(
-        (data) => Result.Ok(data),
-        (err) => {
-            const errorType = mapErrorToType(err);
-            handleAiUiEffects(errorType);
-            return Result.Err(errorType);
-        }
-    );
+    if (insightsResult.status === "ok") {
+        return Result.Ok(insightsResult.data);
+    }
+
+    const errorType = mapErrorToType(insightsResult.error as string);
+    handleAiUiEffects(errorType);
+    return Result.Err(errorType);
 }
 
 function handleAiUiEffects(error: AiError) {

@@ -1,5 +1,5 @@
 import { useMemo, useEffect, useState } from "react"
-import type { CompleteAnalysisResponse } from "@/src/bindings"
+import type { CompleteAnalysisResponse } from "@/src/lib/types"
 import { normalizeUrl, resolveInternalUrl } from "./url-utils"
 import { calculateNodeDegrees } from "./node-utils"
 

@@ -1,5 +1,5 @@
 import jsPDF from "jspdf"
-import type { CompleteAnalysisResponse } from "@/src/bindings"
+import type { CompleteAnalysisResponse } from "@/src/lib/types"
 import { generateReport, generateCSV } from "@/src/lib/report-generator"
 import { save } from "@tauri-apps/plugin-dialog"
 import { writeTextFile, writeFile } from "@tauri-apps/plugin-fs"

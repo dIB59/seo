@@ -1,4 +1,4 @@
-import { CompleteAnalysisResponse } from "@/src/bindings"
+import { CompleteAnalysisResponse } from "@/src/lib/types"
 import {
     downloadCSVReport,
     downloadTextReport,
