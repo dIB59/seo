@@ -25,8 +25,18 @@
     }
   },
   "bundle": {
-    "active": true,
-    "targets": "all",
+    "active": false,
+    "targets": ["deb", "rpm"],
+      "linux": {
+      "deb": {
+        "files": {}
+      },
+      "rpm": {
+        "epoch": 0,
+        "files": {},
+        "release": "1"
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
