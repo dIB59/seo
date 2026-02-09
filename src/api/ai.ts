@@ -46,23 +46,6 @@ function mapErrorToType(error: string): AiError {
     return AiError.Unknown;
 }
 
-export async function get_gemini_api_key(): Promise<Result<string, string>> {
-    const res = await commands.getGeminiApiKey()
-    if (res.status === "ok") {
-        const key = res.data
-        if (key && key.trim().length > 0) return Result.Ok(key)
-        return Result.Err("API_KEY_MISSING")
-    }
-
-    return Result.Err(res.error ?? "API_KEY_MISSING")
-    
-}
-
-export async function set_gemini_api_key(apiKey: string): Promise<Result<null, string>> {
-    const res = await commands.setGeminiApiKey(apiKey)
-    return res.status === "ok" ? Result.Ok(null) : Result.Err(res.error as string)
-}
-
 export async function generateGeminiAnalysis(
     result: CompleteAnalysisResponse
 ): Promise<Result<string, AiError>> {
@@ -101,6 +84,67 @@ export async function generateGeminiAnalysis(
     const errorType = mapErrorToType(insightsResult.error as string);
     handleAiUiEffects(errorType);
     return Result.Err(errorType);
+}
+
+// Convenience wrappers for settings and simple get/set commands
+export const get_gemini_api_key = async (): Promise<Result<string | null, string>> => {
+    const res = await commands.getGeminiApiKey()
+    return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "")
+}
+
+export const set_gemini_api_key = async (apiKey: string): Promise<Result<null, string>> => {
+    const res = await commands.setGeminiApiKey(apiKey)
+    return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "")
+}
+
+export const get_gemini_persona = async (): Promise<Result<string | null, string>> => {
+    const res = await commands.getGeminiPersona()
+    return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "")
+}
+
+export const set_gemini_persona = async (persona: string): Promise<Result<null, string>> => {
+    const res = await commands.setGeminiPersona(persona)
+    return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "")
+}
+
+export const get_gemini_prompt_blocks = async (): Promise<Result<string | null, string>> => {
+    const res = await commands.getGeminiPromptBlocks()
+    return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "")
+}
+
+export const set_gemini_prompt_blocks = async (blocks: string): Promise<Result<null, string>> => {
+    const res = await commands.setGeminiPromptBlocks(blocks)
+    return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "")
+}
+
+export const get_gemini_enabled = async (): Promise<Result<boolean, string>> => {
+    const res = await commands.getGeminiEnabled()
+    return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "")
+}
+
+export const set_gemini_enabled = async (enabled: boolean): Promise<Result<null, string>> => {
+    const res = await commands.setGeminiEnabled(enabled)
+    return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "")
+}
+
+export const get_gemini_requirements = async (): Promise<Result<string | null, string>> => {
+    const res = await commands.getGeminiRequirements()
+    return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "")
+}
+
+export const set_gemini_requirements = async (requirements: string): Promise<Result<null, string>> => {
+    const res = await commands.setGeminiRequirements(requirements)
+    return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "")
+}
+
+export const get_gemini_context_options = async (): Promise<Result<string | null, string>> => {
+    const res = await commands.getGeminiContextOptions()
+    return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "")
+}
+
+export const set_gemini_context_options = async (options: string): Promise<Result<null, string>> => {
+    const res = await commands.setGeminiContextOptions(options)
+    return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "")
 }
 
 function handleAiUiEffects(error: AiError) {

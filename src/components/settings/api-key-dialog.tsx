@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { execute } from "@/src/lib/tauri"
 import { toast } from "sonner"
 import {
     Dialog,

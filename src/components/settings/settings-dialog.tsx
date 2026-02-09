@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { execute } from "@/src/lib/tauri"
 import { toast } from "sonner"
+import { get_gemini_api_key, get_gemini_persona, get_gemini_prompt_blocks, get_gemini_enabled, set_gemini_persona, set_gemini_enabled, set_gemini_prompt_blocks, set_gemini_api_key } from "@/src/api/ai"
 import {
     DndContext,
     closestCenter,
@@ -41,6 +41,7 @@ import {
     DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu"
 import { Switch } from "@/src/components/ui/switch"
+
 
 const DEFAULT_PERSONA = "You are an expert SEO consultant. Your tone is professional, encouraging, and data-driven."
 
@@ -143,16 +144,16 @@ export function SettingsDialog() {
     const loadSettings = async () => {
         try {
             const [keyRes, personaRes, blocksRes, enabledRes] = await Promise.all([
-                execute<string | null>("get_gemini_api_key"),
-                execute<string | null>("get_gemini_persona"),
-                execute<string | null>("get_gemini_prompt_blocks"),
-                execute<boolean>("get_gemini_enabled")
+                get_gemini_api_key(),
+                get_gemini_persona(),
+                get_gemini_prompt_blocks(),
+                get_gemini_enabled()
             ])
 
-            const key = keyRes.unwrapOr(null)
-            const savedPersona = personaRes.unwrapOr(null)
-            const savedBlocks = blocksRes.unwrapOr(null)
-            const enabled = enabledRes.unwrapOr(true)
+            const key = keyRes.isOk() ? keyRes.unwrap() : null
+            const savedPersona = personaRes.isOk() ? personaRes.unwrap() : null
+            const savedBlocks = blocksRes.isOk() ? blocksRes.unwrap() : null
+            const enabled = enabledRes.isOk() ? enabledRes.unwrap() : true
 
             if (key) setApiKey(key)
             setPersona(savedPersona || DEFAULT_PERSONA)
@@ -187,9 +188,13 @@ export function SettingsDialog() {
 
         setIsLoading(true)
         try {
-            const res = await execute("set_gemini_api_key", { apiKey: apiKey.trim() })
-            res.expect("Failed to save API key") // Throw if failed
-            toast.success("API Key saved successfully")
+            const res = await set_gemini_api_key(apiKey.trim())
+            if (res.isOk()) {
+                toast.success("API Key saved successfully")
+            } else {
+                toast.error("Failed to save API Key")
+                console.error("Error saving API key:", res)
+            }
         } catch (error) {
             console.error("Error saving API key:", error)
             toast.error("Failed to save API Key")
@@ -201,17 +206,17 @@ export function SettingsDialog() {
     const handleSaveGenericSettings = async () => {
         setIsLoading(true)
         try {
-            const results = await Promise.all([
-                execute("set_gemini_persona", { persona: persona.trim() }),
-                execute("set_gemini_enabled", { enabled: aiEnabled })
+            const [pRes, eRes] = await Promise.all([
+                set_gemini_persona(persona.trim()),
+                set_gemini_enabled(aiEnabled)
             ])
 
-            // Check results
-            const [pRes, eRes] = results
-            pRes.expect("Failed to save persona")
-            eRes.expect("Failed to save AI enabled status")
-
-            toast.success("Configuration saved successfully")
+            if (pRes.isOk() && eRes.isOk()) {
+                toast.success("Configuration saved successfully")
+            } else {
+                toast.error("Failed to save configuration")
+                console.error("Failed to save generic settings", pRes, eRes)
+            }
         } catch (error) {
             console.error("Error saving generic settings:", error)
             toast.error("Failed to save configuration")
@@ -223,9 +228,13 @@ export function SettingsDialog() {
     const handleSavePromptSettings = async () => {
         setIsLoading(true)
         try {
-            const res = await execute("set_gemini_prompt_blocks", { blocks: JSON.stringify(blocks) })
-            res.expect("Failed to save prompt blocks")
-            toast.success("Prompt layout saved successfully")
+            const res = await set_gemini_prompt_blocks(JSON.stringify(blocks))
+            if (res.isOk()) {
+                toast.success("Prompt layout saved successfully")
+            } else {
+                toast.error("Failed to save prompt layout")
+                console.error("Failed to save prompt blocks", res)
+            }
         } catch (error) {
             console.error("Error saving prompt settings:", error)
             toast.error("Failed to save prompt layout")
