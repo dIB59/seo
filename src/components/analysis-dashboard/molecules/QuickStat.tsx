@@ -1,14 +1,14 @@
-import { CompleteAnalysisResult } from "@/src/lib/types"
 import { Clock, FileText, ImageIcon, Link2 } from "lucide-react"
 import { Card, CardContent } from "../../ui/card"
 import { StatItem } from "../atoms/Stat"
+import { CompleteAnalysisResponse } from "@/src/bindings"
 
 export function QuickStatsCard({
 	summary,
 	pages,
 }: {
-	summary: CompleteAnalysisResult["summary"]
-	pages: CompleteAnalysisResult["pages"]
+	summary: CompleteAnalysisResponse["summary"]
+	pages: CompleteAnalysisResponse["pages"]
 }) {
 	const totalImages = pages.reduce((acc, p) => acc + p.image_count, 0)
 	const totalMissingAlt = pages.reduce((acc, p) => acc + p.images_without_alt, 0)

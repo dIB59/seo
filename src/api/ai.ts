@@ -1,7 +1,7 @@
 import { execute } from "@/src/lib/tauri"
-import type { CompleteAnalysisResult } from "@/src/lib/types"
 import { toast } from "sonner"
 import { Result } from "../lib/result";
+import { CompleteAnalysisResponse } from "../bindings";
 
 export const AiError = {
     MissingKey: "MISSING_KEY",
@@ -46,7 +46,7 @@ function mapErrorToType(error: string): AiError {
 }
 
 export async function generateGeminiAnalysis(
-    result: CompleteAnalysisResult
+    result: CompleteAnalysisResponse
 ): Promise<Result<string, AiError>> {
 
     const apiKeyResult = await getStoredApiKey();

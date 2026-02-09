@@ -209,7 +209,7 @@ pub struct PageInfo {
 // ============================================================================
 
 /// Severity level for SEO issues.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "lowercase")]
 pub enum IssueSeverity {
     Critical,
@@ -496,14 +496,14 @@ pub struct NewImage {
 // ============================================================================
 
 /// Heading element for frontend display.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct HeadingElement {
     pub tag: String,
     pub text: String,
 }
 
 /// Image element for frontend display.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct ImageElement {
     pub src: String,
     pub alt: Option<String>,
@@ -598,7 +598,7 @@ impl ResourceStatus {
 }
 
 /// Analysis progress for frontend updates
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct AnalysisProgress {
     pub job_id: String,
     pub url: String,
@@ -610,7 +610,7 @@ pub struct AnalysisProgress {
 }
 
 /// Summary of analysis results
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct AnalysisSummary {
     pub analysis_id: String,
     pub seo_score: i64,
@@ -684,7 +684,7 @@ pub struct PageAnalysisData {
 }
 
 /// Link details (frontend-compatible)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct LinkDetail {
     #[serde(rename = "href", alias = "url")]
     pub url: String,

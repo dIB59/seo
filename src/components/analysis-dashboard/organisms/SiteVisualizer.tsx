@@ -1,12 +1,12 @@
 import { Network, Maximize2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { CompleteAnalysisResult, PageAnalysisData } from "@/src/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import GraphView from "../../graph-view/GraphView";
+import { CompleteAnalysisResponse, PageAnalysisDataResponse } from "@/src/bindings";
 
 interface SiteVisualizerProps {
-    data: CompleteAnalysisResult;
-    onNodeClick: (page: PageAnalysisData) => void;
+    data: CompleteAnalysisResponse;
+    onNodeClick: (page: PageAnalysisDataResponse) => void;
 }
 
 export function SiteVisualizer({ data, onNodeClick }: SiteVisualizerProps) {

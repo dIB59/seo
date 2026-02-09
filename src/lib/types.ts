@@ -49,6 +49,8 @@ export interface AnalysisResults {
   created_at: string
 }
 
+import type { JsonValue } from "../bindings"
+
 // Detailed Lighthouse audit result for a single check
 export interface LighthouseAuditResult {
   passed: boolean
@@ -107,8 +109,9 @@ export interface PageAnalysisData {
   lighthouse_best_practices: number | null
   lighthouse_seo: number | null
   // Detailed Lighthouse breakdowns
-  lighthouse_seo_audits?: LighthouseSeoAudits | null
-  lighthouse_performance_metrics?: LighthousePerformanceMetrics | null
+  // Can be either the structured audit objects or a raw JSON value (JsonValue)
+  lighthouse_seo_audits?: LighthouseSeoAudits | JsonValue | null
+  lighthouse_performance_metrics?: LighthousePerformanceMetrics | JsonValue | null
   detailed_links?: LinkElement[]
 }
 

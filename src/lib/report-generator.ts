@@ -1,7 +1,7 @@
-import type { CompleteAnalysisResult } from "@/src/lib/types";
+import type { CompleteAnalysisResponse } from "@/src/bindings";
 import { getScoreLabel } from "./seo-metrics";
 
-export function generateReport(result: CompleteAnalysisResult): string {
+export function generateReport(result: CompleteAnalysisResponse): string {
     const { analysis, summary, pages, issues } = result;
     const criticalIssues = issues.filter((i) => i.severity === "critical");
     const warningIssues = issues.filter((i) => i.severity === "warning");
@@ -115,7 +115,7 @@ ${"=".repeat(60)}
 `.trim();
 }
 
-export function generateCSV(result: CompleteAnalysisResult): string {
+export function generateCSV(result: CompleteAnalysisResponse): string {
     const { pages, issues } = result;
     const header = [
         "URL",

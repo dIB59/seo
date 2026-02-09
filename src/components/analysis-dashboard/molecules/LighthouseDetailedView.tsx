@@ -109,8 +109,16 @@ export function LighthouseDetailedView({ page }: LighthouseDetailedViewProps) {
         { label: "SEO", value: page.lighthouse_seo, icon: Search, color: "text-green-500" },
     ]
 
-    const seoAudits = page.lighthouse_seo_audits
-    const perfMetrics = page.lighthouse_performance_metrics
+    const parseSafe = (v: any) => {
+        if (!v) return null
+        if (typeof v === "string") {
+            try { return JSON.parse(v) } catch { return null }
+        }
+        return v
+    }
+
+    const seoAudits = parseSafe(page.lighthouse_seo_audits)
+    const perfMetrics = parseSafe(page.lighthouse_performance_metrics)
 
     return (
         <div className="space-y-4">

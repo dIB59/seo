@@ -3,20 +3,21 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::SqlitePool;
+use specta::Type;
 
 use crate::repository::sqlite::{AiRepository, SettingsRepository};
 
 /// The Gemini API endpoint path (without base URL)
 pub const GEMINI_API_PATH: &str = "/v1beta/models/gemini-2.0-flash:generateContent";
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Type)]
 pub struct PromptBlock {
     pub id: String,
     pub r#type: String, // "text" or "variable"
     pub content: String,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Type)]
 pub struct GeminiRequest {
     pub analysis_id: String, // Added for caching
     pub url: String,

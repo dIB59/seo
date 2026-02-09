@@ -5,6 +5,7 @@ use crate::repository::sqlite::SettingsRepository;
 use crate::service::{generate_gemini_analysis, GeminiRequest};
 
 #[command]
+#[specta::specta]
 pub async fn get_gemini_insights(
     db: State<'_, DbState>,
     request: GeminiRequest,
@@ -30,6 +31,7 @@ pub async fn get_gemini_insights(
 }
 
 #[command]
+#[specta::specta]
 pub async fn get_gemini_enabled(db: State<'_, DbState>) -> Result<bool, String> {
     let repo = SettingsRepository::new(db.0.clone());
     let val = repo
@@ -42,6 +44,7 @@ pub async fn get_gemini_enabled(db: State<'_, DbState>) -> Result<bool, String> 
 }
 
 #[command]
+#[specta::specta]
 pub async fn set_gemini_enabled(db: State<'_, DbState>, enabled: bool) -> Result<(), String> {
     let repo = SettingsRepository::new(db.0.clone());
     repo.set_setting("gemini_enabled", if enabled { "true" } else { "false" })
@@ -50,6 +53,7 @@ pub async fn set_gemini_enabled(db: State<'_, DbState>, enabled: bool) -> Result
 }
 
 #[command]
+#[specta::specta]
 pub async fn get_gemini_api_key(db: State<'_, DbState>) -> Result<Option<String>, String> {
     let repo = SettingsRepository::new(db.0.clone());
     repo.get_setting("gemini_api_key")
@@ -58,6 +62,7 @@ pub async fn get_gemini_api_key(db: State<'_, DbState>) -> Result<Option<String>
 }
 
 #[command]
+#[specta::specta]
 pub async fn set_gemini_api_key(db: State<'_, DbState>, api_key: String) -> Result<(), String> {
     let repo = SettingsRepository::new(db.0.clone());
     repo.set_setting("gemini_api_key", &api_key)
@@ -66,6 +71,7 @@ pub async fn set_gemini_api_key(db: State<'_, DbState>, api_key: String) -> Resu
 }
 
 #[command]
+#[specta::specta]
 pub async fn get_gemini_persona(db: State<'_, DbState>) -> Result<Option<String>, String> {
     let repo = SettingsRepository::new(db.0.clone());
     repo.get_setting("gemini_persona")
@@ -74,6 +80,7 @@ pub async fn get_gemini_persona(db: State<'_, DbState>) -> Result<Option<String>
 }
 
 #[command]
+#[specta::specta]
 pub async fn set_gemini_persona(db: State<'_, DbState>, persona: String) -> Result<(), String> {
     let repo = SettingsRepository::new(db.0.clone());
     repo.set_setting("gemini_persona", &persona)
@@ -82,6 +89,7 @@ pub async fn set_gemini_persona(db: State<'_, DbState>, persona: String) -> Resu
 }
 
 #[command]
+#[specta::specta]
 pub async fn get_gemini_requirements(db: State<'_, DbState>) -> Result<Option<String>, String> {
     let repo = SettingsRepository::new(db.0.clone());
     repo.get_setting("gemini_requirements")
@@ -90,6 +98,7 @@ pub async fn get_gemini_requirements(db: State<'_, DbState>) -> Result<Option<St
 }
 
 #[command]
+#[specta::specta]
 pub async fn set_gemini_requirements(
     db: State<'_, DbState>,
     requirements: String,
@@ -101,6 +110,7 @@ pub async fn set_gemini_requirements(
 }
 
 #[command]
+#[specta::specta]
 pub async fn get_gemini_context_options(db: State<'_, DbState>) -> Result<Option<String>, String> {
     let repo = SettingsRepository::new(db.0.clone());
     repo.get_setting("gemini_context_options")
@@ -109,6 +119,7 @@ pub async fn get_gemini_context_options(db: State<'_, DbState>) -> Result<Option
 }
 
 #[command]
+#[specta::specta]
 pub async fn set_gemini_context_options(
     db: State<'_, DbState>,
     options: String,
@@ -120,6 +131,7 @@ pub async fn set_gemini_context_options(
 }
 
 #[command]
+#[specta::specta]
 pub async fn get_gemini_prompt_blocks(db: State<'_, DbState>) -> Result<Option<String>, String> {
     let repo = SettingsRepository::new(db.0.clone());
     repo.get_setting("gemini_prompt_blocks")
@@ -128,6 +140,7 @@ pub async fn get_gemini_prompt_blocks(db: State<'_, DbState>) -> Result<Option<S
 }
 
 #[command]
+#[specta::specta]
 pub async fn set_gemini_prompt_blocks(
     db: State<'_, DbState>,
     blocks: String,

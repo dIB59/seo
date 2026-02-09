@@ -1,4 +1,4 @@
-import { CompleteAnalysisResult, PageAnalysisData } from "@/src/lib/types";
+import {  PageAnalysisData } from "@/src/lib/types";
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { PageTable } from "./organisms/PageTable";
@@ -12,13 +12,14 @@ import { AnalysisHeader } from "./organisms/AnalysisHeader";
 import { Network } from "lucide-react";
 import { OverviewTab } from "./molecules/OverviewTab";
 import GraphView from "../graph-view/GraphView";
+import { CompleteAnalysisResponse, PageAnalysisDataResponse } from "@/src/bindings";
 
 export default function AnalysisDashboard({ data, onBack, onSelectPage }:
     {
-        data: CompleteAnalysisResult, onBack: () => void, onSelectPage: (index: number)
+        data: CompleteAnalysisResponse, onBack: () => void, onSelectPage: (index: number)
             => void
     }) {
-    const [selectedPage, setSelectedPage] = useState<PageAnalysisData | null>(null);
+    const [selectedPage, setSelectedPage] = useState<PageAnalysisDataResponse | null>(null);
 
     return (
         <div className="space-y-6">

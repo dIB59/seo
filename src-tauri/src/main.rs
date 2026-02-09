@@ -14,20 +14,6 @@ fn main() {
         // Then register them (separated by a comma)
         .commands(collect_commands![
             commands::analysis::start_analysis,
-            ]);
-
-    #[cfg(debug_assertions)] // <- Only export on non-release builds
-    builder
-        .export(Typescript::default().bigint(BigIntExportBehavior::BigInt), "../src/bindings.ts")
-        .expect("Failed to export typescript bindings");
-
-    tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init())
-        .setup(lifecycle::setup)
-        .invoke_handler(tauri::generate_handler![
-            commands::analysis::start_analysis,
             commands::analysis::get_analysis_progress,
             commands::analysis::get_all_jobs,
             commands::analysis::cancel_analysis,
@@ -45,7 +31,22 @@ fn main() {
             commands::ai::set_gemini_prompt_blocks,
             commands::ai::get_gemini_enabled,
             commands::ai::set_gemini_enabled,
-        ])
+            ]);
+
+    #[cfg(debug_assertions)] // <- Only export on non-release builds
+    builder
+        .export(
+            Typescript::default()
+            .formatter(specta_typescript::formatter::prettier)
+            .bigint(BigIntExportBehavior::Number), "../src/bindings.ts")
+        .expect("Failed to export typescript bindings");
+
+    tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .setup(lifecycle::setup)
+        .invoke_handler(builder.invoke_handler())
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(lifecycle::handle_run_event);

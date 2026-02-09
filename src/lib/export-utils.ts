@@ -1,5 +1,5 @@
 import jsPDF from "jspdf"
-import type { CompleteAnalysisResult } from "@/src/lib/types"
+import type { CompleteAnalysisResponse } from "@/src/bindings"
 import { generateReport, generateCSV } from "@/src/lib/report-generator"
 import { save } from "@tauri-apps/plugin-dialog"
 import { writeTextFile, writeFile } from "@tauri-apps/plugin-fs"
@@ -123,7 +123,7 @@ import { generateGeminiAnalysis } from "@/src/api/ai"
 import { execute } from "@/src/lib/tauri"
 import { Result } from "./result"
 
-export async function generatePDF(result: CompleteAnalysisResult): Promise<void> {
+export async function generatePDF(result: CompleteAnalysisResponse): Promise<void> {
     const { analysis, summary, pages, issues } = result
 
     // Generate AI-powered recommendations if enabled
@@ -497,7 +497,7 @@ export async function generatePDF(result: CompleteAnalysisResult): Promise<void>
 // TEXT EXPORT
 // ============================================================================
 
-export async function downloadTextReport(result: CompleteAnalysisResult): Promise<void> {
+export async function downloadTextReport(result: CompleteAnalysisResponse): Promise<void> {
     const reportText = generateReport(result)
     const filename = `seo-report-${formatDomain(result.analysis.url)}-${formatDate()}.txt`
 
@@ -511,7 +511,7 @@ export async function downloadTextReport(result: CompleteAnalysisResult): Promis
 // CSV EXPORT
 // ============================================================================
 
-export async function downloadCSVReport(result: CompleteAnalysisResult): Promise<void> {
+export async function downloadCSVReport(result: CompleteAnalysisResponse): Promise<void> {
     const csvData = generateCSV(result)
     const filename = `seo-data-${formatDomain(result.analysis.url)}-${formatDate()}.csv`
 
