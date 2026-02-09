@@ -58,6 +58,11 @@ export async function get_gemini_api_key(): Promise<Result<string, string>> {
     
 }
 
+export async function set_gemini_api_key(apiKey: string): Promise<Result<null, string>> {
+    const res = await commands.setGeminiApiKey(apiKey)
+    return res.status === "ok" ? Result.Ok(null) : Result.Err(res.error as string)
+}
+
 export async function generateGeminiAnalysis(
     result: CompleteAnalysisResponse
 ): Promise<Result<string, AiError>> {
