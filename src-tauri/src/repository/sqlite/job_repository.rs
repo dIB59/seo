@@ -284,3 +284,48 @@ fn parse_datetime(s: &str) -> chrono::DateTime<Utc> {
         .map(|dt| dt.with_timezone(&Utc))
         .unwrap_or_else(|_| Utc::now())
 }
+
+// Implement the abstract repository trait using the concrete sqlite repository
+use async_trait::async_trait;
+use crate::repository::JobRepository as JobRepositoryTrait;
+
+#[async_trait]
+impl JobRepositoryTrait for JobRepository {
+    async fn create(&self, url: &str, settings: &JobSettings) -> Result<String> {
+        // Call the inherent method
+        JobRepository::create(self, url, settings).await
+    }
+
+    async fn get_by_id(&self, id: &str) -> Result<Job> {
+        JobRepository::get_by_id(self, id).await
+    }
+
+    async fn get_all(&self) -> Result<Vec<JobInfo>> {
+        JobRepository::get_all(self).await
+    }
+
+    async fn get_pending(&self) -> Result<Vec<Job>> {
+        JobRepository::get_pending(self).await
+    }
+
+    async fn update_status(&self, job_id: &str, status: JobStatus) -> Result<()> {
+        JobRepository::update_status(self, job_id, status).await
+    }
+
+    async fn update_progress(
+        &self,
+        id: &str,
+        progress: f64,
+        current_stage: Option<&str>,
+    ) -> Result<()> {
+        JobRepository::update_progress(self, id, progress, current_stage).await
+    }
+
+    async fn set_error(&self, job_id: &str, error: &str) -> Result<()> {
+        JobRepository::set_error(self, job_id, error).await
+    }
+
+    async fn delete(&self, job_id: &str) -> Result<()> {
+        JobRepository::delete(self, job_id).await
+    }
+}

@@ -74,25 +74,20 @@ fn shutdown_services(app_handle: &AppHandle) {
     // Graceful shutdown
 }
 ⚠️ Areas for Improvement
-1. Repository Interface Traits Are Commented Out 🔴 Critical
-rust
-// repository/mod.rs
-// #[async_trait]
-// pub trait JobRepository: Send + Sync {
-//     async fn get_pending_jobs(&self) -> Result<Vec<AnalysisJob>>;
-//     ...
-// }
-Problem: Repository implementations are concrete, not abstracted behind traits. This makes testing difficult and violates Dependency Inversion.
+1. Repository Interface Traits - ENABLED ✅
 
-Recommendation: Uncomment and implement the traits:
+Status: Implemented — the `JobRepository` trait has been added to `src-tauri/src/repository/mod.rs`, the sqlite implementation (`src-tauri/src/repository/sqlite/job_repository.rs`) now implements the trait, and `JobQueue` was adapted to accept an `Arc<dyn JobRepository>` allowing dependency injection.
 
-rust
-pub trait JobRepository: Send + Sync {
-    async fn create(&self, url: &str, settings: &JobSettings) -> Result<String>;
-    async fn get_by_id(&self, id: &str) -> Result<Job>;
-    // ...
-}
-impl JobRepository for SqliteJobRepository { ... }
+Problem (was): Repository implementations were concrete, making testing difficult and violating Dependency Inversion.
+
+What I changed:
+- Added a public `JobRepository` trait (async methods) in `src-tauri/src/repository/mod.rs`.
+- Implemented the trait for the concrete `sqlite::JobRepository` in `src-tauri/src/repository/sqlite/job_repository.rs`.
+- Updated `JobQueue` to accept `Arc<dyn JobRepository>` (DI-friendly) and added a unit test (`service/tests/queue_tests.rs`) using a mock repo.
+
+Next steps:
+- Gradually replace other direct `JobRepository::new(pool)` usages with DI where helpful (e.g., `AnalysisAssembler`, `JobProcessor` tests).
+- Add more trait abstractions (e.g., `ResultsRepository`, `PageRepository`) and tests that use mocks to exercise the service layer in isolation.
 2. Service Layer is Oversized 🟠 Medium
 The 
 service/

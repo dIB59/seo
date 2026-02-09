@@ -400,6 +400,52 @@ impl ResultsRepository {
     }
 }
 
+use async_trait::async_trait;
+use crate::repository::ResultsRepository as ResultsRepositoryTrait;
+
+#[async_trait]
+impl ResultsRepositoryTrait for ResultsRepository {
+    async fn get_complete_result(&self, job_id: &str) -> Result<crate::domain::models::CompleteJobResult> {
+        ResultsRepository::get_complete_result(self, job_id).await
+    }
+
+    async fn get_job(&self, job_id: &str) -> Result<crate::domain::models::Job> {
+        ResultsRepository::get_job(self, job_id).await
+    }
+
+    async fn get_pages(&self, job_id: &str) -> Result<Vec<crate::domain::models::Page>> {
+        ResultsRepository::get_pages(self, job_id).await
+    }
+
+    async fn get_issues(&self, job_id: &str) -> Result<Vec<crate::domain::models::Issue>> {
+        ResultsRepository::get_issues(self, job_id).await
+    }
+
+    async fn get_links(&self, job_id: &str) -> Result<Vec<crate::domain::models::Link>> {
+        ResultsRepository::get_links(self, job_id).await
+    }
+
+    async fn get_lighthouse(&self, job_id: &str) -> Result<Vec<crate::domain::models::LighthouseData>> {
+        ResultsRepository::get_lighthouse(self, job_id).await
+    }
+
+    async fn get_headings(&self, job_id: &str) -> Result<Vec<crate::domain::models::Heading>> {
+        ResultsRepository::get_headings(self, job_id).await
+    }
+
+    async fn get_images(&self, job_id: &str) -> Result<Vec<crate::domain::models::Image>> {
+        ResultsRepository::get_images(self, job_id).await
+    }
+
+    async fn get_ai_insights(&self, job_id: &str) -> Result<crate::domain::models::AiInsight> {
+        ResultsRepository::get_ai_insights(self, job_id).await
+    }
+
+    async fn save_ai_insights(&self, job_id: &str, summary: Option<&str>, recommendations: Option<&str>, raw_response: Option<&str>, model: Option<&str>) -> Result<()> {
+        ResultsRepository::save_ai_insights(self, job_id, summary, recommendations, raw_response, model).await
+    }
+}
+
 /// Parse datetime string to UTC DateTime.
 fn parse_datetime(s: &str) -> chrono::DateTime<Utc> {
     chrono::DateTime::parse_from_rfc3339(s)

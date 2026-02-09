@@ -13,12 +13,13 @@ pub use queue::JobQueue;
 pub use reporter::ProgressReporter;
 
 use crate::domain::models::{Job, JobStatus, NewLink};
-use crate::repository::sqlite::LinkRepository;
 use anyhow::Result;
 use sqlx::SqlitePool;
 use std::sync::atomic::Ordering;
 
 /// Orchestrates SEO analysis jobs using the normalized schema.
+use std::sync::Arc;
+
 pub struct JobProcessor<R: tauri::Runtime = tauri::Wry> {
     // Components
     job_queue: JobQueue,
@@ -28,18 +29,21 @@ pub struct JobProcessor<R: tauri::Runtime = tauri::Wry> {
     canceler: JobCanceler,
 
     // Repositories (some still used directly for orchestration)
-    link_db: LinkRepository,
+    link_db: std::sync::Arc<dyn crate::repository::LinkRepository>,
 }
 
 impl<R: tauri::Runtime> JobProcessor<R> {
     pub fn new(pool: SqlitePool, app_handle: tauri::AppHandle<R>) -> Self {
+        let job_repo = crate::repository::sqlite::JobRepository::new(pool.clone());
+        let link_repo = crate::repository::sqlite::LinkRepository::new(pool.clone());
+
         Self {
-            job_queue: JobQueue::new(pool.clone()),
+            job_queue: JobQueue::new(Arc::new(job_repo)),
             crawler: Crawler::new(),
             analyzer: AnalyzerService::new(pool.clone()),
             progress_reporter: ProgressReporter::new(app_handle),
             canceler: JobCanceler::new(),
-            link_db: LinkRepository::new(pool),
+            link_db: Arc::new(link_repo),
         }
     }
 

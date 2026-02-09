@@ -1,8 +1,8 @@
 use crate::domain::models::{Job, JobStatus};
-use crate::repository::sqlite::JobRepository;
+use crate::repository::JobRepository as JobRepositoryTrait;
 use anyhow::Result;
-use sqlx::SqlitePool;
 use std::time::Duration;
+use std::sync::Arc;
 use tokio::time::sleep;
 
 /// Polling interval when no pending jobs are found
@@ -12,14 +12,13 @@ const JOB_POLL_INTERVAL: Duration = Duration::from_secs(15);
 const JOB_FETCH_RETRY_DELAY: Duration = Duration::from_secs(10);
 
 pub struct JobQueue {
-    repo: JobRepository,
+    repo: Arc<dyn JobRepositoryTrait>,
 }
 
 impl JobQueue {
-    pub fn new(pool: SqlitePool) -> Self {
-        Self {
-            repo: JobRepository::new(pool),
-        }
+    /// Create a new JobQueue from an existing repository implementation (DI-friendly).
+    pub fn new(repo: Arc<dyn JobRepositoryTrait>) -> Self {
+        Self { repo }
     }
 
     pub async fn fetch_next_job(&self) -> Option<Job> {

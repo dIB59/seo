@@ -382,3 +382,49 @@ fn parse_datetime(s: &str) -> chrono::DateTime<Utc> {
         .map(|dt| dt.with_timezone(&Utc))
         .unwrap_or_else(|_| Utc::now())
 }
+
+use async_trait::async_trait;
+use crate::repository::PageRepository as PageRepositoryTrait;
+
+#[async_trait]
+impl PageRepositoryTrait for PageRepository {
+    async fn insert(&self, page: &crate::domain::models::Page) -> Result<String> {
+        PageRepository::insert(self, page).await
+    }
+
+    async fn insert_batch(&self, pages: &[crate::domain::models::Page]) -> Result<()> {
+        PageRepository::insert_batch(self, pages).await
+    }
+
+    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::models::Page>> {
+        PageRepository::get_by_job_id(self, job_id).await
+    }
+
+    async fn get_info_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::models::PageInfo>> {
+        PageRepository::get_info_by_job_id(self, job_id).await
+    }
+
+    async fn get_by_id(&self, page_id: &str) -> Result<crate::domain::models::Page> {
+        PageRepository::get_by_id(self, page_id).await
+    }
+
+    async fn replace_headings(&self, page_id: &str, headings: &[crate::domain::models::NewHeading]) -> Result<()> {
+        PageRepository::replace_headings(self, page_id, headings).await
+    }
+
+    async fn replace_images(&self, page_id: &str, images: &[crate::domain::models::NewImage]) -> Result<()> {
+        PageRepository::replace_images(self, page_id, images).await
+    }
+
+    async fn count_by_job_id(&self, job_id: &str) -> Result<i64> {
+        PageRepository::count_by_job_id(self, job_id).await
+    }
+
+    async fn insert_lighthouse(&self, data: &crate::domain::models::LighthouseData) -> Result<()> {
+        PageRepository::insert_lighthouse(self, data).await
+    }
+
+    async fn get_lighthouse_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::models::LighthouseData>> {
+        PageRepository::get_lighthouse_by_job_id(self, job_id).await
+    }
+}

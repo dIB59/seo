@@ -4,11 +4,14 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use sqlx::SqlitePool;
+use std::sync::Arc;
 
 use crate::domain::models::{
     AnalysisResults, AnalysisSummary, CompleteAnalysisResult, HeadingElement, ImageElement,
     LighthouseData, LinkDetail, LinkType, PageAnalysisData, SeoIssue,
 };
+
+use crate::repository::ResultsRepository as ResultsRepositoryTrait;
 use url::Url;
 
 // Heuristic thresholds and defaults for assembly decisions
@@ -19,12 +22,18 @@ const DEFAULT_ROBOTS_TXT_FOUND: bool = false; // Unknown if robots.txt found; ex
 use crate::repository::sqlite::ResultsRepository;
 
 pub struct AnalysisAssembler {
-    repo: ResultsRepository,
+    repo: Arc<dyn ResultsRepositoryTrait>,
 }
 
 impl AnalysisAssembler {
     pub fn new(pool: SqlitePool) -> Self {
-        Self { repo: ResultsRepository::new(pool) }
+        let repo = crate::repository::sqlite::ResultsRepository::new(pool);
+        Self { repo: Arc::new(repo) }
+    }
+
+    /// Create assembler with a mocked or alternate repository (DI-friendly)
+    pub fn new_with_repo(repo: Arc<dyn ResultsRepositoryTrait>) -> Self {
+        Self { repo }
     }
 
     /// Build a CompleteAnalysisResult for the given job id.
