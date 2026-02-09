@@ -46,6 +46,18 @@ function mapErrorToType(error: string): AiError {
     return AiError.Unknown;
 }
 
+export async function get_gemini_api_key(): Promise<Result<string, string>> {
+    const res = await commands.getGeminiApiKey()
+    if (res.status === "ok") {
+        const key = res.data
+        if (key && key.trim().length > 0) return Result.Ok(key)
+        return Result.Err("API_KEY_MISSING")
+    }
+
+    return Result.Err(res.error ?? "API_KEY_MISSING")
+    
+}
+
 export async function generateGeminiAnalysis(
     result: CompleteAnalysisResponse
 ): Promise<Result<string, AiError>> {
