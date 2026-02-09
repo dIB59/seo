@@ -119,16 +119,15 @@ function fallbackDownload(content: string | Uint8Array<ArrayBuffer>, filename: s
 // PDF GENERATION
 // ============================================================================
 
-import { generateGeminiAnalysis } from "@/src/api/ai"
-import { execute } from "@/src/lib/tauri"
+import { generateGeminiAnalysis, get_gemini_enabled } from "@/src/api/ai"
 import { Result } from "./result"
 
 export async function generatePDF(result: CompleteAnalysisResponse): Promise<void> {
     const { analysis, summary, pages, issues } = result
 
     // Generate AI-powered recommendations if enabled
-    const aiEnabledResult = await execute<boolean>("get_gemini_enabled")
-    const aiEnabled = aiEnabledResult.unwrapOr(false)
+    const aiEnabledResult = await get_gemini_enabled()
+    const aiEnabled = aiEnabledResult.isOk() ? aiEnabledResult.unwrap() : false
     let aiInsights: Result<string, string> = Result.Err("AI analysis skipped (disabled in settings)")
 
     if (aiEnabled) {
