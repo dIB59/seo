@@ -6,6 +6,7 @@
 //! - `Result<T>`: Type alias for Results using AppError
 
 use serde::Serialize;
+use specta::{Type, specta};
 use std::fmt;
 use thiserror::Error;
 
@@ -79,34 +80,28 @@ pub type Result<T> = std::result::Result<T, AppError>;
 
 /// Wrapper for errors returned from Tauri commands.
 /// This type is serializable and can be sent to the frontend.
-#[derive(Debug)]
-pub struct CommandError(pub anyhow::Error);
+#[derive(Debug, Type, Serialize)]
+#[specta(transparent)] // Tells Specta: "In TS, this is just a string"
+#[serde(transparent)]  // Tells Serde: "In JSON, this is just a string"
+pub struct CommandError(String);
+
+impl From<anyhow::Error> for CommandError {
+    fn from(error: anyhow::Error) -> Self {
+        // {:#} gives you the full error chain (all "caused by" messages)
+        Self(format!("{:#}", error))
+    }
+}
+
+impl From<AppError> for CommandError {
+    fn from(error: AppError) -> Self {
+        Self(error.to_string())
+    }
+}
 
 impl std::error::Error for CommandError {}
 
 impl fmt::Display for CommandError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
-    }
-}
-
-impl Serialize for CommandError {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&format!("{:#}", self.0))
-    }
-}
-
-impl From<anyhow::Error> for CommandError {
-    fn from(error: anyhow::Error) -> Self {
-        Self(error)
-    }
-}
-
-impl From<AppError> for CommandError {
-    fn from(error: AppError) -> Self {
-        Self(error.into())
     }
 }

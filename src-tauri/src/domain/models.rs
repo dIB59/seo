@@ -10,13 +10,14 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
 // ============================================================================
 // JOB - Consolidated job, settings, and summary
 // ============================================================================
 
 /// Status of an SEO analysis job.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "lowercase")]
 pub enum JobStatus {
     Pending,

@@ -1,8 +1,13 @@
 use std::{str::FromStr, sync::Arc};
 
 use anyhow::{Context, Result};
+use specta::Type;
 use tauri::State;
 use url::Url;
+use serde::{Deserialize, Serialize};
+use specta_typescript::Typescript;
+use tauri_specta::{collect_commands, Builder};
+
 
 use crate::{
     db::DbState,
@@ -13,14 +18,14 @@ use crate::{
     service::JobProcessor,
 };
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, Type)]
 pub struct AnalysisJobResponse {
     pub job_id: String,
     pub url: String,
     pub status: JobStatus,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, specta::Type)]
 pub struct AnalysisSettingsRequest {
     pub max_pages: i64,
     pub include_external_links: bool,
@@ -61,6 +66,7 @@ fn validate_url(url: &str) -> Result<Url> {
 }
 
 #[tauri::command]
+#[specta::specta] // < You must annotate your commands
 pub async fn start_analysis(
     url: String,
     settings: Option<AnalysisSettingsRequest>,
@@ -129,7 +135,7 @@ pub async fn cancel_analysis(
     job_processor: State<'_, Arc<JobProcessor>>,
 ) -> Result<(), CommandError> {
     log::trace!("Cancelling analysis job: {}", job_id);
-    job_processor.cancel(&job_id).await.map_err(CommandError)
+    job_processor.cancel(&job_id).await.map_err(CommandError::from)
 }
 
 #[tauri::command]

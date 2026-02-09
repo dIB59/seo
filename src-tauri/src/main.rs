@@ -2,9 +2,23 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use app::{commands, lifecycle};
+#[cfg(debug_assertions)]
+use specta_typescript::Typescript;
+use tauri_specta::{collect_commands, Builder};
 
 fn main() {
     lifecycle::init_logging();
+
+    let mut builder = Builder::<tauri::Wry>::new()
+        // Then register them (separated by a comma)
+        .commands(collect_commands![
+            commands::analysis::start_analysis,
+            ]);
+
+    #[cfg(debug_assertions)] // <- Only export on non-release builds
+    builder
+        .export(Typescript::default(), "../src/bindings.ts")
+        .expect("Failed to export typescript bindings");
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
