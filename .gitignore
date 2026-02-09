@@ -48,3 +48,4 @@ src-tauri/binaries/lighthouse-runner/node_modules
 **/*.db
 src-tauri/.sqlx_dev.db
 src-tauri/.sqlx_dev.db
+target/rust-analyzer

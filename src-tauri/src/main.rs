@@ -5,6 +5,7 @@ use app::{commands, lifecycle};
 #[cfg(debug_assertions)]
 use specta_typescript::Typescript;
 use tauri_specta::{collect_commands, Builder};
+use specta_typescript::{BigIntExportBehavior};
 
 fn main() {
     lifecycle::init_logging();
@@ -17,7 +18,7 @@ fn main() {
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
     builder
-        .export(Typescript::default(), "../src/bindings.ts")
+        .export(Typescript::default().bigint(BigIntExportBehavior::BigInt), "../src/bindings.ts")
         .expect("Failed to export typescript bindings");
 
     tauri::Builder::default()
