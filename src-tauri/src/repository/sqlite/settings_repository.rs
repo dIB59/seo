@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use async_trait::async_trait;
 use sqlx::SqlitePool;
 
 pub struct SettingsRepository {
@@ -10,148 +11,128 @@ impl SettingsRepository {
         Self { pool }
     }
 
-    /// Get a setting value from the database (V2 schema - single-row structured table)
-    /// Maps V1-style keys to V2 column names for backward compatibility
+    /// Canonicalize commonly-used keys (aliases) to the stored key name.
+    fn canonical_key(key: &str) -> &str {
+        match key {
+            // In V2 schema the API key column is named `google_api_key`
+            "google_api_key" | "gemini_api_key" => "google_api_key",
+            "gemini_enabled" => "gemini_enabled",
+            "gemini_persona" => "gemini_persona",
+            "gemini_requirements" => "gemini_requirements",
+            "gemini_context_options" => "gemini_context_options",
+            "gemini_prompt_blocks" => "gemini_prompt_blocks",
+            other => other,
+        }
+    }
+
+    // Provide inherent helpers so existing call sites (that don't import the trait)
+    // continue to work by delegating to the trait implementation.
     pub async fn get_setting(&self, key: &str) -> Result<Option<String>> {
-        // Map V1 key-value names to V2 column names
-        let column = match key {
+        <Self as crate::repository::SettingsRepository>::get_setting(self, key).await
+    }
+
+    pub async fn set_setting(&self, key: &str, value: &str) -> Result<()> {
+        <Self as crate::repository::SettingsRepository>::set_setting(self, key, value).await
+    }
+}
+
+#[async_trait]
+impl crate::repository::SettingsRepository for SettingsRepository {
+    async fn get_setting(&self, key: &str) -> Result<Option<String>> {
+        let k = SettingsRepository::canonical_key(key);
+
+        // Try key/value table first
+        let kv_res = sqlx::query_scalar::<_, String>("SELECT value FROM settings WHERE key = ?")
+            .bind(k)
+            .fetch_optional(&self.pool)
+            .await;
+
+        match kv_res {
+            Ok(opt) => return Ok(opt),
+            Err(e) => {
+                // If column doesn't exist (schema uses structured table), fall back
+                let msg = e.to_string();
+                if !msg.contains("no column named") && !msg.contains("no such column") {
+                    return Err(e).context("Failed to get setting from database")?;
+                }
+            }
+        }
+
+        // Fall back to structured single-row settings table
+        let column = match k {
             "openai_api_key" => "openai_api_key",
             "anthropic_api_key" => "anthropic_api_key",
-            "google_api_key" | "gemini_api_key" => "google_api_key",
+            "gemini_api_key" | "google_api_key" => "google_api_key",
             "default_ai_provider" => "default_ai_provider",
             "default_max_pages" => "default_max_pages",
             "default_max_depth" => "default_max_depth",
             "default_rate_limit_ms" => "default_rate_limit_ms",
             "theme" => "theme",
+            "gemini_enabled" => "gemini_enabled",
             _ => {
-                // Unknown key - return None since V2 schema doesn't support arbitrary keys
-                log::warn!("Unknown setting key requested: {}", key);
+                log::warn!("Unknown setting key requested for structured table: {}", key);
                 return Ok(None);
             }
         };
 
-        // Query the appropriate column (V2 has a single row with id=1)
         let query = format!("SELECT {} FROM settings WHERE id = 1", column);
         let result = sqlx::query_scalar::<_, String>(&query)
             .fetch_optional(&self.pool)
             .await
-            .context("Failed to get setting from database")?;
+            .context("Failed to get setting from structured settings table")?;
 
         Ok(result)
     }
 
-    /// Set a setting value in the database (V2 schema - single-row structured table)
-    /// Maps V1-style keys to V2 column names for backward compatibility
-    pub async fn set_setting(&self, key: &str, value: &str) -> Result<()> {
-        // Map V1 key-value names to V2 column names
-        let column = match key {
+    async fn set_setting(&self, key: &str, value: &str) -> Result<()> {
+        let k = SettingsRepository::canonical_key(key);
+
+        // Try key/value upsert first
+        let kv_res: std::result::Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> = sqlx::query(
+            "INSERT INTO settings (key, value) VALUES (?, ?)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')",
+        )
+        .bind(k)
+        .bind(value)
+        .execute(&self.pool)
+        .await;
+
+        match kv_res {
+            Ok(_) => return Ok(()),
+            Err(e) => {
+                let msg = e.to_string();
+                if !msg.contains("no column named") && !msg.contains("no such column") {
+                    return Err(e).context("Failed to set setting in database")?;
+                }
+            }
+        }
+
+        // Fall back to structured single-row settings table
+        let column = match k {
             "openai_api_key" => "openai_api_key",
             "anthropic_api_key" => "anthropic_api_key",
-            "google_api_key" | "gemini_api_key" => "google_api_key",
+            "gemini_api_key" | "google_api_key" => "google_api_key",
             "default_ai_provider" => "default_ai_provider",
             "default_max_pages" => "default_max_pages",
             "default_max_depth" => "default_max_depth",
             "default_rate_limit_ms" => "default_rate_limit_ms",
             "theme" => "theme",
-            _ => {
-                return Err(anyhow::anyhow!("Unknown setting key: {}", key));
-            }
+            "gemini_enabled" => "gemini_enabled",
+            _ => return Err(anyhow::anyhow!("Unknown setting key: {}", key)),
         };
 
-        // V2 schema: single row with id=1, upsert the specific column
-        match column {
-            "openai_api_key" => {
-                sqlx::query!(
-                    "INSERT INTO settings (id, openai_api_key) VALUES (1, ?)
-                     ON CONFLICT(id) DO UPDATE SET openai_api_key = ?, updated_at = datetime('now')",
-                    value,
-                    value
-                )
-                .execute(&self.pool)
-                .await
-                .context("Failed to set setting in database")?;
-            }
-            "anthropic_api_key" => {
-                sqlx::query!(
-                    "INSERT INTO settings (id, anthropic_api_key) VALUES (1, ?)
-                     ON CONFLICT(id) DO UPDATE SET anthropic_api_key = ?, updated_at = datetime('now')",
-                    value,
-                    value
-                )
-                .execute(&self.pool)
-                .await
-                .context("Failed to set setting in database")?;
-            }
-            "google_api_key" => {
-                sqlx::query!(
-                    "INSERT INTO settings (id, google_api_key) VALUES (1, ?)
-                     ON CONFLICT(id) DO UPDATE SET google_api_key = ?, updated_at = datetime('now')",
-                    value,
-                    value
-                )
-                .execute(&self.pool)
-                .await
-                .context("Failed to set setting in database")?;
-            }
-            "default_ai_provider" => {
-                sqlx::query!(
-                    "INSERT INTO settings (id, default_ai_provider) VALUES (1, ?)
-                     ON CONFLICT(id) DO UPDATE SET default_ai_provider = ?, updated_at = datetime('now')",
-                    value,
-                    value
-                )
-                .execute(&self.pool)
-                .await
-                .context("Failed to set setting in database")?;
-            }
-            "default_max_pages" => {
-                sqlx::query!(
-                    "INSERT INTO settings (id, default_max_pages) VALUES (1, ?)
-                     ON CONFLICT(id) DO UPDATE SET default_max_pages = ?, updated_at = datetime('now')",
-                    value,
-                    value
-                )
-                .execute(&self.pool)
-                .await
-                .context("Failed to set setting in database")?;
-            }
-            "default_max_depth" => {
-                sqlx::query!(
-                    "INSERT INTO settings (id, default_max_depth) VALUES (1, ?)
-                     ON CONFLICT(id) DO UPDATE SET default_max_depth = ?, updated_at = datetime('now')",
-                    value,
-                    value
-                )
-                .execute(&self.pool)
-                .await
-                .context("Failed to set setting in database")?;
-            }
-            "default_rate_limit_ms" => {
-                sqlx::query!(
-                    "INSERT INTO settings (id, default_rate_limit_ms) VALUES (1, ?)
-                     ON CONFLICT(id) DO UPDATE SET default_rate_limit_ms = ?, updated_at = datetime('now')",
-                    value,
-                    value
-                )
-                .execute(&self.pool)
-                .await
-                .context("Failed to set setting in database")?;
-            }
-            "theme" => {
-                sqlx::query!(
-                    "INSERT INTO settings (id, theme) VALUES (1, ?)
-                     ON CONFLICT(id) DO UPDATE SET theme = ?, updated_at = datetime('now')",
-                    value,
-                    value
-                )
-                .execute(&self.pool)
-                .await
-                .context("Failed to set setting in database")?;
-            }
-            _ => {
-                return Err(anyhow::anyhow!("Unknown setting key: {}", key));
-            }
-        }
+        let query = format!(
+            "INSERT INTO settings (id, {}) VALUES (1, ?)
+             ON CONFLICT(id) DO UPDATE SET {} = ?, updated_at = datetime('now')",
+            column, column
+        );
+
+        sqlx::query(&query)
+            .bind(value)
+            .bind(value)
+            .execute(&self.pool)
+            .await
+            .context("Failed to set setting in structured settings table")?;
 
         Ok(())
     }

@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use async_trait::async_trait;
 use sqlx::SqlitePool;
 
 pub struct AiRepository {
@@ -38,6 +39,17 @@ impl AiRepository {
         .context("Failed to save ai insights to database")?;
 
         Ok(())
+    }
+}
+
+#[async_trait]
+impl crate::repository::AiRepository for AiRepository {
+    async fn get_ai_insights(&self, job_id: &str) -> Result<Option<String>> {
+        AiRepository::get_ai_insights(self, job_id).await
+    }
+
+    async fn save_ai_insights(&self, job_id: &str, insights: &str) -> Result<()> {
+        AiRepository::save_ai_insights(self, job_id, insights).await
     }
 }
 

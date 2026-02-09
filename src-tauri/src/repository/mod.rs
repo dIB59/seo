@@ -38,6 +38,13 @@ pub trait PageRepository: Send + Sync {
     async fn get_lighthouse_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::models::LighthouseData>>;
 }
 
+/// Settings repository trait - key/value configuration store.
+#[async_trait]
+pub trait SettingsRepository: Send + Sync {
+    async fn get_setting(&self, key: &str) -> Result<Option<String>>;
+    async fn set_setting(&self, key: &str, value: &str) -> Result<()>;
+}
+
 /// Link repository trait - abstract link persistence/queries.
 #[async_trait]
 pub trait LinkRepository: Send + Sync {
@@ -76,4 +83,11 @@ pub trait ResultsRepository: Send + Sync {
     async fn get_images(&self, job_id: &str) -> Result<Vec<crate::domain::models::Image>>;
     async fn get_ai_insights(&self, job_id: &str) -> Result<crate::domain::models::AiInsight>;
     async fn save_ai_insights(&self, job_id: &str, summary: Option<&str>, recommendations: Option<&str>, raw_response: Option<&str>, model: Option<&str>) -> Result<()>;
+}
+
+/// AI repository trait - simple caching interface.
+#[async_trait]
+pub trait AiRepository: Send + Sync {
+    async fn get_ai_insights(&self, job_id: &str) -> Result<Option<String>>;
+    async fn save_ai_insights(&self, job_id: &str, insights: &str) -> Result<()>;
 }

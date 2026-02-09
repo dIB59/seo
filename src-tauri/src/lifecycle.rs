@@ -11,6 +11,9 @@ use crate::service::{self, JobProcessor, LighthouseService};
 /// Wrapper for LighthouseService to use as Tauri managed state
 pub struct LighthouseState(pub Arc<LighthouseService>);
 
+/// Wrapper for SettingsRepository to expose to Tauri commands
+pub struct SettingsState(pub Arc<dyn crate::repository::SettingsRepository>);
+
 /// Initialize logging with tracing_subscriber.
 pub fn init_logging() {
     tracing_subscriber::fmt()
@@ -59,6 +62,11 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     tauri::async_runtime::spawn(async move {
         proc_clone.run().await.expect("job-processor died")
     });
+
+    // Settings repository managed state (exposed to commands)
+    let settings_repo: std::sync::Arc<dyn crate::repository::SettingsRepository> =
+        std::sync::Arc::new(crate::repository::sqlite::SettingsRepository::new(pool.clone()));
+    app.manage(crate::lifecycle::SettingsState(settings_repo));
 
     // Initialize LighthouseService and start persistent mode
     let lighthouse = Arc::new(service::LighthouseService::new());
