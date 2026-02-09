@@ -11,8 +11,8 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use sqlx::SqlitePool;
 
-use crate::domain::models::{Job, JobInfo, JobSettings, JobStatus, JobSummary};
 use super::map_job_status;
+use crate::domain::models::{Job, JobInfo, JobSettings, JobStatus, JobSummary};
 
 pub struct JobRepository {
     pool: SqlitePool,
@@ -33,7 +33,11 @@ impl JobRepository {
         let max_depth = 3i64;
         let user_agent: Option<String> = None;
 
-        let lighthouse_analysis = if settings.lighthouse_analysis { 1i32 } else { 0 };
+        let lighthouse_analysis = if settings.lighthouse_analysis {
+            1i32
+        } else {
+            0
+        };
 
         sqlx::query!(
             r#"
@@ -60,7 +64,7 @@ impl JobRepository {
         .await
         .context("Failed to create job")?;
 
-        log::info!("Created job {} for URL: {}", id, url);
+        tracing::info!("Created job {} for URL: {}", id, url);
         Ok(id)
     }
 
@@ -217,7 +221,7 @@ impl JobRepository {
         .await
         .context("Failed to update job status")?;
 
-        log::info!("Updated job {} to status: {}", job_id, status);
+        tracing::info!("Updated job {} to status: {}", job_id, status);
         Ok(())
     }
 
@@ -248,7 +252,7 @@ impl JobRepository {
     /// Update job with error.
     pub async fn set_error(&self, job_id: &str, error: &str) -> Result<()> {
         let now = Utc::now().to_rfc3339();
-        
+
         sqlx::query!(
             r#"
             UPDATE jobs 
@@ -263,7 +267,7 @@ impl JobRepository {
         .await
         .context("Failed to set job error")?;
 
-        log::error!("Job {} failed: {}", job_id, error);
+        tracing::error!("Job {} failed: {}", job_id, error);
         Ok(())
     }
 
@@ -274,7 +278,7 @@ impl JobRepository {
             .await
             .context("Failed to delete job")?;
 
-        log::info!("Deleted job {}", job_id);
+        tracing::info!("Deleted job {}", job_id);
         Ok(())
     }
 }
@@ -283,4 +287,49 @@ fn parse_datetime(s: &str) -> chrono::DateTime<Utc> {
     chrono::DateTime::parse_from_rfc3339(s)
         .map(|dt| dt.with_timezone(&Utc))
         .unwrap_or_else(|_| Utc::now())
+}
+
+// Implement the abstract repository trait using the concrete sqlite repository
+use crate::repository::JobRepository as JobRepositoryTrait;
+use async_trait::async_trait;
+
+#[async_trait]
+impl JobRepositoryTrait for JobRepository {
+    async fn create(&self, url: &str, settings: &JobSettings) -> Result<String> {
+        // Call the inherent method
+        JobRepository::create(self, url, settings).await
+    }
+
+    async fn get_by_id(&self, id: &str) -> Result<Job> {
+        JobRepository::get_by_id(self, id).await
+    }
+
+    async fn get_all(&self) -> Result<Vec<JobInfo>> {
+        JobRepository::get_all(self).await
+    }
+
+    async fn get_pending(&self) -> Result<Vec<Job>> {
+        JobRepository::get_pending(self).await
+    }
+
+    async fn update_status(&self, job_id: &str, status: JobStatus) -> Result<()> {
+        JobRepository::update_status(self, job_id, status).await
+    }
+
+    async fn update_progress(
+        &self,
+        id: &str,
+        progress: f64,
+        current_stage: Option<&str>,
+    ) -> Result<()> {
+        JobRepository::update_progress(self, id, progress, current_stage).await
+    }
+
+    async fn set_error(&self, job_id: &str, error: &str) -> Result<()> {
+        JobRepository::set_error(self, job_id, error).await
+    }
+
+    async fn delete(&self, job_id: &str) -> Result<()> {
+        JobRepository::delete(self, job_id).await
+    }
 }

@@ -1,4 +1,4 @@
-import { CompleteAnalysisResult } from "@/src/lib/types"
+import { CompleteAnalysisResponse } from "@/src/lib/types"
 import {
     downloadCSVReport,
     downloadTextReport,
@@ -13,7 +13,7 @@ export function AnalysisHeader({
     result,
 }: {
     onBack: () => void
-    result: CompleteAnalysisResult
+    result: CompleteAnalysisResponse
 }) {
     const { analysis, pages } = result
 

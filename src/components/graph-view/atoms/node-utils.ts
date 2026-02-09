@@ -1,7 +1,7 @@
-import type { CompleteAnalysisResult } from "@/src/lib/types"
+import type { CompleteAnalysisResponse } from "@/src/lib/types"
 
 export const calculateNodeDegrees = (
-    pages: CompleteAnalysisResult['pages'],
+    pages: CompleteAnalysisResponse['pages'],
     validUrls: Map<string, string>,
 ) => {
     const inDegree = new Map<string, number>()
@@ -18,7 +18,7 @@ export const calculateNodeDegrees = (
         let outgoingCount = 0
 
         page.detailed_links.forEach(link => {
-            if (!link.is_internal) return
+            if (link.is_external) return
 
             const targetUrl = (
                 // caller can import resolveInternalUrl directly when composing
@@ -37,7 +37,7 @@ export const calculateNodeDegrees = (
     return { inDegree, outDegree }
 }
 
-export const getNodeColor = (issues: CompleteAnalysisResult['issues'], pageUrl: string) => {
+export const getNodeColor = (issues: CompleteAnalysisResponse['issues'], pageUrl: string) => {
     const pageIssues = issues.filter(issue => issue.page_url === pageUrl)
 
     if (pageIssues.some(i => i.severity === "critical")) return '#f14444ff'

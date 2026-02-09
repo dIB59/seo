@@ -10,13 +10,14 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
 // ============================================================================
 // JOB - Consolidated job, settings, and summary
 // ============================================================================
 
 /// Status of an SEO analysis job.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "lowercase")]
 pub enum JobStatus {
     Pending,
@@ -208,7 +209,7 @@ pub struct PageInfo {
 // ============================================================================
 
 /// Severity level for SEO issues.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "lowercase")]
 pub enum IssueSeverity {
     Critical,
@@ -265,7 +266,12 @@ pub struct IssueBuilder {
 }
 
 impl IssueBuilder {
-    pub fn new(job_id: String, issue_type: String, severity: IssueSeverity, message: String) -> Self {
+    pub fn new(
+        job_id: String,
+        issue_type: String,
+        severity: IssueSeverity,
+        message: String,
+    ) -> Self {
         Self {
             job_id,
             page_id: None,
@@ -373,6 +379,43 @@ pub struct NewLink {
     pub status_code: Option<i64>,
 }
 
+impl NewLink {
+    /// Create a new link, automatically determining if it is internal or external.
+    pub fn create(
+        job_id: &str,
+        source_page_id: &str,
+        target_url: &str,
+        link_text: Option<String>,
+        status_code: Option<i64>,
+        base_url: &str,
+    ) -> Self {
+        let link_type = if Self::is_internal(target_url, base_url) {
+            LinkType::Internal
+        } else {
+            LinkType::External
+        };
+
+        Self {
+            job_id: job_id.to_string(),
+            source_page_id: source_page_id.to_string(),
+            target_page_id: None,
+            target_url: target_url.to_string(),
+            link_text,
+            link_type,
+            is_followed: true,
+            status_code,
+        }
+    }
+
+    fn is_internal(target_url: &str, base_url: &str) -> bool {
+        if let (Ok(edge_url), Ok(base)) = (url::Url::parse(target_url), url::Url::parse(base_url)) {
+            edge_url.host_str() == base.host_str() && edge_url.port() == base.port()
+        } else {
+            false
+        }
+    }
+}
+
 // ============================================================================
 // LIGHTHOUSE DATA
 // ============================================================================
@@ -453,14 +496,14 @@ pub struct NewImage {
 // ============================================================================
 
 /// Heading element for frontend display.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct HeadingElement {
     pub tag: String,
     pub text: String,
 }
 
 /// Image element for frontend display.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct ImageElement {
     pub src: String,
     pub alt: Option<String>,
@@ -555,7 +598,7 @@ impl ResourceStatus {
 }
 
 /// Analysis progress for frontend updates
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct AnalysisProgress {
     pub job_id: String,
     pub url: String,
@@ -567,7 +610,7 @@ pub struct AnalysisProgress {
 }
 
 /// Summary of analysis results
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct AnalysisSummary {
     pub analysis_id: String,
     pub seo_score: i64,
@@ -606,8 +649,6 @@ pub struct SeoIssue {
     pub line_number: Option<i32>,
 }
 
-
-
 /// Page analysis data (frontend-compatible format)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PageAnalysisData {
@@ -643,7 +684,7 @@ pub struct PageAnalysisData {
 }
 
 /// Link details (frontend-compatible)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct LinkDetail {
     #[serde(rename = "href", alias = "url")]
     pub url: String,

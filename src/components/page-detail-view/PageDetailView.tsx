@@ -48,7 +48,7 @@ export function PageDetailView({ page, pages, currentIndex, onBack, onNavigate, 
         window.addEventListener("keydown", handleKeyDown)
         return () => window.removeEventListener("keydown", handleKeyDown)
     }, [goToPrev, goToNext, onBack])
-
+    console.log("LIGHTHOUSE" , page.lighthouse_seo_audits);
     return (
         <div className="space-y-4">
             <PageHeader page={page} pages={pages} currentIndex={currentIndex} onBack={onBack} onNavigate={onNavigate} />

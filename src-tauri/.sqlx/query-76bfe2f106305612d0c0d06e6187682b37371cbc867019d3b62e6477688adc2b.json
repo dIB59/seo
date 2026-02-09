@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO settings (id, google_api_key) VALUES (1, ?)\n                     ON CONFLICT(id) DO UPDATE SET google_api_key = ?, updated_at = datetime('now')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "76bfe2f106305612d0c0d06e6187682b37371cbc867019d3b62e6477688adc2b"
+}
