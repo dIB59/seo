@@ -3,7 +3,6 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use sqlx::SqlitePool;
 use std::sync::Arc;
 
 use crate::domain::models::{
@@ -18,8 +17,6 @@ use url::Url;
 const MOBILE_FRIENDLY_LOAD_TIME_MS: i64 = 2000; // Pages with load time <= 2s considered mobile friendly (heuristic)
 const DEFAULT_SITEMAP_FOUND: bool = false; // Unknown if sitemap exists; keep explicit default
 const DEFAULT_ROBOTS_TXT_FOUND: bool = false; // Unknown if robots.txt found; explicit default
-
-use crate::repository::sqlite::ResultsRepository;
 
 pub struct AnalysisAssembler {
     repo: Arc<dyn ResultsRepositoryTrait>,

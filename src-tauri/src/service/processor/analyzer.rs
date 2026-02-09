@@ -6,7 +6,6 @@ use crate::service::auditor::{Auditor, DeepAuditor, LightAuditor};
 use crate::repository::{PageRepository as PageRepoTrait, IssueRepository as IssueRepoTrait};
 use anyhow::Result;
 use scraper::Html;
-use sqlx::SqlitePool;
 use std::sync::Arc;
 
 pub struct AnalyzerService {

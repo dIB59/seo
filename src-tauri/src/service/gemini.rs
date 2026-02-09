@@ -2,10 +2,7 @@ use crate::service::http::{create_client, ClientType};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sqlx::SqlitePool;
 use specta::Type;
-
-use crate::repository::sqlite::{AiRepository, SettingsRepository};
 
 /// The Gemini API endpoint path (without base URL)
 pub const GEMINI_API_PATH: &str = "/v1beta/models/gemini-2.0-flash:generateContent";
@@ -185,6 +182,8 @@ pub fn replace_prompt_vars(text: &str, request: &GeminiRequest) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::repository::sqlite::SettingsRepository;
+
 
     #[test]
     fn test_replace_prompt_vars() {

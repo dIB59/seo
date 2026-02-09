@@ -14,7 +14,6 @@ pub use reporter::ProgressReporter;
 
 use crate::domain::models::{Job, JobStatus, NewLink};
 use anyhow::Result;
-use sqlx::SqlitePool;
 use std::sync::atomic::Ordering;
 
 /// Orchestrates SEO analysis jobs using the normalized schema.
