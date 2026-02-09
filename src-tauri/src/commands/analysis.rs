@@ -7,11 +7,9 @@ use url::Url;
 
 
 use crate::{
-    db::DbState,
     domain::models::JobSettings,
     domain::models::{AnalysisProgress, CompleteAnalysisResult, JobStatus, PageAnalysisData, SeoIssue, AnalysisSummary, AnalysisResults, ImageElement},
     error::CommandError,
-    repository::sqlite::JobRepository,
     service::JobProcessor,
 };
 
@@ -215,16 +213,15 @@ fn validate_url(url: &str) -> Result<Url> {
 pub async fn start_analysis(
     url: String,
     settings: Option<AnalysisSettingsRequest>,
-    db: State<'_, DbState>,
+    job_repo_state: State<'_, crate::lifecycle::JobState>,
 ) -> Result<AnalysisJobResponse, CommandError> {
     log::info!("Starting analysis: {}", url);
     log::info!("Settings: {:?}", settings);
     let parsed_url = validate_url(&url).context("Bad URL")?;
 
     let analysis_settings: JobSettings = settings.unwrap_or_default().into();
-    let pool = &db.0;
 
-    let repository = JobRepository::new(pool.clone());
+    let repository = job_repo_state.0.clone();
     let job_id = repository
         .create(parsed_url.as_str(), &analysis_settings)
         .await
@@ -241,12 +238,11 @@ pub async fn start_analysis(
 #[specta::specta]
 pub async fn get_analysis_progress(
     job_id: String,
-    db: State<'_, DbState>,
+    job_repo_state: State<'_, crate::lifecycle::JobState>,
 ) -> Result<AnalysisProgress, CommandError> {
     log::info!("Getting analysis progress for job: {}", job_id);
 
-    let pool = &db.0;
-    let repository = JobRepository::new(pool.clone());
+    let repository = job_repo_state.0.clone();
 
     let job = repository
         .get_by_id(&job_id)
@@ -261,11 +257,10 @@ pub async fn get_analysis_progress(
 //Implement pagination
 #[tauri::command]
 #[specta::specta]
-pub async fn get_all_jobs(db: State<'_, DbState>) -> Result<Vec<AnalysisProgress>, CommandError> {
+pub async fn get_all_jobs(job_repo_state: State<'_, crate::lifecycle::JobState>) -> Result<Vec<AnalysisProgress>, CommandError> {
     log::info!("Fetching all analysis jobs");
 
-    let pool = &db.0;
-    let repository = JobRepository::new(pool.clone());
+    let repository = job_repo_state.0.clone();
 
     let jobs = repository.get_all().await.map_err(CommandError::from)?;
 
@@ -290,13 +285,12 @@ pub async fn cancel_analysis(
 #[specta::specta]
 pub async fn get_result(
     job_id: String,
-    db: State<'_, DbState>,
+    results_state: State<'_, crate::lifecycle::ResultsState>,
 ) -> Result<CompleteAnalysisResponse, CommandError> {
     log::trace!("Getting result ID for job: {}", job_id);
 
-    let pool = &db.0;
-    let repo = crate::repository::sqlite::ResultsRepository::new(pool.clone());
-    let assembler = crate::service::AnalysisAssembler::new(std::sync::Arc::new(repo));
+    let repo = results_state.0.clone();
+    let assembler = crate::service::AnalysisAssembler::new(repo);
 
     let result = assembler
         .assemble(&job_id)

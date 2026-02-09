@@ -38,7 +38,7 @@ pub struct GeminiRequest {
 /// Generate AI-powered SEO analysis using Google Gemini API
 pub async fn generate_gemini_analysis(
     ai_repo: std::sync::Arc<dyn crate::repository::AiRepository>,
-    pool: &SqlitePool,
+    settings_repo: std::sync::Arc<dyn crate::repository::SettingsRepository>,
     request: GeminiRequest,
     api_base_url: Option<String>,
 ) -> Result<String> {
@@ -50,8 +50,6 @@ pub async fn generate_gemini_analysis(
         );
         return Ok(cached_insights);
     }
-
-    let settings_repo = SettingsRepository::new(pool.clone());
 
     // Get API key from database
     let api_key = match settings_repo.get_setting("gemini_api_key").await? {
@@ -244,7 +242,8 @@ mod tests {
         request.url = "https://test.com".into();
 
         let ai_repo = std::sync::Arc::new(crate::repository::sqlite::AiRepository::new(pool.clone()));
-        let result = generate_gemini_analysis(ai_repo, &pool, request, Some(server.url()))
+        let settings_repo = std::sync::Arc::new(crate::repository::sqlite::SettingsRepository::new(pool.clone()));
+        let result = generate_gemini_analysis(ai_repo, settings_repo, request, Some(server.url()))
             .await
             .unwrap();
 
@@ -268,7 +267,8 @@ mod tests {
         let request = fixtures::minimal_gemini_request();
 
         let ai_repo = std::sync::Arc::new(crate::repository::sqlite::AiRepository::new(pool.clone()));
-        let result = generate_gemini_analysis(ai_repo, &pool, request, None).await;
+        let settings_repo = std::sync::Arc::new(crate::repository::sqlite::SettingsRepository::new(pool.clone()));
+        let result = generate_gemini_analysis(ai_repo, settings_repo, request, None).await;
 
         assert!(result.is_err(), "Should fail when API key is missing");
         let err = result.unwrap_err().to_string();
@@ -299,7 +299,8 @@ mod tests {
         let request = fixtures::minimal_gemini_request();
 
         let ai_repo = std::sync::Arc::new(crate::repository::sqlite::AiRepository::new(pool.clone()));
-        let result = generate_gemini_analysis(ai_repo, &pool, request, Some(server.url())).await;
+        let settings_repo = std::sync::Arc::new(crate::repository::sqlite::SettingsRepository::new(pool.clone()));
+        let result = generate_gemini_analysis(ai_repo, settings_repo, request, Some(server.url())).await;
 
         assert!(result.is_err(), "Should fail when API returns error");
         let err = result.unwrap_err().to_string();
@@ -348,7 +349,8 @@ mod tests {
 
         // First call - should hit API
         let ai_repo = std::sync::Arc::new(crate::repository::sqlite::AiRepository::new(pool.clone()));
-        let result1 = generate_gemini_analysis(ai_repo.clone(), &pool, request.clone(), Some(server.url()))
+        let settings_repo = std::sync::Arc::new(crate::repository::sqlite::SettingsRepository::new(pool.clone()));
+        let result1 = generate_gemini_analysis(ai_repo.clone(), settings_repo.clone(), request.clone(), Some(server.url()))
             .await
             .unwrap();
         assert!(
@@ -357,7 +359,7 @@ mod tests {
         );
 
         // Second call with same analysis_id - should use cache
-        let result2 = generate_gemini_analysis(ai_repo, &pool, request, Some(server.url()))
+        let result2 = generate_gemini_analysis(ai_repo, settings_repo, request, Some(server.url()))
             .await
             .unwrap();
         assert!(

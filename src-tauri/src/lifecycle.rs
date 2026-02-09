@@ -5,7 +5,7 @@
 use std::sync::Arc;
 use tauri::{AppHandle, Manager, RunEvent};
 
-use crate::db::{self, DbState};
+use crate::db;
 use crate::service::{self, JobProcessor, LighthouseService};
 
 /// Wrapper for LighthouseService to use as Tauri managed state
@@ -13,6 +13,15 @@ pub struct LighthouseState(pub Arc<LighthouseService>);
 
 /// Wrapper for SettingsRepository to expose to Tauri commands
 pub struct SettingsState(pub Arc<dyn crate::repository::SettingsRepository>);
+
+/// Wrapper for AiRepository to expose to Tauri commands
+pub struct AiState(pub Arc<dyn crate::repository::AiRepository>);
+
+/// Wrapper for JobRepository to expose to Tauri commands
+pub struct JobState(pub Arc<dyn crate::repository::JobRepository>);
+
+/// Wrapper for ResultsRepository to expose to Tauri commands
+pub struct ResultsState(pub Arc<dyn crate::repository::ResultsRepository>);
 
 /// Initialize logging with tracing_subscriber.
 pub fn init_logging() {
@@ -49,10 +58,16 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let page_repo = Arc::new(crate::repository::sqlite::PageRepository::new(pool.clone()));
     let issue_repo = Arc::new(crate::repository::sqlite::IssueRepository::new(pool.clone()));
 
+    // Expose Job and Results repositories as managed state for commands
+    app.manage(crate::lifecycle::JobState(job_repo.clone()));
+    let results_repo: std::sync::Arc<dyn crate::repository::ResultsRepository> =
+        std::sync::Arc::new(crate::repository::sqlite::ResultsRepository::new(pool.clone()));
+    app.manage(crate::lifecycle::ResultsState(results_repo.clone()));
+
     let analyzer = crate::service::processor::AnalyzerService::new(page_repo, issue_repo);
 
     let processor = Arc::new(JobProcessor::new(
-        job_repo,
+        job_repo.clone(),
         link_repo,
         analyzer,
         app.handle().clone(),
@@ -68,6 +83,11 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         std::sync::Arc::new(crate::repository::sqlite::SettingsRepository::new(pool.clone()));
     app.manage(crate::lifecycle::SettingsState(settings_repo));
 
+    // AI repository managed state (exposed to commands)
+    let ai_repo: std::sync::Arc<dyn crate::repository::AiRepository> =
+        std::sync::Arc::new(crate::repository::sqlite::AiRepository::new(pool.clone()));
+    app.manage(crate::lifecycle::AiState(ai_repo));
+
     // Initialize LighthouseService and start persistent mode
     let lighthouse = Arc::new(service::LighthouseService::new());
     let lighthouse_clone = lighthouse.clone();
@@ -81,7 +101,7 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // Register managed state
-    app.manage(DbState(pool));
+    // DB pool is no longer exposed as managed state; repositories are registered instead.
     app.manage(processor);
     app.manage(LighthouseState(lighthouse));
     
