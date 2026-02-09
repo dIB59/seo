@@ -3,8 +3,6 @@ use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::SqlitePool;
 use std::time::Duration;
 
-pub struct DbState(pub SqlitePool);
-
 use tauri::{AppHandle, Manager};
 
 /// Configure SQLite pragmas for optimal performance.
