@@ -6,7 +6,7 @@
 //! - `Result<T>`: Type alias for Results using AppError
 
 use serde::Serialize;
-use specta::{Type, specta};
+use specta::Type;
 use std::fmt;
 use thiserror::Error;
 

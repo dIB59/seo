@@ -4,15 +4,12 @@ use anyhow::{Context, Result};
 use specta::Type;
 use tauri::State;
 use url::Url;
-use serde::{Deserialize, Serialize};
-use specta_typescript::Typescript;
-use tauri_specta::{collect_commands, Builder};
 
 
 use crate::{
     db::DbState,
     domain::models::JobSettings,
-    domain::models::{AnalysisProgress, CompleteAnalysisResult, JobStatus, PageAnalysisData, SeoIssue, AnalysisSummary, AnalysisResults, HeadingElement, ImageElement},
+    domain::models::{AnalysisProgress, CompleteAnalysisResult, JobStatus, PageAnalysisData, SeoIssue, AnalysisSummary, AnalysisResults, ImageElement},
     error::CommandError,
     repository::sqlite::JobRepository,
     service::JobProcessor,

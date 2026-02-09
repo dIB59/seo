@@ -10,7 +10,7 @@ use specta_typescript::{BigIntExportBehavior};
 fn main() {
     lifecycle::init_logging();
 
-    let mut builder = Builder::<tauri::Wry>::new()
+    let builder = Builder::<tauri::Wry>::new()
         // Then register them (separated by a comma)
         .commands(collect_commands![
             commands::analysis::start_analysis,
