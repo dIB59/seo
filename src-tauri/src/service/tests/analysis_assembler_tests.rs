@@ -57,7 +57,8 @@ async fn test_mobile_detection_and_structured_data_from_lighthouse() {
 
     page_repo.insert_lighthouse(&lh).await.unwrap();
 
-    let assembler = AnalysisAssembler::new(pool.clone());
+    let repo = crate::repository::sqlite::ResultsRepository::new(pool.clone());
+    let assembler = AnalysisAssembler::new(std::sync::Arc::new(repo));
     let result = assembler.assemble(&job_id).await.unwrap();
 
     assert_eq!(result.pages.len(), 1);
@@ -106,7 +107,8 @@ async fn test_mobile_detection_fallback_to_load_time() {
 
     page_repo.insert(&page).await.unwrap();
 
-    let assembler = AnalysisAssembler::new(pool.clone());
+    let repo = crate::repository::sqlite::ResultsRepository::new(pool.clone());
+    let assembler = AnalysisAssembler::new(std::sync::Arc::new(repo));
     let result = assembler.assemble(&job_id).await.unwrap();
 
     assert_eq!(result.pages.len(), 1);
@@ -174,7 +176,8 @@ async fn test_link_classification_fallback_when_target_unparsable() {
 
     link_repo.insert_batch(&links).await.unwrap();
 
-    let assembler = AnalysisAssembler::new(pool.clone());
+    let repo = crate::repository::sqlite::ResultsRepository::new(pool.clone());
+    let assembler = AnalysisAssembler::new(std::sync::Arc::new(repo));
     let result = assembler.assemble(&job_id).await.unwrap();
 
     assert_eq!(result.pages.len(), 1);

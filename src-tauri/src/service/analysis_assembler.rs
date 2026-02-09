@@ -26,13 +26,8 @@ pub struct AnalysisAssembler {
 }
 
 impl AnalysisAssembler {
-    pub fn new(pool: SqlitePool) -> Self {
-        let repo = crate::repository::sqlite::ResultsRepository::new(pool);
-        Self { repo: Arc::new(repo) }
-    }
-
-    /// Create assembler with a mocked or alternate repository (DI-friendly)
-    pub fn new_with_repo(repo: Arc<dyn ResultsRepositoryTrait>) -> Self {
+    /// Create assembler with a repository implementation (DI-only).
+    pub fn new(repo: Arc<dyn ResultsRepositoryTrait>) -> Self {
         Self { repo }
     }
 
@@ -371,7 +366,8 @@ mod tests {
 
         page_repo.insert_lighthouse(&lh).await.unwrap();
 
-        let assembler = AnalysisAssembler::new(pool.clone());
+        let repo = crate::repository::sqlite::ResultsRepository::new(pool.clone());
+        let assembler = AnalysisAssembler::new(std::sync::Arc::new(repo));
         let result = assembler.assemble(&job_id).await.unwrap();
 
         assert_eq!(result.pages.len(), 1);
@@ -411,7 +407,8 @@ mod tests {
 
         page_repo.insert(&page).await.unwrap();
 
-        let assembler = AnalysisAssembler::new(pool.clone());
+        let repo = crate::repository::sqlite::ResultsRepository::new(pool.clone());
+        let assembler = AnalysisAssembler::new(std::sync::Arc::new(repo));
         let result = assembler.assemble(&job_id).await.unwrap();
 
         assert_eq!(result.pages.len(), 1);
@@ -479,7 +476,8 @@ mod tests {
 
         link_repo.insert_batch(&links).await.unwrap();
 
-        let assembler = AnalysisAssembler::new(pool.clone());
+        let repo = crate::repository::sqlite::ResultsRepository::new(pool.clone());
+        let assembler = AnalysisAssembler::new(std::sync::Arc::new(repo));
         let result = assembler.assemble(&job_id).await.unwrap();
 
         assert_eq!(result.pages.len(), 1);

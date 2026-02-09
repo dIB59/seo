@@ -295,7 +295,8 @@ pub async fn get_result(
     log::trace!("Getting result ID for job: {}", job_id);
 
     let pool = &db.0;
-    let assembler = crate::service::AnalysisAssembler::new(pool.clone());
+    let repo = crate::repository::sqlite::ResultsRepository::new(pool.clone());
+    let assembler = crate::service::AnalysisAssembler::new(std::sync::Arc::new(repo));
 
     let result = assembler
         .assemble(&job_id)

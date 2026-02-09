@@ -2,16 +2,16 @@ use crate::domain::models::{
     IssueSeverity, JobSettings, LighthouseData, NewHeading, NewImage, NewIssue, Page,
 };
 use crate::extractor::page_extractor::{ExtractedHeading, ExtractedImage, PageExtractor};
-use crate::repository::sqlite::{IssueRepository, PageRepository};
 use crate::service::auditor::{Auditor, DeepAuditor, LightAuditor};
+use crate::repository::{PageRepository as PageRepoTrait, IssueRepository as IssueRepoTrait};
 use anyhow::Result;
 use scraper::Html;
 use sqlx::SqlitePool;
 use std::sync::Arc;
 
 pub struct AnalyzerService {
-    page_db: PageRepository,
-    issue_db: IssueRepository,
+    page_db: Arc<dyn PageRepoTrait>,
+    issue_db: Arc<dyn IssueRepoTrait>,
     light_auditor: Arc<LightAuditor>,
     deep_auditor: Arc<DeepAuditor>,
 }
@@ -46,10 +46,13 @@ pub struct PageResult {
 }
 
 impl AnalyzerService {
-    pub fn new(pool: SqlitePool) -> Self {
+
+    /// Create analyzer with mocked or alternate repos (DI-friendly, for tests).
+    /// Create analyzer with mocked or alternate repos (DI-only).
+    pub fn new(page_db: Arc<dyn PageRepoTrait>, issue_db: Arc<dyn IssueRepoTrait>) -> Self {
         Self {
-            page_db: PageRepository::new(pool.clone()),
-            issue_db: IssueRepository::new(pool),
+            page_db,
+            issue_db,
             light_auditor: Arc::new(LightAuditor::new()),
             deep_auditor: Arc::new(DeepAuditor::new()),
         }

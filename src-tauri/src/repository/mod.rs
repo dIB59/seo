@@ -51,6 +51,18 @@ pub trait LinkRepository: Send + Sync {
     async fn update_status_codes(&self, updates: &[(i64, i64)]) -> Result<()>;
 }
 
+/// Issue repository trait - abstract issue persistence and queries.
+#[async_trait]
+pub trait IssueRepository: Send + Sync {
+    async fn insert_batch(&self, issues: &[crate::domain::models::NewIssue]) -> Result<()>;
+    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::models::Issue>>;
+    async fn get_by_page_id(&self, page_id: &str) -> Result<Vec<crate::domain::models::Issue>>;
+    async fn get_by_job_and_severity(&self, job_id: &str, severity: crate::domain::models::IssueSeverity) -> Result<Vec<crate::domain::models::Issue>>;
+    async fn count_by_severity(&self, job_id: &str) -> Result<crate::repository::sqlite::IssueCounts>;
+    async fn count_by_job_id(&self, job_id: &str) -> Result<i64>;
+    async fn get_grouped_by_type(&self, job_id: &str) -> Result<Vec<crate::repository::sqlite::IssueGroup>>;
+}
+
 /// Results repository trait - high-level getters for assembled results.
 #[async_trait]
 pub trait ResultsRepository: Send + Sync {

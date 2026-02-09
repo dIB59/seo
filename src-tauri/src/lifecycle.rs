@@ -40,11 +40,21 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             .unwrap_or_else(|e| panic!("failed to init db: {}", e))
     });
 
-    // Start job processor (V2 schema)
+    // Start job processor (V2 schema) - construct repos and services and pass via DI
+    let job_repo = Arc::new(crate::repository::sqlite::JobRepository::new(pool.clone()));
+    let link_repo = Arc::new(crate::repository::sqlite::LinkRepository::new(pool.clone()));
+    let page_repo = Arc::new(crate::repository::sqlite::PageRepository::new(pool.clone()));
+    let issue_repo = Arc::new(crate::repository::sqlite::IssueRepository::new(pool.clone()));
+
+    let analyzer = crate::service::processor::AnalyzerService::new(page_repo, issue_repo);
+
     let processor = Arc::new(JobProcessor::new(
-        pool.clone(),
+        job_repo,
+        link_repo,
+        analyzer,
         app.handle().clone(),
     ));
+
     let proc_clone = processor.clone();
     tauri::async_runtime::spawn(async move {
         proc_clone.run().await.expect("job-processor died")

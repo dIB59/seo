@@ -248,6 +248,40 @@ fn parse_datetime(s: &str) -> chrono::DateTime<Utc> {
         .unwrap_or_else(|_| Utc::now())
 }
 
+use async_trait::async_trait;
+use crate::repository::IssueRepository as IssueRepositoryTrait;
+
+#[async_trait]
+impl IssueRepositoryTrait for IssueRepository {
+    async fn insert_batch(&self, issues: &[crate::domain::models::NewIssue]) -> Result<()> {
+        IssueRepository::insert_batch(self, issues).await
+    }
+
+    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::models::Issue>> {
+        IssueRepository::get_by_job_id(self, job_id).await
+    }
+
+    async fn get_by_page_id(&self, page_id: &str) -> Result<Vec<crate::domain::models::Issue>> {
+        IssueRepository::get_by_page_id(self, page_id).await
+    }
+
+    async fn get_by_job_and_severity(&self, job_id: &str, severity: crate::domain::models::IssueSeverity) -> Result<Vec<crate::domain::models::Issue>> {
+        IssueRepository::get_by_job_and_severity(self, job_id, severity).await
+    }
+
+    async fn count_by_severity(&self, job_id: &str) -> Result<crate::repository::sqlite::IssueCounts> {
+        IssueRepository::count_by_severity(self, job_id).await
+    }
+
+    async fn count_by_job_id(&self, job_id: &str) -> Result<i64> {
+        IssueRepository::count_by_job_id(self, job_id).await
+    }
+
+    async fn get_grouped_by_type(&self, job_id: &str) -> Result<Vec<crate::repository::sqlite::IssueGroup>> {
+        IssueRepository::get_grouped_by_type(self, job_id).await
+    }
+}
+
 /// Issue counts by severity.
 #[derive(Debug, Clone, Default)]
 pub struct IssueCounts {

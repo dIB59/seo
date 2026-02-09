@@ -33,17 +33,20 @@ pub struct JobProcessor<R: tauri::Runtime = tauri::Wry> {
 }
 
 impl<R: tauri::Runtime> JobProcessor<R> {
-    pub fn new(pool: SqlitePool, app_handle: tauri::AppHandle<R>) -> Self {
-        let job_repo = crate::repository::sqlite::JobRepository::new(pool.clone());
-        let link_repo = crate::repository::sqlite::LinkRepository::new(pool.clone());
-
+    /// Construct a JobProcessor with explicit repository and service dependencies (DI-only).
+    pub fn new(
+        job_repo: Arc<dyn crate::repository::JobRepository>,
+        link_repo: Arc<dyn crate::repository::LinkRepository>,
+        analyzer: AnalyzerService,
+        app_handle: tauri::AppHandle<R>,
+    ) -> Self {
         Self {
-            job_queue: JobQueue::new(Arc::new(job_repo)),
+            job_queue: JobQueue::new(job_repo),
             crawler: Crawler::new(),
-            analyzer: AnalyzerService::new(pool.clone()),
+            analyzer,
             progress_reporter: ProgressReporter::new(app_handle),
             canceler: JobCanceler::new(),
-            link_db: Arc::new(link_repo),
+            link_db: link_repo,
         }
     }
 
