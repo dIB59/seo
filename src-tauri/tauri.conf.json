@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "tauri-app",
+  "productName": "SEO Insikt crawler",
   "version": "0.3.4",
   "identifier": "com.seoinskt.se",
   "build": {
