@@ -267,7 +267,6 @@ impl JobRepository {
         .await
         .context("Failed to set job error")?;
 
-        tracing::error!("Job {} failed: {}", job_id, error);
         Ok(())
     }
 
