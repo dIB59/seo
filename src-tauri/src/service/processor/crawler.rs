@@ -1,6 +1,6 @@
 use crate::domain::models::JobSettings;
 use crate::service::discovery::{PageDiscovery, ResourceChecker};
-use crate::service::DiscoveryProgressEmitter;
+use crate::service::processor::reporter::{ProgressEmitter, ProgressEvent};
 use anyhow::{Context, Result};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -45,13 +45,18 @@ impl Crawler {
         })
     }
 
-    pub async fn discover_pages<E: DiscoveryProgressEmitter + Send + Sync + 'static>(
+    /// Discover pages using unified progress emission
+    pub async fn discover_pages(
         &self,
         context: &CrawlContext,
-        emitter: E,
+        progress_emitter: Arc<dyn ProgressEmitter>, // ← Single trait object
     ) -> Result<Vec<Url>> {
         let job_id = context.job_id.clone();
         let max_pages = context.settings.max_pages as usize;
+
+        // Clone emitter for the callback (Arc is cheap)
+        let emitter = progress_emitter.clone();
+        let job_id_clone = job_id.clone();
 
         let mut discovered = self
             .discovery
@@ -61,7 +66,12 @@ impl Crawler {
                 context.settings.delay_between_requests,
                 &context.cancel_flag,
                 move |count| {
-                    emitter.emit_discovery_progress(&job_id, count, max_pages);
+                    // Emit discovery progress as a typed event
+                    emitter.emit(ProgressEvent::Discovery {
+                        job_id: job_id_clone.clone(),
+                        count,
+                        total_pages: max_pages,
+                    });
                 },
             )
             .await

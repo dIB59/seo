@@ -3,7 +3,7 @@ use crate::{
         AiRepository, IssueRepository, JobRepository, LinkRepository, PageRepository,
         ResultsRepository, SettingsRepository,
     },
-    service::{processor::AnalyzerService, JobProcessor, LighthouseService},
+    service::{JobProcessor, LighthouseService, ProgressReporter, processor::{AnalyzerService, reporter::ProgressEmitter}},
 };
 use std::sync::Arc;
 use tauri::AppHandle;
@@ -20,7 +20,7 @@ pub struct AppState {
     pub lighthouse_service: Arc<LighthouseService>,
 
     // Background services (not exposed to commands, but kept alive via AppState)
-    _job_processor: Arc<JobProcessor>, // underscore = intentionally unused but kept alive
+    pub job_processor: Arc<JobProcessor>, // underscore = intentionally unused but kept alive
 }
 
 impl AppState {
@@ -37,14 +37,14 @@ impl AppState {
         let results_repo = Arc::new(ResultsRepository::new(pool.clone()));
         let settings_repo = Arc::new(SettingsRepository::new(pool.clone()));
         let ai_repo = Arc::new(AiRepository::new(pool.clone()));
-
+        let progress_reporter: Arc<dyn ProgressEmitter> = Arc::new(ProgressReporter::new(app_handle.clone()));
         // 3. Build services (middle layer)
         let analyzer = AnalyzerService::new(pages_repo, issues_repo);
         let job_processor = Arc::new(JobProcessor::new(
             job_repo.clone(),
             link_repo,
             analyzer,
-            app_handle.clone(),
+            progress_reporter.clone(),
         ));
 
         // 4. Start background tasks
@@ -74,7 +74,7 @@ impl AppState {
             job_repo,
             results_repo,
             lighthouse_service: lighthouse,
-            _job_processor: job_processor, // keeps background task alive
+            job_processor: job_processor, // keeps background task alive
         })
     }
 }

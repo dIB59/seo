@@ -12,6 +12,7 @@ pub trait JobRepository: Send + Sync {
     async fn get_by_id(&self, id: &str) -> Result<Job>;
     async fn get_all(&self) -> Result<Vec<JobInfo>>;
     async fn get_pending(&self) -> Result<Vec<Job>>;
+    async fn get_running_jobs_id(&self) -> Result<Vec<String>>;
     async fn update_status(&self, job_id: &str, status: JobStatus) -> Result<()>;
     async fn update_progress(
         &self,

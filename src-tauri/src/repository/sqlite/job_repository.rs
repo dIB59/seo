@@ -281,6 +281,18 @@ impl JobRepository {
         tracing::info!("Deleted job {}", job_id);
         Ok(())
     }
+
+    async fn get_running_jobs_id(&self) -> Result<Vec<String>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT id FROM jobs WHERE status = 'running'
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await
+        .context("Failed to fetch running jobs")?;
+        Ok(rows.into_iter().map(|row| row.id).collect())
+    }
 }
 
 fn parse_datetime(s: &str) -> chrono::DateTime<Utc> {
@@ -310,6 +322,10 @@ impl JobRepositoryTrait for JobRepository {
 
     async fn get_pending(&self) -> Result<Vec<Job>> {
         JobRepository::get_pending(self).await
+    }
+
+    async fn get_running_jobs_id(&self) -> Result<Vec<String>> {
+        JobRepository::get_running_jobs_id(self).await
     }
 
     async fn update_status(&self, job_id: &str, status: JobStatus) -> Result<()> {

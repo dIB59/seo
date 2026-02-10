@@ -31,6 +31,12 @@ impl JobCanceler {
             .get(job_id)
             .is_some_and(|flag| flag.load(Ordering::Relaxed))
     }
+
+    pub fn cancel_all(&self) {
+        for entry in self.cancel_map.iter_mut() {
+            entry.store(true, Ordering::Relaxed);
+        }
+    }
 }
 
 impl Default for JobCanceler {

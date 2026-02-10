@@ -1,4 +1,4 @@
-use std::{str::FromStr, sync::Arc};
+use std::str::FromStr;
 
 use anyhow::{Context, Result};
 use specta::Type;
@@ -12,7 +12,6 @@ use crate::{
     },
     error::CommandError,
     lifecycle::app_state::AppState,
-    service::JobProcessor,
 };
 
 #[derive(Debug, serde::Serialize, Type)]
@@ -279,10 +278,11 @@ pub async fn get_all_jobs(
 #[specta::specta]
 pub async fn cancel_analysis(
     job_id: String,
-    job_processor: State<'_, Arc<JobProcessor>>,
+    app_state: State<'_, AppState>,
 ) -> Result<(), CommandError> {
     tracing::trace!("Cancelling analysis job: {}", job_id);
-    job_processor
+    app_state
+        .job_processor
         .cancel(&job_id)
         .await
         .map_err(CommandError::from)

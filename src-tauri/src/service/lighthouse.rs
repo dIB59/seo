@@ -580,8 +580,7 @@ info!(
         tracing::debug!("[LIGHTHOUSE-SIDECAR] Converting scores...");
         // Convert sidecar response to our types
         let scores = self.convert_scores(&response);
-        tracing::
-debug!(
+        tracing::debug!(
             "[LIGHTHOUSE-SIDECAR] Scores - perf: {:?}, access: {:?}, seo: {:?}, best-practices: {:?}",
             scores.performance, scores.accessibility, scores.seo, scores.best_practices
         );

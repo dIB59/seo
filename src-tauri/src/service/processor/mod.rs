@@ -4,7 +4,7 @@ mod analyzer;
 mod canceler;
 mod crawler;
 mod queue;
-mod reporter;
+pub mod reporter;
 
 pub use analyzer::{AnalyzerService, PageEdge, PageResult};
 pub use canceler::JobCanceler;
@@ -13,40 +13,59 @@ pub use queue::JobQueue;
 pub use reporter::ProgressReporter;
 
 use crate::domain::models::{Job, JobStatus, NewLink};
+use crate::service::processor::reporter::{ProgressEmitter, ProgressEvent};
 use anyhow::Result;
 use std::sync::atomic::Ordering;
-
-/// Orchestrates SEO analysis jobs using the normalized schema.
 use std::sync::Arc;
 
-pub struct JobProcessor<R: tauri::Runtime = tauri::Wry> {
+/// Orchestrates SEO analysis jobs using the normalized schema.
+pub struct JobProcessor {
     // Components
     job_queue: JobQueue,
     crawler: Crawler,
     analyzer: AnalyzerService,
-    progress_reporter: ProgressReporter<R>,
+    progress_emitter: Arc<dyn ProgressEmitter>, // ← No generics!
     canceler: JobCanceler,
 
     // Repositories (some still used directly for orchestration)
-    link_db: std::sync::Arc<dyn crate::repository::LinkRepository>,
+    link_db: Arc<dyn crate::repository::LinkRepository>,
 }
 
-impl<R: tauri::Runtime> JobProcessor<R> {
+impl JobProcessor {
     /// Construct a JobProcessor with explicit repository and service dependencies (DI-only).
     pub fn new(
         job_repo: Arc<dyn crate::repository::JobRepository>,
         link_repo: Arc<dyn crate::repository::LinkRepository>,
         analyzer: AnalyzerService,
-        app_handle: tauri::AppHandle<R>,
+        progress_emitter: Arc<dyn ProgressEmitter>, // ← Trait object
     ) -> Self {
         Self {
             job_queue: JobQueue::new(job_repo),
             crawler: Crawler::new(),
             analyzer,
-            progress_reporter: ProgressReporter::new(app_handle),
+            progress_emitter,
             canceler: JobCanceler::new(),
             link_db: link_repo,
         }
+    }
+
+    pub async fn shutdown(&self) -> Result<()> {
+        // Get current cancel flags and set them
+        self.canceler.cancel_all();
+        match self.job_queue.cancel_all_running_jobs().await {
+            Ok(_) => {
+                tracing::info!("All running jobs cancelled successfully");
+                return Ok(());
+            },
+            Err(e) => {
+                tracing::error!("Failed to cancel running jobs during shutdown: {}", e);
+                return Err(anyhow::anyhow!(
+                    "Failed to cancel running jobs during shutdown: {}",
+                    e
+                ));
+            }
+            
+        };
     }
 
     /// Main polling loop - fetches and processes pending jobs.
@@ -100,10 +119,10 @@ impl<R: tauri::Runtime> JobProcessor<R> {
             cancel_flag: cancel_flag.clone(),
         };
 
-        // We clone progress_reporter to pass it to discover_pages (it implements the trait now)
+        // Pass progress emitter to crawler (implements DiscoveryProgressEmitter trait)
         let discovered_urls = self
             .crawler
-            .discover_pages(&crawl_context, self.progress_reporter.clone())
+            .discover_pages(&crawl_context, self.progress_emitter.clone())
             .await?;
 
         // Early exit if cancelled
@@ -142,13 +161,17 @@ impl<R: tauri::Runtime> JobProcessor<R> {
                 Err(e) => tracing::warn!("Failed to analyze {}: {:#}", url, e),
             }
 
-            // Report progress
+            // Report progress via unified event emission
             let pages_analyzed = (idx + 1).min(max_pages);
             let progress = (pages_analyzed as f64 / max_pages as f64) * 100.0;
 
             self.job_queue.update_progress(&job.id, progress).await?;
-            self.progress_reporter
-                .emit_progress(&job.id, progress, pages_analyzed as i64);
+            self.progress_emitter.emit(ProgressEvent::Analysis {
+                job_id: job.id.clone(),
+                progress,
+                pages_analyzed,
+                total_pages: discovered_urls.len(),
+            });
 
             // Apply rate limiting
             if job.settings.delay_between_requests > 0 {
