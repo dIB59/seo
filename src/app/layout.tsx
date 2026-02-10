@@ -8,9 +8,8 @@ import { Toaster } from "@/src/components/ui/sonner"
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
-// <CHANGE> Updated metadata for SEO Analyzer app
 export const metadata: Metadata = {
-  title: "SEO Analyzer",
+  title: "SEO Insikt crawler",
   description: "Analyze websites for SEO issues and get actionable recommendations",
 }
 

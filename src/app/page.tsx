@@ -69,7 +69,7 @@ export default function Home() {
                         <Search className="h-6 w-6 text-primary" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold">SEO Analyzer</h1>
+                        <h1 className="text-2xl font-bold">SEO Insikt crawler</h1>
                         <p className="text-sm text-muted-foreground">
                             Analyze websites for SEO issues and recommendations
                         </p>
