@@ -1,5 +1,5 @@
 use crate::domain::models::{
-    IssueSeverity, JobSettings, LighthouseData, NewHeading, NewImage, NewIssue, Page,
+    IssueSeverity, JobSettings, LighthouseData, NewHeading, NewImage, NewIssue, NewLink, Page,
 };
 use crate::extractor::page_extractor::{ExtractedHeading, ExtractedImage, PageExtractor};
 use crate::repository::{IssueRepository as IssueRepoTrait, PageRepository as PageRepoTrait};
@@ -15,33 +15,10 @@ pub struct AnalyzerService {
     deep_auditor: Arc<DeepAuditor>,
 }
 
-#[derive(Debug, Clone)]
-pub struct PageEdge {
-    pub from_page_id: String,
-    pub to_url: String,
-    pub status_code: i32,
-    pub link_text: Option<String>,
-}
-
-impl PageEdge {
-    pub fn new(
-        from_page_id: &str,
-        to_url: &str,
-        status_code: i32,
-        link_text: Option<String>,
-    ) -> Self {
-        Self {
-            from_page_id: from_page_id.to_string(),
-            to_url: to_url.to_string(),
-            status_code,
-            link_text,
-        }
-    }
-}
-
+// No longer leaking PageEdge, we use NewLink from domain models
 pub struct PageResult {
     pub issues: Vec<NewIssue>,
-    pub edges: Vec<PageEdge>,
+    pub links: Vec<NewLink>,
 }
 
 impl AnalyzerService {
@@ -273,16 +250,26 @@ impl AnalyzerService {
             self.issue_db.insert_batch(&issues).await?;
         }
 
-        // Build final edges with page_id
-        let final_edges: Vec<PageEdge> = edges
+        // Build final links with page_id and job_id
+        // We Use NewLink::create to handle internal/external logic
+        let analysis_links: Vec<NewLink> = edges
             .into_iter()
-            .map(|(href, status_code, text)| PageEdge::new(&page_id, &href, status_code, text))
+            .map(|(href, status_code, text)| {
+                NewLink::create(
+                    job_id,
+                    &page_id,
+                    &href,
+                    text,
+                    Some(status_code as i64),
+                    url, // job base url - wait, auditor result might not have base url, using current page url as base for context
+                )
+            })
             .collect();
 
         Ok((
             PageResult {
                 issues,
-                edges: final_edges,
+                links: analysis_links,
             },
             new_urls,
         ))
