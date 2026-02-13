@@ -1,4 +1,4 @@
-use crate::service::http::{create_client, ClientType};
+use crate::service::spider::{ClientType, Spider};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -111,26 +111,19 @@ pub async fn generate_gemini_analysis(
     });
 
     // Make API request
-    let client = create_client(ClientType::Standard)?;
-    let response = client
-        .post(&api_url)
-        .header("Content-Type", "application/json")
-        .body(request_body.to_string())
-        .send()
+    let spider = Spider::new(ClientType::Standard)?;
+    let response = spider
+        .post_json(&api_url, &request_body)
         .await
         .context("Failed to send request to Gemini API")?;
 
-    if !response.status().is_success() {
-        let status = response.status();
-        let error_text = response.text().await.unwrap_or_default();
-        anyhow::bail!("Gemini API error {}: {}", status, error_text);
+    if response.status != 200 {
+        anyhow::bail!("Gemini API error {}: {}", response.status, response.body);
     }
 
     // Parse response
-    let response_json: serde_json::Value = response
-        .json()
-        .await
-        .context("Failed to parse Gemini API response")?;
+    let response_json: serde_json::Value =
+        serde_json::from_str(&response.body).context("Failed to parse Gemini API response")?;
 
     // Extract text from response
     let text = response_json["candidates"][0]["content"]["parts"][0]["text"]
