@@ -206,10 +206,13 @@ export type AnalysisJobResponse = { job_id: string; url: string; status: JobStat
  * Analysis progress for frontend updates
  */
 export type AnalysisProgress = { job_id: string; url: string; job_status: string; result_id: string | null; progress: number | null; analyzed_pages: number | null; total_pages: number | null }
-export type AnalysisResultsResponse = { id: string; url: string; status: JobStatus; progress: number; total_pages: number; analyzed_pages: number; started_at: string | null; completed_at: string | null; sitemap_found: boolean; robots_txt_found: boolean; ssl_certificate: boolean; created_at: string }
+/**
+ * Analysis results with date/time mapped to strings for Specta.
+ */
+export type AnalysisResults = { id: string; url: string; status: JobStatus; progress: number; total_pages: number; analyzed_pages: number; started_at: string | null; completed_at: string | null; sitemap_found: boolean; robots_txt_found: boolean; ssl_certificate: boolean; created_at: string }
 export type AnalysisSettingsRequest = { max_pages: number; include_external_links: boolean; check_images: boolean; mobile_analysis: boolean; lighthouse_analysis: boolean; delay_between_requests: number }
 /**
- * Summary of analysis results
+ * Summary of analysis results.
  */
 export type AnalysisSummary = { analysis_id: string; seo_score: number; avg_load_time: number; total_words: number; total_issues: number }
 /**
@@ -217,7 +220,10 @@ export type AnalysisSummary = { analysis_id: string; seo_score: number; avg_load
  * This type is serializable and can be sent to the frontend.
  */
 export type CommandError = string
-export type CompleteAnalysisResponse = { analysis: AnalysisResultsResponse; pages: PageAnalysisDataResponse[]; issues: SeoIssueResponse[]; summary: AnalysisSummary }
+/**
+ * Complete analysis response returned by `get_result`.
+ */
+export type CompleteAnalysisResponse = { analysis: AnalysisResults; pages: PageAnalysisData[]; issues: SeoIssue[]; summary: AnalysisSummary }
 export type GeminiRequest = { analysis_id: string; url: string; seo_score: number; pages_count: number; total_issues: number; critical_issues: number; warning_issues: number; suggestion_issues: number; top_issues: string[]; avg_load_time: number; total_words: number; ssl_certificate: boolean; sitemap_found: boolean; robots_txt_found: boolean }
 /**
  * Image element for frontend display.
@@ -234,12 +240,18 @@ export type JobStatus = "pending" | "running" | "completed" | "failed" | "cancel
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 export type LicenseTier = "Free" | "Premium"
 /**
- * Link details (frontend-compatible)
+ * Link details (frontend-compatible).
  */
 export type LinkDetail = { href: string; text: string; is_external: boolean; is_broken: boolean; status_code: number | null }
-export type PageAnalysisDataResponse = { analysis_id: string; url: string; title: string | null; meta_description: string | null; meta_keywords: string | null; canonical_url: string | null; h1_count: number; h2_count: number; h3_count: number; word_count: number; image_count: number; images_without_alt: number; internal_links: number; external_links: number; load_time: number; status_code: number | null; content_size: number; mobile_friendly: boolean; has_structured_data: boolean; lighthouse_performance: number | null; lighthouse_accessibility: number | null; lighthouse_best_practices: number | null; lighthouse_seo: number | null; lighthouse_seo_audits: JsonValue | null; lighthouse_performance_metrics: JsonValue | null; images: ImageElement[]; detailed_links: LinkDetail[] }
+/**
+ * Page analysis data (frontend-compatible format).
+ */
+export type PageAnalysisData = { analysis_id: string; url: string; title: string | null; meta_description: string | null; meta_keywords: string | null; canonical_url: string | null; h1_count: number; h2_count: number; h3_count: number; word_count: number; image_count: number; images_without_alt: number; internal_links: number; external_links: number; load_time: number; status_code: number | null; content_size: number; mobile_friendly: boolean; has_structured_data: boolean; lighthouse_performance: number | null; lighthouse_accessibility: number | null; lighthouse_best_practices: number | null; lighthouse_seo: number | null; lighthouse_seo_audits: JsonValue | null; lighthouse_performance_metrics: JsonValue | null; images: ImageElement[]; detailed_links: LinkDetail[] }
 export type PaginatedJobsResponse = { items: AnalysisProgress[]; total: number }
-export type SeoIssueResponse = { page_id: string; severity: IssueSeverity; title: string; description: string; page_url: string; element: string | null; recommendation: string; line_number: number | null }
+/**
+ * SEO issue (frontend-compatible format).
+ */
+export type SeoIssue = { page_id: string; severity: IssueSeverity; title: string; description: string; page_url: string; element: string | null; recommendation: string; line_number: number | null }
 
 /** tauri-specta globals **/
 
