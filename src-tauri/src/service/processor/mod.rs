@@ -6,7 +6,7 @@ mod crawler;
 mod queue;
 pub mod reporter;
 
-pub use analyzer::{AnalyzerService, PageEdge, PageResult};
+pub use analyzer::{AnalyzerService, PageResult};
 pub use canceler::JobCanceler;
 pub use crawler::{CrawlContext, Crawler, SiteResources};
 pub use queue::JobQueue;
@@ -56,7 +56,7 @@ impl JobProcessor {
             Ok(_) => {
                 tracing::info!("All running jobs cancelled successfully");
                 return Ok(());
-            },
+            }
             Err(e) => {
                 tracing::error!("Failed to cancel running jobs during shutdown: {}", e);
                 return Err(anyhow::anyhow!(
@@ -64,7 +64,6 @@ impl JobProcessor {
                     e
                 ));
             }
-            
         };
     }
 
@@ -99,11 +98,8 @@ impl JobProcessor {
         job.status = JobStatus::Running;
         self.job_queue.mark_running(&job.id).await?;
 
-        // Parse job URL
-        let start_url = url::Url::parse(&job.url)?;
-
         // Check site resources (robots.txt, sitemap, SSL)
-        let _resources = self.crawler.check_resources(&start_url).await?;
+        let _resources = self.crawler.check_resources(&job.url).await?;
 
         // Early exit if cancelled
         if self.canceler.is_cancelled(&job.id) {
@@ -115,7 +111,7 @@ impl JobProcessor {
         let crawl_context = CrawlContext {
             job_id: job.id.clone(),
             settings: job.settings.clone(),
-            start_url: start_url.clone(),
+            start_url: job.url.clone(),
             cancel_flag: cancel_flag.clone(),
         };
 
@@ -147,16 +143,13 @@ impl JobProcessor {
             }
 
             // Analyze page
-            let analysis = self
-                .analyzer
-                .analyze_page(url.as_str(), &job.id, 0, &auditor)
-                .await;
+            let analysis = self.analyzer.analyze_page(url, &job.id, 0, &auditor).await;
 
             match analysis {
                 Ok((page_result, _new_urls)) => {
                     crawl_result.pages += 1;
                     crawl_result.issues += page_result.issues.len();
-                    crawl_result.edges.extend(page_result.edges);
+                    crawl_result.links.extend(page_result.links);
                 }
                 Err(e) => tracing::warn!("Failed to analyze {}: {:#}", url, e),
             }
@@ -183,7 +176,7 @@ impl JobProcessor {
         }
 
         // Persist links
-        self.persist_links(&job, &crawl_result.edges).await?;
+        self.persist_links(&crawl_result.links).await?;
 
         // Finalize job
         self.job_queue.mark_completed(&job.id).await?;
@@ -193,26 +186,12 @@ impl JobProcessor {
         Ok(job.id.clone())
     }
 
-    async fn persist_links(&self, job: &Job, edges: &[PageEdge]) -> Result<()> {
-        if edges.is_empty() {
+    async fn persist_links(&self, links: &[NewLink]) -> Result<()> {
+        if links.is_empty() {
             return Ok(());
         }
 
-        let links: Vec<NewLink> = edges
-            .iter()
-            .map(|e| {
-                NewLink::create(
-                    &job.id,
-                    &e.from_page_id,
-                    &e.to_url,
-                    e.link_text.clone(),
-                    Some(e.status_code as i64),
-                    &job.url,
-                )
-            })
-            .collect();
-
-        self.link_db.insert_batch(&links).await
+        self.link_db.insert_batch(links).await
     }
 }
 
@@ -237,5 +216,5 @@ impl JobTimer {
 struct CrawlResult {
     pages: usize,
     issues: usize,
-    edges: Vec<PageEdge>,
+    links: Vec<NewLink>,
 }
