@@ -3,7 +3,9 @@ pub mod auditor;
 use tauri::Emitter;
 pub mod discovery;
 pub mod gemini;
+pub mod hardware;
 pub mod http;
+pub mod licensing_service;
 pub mod lighthouse;
 pub mod processor;
 
@@ -18,30 +20,3 @@ pub use lighthouse::{
 pub use processor::{
     AnalyzerService, Crawler, JobCanceler, JobProcessor, JobQueue, ProgressReporter,
 };
-
-/// Trait abstracting discovery progress emission.
-pub trait DiscoveryProgressEmitter {
-    fn emit_discovery_progress(&self, job_id: &str, count: usize, total_pages: usize);
-}
-
-impl<R: tauri::Runtime> DiscoveryProgressEmitter for tauri::AppHandle<R> {
-    fn emit_discovery_progress(&self, job_id: &str, count: usize, total_pages: usize) {
-        #[derive(serde::Serialize, Clone)]
-        struct DiscoveryProgressEvent {
-            job_id: String,
-            count: usize,
-            total_pages: usize,
-        }
-
-        if let Err(e) = self.emit(
-            "discovery-progress",
-            DiscoveryProgressEvent {
-                job_id: job_id.to_string(),
-                count,
-                total_pages,
-            },
-        ) {
-            tracing::warn!("Failed to emit discovery progress: {}", e);
-        }
-    }
-}
