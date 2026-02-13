@@ -11,11 +11,10 @@ use url::Url;
 
 use crate::domain::models::ResourceStatus;
 
-use crate::service::http::{create_client, ClientType};
-use rquest::Client;
+use crate::service::spider::{ClientType, Spider};
 
 pub struct PageDiscovery {
-    client: Client,
+    spider: Spider,
 }
 
 impl Default for PageDiscovery {
@@ -27,7 +26,7 @@ impl Default for PageDiscovery {
 impl PageDiscovery {
     pub fn new() -> Self {
         Self {
-            client: create_client(ClientType::HeavyEmulation)
+            spider: Spider::new(ClientType::HeavyEmulation)
                 .expect("Failed to create heavy HTTP client"),
         }
     }
@@ -35,12 +34,13 @@ impl PageDiscovery {
     /// ONLY handles HTTP crawling - NO business logic
     pub async fn discover(
         &self,
-        start_url: Url,
+        start_url_str: &str,
         max_pages: i64,
         delay_ms: i64,
         cancel_flag: &AtomicBool,
         on_discovered: impl Fn(usize) + Send + Sync,
-    ) -> Result<Vec<Url>> {
+    ) -> Result<Vec<String>> {
+        let start_url = Url::parse(start_url_str)?;
         tracing::info!("[DISCOVERY] Starting page discovery from: {}", start_url);
         tracing::debug!(
             "[DISCOVERY] Max pages: {}, Delay: {}ms",
@@ -48,7 +48,7 @@ impl PageDiscovery {
             delay_ms
         );
 
-        let mut visited = HashSet::new();
+        let mut visited: HashSet<Url> = HashSet::new();
         let mut to_visit = vec![start_url.clone()];
 
         let base_host = start_url
@@ -67,7 +67,7 @@ impl PageDiscovery {
                     "[DISCOVERY] Discovery cancelled by user at {} pages",
                     visited.len()
                 );
-                return Ok(visited.into_iter().collect());
+                return Ok(visited.into_iter().map(|u: Url| u.to_string()).collect());
             }
             if visited.contains(&url) {
                 tracing::trace!("[DISCOVERY] Skipping already visited: {}", url);
@@ -94,15 +94,12 @@ impl PageDiscovery {
             sleep(Duration::from_millis(delay_ms as u64)).await;
 
             tracing::trace!("[DISCOVERY] Fetching page: {}", url);
-            let Ok(response) = self.client.get(url.as_str()).send().await else {
+            let Ok(response) = self.spider.get(url.as_str()).await else {
                 tracing::debug!("[DISCOVERY] Failed to fetch: {}", url);
                 continue;
             };
 
-            let Ok(body) = response.text().await else {
-                tracing::debug!("[DISCOVERY] Failed to read response body for: {}", url);
-                continue;
-            };
+            let body = response.body;
             tracing::trace!("[DISCOVERY] Received {} bytes from {}", body.len(), url);
 
             let links: Vec<Url> = Self::extract_links(&body, &url)
@@ -134,7 +131,7 @@ impl PageDiscovery {
             "[DISCOVERY] Discovery complete - found {} pages",
             visited.len()
         );
-        Ok(visited.into_iter().collect())
+        Ok(visited.into_iter().map(|u| u.to_string()).collect())
     }
 
     /// Extract all absolute links (`<a href="…">`) from HTML.
@@ -158,7 +155,7 @@ impl PageDiscovery {
 }
 
 pub struct ResourceChecker {
-    client: Client,
+    spider: Spider,
 }
 
 impl Default for ResourceChecker {
@@ -170,45 +167,46 @@ impl Default for ResourceChecker {
 impl ResourceChecker {
     pub fn new() -> Self {
         Self {
-            client: create_client(ClientType::HeavyEmulation)
+            spider: Spider::new(ClientType::HeavyEmulation)
                 .expect("Failed to create heavy HTTP client"),
         }
     }
 
     /// Check robots.txt exists
-    pub async fn check_robots_txt(&self, base_url: Url) -> Result<ResourceStatus> {
-        tracing::debug!("[RESOURCE] Checking robots.txt for {}", base_url);
-        self.check_resource(base_url, "robots.txt").await
+    pub async fn check_robots_txt(&self, base_url_str: &str) -> Result<ResourceStatus> {
+        tracing::debug!("[RESOURCE] Checking robots.txt for {}", base_url_str);
+        self.check_resource(base_url_str, "robots.txt").await
     }
 
     /// Check sitemap.xml exists
-    pub async fn check_sitemap_xml(&self, base_url: Url) -> Result<ResourceStatus> {
-        tracing::debug!("[RESOURCE] Checking sitemap.xml for {}", base_url);
-        self.check_resource(base_url, "sitemap.xml").await
+    pub async fn check_sitemap_xml(&self, base_url_str: &str) -> Result<ResourceStatus> {
+        tracing::debug!("[RESOURCE] Checking sitemap.xml for {}", base_url_str);
+        self.check_resource(base_url_str, "sitemap.xml").await
     }
 
     /// Check SSL certificate (HTTPS)
-    pub fn check_ssl_certificate(&self, url: &Url) -> bool {
-        let has_ssl = url.scheme() == "https";
-        tracing::debug!("[RESOURCE] SSL check for {}: {}", url, has_ssl);
+    pub fn check_ssl_certificate(&self, url_str: &str) -> bool {
+        let has_ssl = url_str.starts_with("https"); // Simple check or parse
+        tracing::debug!("[RESOURCE] SSL check for {}: {}", url_str, has_ssl);
         has_ssl
     }
 
-    async fn check_resource(&self, base_url: Url, path: &str) -> Result<ResourceStatus> {
+    async fn check_resource(&self, base_url_str: &str, path: &str) -> Result<ResourceStatus> {
+        let base_url = Url::parse(base_url_str)?;
         let resource_url = base_url.join(path)?;
         tracing::trace!("[RESOURCE] Fetching: {}", resource_url);
-        let response = self.client.get(resource_url.clone()).send().await?;
+        let response = self.spider.get(resource_url.as_str()).await?;
 
-        let status = match response.status() {
-            rquest::StatusCode::OK => {
+        let status = match response.status {
+            200 => {
                 tracing::debug!("[RESOURCE] Found: {}", resource_url);
                 ResourceStatus::Found(resource_url.to_string())
             }
-            rquest::StatusCode::UNAUTHORIZED | rquest::StatusCode::FORBIDDEN => {
+            401 | 403 => {
                 tracing::debug!("[RESOURCE] Unauthorized: {}", resource_url);
                 ResourceStatus::Unauthorized(resource_url.to_string())
             }
-            rquest::StatusCode::NOT_FOUND => {
+            404 => {
                 tracing::debug!("[RESOURCE] Not found: {}", resource_url);
                 ResourceStatus::NotFound
             }
@@ -264,13 +262,13 @@ mod tests {
 
         let https_url = Url::parse("https://secure.com").unwrap();
         assert!(
-            checker.check_ssl_certificate(&https_url),
+            checker.check_ssl_certificate(https_url.as_str()),
             "HTTPS should be detected as SSL"
         );
 
         let http_url = Url::parse("http://insecure.com").unwrap();
         assert!(
-            !checker.check_ssl_certificate(&http_url),
+            !checker.check_ssl_certificate(http_url.as_str()),
             "HTTP should not be detected as SSL"
         );
     }
@@ -290,7 +288,7 @@ mod tests {
         let checker = ResourceChecker::new();
         let base_url = Url::parse(&server.url()).unwrap();
 
-        let status = checker.check_robots_txt(base_url).await.unwrap();
+        let status = checker.check_robots_txt(base_url.as_str()).await.unwrap();
         assert!(status.exists(), "robots.txt should be detected as found");
         assert!(matches!(status, ResourceStatus::Found(_)));
     }
@@ -307,7 +305,7 @@ mod tests {
         let checker = ResourceChecker::new();
         let base_url = Url::parse(&server.url()).unwrap();
 
-        let status = checker.check_robots_txt(base_url).await.unwrap();
+        let status = checker.check_robots_txt(base_url.as_str()).await.unwrap();
         assert!(
             !status.exists(),
             "robots.txt should be detected as not found"
@@ -328,7 +326,7 @@ mod tests {
         let checker = ResourceChecker::new();
         let base_url = Url::parse(&server.url()).unwrap();
 
-        let status = checker.check_sitemap_xml(base_url).await.unwrap();
+        let status = checker.check_sitemap_xml(base_url.as_str()).await.unwrap();
         assert!(status.exists(), "sitemap.xml should be detected as found");
     }
 
@@ -344,7 +342,7 @@ mod tests {
         let checker = ResourceChecker::new();
         let base_url = Url::parse(&server.url()).unwrap();
 
-        let status = checker.check_robots_txt(base_url).await.unwrap();
+        let status = checker.check_robots_txt(base_url.as_str()).await.unwrap();
         // Unauthorized still means the resource "exists" (it's just protected)
         assert!(status.exists(), "Unauthorized should still count as exists");
         assert!(matches!(status, ResourceStatus::Unauthorized(_)));
