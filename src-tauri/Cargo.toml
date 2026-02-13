@@ -41,6 +41,11 @@ specta-typescript = "0.0.9"
 tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
 specta = { version = "=2.0.0-rc.22", features = ["serde_json"] }
 addon-macros = { path = "addon-macros" }
+ed25519-dalek = { version = "2.2.0", features = ["rand_core", "serde"] }
+machine-uid = "0.5.4"
+base64 = "0.22.1"
+bincode = "1.3"
+hex = "0.4.3"
 
 [features]
 custom-protocol = [ "tauri/custom-protocol" ]
