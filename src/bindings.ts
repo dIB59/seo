@@ -125,9 +125,17 @@ async getAnalysisProgress(jobId: string) : Promise<Result<AnalysisProgress, Comm
     else return { status: "error", error: e  as any };
 }
 },
-async getAllJobs() : Promise<Result<AnalysisProgress[], CommandError>> {
+async getAllJobs(limit: number | null, offset: number | null) : Promise<Result<AnalysisProgress[], CommandError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_all_jobs") };
+    return { status: "ok", data: await TAURI_INVOKE("get_all_jobs", { limit, offset }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getPaginatedJobs(limit: number, offset: number, urlFilter: string | null, statusFilter: string | null) : Promise<Result<PaginatedJobsResponse, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_paginated_jobs", { limit, offset, urlFilter, statusFilter }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -230,6 +238,7 @@ export type LicenseTier = "Free" | "Premium"
  */
 export type LinkDetail = { href: string; text: string; is_external: boolean; is_broken: boolean; status_code: number | null }
 export type PageAnalysisDataResponse = { analysis_id: string; url: string; title: string | null; meta_description: string | null; meta_keywords: string | null; canonical_url: string | null; h1_count: number; h2_count: number; h3_count: number; word_count: number; image_count: number; images_without_alt: number; internal_links: number; external_links: number; load_time: number; status_code: number | null; content_size: number; mobile_friendly: boolean; has_structured_data: boolean; lighthouse_performance: number | null; lighthouse_accessibility: number | null; lighthouse_best_practices: number | null; lighthouse_seo: number | null; lighthouse_seo_audits: JsonValue | null; lighthouse_performance_metrics: JsonValue | null; images: ImageElement[]; detailed_links: LinkDetail[] }
+export type PaginatedJobsResponse = { items: AnalysisProgress[]; total: number }
 export type SeoIssueResponse = { page_id: string; severity: IssueSeverity; title: string; description: string; page_url: string; element: string | null; recommendation: string; line_number: number | null }
 
 /** tauri-specta globals **/
