@@ -1,7 +1,4 @@
-use crate::domain::{
-    HeadingElement, ImageElement, IssueSeverity, LighthouseData, LinkDetail, NewIssue,
-    PageAnalysisData,
-};
+use crate::domain::{IssueSeverity, NewIssue};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 
@@ -37,87 +34,6 @@ impl Page {
     /// Speed-based mobile-friendly heuristic (fallback when no Lighthouse viewport data).
     pub fn is_mobile_friendly_heuristic(&self) -> bool {
         self.load_time_ms.unwrap_or(0) <= SPEED_HEURISTIC_LOAD_TIME_MS
-    }
-
-    /// Assemble a frontend-ready `PageAnalysisData` from this page's data.
-    ///
-    /// This absorbs the `assemble_single_page` logic that previously lived in
-    /// `AnalysisAssembler`, keeping page-level data interpretation in the domain.
-    pub fn to_analysis_data(
-        self,
-        lh_data: Option<&LighthouseData>,
-        detailed_links: Vec<LinkDetail>,
-        headings: Vec<HeadingElement>,
-        images: Vec<ImageElement>,
-    ) -> PageAnalysisData {
-        let load_time = self.load_time_ms.unwrap_or(0) as f64 / 1000.0;
-
-        // Lighthouse-derived booleans
-        let mut mobile_friendly = false;
-        let mut has_structured_data = false;
-        let mut lighthouse_seo_audits = None;
-        let mut lighthouse_performance_metrics = None;
-
-        if let Some(lh) = lh_data {
-            mobile_friendly = lh.is_mobile_friendly();
-            has_structured_data = lh.has_structured_data();
-            let (seo, perf) = lh.interpret_raw();
-            lighthouse_seo_audits = seo;
-            lighthouse_performance_metrics = perf;
-        }
-
-        // Fallback: speed heuristic
-        if !mobile_friendly {
-            mobile_friendly = self.is_mobile_friendly_heuristic();
-        }
-
-        // Link stats
-        let internal_links = detailed_links.iter().filter(|l| !l.is_external).count() as i64;
-        let external_links = detailed_links.iter().filter(|l| l.is_external).count() as i64;
-        let links_vec = detailed_links.iter().map(|l| l.url.clone()).collect();
-
-        // Heading stats
-        let h1_count = headings.iter().filter(|h| h.tag == "h1").count() as i64;
-        let h2_count = headings.iter().filter(|h| h.tag == "h2").count() as i64;
-        let h3_count = headings.iter().filter(|h| h.tag == "h3").count() as i64;
-
-        // Image stats
-        let images_without_alt = images
-            .iter()
-            .filter(|img| img.alt.as_deref().unwrap_or("").is_empty())
-            .count() as i64;
-
-        PageAnalysisData {
-            analysis_id: self.job_id,
-            url: self.url,
-            title: self.title,
-            meta_description: self.meta_description,
-            meta_keywords: None,
-            canonical_url: self.canonical_url,
-            h1_count,
-            h2_count,
-            h3_count,
-            word_count: self.word_count.unwrap_or(0),
-            image_count: images.len() as i64,
-            images_without_alt,
-            internal_links,
-            external_links,
-            load_time,
-            status_code: self.status_code,
-            content_size: self.response_size_bytes.unwrap_or(0),
-            mobile_friendly,
-            has_structured_data,
-            lighthouse_performance: lh_data.and_then(|lh| lh.performance_score),
-            lighthouse_accessibility: lh_data.and_then(|lh| lh.accessibility_score),
-            lighthouse_best_practices: lh_data.and_then(|lh| lh.best_practices_score),
-            lighthouse_seo: lh_data.and_then(|lh| lh.seo_score),
-            lighthouse_seo_audits,
-            lighthouse_performance_metrics,
-            links: links_vec,
-            headings,
-            images,
-            detailed_links,
-        }
     }
 
     /// Perform a basic SEO audit on the page and generate a list of issues.
@@ -246,78 +162,5 @@ mod tests {
     fn test_mobile_friendly_heuristic_exactly_threshold() {
         let page = make_page(|p| p.load_time_ms = Some(2000));
         assert!(page.is_mobile_friendly_heuristic());
-    }
-
-    #[test]
-    fn test_to_analysis_data_counts_headings_and_images() {
-        let page = make_page(|p| {
-            p.word_count = Some(500);
-            p.load_time_ms = Some(1500);
-            p.response_size_bytes = Some(1024);
-        });
-
-        let headings = vec![
-            HeadingElement {
-                tag: "h1".into(),
-                text: "Main".into(),
-            },
-            HeadingElement {
-                tag: "h2".into(),
-                text: "Sub".into(),
-            },
-            HeadingElement {
-                tag: "h2".into(),
-                text: "Sub2".into(),
-            },
-            HeadingElement {
-                tag: "h3".into(),
-                text: "Detail".into(),
-            },
-        ];
-
-        let images = vec![
-            ImageElement {
-                src: "a.png".into(),
-                alt: Some("Alt".into()),
-            },
-            ImageElement {
-                src: "b.png".into(),
-                alt: None,
-            },
-            ImageElement {
-                src: "c.png".into(),
-                alt: Some("".into()),
-            },
-        ];
-
-        let links = vec![
-            LinkDetail {
-                url: "/page2".into(),
-                text: "P2".into(),
-                is_external: false,
-                is_broken: false,
-                status_code: Some(200),
-            },
-            LinkDetail {
-                url: "https://ext.com".into(),
-                text: "Ext".into(),
-                is_external: true,
-                is_broken: false,
-                status_code: Some(200),
-            },
-        ];
-
-        let result = page.to_analysis_data(None, links, headings, images);
-
-        assert_eq!(result.h1_count, 1);
-        assert_eq!(result.h2_count, 2);
-        assert_eq!(result.h3_count, 1);
-        assert_eq!(result.image_count, 3);
-        assert_eq!(result.images_without_alt, 2); // None and empty string
-        assert_eq!(result.internal_links, 1);
-        assert_eq!(result.external_links, 1);
-        assert_eq!(result.word_count, 500);
-        assert_eq!(result.content_size, 1024);
-        assert!(result.mobile_friendly); // 1.5s < 2s threshold
     }
 }

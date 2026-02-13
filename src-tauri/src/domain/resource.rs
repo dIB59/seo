@@ -1,5 +1,24 @@
 use serde::{Deserialize, Serialize};
 
+/// Resource status (robots.txt, sitemap, SSL)
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ResourceStatus {
+    #[default]
+    NotChecked,
+    Found(String),
+    NotFound,
+    Unauthorized(String),
+    Error,
+}
+
+impl ResourceStatus {
+    /// Returns true if the resource exists (Found or Unauthorized)
+    pub fn exists(&self) -> bool {
+        matches!(self, Self::Found(_) | Self::Unauthorized(_))
+    }
+}
+
 /// A heading element on a page.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Heading {

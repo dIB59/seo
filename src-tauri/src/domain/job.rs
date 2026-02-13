@@ -165,3 +165,14 @@ pub struct JobInfo {
     pub total_issues: i64,
     pub created_at: DateTime<Utc>,
 }
+
+/// Complete job result with all related data.
+#[derive(Debug, Clone, Serialize)]
+pub struct CompleteJobResult {
+    pub job: Job,
+    pub pages: Vec<crate::domain::page::Page>,
+    pub issues: Vec<crate::domain::issue::Issue>,
+    pub links: Vec<crate::domain::link::Link>,
+    pub lighthouse: Vec<crate::domain::lighthouse::LighthouseData>,
+    pub ai_insights: Option<crate::domain::ai::AiInsight>,
+}

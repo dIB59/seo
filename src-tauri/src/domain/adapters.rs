@@ -3,7 +3,22 @@
 //! This module provides conversion functions from domain models to the
 //! API response types used by the frontend.
 
-use crate::domain::{AnalysisProgress, Job, JobInfo};
+use serde::{Deserialize, Serialize};
+use specta::Type;
+
+use crate::domain::{Job, JobInfo};
+
+/// Analysis progress for frontend updates
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct AnalysisProgress {
+    pub job_id: String,
+    pub url: String,
+    pub job_status: String,
+    pub result_id: Option<String>,
+    pub progress: Option<f64>,
+    pub analyzed_pages: Option<i64>,
+    pub total_pages: Option<i64>,
+}
 
 // ============================================================================
 // JOB TO ANALYSIS PROGRESS
