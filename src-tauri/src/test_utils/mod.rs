@@ -64,9 +64,8 @@ pub async fn set_up_benchmark_db() -> SqlitePool {
 /// Benchmark data generators for realistic test data
 /// Made public for use in benches/
 pub mod generators {
-    use crate::domain::{
-        HeadingElement, ImageElement, IssueSeverity, LinkDetail, PageAnalysisData, SeoIssue,
-    };
+    use crate::commands::analysis::{ImageElement, LinkDetail, PageAnalysisData, SeoIssue};
+    use crate::domain::IssueSeverity;
 
     /// Generate mock pages for benchmarking write operations
     pub fn generate_mock_pages(count: usize, analysis_id: &str) -> Vec<PageAnalysisData> {
@@ -100,17 +99,6 @@ pub mod generators {
                 lighthouse_seo: Some(88.0 + (i % 12) as f64),
                 lighthouse_seo_audits: None,
                 lighthouse_performance_metrics: None,
-                links: vec![],
-                headings: vec![
-                    HeadingElement {
-                        tag: "h1".to_string(),
-                        text: format!("Main Heading {}", i),
-                    },
-                    HeadingElement {
-                        tag: "h2".to_string(),
-                        text: format!("Subheading {}", i),
-                    },
-                ],
                 images: vec![ImageElement {
                     src: format!("/images/img-{}.jpg", i),
                     alt: Some(format!("Image {}", i)),
@@ -254,7 +242,7 @@ pub mod fixtures {
 /// Helper assertions for tests
 #[cfg(test)]
 pub mod assertions {
-    use crate::domain::SeoIssue;
+    use crate::commands::analysis::SeoIssue;
 
     /// Checks if issues contain a specific issue title
     pub fn has_issue(issues: &[SeoIssue], title: &str) -> bool {
