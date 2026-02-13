@@ -1,11 +1,15 @@
 use crate::{
+    domain::licensing::{LicenseTier, UserPermissions},
     repository::sqlite::{
         AiRepository, IssueRepository, JobRepository, LinkRepository, PageRepository,
         ResultsRepository, SettingsRepository,
     },
-    service::{JobProcessor, LighthouseService, ProgressReporter, processor::{AnalyzerService, reporter::ProgressEmitter}},
+    service::{
+        processor::{reporter::ProgressEmitter, AnalyzerService},
+        JobProcessor, LighthouseService, ProgressReporter,
+    },
 };
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use tauri::AppHandle;
 
 /// Complete dependency graph for the application
@@ -21,6 +25,9 @@ pub struct AppState {
 
     // Background services (not exposed to commands, but kept alive via AppState)
     pub job_processor: Arc<JobProcessor>, // underscore = intentionally unused but kept alive
+
+    // Licensing and Permissions
+    pub permissions: RwLock<UserPermissions>,
 }
 
 impl AppState {
@@ -37,7 +44,8 @@ impl AppState {
         let results_repo = Arc::new(ResultsRepository::new(pool.clone()));
         let settings_repo = Arc::new(SettingsRepository::new(pool.clone()));
         let ai_repo = Arc::new(AiRepository::new(pool.clone()));
-        let progress_reporter: Arc<dyn ProgressEmitter> = Arc::new(ProgressReporter::new(app_handle.clone()));
+        let progress_reporter: Arc<dyn ProgressEmitter> =
+            Arc::new(ProgressReporter::new(app_handle.clone()));
         // 3. Build services (middle layer)
         let analyzer = AnalyzerService::new(pages_repo, issues_repo);
         let job_processor = Arc::new(JobProcessor::new(
@@ -74,7 +82,23 @@ impl AppState {
             job_repo,
             results_repo,
             lighthouse_service: lighthouse,
-            job_processor: job_processor, // keeps background task alive
+            job_processor: job_processor,
+            permissions: RwLock::new(UserPermissions::new(LicenseTier::Free)),
         })
+    }
+
+    pub fn update_from_tier(&self, tier: LicenseTier) {
+        if let Ok(mut p) = self.permissions.write() {
+            p.update_from_tier(tier);
+        }
+    }
+}
+
+impl addon_macros::AddonProvider for AppState {
+    fn verify_addon(&self, addon_name: &str) -> bool {
+        self.permissions
+            .read()
+            .map(|p| p.check_addon_str(addon_name))
+            .unwrap_or(false)
     }
 }

@@ -9,3 +9,6 @@ pub mod lifecycle;
 pub mod repository;
 pub mod service;
 pub mod test_utils;
+
+#[cfg(test)]
+mod addon_guard_test;

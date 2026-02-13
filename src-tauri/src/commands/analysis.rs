@@ -6,13 +6,17 @@ use tauri::State;
 use url::Url;
 
 use crate::{
-    domain::models::{
-        AnalysisProgress, AnalysisResults, AnalysisSummary, CompleteAnalysisResult, ImageElement,
-        JobSettings, JobStatus, PageAnalysisData, SeoIssue,
+    domain::{
+        licensing::Addon,
+        models::{
+            AnalysisProgress, AnalysisResults, AnalysisSummary, CompleteAnalysisResult,
+            ImageElement, JobSettings, JobStatus, PageAnalysisData, SeoIssue,
+        },
     },
     error::CommandError,
     lifecycle::app_state::AppState,
 };
+use addon_macros::addon_guard;
 
 #[derive(Debug, serde::Serialize, Type)]
 pub struct AnalysisJobResponse {
@@ -276,12 +280,13 @@ pub async fn get_all_jobs(
 
 #[tauri::command]
 #[specta::specta]
+#[addon_guard(Addon::LinkAnalysis)]
 pub async fn cancel_analysis(
     job_id: String,
-    app_state: State<'_, AppState>,
+    #[provider] state: State<'_, AppState>,
 ) -> Result<(), CommandError> {
     tracing::trace!("Cancelling analysis job: {}", job_id);
-    app_state
+    state
         .job_processor
         .cancel(&job_id)
         .await
@@ -290,9 +295,10 @@ pub async fn cancel_analysis(
 
 #[tauri::command]
 #[specta::specta]
+#[addon_guard(Addon::LinkAnalysis)]
 pub async fn get_result(
     job_id: String,
-    app_state: State<'_, AppState>,
+    #[provider] app_state: State<'_, AppState>,
 ) -> Result<CompleteAnalysisResponse, CommandError> {
     tracing::trace!("Getting result ID for job: {}", job_id);
 

@@ -40,6 +40,7 @@ thiserror = "1.0"
 specta-typescript = "0.0.9"
 tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
 specta = { version = "=2.0.0-rc.22", features = ["serde_json"] }
+addon-macros = { path = "addon-macros" }
 
 [features]
 custom-protocol = [ "tauri/custom-protocol" ]
