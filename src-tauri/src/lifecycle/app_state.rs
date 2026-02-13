@@ -5,6 +5,7 @@ use crate::{
         ResultsRepository, SettingsRepository,
     },
     service::{
+        licensing_service::LicensingService,
         processor::{reporter::ProgressEmitter, AnalyzerService},
         JobProcessor, LighthouseService, ProgressReporter,
     },
@@ -28,6 +29,7 @@ pub struct AppState {
 
     // Licensing and Permissions
     pub permissions: RwLock<UserPermissions>,
+    pub licensing_service: Arc<LicensingService>,
 }
 
 impl AppState {
@@ -46,6 +48,7 @@ impl AppState {
         let ai_repo = Arc::new(AiRepository::new(pool.clone()));
         let progress_reporter: Arc<dyn ProgressEmitter> =
             Arc::new(ProgressReporter::new(app_handle.clone()));
+
         // 3. Build services (middle layer)
         let analyzer = AnalyzerService::new(pages_repo, issues_repo);
         let job_processor = Arc::new(JobProcessor::new(
@@ -75,7 +78,14 @@ impl AppState {
             }
         });
 
-        // 5. Return composed state (only expose what commands need)
+        // 5. Licensing Init
+        let licensing_service = Arc::new(LicensingService::new(settings_repo.clone())?);
+        let initial_tier = licensing_service.load_license().await.unwrap_or_default();
+        if initial_tier != LicenseTier::Free {
+            tracing::info!("License verified: {:?}", initial_tier);
+        }
+
+        // 6. Return composed state (only expose what commands need)
         Ok(AppState {
             settings_repo,
             ai_repo,
@@ -83,7 +93,8 @@ impl AppState {
             results_repo,
             lighthouse_service: lighthouse,
             job_processor: job_processor,
-            permissions: RwLock::new(UserPermissions::new(LicenseTier::Free)),
+            permissions: RwLock::new(UserPermissions::new(initial_tier)),
+            licensing_service,
         })
     }
 

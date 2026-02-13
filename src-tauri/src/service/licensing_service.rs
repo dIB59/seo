@@ -1,0 +1,111 @@
+use crate::domain::licensing::{
+    AddonError, LicenseTier, LicenseVerifier, SignedLicense, UserPermissions,
+};
+use crate::error::CommandError;
+use crate::repository::sqlite::SettingsRepository;
+use crate::service::hardware::HardwareService;
+use std::sync::Arc;
+
+pub struct LicensingService {
+    verifier: LicenseVerifier,
+    settings_repo: Arc<SettingsRepository>,
+}
+
+impl LicensingService {
+    // This is a placeholder public key.
+    // In a real app, this would be your actual public key.
+    // generated from: ed25519-dalek KeyPair::generate(&mut OsRng)
+    const PUBLIC_KEY: [u8; 32] = [0u8; 32];
+    const API_BASE_URL: &str = "https://api.graviplex.com/licensing";
+    const LICENSE_SETTING_KEY: &str = "signed_license";
+
+    pub fn new(settings_repo: Arc<SettingsRepository>) -> Result<Self, AddonError> {
+        let verifier = LicenseVerifier::new(Self::PUBLIC_KEY)?;
+        Ok(Self {
+            verifier,
+            settings_repo,
+        })
+    }
+
+    /// Loads the license from the database.
+    pub async fn load_license(&self) -> Result<LicenseTier, AddonError> {
+        let license_content = self
+            .settings_repo
+            .get_setting(Self::LICENSE_SETTING_KEY)
+            .await
+            .map_err(|_| AddonError::VerificationFailed)?;
+
+        let Some(license_content) = license_content else {
+            return Ok(LicenseTier::Free);
+        };
+
+        if license_content.is_empty() {
+            return Ok(LicenseTier::Free);
+        }
+
+        let signed_license: SignedLicense =
+            serde_json::from_str(&license_content).map_err(|_| AddonError::InvalidSignature)?;
+
+        let machine_id = HardwareService::get_machine_id();
+        self.verifier.verify(&signed_license, &machine_id)
+    }
+
+    /// Activates a license using a key by communicating with the REST API.
+    pub async fn activate_with_key(&self, key: &str) -> Result<LicenseTier, AddonError> {
+        let machine_id = HardwareService::get_machine_id();
+
+        let client =
+            crate::service::http::create_client(crate::service::http::ClientType::Standard)
+                .map_err(|_| AddonError::NetworkError)?;
+
+        let response = client
+            .post(format!("{}/activate", Self::API_BASE_URL))
+            .json(&crate::domain::licensing::LicenseActivationRequest {
+                key: key.to_string(),
+                machine_id: machine_id.clone(),
+            })
+            .send()
+            .await
+            .map_err(|_| AddonError::NetworkError)?;
+
+        if !response.status().is_success() {
+            return Err(AddonError::InvalidLicenseKey);
+        }
+
+        let signed_license: SignedLicense = response
+            .json()
+            .await
+            .map_err(|_| AddonError::NetworkError)?;
+
+        // Verify the received license
+        let tier = self.verifier.verify(&signed_license, &machine_id)?;
+
+        // Save valid license to database
+        let license_json =
+            serde_json::to_string(&signed_license).map_err(|_| AddonError::VerificationFailed)?;
+
+        self.settings_repo
+            .set_setting(Self::LICENSE_SETTING_KEY, &license_json)
+            .await
+            .map_err(|_| AddonError::VerificationFailed)?;
+
+        Ok(tier)
+    }
+
+    /// Saves a new license string (e.g. from the UI) to database.
+    pub async fn activate(&self, license_json: &str) -> Result<LicenseTier, AddonError> {
+        let signed_license: SignedLicense =
+            serde_json::from_str(license_json).map_err(|_| AddonError::InvalidSignature)?;
+
+        let machine_id = HardwareService::get_machine_id();
+        let tier = self.verifier.verify(&signed_license, &machine_id)?;
+
+        // Save valid license to database
+        self.settings_repo
+            .set_setting(Self::LICENSE_SETTING_KEY, license_json)
+            .await
+            .map_err(|_| AddonError::VerificationFailed)?;
+
+        Ok(tier)
+    }
+}
