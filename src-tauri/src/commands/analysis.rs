@@ -295,10 +295,9 @@ pub async fn cancel_analysis(
 
 #[tauri::command]
 #[specta::specta]
-#[addon_guard(Addon::LinkAnalysis)]
 pub async fn get_result(
     job_id: String,
-    #[provider] app_state: State<'_, AppState>,
+    app_state: State<'_, AppState>,
 ) -> Result<CompleteAnalysisResponse, CommandError> {
     tracing::trace!("Getting result ID for job: {}", job_id);
 
