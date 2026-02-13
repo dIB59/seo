@@ -1,8 +1,40 @@
 use crate::domain::models::{Job, JobInfo, JobSettings, JobStatus};
 use anyhow::Result;
 use async_trait::async_trait;
+use std::sync::Arc;
 
-pub mod sqlite;
+mod sqlite;
+
+// Factory functions for SQLite repositories
+pub fn sqlite_job_repo(pool: sqlx::SqlitePool) -> Arc<dyn JobRepository> {
+    Arc::new(sqlite::JobRepository::new(pool))
+}
+
+pub fn sqlite_page_repo(pool: sqlx::SqlitePool) -> Arc<dyn PageRepository> {
+    Arc::new(sqlite::PageRepository::new(pool))
+}
+
+pub fn sqlite_link_repo(pool: sqlx::SqlitePool) -> Arc<dyn LinkRepository> {
+    Arc::new(sqlite::LinkRepository::new(pool))
+}
+
+pub fn sqlite_issue_repo(pool: sqlx::SqlitePool) -> Arc<dyn IssueRepository> {
+    Arc::new(sqlite::IssueRepository::new(pool))
+}
+
+pub fn sqlite_results_repo(pool: sqlx::SqlitePool) -> Arc<dyn ResultsRepository> {
+    Arc::new(sqlite::ResultsRepository::new(pool))
+}
+
+pub fn sqlite_settings_repo(pool: sqlx::SqlitePool) -> Arc<dyn SettingsRepository> {
+    Arc::new(sqlite::SettingsRepository::new(pool))
+}
+
+pub fn sqlite_ai_repo(pool: sqlx::SqlitePool) -> Arc<dyn AiRepository> {
+    Arc::new(sqlite::AiRepository::new(pool))
+}
+
+pub use sqlite::{ExternalDomain, IssueCounts, IssueGroup, LinkCounts};
 
 /// Repository trait for Job operations. Use this trait to inject mock or alternate
 /// repository implementations for testing or swapping persistence layers.
@@ -77,11 +109,8 @@ pub trait LinkRepository: Send + Sync {
     async fn get_outgoing(&self, source_page_id: &str) -> Result<Vec<crate::domain::models::Link>>;
     async fn get_incoming(&self, target_page_id: &str) -> Result<Vec<crate::domain::models::Link>>;
     async fn get_broken(&self, job_id: &str) -> Result<Vec<crate::domain::models::Link>>;
-    async fn count_by_type(&self, job_id: &str) -> Result<crate::repository::sqlite::LinkCounts>;
-    async fn get_external_domains(
-        &self,
-        job_id: &str,
-    ) -> Result<Vec<crate::repository::sqlite::ExternalDomain>>;
+    async fn count_by_type(&self, job_id: &str) -> Result<LinkCounts>;
+    async fn get_external_domains(&self, job_id: &str) -> Result<Vec<ExternalDomain>>;
     async fn update_status_codes(&self, updates: &[(i64, i64)]) -> Result<()>;
 }
 
@@ -96,15 +125,9 @@ pub trait IssueRepository: Send + Sync {
         job_id: &str,
         severity: crate::domain::models::IssueSeverity,
     ) -> Result<Vec<crate::domain::models::Issue>>;
-    async fn count_by_severity(
-        &self,
-        job_id: &str,
-    ) -> Result<crate::repository::sqlite::IssueCounts>;
+    async fn count_by_severity(&self, job_id: &str) -> Result<IssueCounts>;
     async fn count_by_job_id(&self, job_id: &str) -> Result<i64>;
-    async fn get_grouped_by_type(
-        &self,
-        job_id: &str,
-    ) -> Result<Vec<crate::repository::sqlite::IssueGroup>>;
+    async fn get_grouped_by_type(&self, job_id: &str) -> Result<Vec<IssueGroup>>;
 }
 
 /// Results repository trait - high-level getters for assembled results.

@@ -9,6 +9,27 @@ use sqlx::SqlitePool;
 use super::map_link_type;
 use crate::domain::models::{Link, NewLink};
 
+/// Link counts by type.
+#[derive(Debug, Clone, Default)]
+pub struct LinkCounts {
+    pub internal: i64,
+    pub external: i64,
+    pub resource: i64,
+}
+
+impl LinkCounts {
+    pub fn total(&self) -> i64 {
+        self.internal + self.external + self.resource
+    }
+}
+
+/// External domain summary.
+#[derive(Debug, Clone)]
+pub struct ExternalDomain {
+    pub domain: String,
+    pub link_count: i64,
+}
+
 pub struct LinkRepository {
     pool: SqlitePool,
 }
@@ -283,39 +304,15 @@ impl LinkRepositoryTrait for LinkRepository {
         LinkRepository::get_broken(self, job_id).await
     }
 
-    async fn count_by_type(&self, job_id: &str) -> Result<crate::repository::sqlite::LinkCounts> {
+    async fn count_by_type(&self, job_id: &str) -> Result<LinkCounts> {
         LinkRepository::count_by_type(self, job_id).await
     }
 
-    async fn get_external_domains(
-        &self,
-        job_id: &str,
-    ) -> Result<Vec<crate::repository::sqlite::ExternalDomain>> {
+    async fn get_external_domains(&self, job_id: &str) -> Result<Vec<ExternalDomain>> {
         LinkRepository::get_external_domains(self, job_id).await
     }
 
     async fn update_status_codes(&self, updates: &[(i64, i64)]) -> Result<()> {
         LinkRepository::update_status_codes(self, updates).await
     }
-}
-
-/// Link counts by type.
-#[derive(Debug, Clone, Default)]
-pub struct LinkCounts {
-    pub internal: i64,
-    pub external: i64,
-    pub resource: i64,
-}
-
-impl LinkCounts {
-    pub fn total(&self) -> i64 {
-        self.internal + self.external + self.resource
-    }
-}
-
-/// External domain summary.
-#[derive(Debug, Clone)]
-pub struct ExternalDomain {
-    pub domain: String,
-    pub link_count: i64,
 }

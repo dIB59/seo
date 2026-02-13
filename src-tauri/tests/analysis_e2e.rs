@@ -2,7 +2,7 @@
 //!
 //! These tests verify the full analysis pipeline against real URLs.
 
-use app::{domain::models::JobSettings, repository::sqlite::JobRepository};
+use app::{domain::models::JobSettings, repository::sqlite_job_repo};
 use sqlx::SqlitePool;
 
 /// Creates an in-memory SQLite database with migrations applied for testing.
@@ -21,7 +21,7 @@ async fn setup_test_db() -> SqlitePool {
 
 /// Helper to create a job and return its ID.
 async fn create_job(pool: &SqlitePool, url: &str) -> String {
-    let repo = JobRepository::new(pool.clone());
+    let repo = sqlite_job_repo(pool.clone());
     repo.create(url, &JobSettings::default())
         .await
         .expect("Failed to create job")
@@ -39,7 +39,7 @@ async fn test_iana_example_domains_page() {
     let job_id = create_job(&pool, "https://www.iana.org/help/example-domains").await;
 
     // Verify job was created
-    let repo = JobRepository::new(pool.clone());
+    let repo = sqlite_job_repo(pool.clone());
     let job = repo.get_by_id(&job_id).await.expect("Failed to get job");
 
     assert_eq!(job.url, "https://www.iana.org/help/example-domains");
@@ -58,7 +58,7 @@ async fn test_example_com_page() {
     let job_id = create_job(&pool, "https://example.com/").await;
 
     // Verify job was created
-    let repo = JobRepository::new(pool.clone());
+    let repo = sqlite_job_repo(pool.clone());
     let job = repo.get_by_id(&job_id).await.expect("Failed to get job");
 
     assert_eq!(job.url, "https://example.com/");
@@ -78,7 +78,7 @@ async fn test_job_creation_with_custom_settings() {
         delay_between_requests: 100,
     };
 
-    let repo = JobRepository::new(pool.clone());
+    let repo = sqlite_job_repo(pool.clone());
     let job_id = repo
         .create("https://example.com/", &settings)
         .await

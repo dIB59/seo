@@ -1,5 +1,5 @@
 use crate::domain::models::{JobSettings, LighthouseData, LinkType, NewLink, Page};
-use crate::repository::sqlite::{JobRepository, LinkRepository, PageRepository};
+use crate::repository::*;
 use crate::service::analysis_assembler::AnalysisAssembler;
 use crate::test_utils::fixtures;
 use chrono::Utc;
@@ -57,8 +57,8 @@ async fn test_mobile_detection_and_structured_data_from_lighthouse() {
 
     page_repo.insert_lighthouse(&lh).await.unwrap();
 
-    let repo = crate::repository::sqlite::ResultsRepository::new(pool.clone());
-    let assembler = AnalysisAssembler::new(std::sync::Arc::new(repo));
+    let results_repo = sqlite_results_repo(pool.clone());
+    let assembler = AnalysisAssembler::new(results_repo);
     let result = assembler.assemble(&job_id).await.unwrap();
 
     assert_eq!(result.pages.len(), 1);
@@ -107,8 +107,8 @@ async fn test_mobile_detection_fallback_to_load_time() {
 
     page_repo.insert(&page).await.unwrap();
 
-    let repo = crate::repository::sqlite::ResultsRepository::new(pool.clone());
-    let assembler = AnalysisAssembler::new(std::sync::Arc::new(repo));
+    let results_repo = sqlite_results_repo(pool.clone());
+    let assembler = AnalysisAssembler::new(results_repo);
     let result = assembler.assemble(&job_id).await.unwrap();
 
     assert_eq!(result.pages.len(), 1);
@@ -125,9 +125,9 @@ async fn test_mobile_detection_fallback_to_load_time() {
 async fn test_link_classification_fallback_when_target_unparsable() {
     let pool = fixtures::setup_test_db().await;
 
-    let job_repo = JobRepository::new(pool.clone());
-    let page_repo = PageRepository::new(pool.clone());
-    let link_repo = LinkRepository::new(pool.clone());
+    let job_repo = sqlite_job_repo(pool.clone());
+    let page_repo = sqlite_page_repo(pool.clone());
+    let link_repo = sqlite_link_repo(pool.clone());
 
     let job_id = job_repo
         .create("https://example.com", &JobSettings::default())
@@ -176,8 +176,8 @@ async fn test_link_classification_fallback_when_target_unparsable() {
 
     link_repo.insert_batch(&links).await.unwrap();
 
-    let repo = crate::repository::sqlite::ResultsRepository::new(pool.clone());
-    let assembler = AnalysisAssembler::new(std::sync::Arc::new(repo));
+    let results_repo = sqlite_results_repo(pool.clone());
+    let assembler = AnalysisAssembler::new(results_repo);
     let result = assembler.assemble(&job_id).await.unwrap();
 
     assert_eq!(result.pages.len(), 1);

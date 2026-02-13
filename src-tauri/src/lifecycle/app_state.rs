@@ -1,8 +1,8 @@
 use crate::{
     domain::licensing::{LicenseTier, UserPermissions},
-    repository::sqlite::{
-        AiRepository, IssueRepository, JobRepository, LinkRepository, PageRepository,
-        ResultsRepository, SettingsRepository,
+    repository::{
+        sqlite_ai_repo, sqlite_issue_repo, sqlite_job_repo, sqlite_link_repo, sqlite_page_repo,
+        sqlite_results_repo, sqlite_settings_repo,
     },
     service::{
         licensing_service::LicensingService,
@@ -38,13 +38,13 @@ impl AppState {
         let pool = crate::db::init_db(&app_handle).await?;
 
         // 2. Build repositories (bottom layer of dependency graph)
-        let job_repo: Arc<dyn crate::repository::JobRepository> = Arc::new(JobRepository::new(pool.clone()));
-        let link_repo = Arc::new(LinkRepository::new(pool.clone()));
-        let pages_repo = Arc::new(PageRepository::new(pool.clone()));
-        let issues_repo = Arc::new(IssueRepository::new(pool.clone()));
-        let results_repo: Arc<dyn crate::repository::ResultsRepository> = Arc::new(ResultsRepository::new(pool.clone()));
-        let settings_repo: Arc<dyn crate::repository::SettingsRepository> = Arc::new(SettingsRepository::new(pool.clone()));
-        let ai_repo: Arc<dyn crate::repository::AiRepository> = Arc::new(AiRepository::new(pool.clone()));
+        let job_repo = sqlite_job_repo(pool.clone());
+        let link_repo = sqlite_link_repo(pool.clone());
+        let pages_repo = sqlite_page_repo(pool.clone());
+        let issues_repo = sqlite_issue_repo(pool.clone());
+        let results_repo = sqlite_results_repo(pool.clone());
+        let settings_repo = sqlite_settings_repo(pool.clone());
+        let ai_repo = sqlite_ai_repo(pool.clone());
         let progress_reporter: Arc<dyn ProgressEmitter> =
             Arc::new(ProgressReporter::new(app_handle.clone()));
 

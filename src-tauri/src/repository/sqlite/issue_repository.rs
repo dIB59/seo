@@ -10,6 +10,29 @@ use sqlx::SqlitePool;
 use super::map_severity;
 use crate::domain::models::{Issue, IssueSeverity, NewIssue};
 
+/// Issue counts by severity.
+#[derive(Debug, Clone, Default)]
+pub struct IssueCounts {
+    pub critical: i64,
+    pub warning: i64,
+    pub info: i64,
+}
+
+impl IssueCounts {
+    pub fn total(&self) -> i64 {
+        self.critical + self.warning + self.info
+    }
+}
+
+/// Grouped issue summary.
+#[derive(Debug, Clone)]
+pub struct IssueGroup {
+    pub issue_type: String,
+    pub severity: IssueSeverity,
+    pub count: i64,
+    pub sample_messages: Vec<String>,
+}
+
 pub struct IssueRepository {
     pool: SqlitePool,
 }
@@ -273,10 +296,7 @@ impl IssueRepositoryTrait for IssueRepository {
         IssueRepository::get_by_job_and_severity(self, job_id, severity).await
     }
 
-    async fn count_by_severity(
-        &self,
-        job_id: &str,
-    ) -> Result<crate::repository::sqlite::IssueCounts> {
+    async fn count_by_severity(&self, job_id: &str) -> Result<IssueCounts> {
         IssueRepository::count_by_severity(self, job_id).await
     }
 
@@ -284,33 +304,7 @@ impl IssueRepositoryTrait for IssueRepository {
         IssueRepository::count_by_job_id(self, job_id).await
     }
 
-    async fn get_grouped_by_type(
-        &self,
-        job_id: &str,
-    ) -> Result<Vec<crate::repository::sqlite::IssueGroup>> {
+    async fn get_grouped_by_type(&self, job_id: &str) -> Result<Vec<IssueGroup>> {
         IssueRepository::get_grouped_by_type(self, job_id).await
     }
-}
-
-/// Issue counts by severity.
-#[derive(Debug, Clone, Default)]
-pub struct IssueCounts {
-    pub critical: i64,
-    pub warning: i64,
-    pub info: i64,
-}
-
-impl IssueCounts {
-    pub fn total(&self) -> i64 {
-        self.critical + self.warning + self.info
-    }
-}
-
-/// Grouped issue summary.
-#[derive(Debug, Clone)]
-pub struct IssueGroup {
-    pub issue_type: String,
-    pub severity: IssueSeverity,
-    pub count: i64,
-    pub sample_messages: Vec<String>,
 }

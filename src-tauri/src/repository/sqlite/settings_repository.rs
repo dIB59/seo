@@ -24,16 +24,6 @@ impl SettingsRepository {
             other => other,
         }
     }
-
-    // Provide inherent helpers so existing call sites (that don't import the trait)
-    // continue to work by delegating to the trait implementation.
-    pub async fn get_setting(&self, key: &str) -> Result<Option<String>> {
-        <Self as crate::repository::SettingsRepository>::get_setting(self, key).await
-    }
-
-    pub async fn set_setting(&self, key: &str, value: &str) -> Result<()> {
-        <Self as crate::repository::SettingsRepository>::set_setting(self, key, value).await
-    }
 }
 
 #[async_trait]
