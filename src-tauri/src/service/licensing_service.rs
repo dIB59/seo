@@ -1,14 +1,13 @@
-use crate::domain::licensing::{
-    AddonError, LicenseTier, LicenseVerifier, SignedLicense, UserPermissions,
-};
-use crate::error::CommandError;
+use crate::domain::licensing::{AddonError, LicenseTier, LicenseVerifier, SignedLicense};
 use crate::repository::sqlite::SettingsRepository;
 use crate::service::hardware::HardwareService;
+use crate::service::spider::{ClientType, Spider};
 use std::sync::Arc;
 
 pub struct LicensingService {
     verifier: LicenseVerifier,
     settings_repo: Arc<SettingsRepository>,
+    spider: Spider,
 }
 
 impl LicensingService {
@@ -21,9 +20,11 @@ impl LicensingService {
 
     pub fn new(settings_repo: Arc<SettingsRepository>) -> Result<Self, AddonError> {
         let verifier = LicenseVerifier::new(Self::PUBLIC_KEY)?;
+        let spider = Spider::new(ClientType::Standard).map_err(|_| AddonError::NetworkError)?;
         Ok(Self {
             verifier,
             settings_repo,
+            spider,
         })
     }
 
@@ -54,28 +55,24 @@ impl LicensingService {
     pub async fn activate_with_key(&self, key: &str) -> Result<LicenseTier, AddonError> {
         let machine_id = HardwareService::get_machine_id();
 
-        let client =
-            crate::service::http::create_client(crate::service::http::ClientType::Standard)
-                .map_err(|_| AddonError::NetworkError)?;
-
-        let response = client
-            .post(format!("{}/activate", Self::API_BASE_URL))
-            .json(&crate::domain::licensing::LicenseActivationRequest {
-                key: key.to_string(),
-                machine_id: machine_id.clone(),
-            })
-            .send()
+        let response = self
+            .spider
+            .post_json(
+                &format!("{}/activate", Self::API_BASE_URL),
+                &crate::domain::licensing::LicenseActivationRequest {
+                    key: key.to_string(),
+                    machine_id: machine_id.clone(),
+                },
+            )
             .await
             .map_err(|_| AddonError::NetworkError)?;
 
-        if !response.status().is_success() {
+        if response.status != 200 {
             return Err(AddonError::InvalidLicenseKey);
         }
 
-        let signed_license: SignedLicense = response
-            .json()
-            .await
-            .map_err(|_| AddonError::NetworkError)?;
+        let signed_license: SignedLicense =
+            serde_json::from_str(&response.body).map_err(|_| AddonError::NetworkError)?;
 
         // Verify the received license
         let tier = self.verifier.verify(&signed_license, &machine_id)?;
