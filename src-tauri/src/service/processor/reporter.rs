@@ -49,6 +49,7 @@ impl<R: tauri::Runtime> ProgressReporter<R> {
 impl<R: tauri::Runtime> ProgressEmitter for ProgressReporter<R> {
     fn emit(&self, event: ProgressEvent) {
         // Route to appropriate channel based on event variant
+        tracing::trace!("Emitting progress event: {:?}", event);
         let channel = match event {
             ProgressEvent::Analysis { .. } => "analysis:progress",
             ProgressEvent::Discovery { .. } => "discovery:progress",

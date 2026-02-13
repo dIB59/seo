@@ -1,3 +1,4 @@
+import { logger } from "@/src/lib/logger";
 import React from "react"
 
 // Listens only to discovery events. Returns { count, total } where each can be null
@@ -12,7 +13,7 @@ export function useDiscoveryProgress(jobId: string, jobStatus: string) {
         const setupDiscovery = async () => {
             const { listen } = await import("@tauri-apps/api/event")
             unlisten = await listen<{ job_id: string; count: number; total_pages?: number }>(
-                "discovery-progress",
+                "discovery:progress",
                 (event) => {
                     if (event.payload.job_id === jobId) {
                         setCount(event.payload.count ?? null)
