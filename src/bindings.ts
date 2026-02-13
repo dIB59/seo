@@ -5,46 +5,6 @@
 
 
 export const commands = {
-async startAnalysis(url: string, settings: AnalysisSettingsRequest | null) : Promise<Result<AnalysisJobResponse, CommandError>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("start_analysis", { url, settings }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async getAnalysisProgress(jobId: string) : Promise<Result<AnalysisProgress, CommandError>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("get_analysis_progress", { jobId }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async getAllJobs() : Promise<Result<AnalysisProgress[], CommandError>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("get_all_jobs") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async cancelAnalysis(jobId: string) : Promise<Result<null, CommandError>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("cancel_analysis", { jobId }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async getResult(jobId: string) : Promise<Result<CompleteAnalysisResponse, CommandError>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("get_result", { jobId }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
 async getGeminiInsights(request: GeminiRequest) : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_gemini_insights", { request }) };
@@ -148,6 +108,78 @@ async setGeminiEnabled(enabled: boolean) : Promise<Result<null, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async startAnalysis(url: string, settings: AnalysisSettingsRequest | null) : Promise<Result<AnalysisJobResponse, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("start_analysis", { url, settings }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getAnalysisProgress(jobId: string) : Promise<Result<AnalysisProgress, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_analysis_progress", { jobId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getAllJobs() : Promise<Result<AnalysisProgress[], CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_all_jobs") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cancelAnalysis(jobId: string) : Promise<Result<null, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cancel_analysis", { jobId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getResult(jobId: string) : Promise<Result<CompleteAnalysisResponse, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_result", { jobId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async activateLicense(licenseJson: string) : Promise<Result<LicenseTier, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("activate_license", { licenseJson }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async activateWithKey(key: string) : Promise<Result<LicenseTier, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("activate_with_key", { key }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getLicenseTier() : Promise<Result<LicenseTier, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_license_tier") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getMachineId() : Promise<Result<string, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_machine_id") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -192,6 +224,7 @@ export type IssueSeverity = "critical" | "warning" | "info"
  */
 export type JobStatus = "pending" | "running" | "completed" | "failed" | "cancelled"
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
+export type LicenseTier = "Free" | "Premium"
 /**
  * Link details (frontend-compatible)
  */
