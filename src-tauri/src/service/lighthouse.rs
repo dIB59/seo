@@ -8,6 +8,7 @@
 //! - **Persistent mode**: Keeps Chrome running and accepts requests via stdin/stdout.
 //!   Much faster for 1000s of requests as Chrome only starts once (~3-5 second savings per URL).
 
+use crate::service::spider::{ClientType, Spider};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -230,6 +231,7 @@ struct PersistentProcess {
 pub struct LighthouseService {
     sidecar_path: PathBuf,
     persistent_process: Arc<Mutex<Option<PersistentProcess>>>,
+    spider: Spider,
 }
 
 impl LighthouseService {
@@ -237,9 +239,12 @@ impl LighthouseService {
     pub fn new() -> Self {
         let sidecar_path = Self::find_sidecar_path();
         tracing::info!("Lighthouse sidecar path: {:?}", sidecar_path);
+        let spider =
+            Spider::new(ClientType::Standard).expect("Failed to create spider for lighthouse");
         Self {
             sidecar_path,
             persistent_process: Arc::new(Mutex::new(None)),
+            spider,
         }
     }
 
@@ -742,13 +747,7 @@ warn!("[LIGHTHOUSE-SIDECAR] Failed to start persistent mode: {}, falling back to
     }
 
     async fn fetch_html(&self, url: &str) -> Result<String> {
-        let client = rquest::Client::new();
-        let response = client
-            .get(url)
-            .header("User-Agent", "Mozilla/5.0 (compatible; SEOBot/1.0)")
-            .send()
-            .await?;
-        Ok(response.text().await?)
+        self.spider.fetch_html(url).await
     }
 
     /// Shutdown the persistent sidecar process if running
