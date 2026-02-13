@@ -387,9 +387,9 @@ impl NewLink {
         target_url: &str,
         link_text: Option<String>,
         status_code: Option<i64>,
-        base_url: &str,
+        current_page_url: &str,
     ) -> Self {
-        let link_type = if Self::is_internal(target_url, base_url) {
+        let link_type = if Self::is_internal(target_url, current_page_url) {
             LinkType::Internal
         } else {
             LinkType::External
