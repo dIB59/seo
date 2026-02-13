@@ -1,6 +1,4 @@
-use crate::domain::{
-    IssueSeverity, JobSettings, LighthouseData, NewHeading, NewImage, NewIssue, NewLink, Page,
-};
+use crate::domain::{JobSettings, LighthouseData, NewHeading, NewImage, NewIssue, NewLink, Page};
 use crate::extractor::page_extractor::{ExtractedHeading, ExtractedImage, PageExtractor};
 use crate::repository::{IssueRepository as IssueRepoTrait, PageRepository as PageRepoTrait};
 use crate::service::auditor::{Auditor, DeepAuditor, LightAuditor};
@@ -67,7 +65,7 @@ impl AnalyzerService {
         let audit_result = auditor.analyze(url).await?;
 
         // Parse HTML and extract all data BEFORE any awaits
-        let (page, extracted_issues, new_urls, edges, headings, images) = {
+        let (page, new_urls, edges, headings, images) = {
             let html = Html::parse_document(&audit_result.html);
 
             // Extract basic page data
@@ -102,41 +100,6 @@ impl AnalyzerService {
                 crawled_at: chrono::Utc::now(),
             };
 
-            // Generate SEO issues
-            let mut issues: Vec<(String, String, String, IssueSeverity)> = Vec::new();
-
-            if title.is_none() || title.as_ref().map(|t| t.is_empty()).unwrap_or(true) {
-                issues.push((
-                    "Missing Title".to_string(),
-                    "Page has no title tag".to_string(),
-                    "Add a descriptive title tag".to_string(),
-                    IssueSeverity::Critical,
-                ));
-            }
-
-            if meta_description.is_none()
-                || meta_description
-                    .as_ref()
-                    .map(|d| d.is_empty())
-                    .unwrap_or(true)
-            {
-                issues.push((
-                    "Missing Meta Description".to_string(),
-                    "Page has no meta description".to_string(),
-                    "Add a meta description".to_string(),
-                    IssueSeverity::Warning,
-                ));
-            }
-
-            if audit_result.status_code >= 400 {
-                issues.push((
-                    "HTTP Error".to_string(),
-                    format!("Page returned status code {}", audit_result.status_code),
-                    "Fix the HTTP error".to_string(),
-                    IssueSeverity::Critical,
-                ));
-            }
-
             // Build edges for link tracking (include link text as tuple - page_id is not available yet)
             let edges: Vec<(String, i32, Option<String>)> = all_links
                 .into_iter()
@@ -149,63 +112,20 @@ impl AnalyzerService {
                 })
                 .collect();
 
-            (page, issues, internal_links, edges, headings, images)
+            (page, internal_links, edges, headings, images)
         };
 
         // Insert page
         let page_id = self.page_db.insert(&page).await?;
 
-        // Store Lighthouse data (scores + audits + perf metrics)
-        let scores = &audit_result.scores;
-        let raw_json = serde_json::json!({
-            "seo_audits": scores.seo_details.clone(),
-            "performance_metrics": scores.performance_metrics.clone(),
-        });
-        let raw_json = serde_json::to_string(&raw_json).ok();
+        // Generate and insert issues using the rich domain model
+        let issues = page.audit();
+        if !issues.is_empty() {
+            self.issue_db.insert_batch(&issues).await?;
+        }
 
-        let normalize_score = |score: Option<crate::service::auditor::Score>| -> Option<f64> {
-            score.map(|s| s.percent())
-        };
-
-        let lighthouse = LighthouseData {
-            page_id: page_id.clone(),
-            performance_score: normalize_score(scores.performance),
-            accessibility_score: normalize_score(scores.accessibility),
-            best_practices_score: normalize_score(scores.best_practices),
-            seo_score: normalize_score(scores.seo),
-            // ... map other fields
-            first_contentful_paint_ms: audit_result
-                .scores
-                .performance_metrics
-                .as_ref()
-                .and_then(|m| m.first_contentful_paint),
-            largest_contentful_paint_ms: audit_result
-                .scores
-                .performance_metrics
-                .as_ref()
-                .and_then(|m| m.largest_contentful_paint),
-            total_blocking_time_ms: audit_result
-                .scores
-                .performance_metrics
-                .as_ref()
-                .and_then(|m| m.total_blocking_time),
-            cumulative_layout_shift: audit_result
-                .scores
-                .performance_metrics
-                .as_ref()
-                .and_then(|m| m.cumulative_layout_shift),
-            speed_index: audit_result
-                .scores
-                .performance_metrics
-                .as_ref()
-                .and_then(|m| m.speed_index),
-            time_to_interactive_ms: audit_result
-                .scores
-                .performance_metrics
-                .as_ref()
-                .and_then(|m| m.time_to_interactive),
-            raw_json,
-        };
+        // Build Lighthouse data using the domain factory
+        let lighthouse = LighthouseData::from_audit_scores(&page_id, &audit_result.scores);
 
         if let Err(e) = self.page_db.insert_lighthouse(&lighthouse).await {
             tracing::warn!("Failed to store Lighthouse data for {}: {}", url, e);
@@ -241,23 +161,6 @@ impl AnalyzerService {
 
         if let Err(e) = self.page_db.replace_images(&page_id, &image_rows).await {
             tracing::warn!("Failed to store images for {}: {}", url, e);
-        }
-
-        // Convert and insert issues with the actual page_id
-        let issues: Vec<NewIssue> = extracted_issues
-            .into_iter()
-            .map(|(title, description, recommendation, severity)| NewIssue {
-                job_id: job_id.to_string(),
-                page_id: Some(page_id.clone()),
-                issue_type: title,
-                severity,
-                message: description,
-                details: Some(recommendation),
-            })
-            .collect();
-
-        if !issues.is_empty() {
-            self.issue_db.insert_batch(&issues).await?;
         }
 
         // Build final links with page_id and job_id

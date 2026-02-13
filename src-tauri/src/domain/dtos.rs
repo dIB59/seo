@@ -46,6 +46,35 @@ pub struct AnalysisSummary {
     pub total_issues: i64,
 }
 
+impl AnalysisSummary {
+    /// Compute summary statistics from a Job and its assembled pages.
+    ///
+    /// Absorbs the `compute_summary` logic that previously lived in `AnalysisAssembler`.
+    pub fn compute(job: &crate::domain::Job, pages: &[PageAnalysisData]) -> Self {
+        let (total_load, load_count) = pages.iter().fold((0.0f64, 0usize), |(sum, cnt), p| {
+            if p.load_time > 0.0 {
+                (sum + p.load_time, cnt + 1)
+            } else {
+                (sum, cnt)
+            }
+        });
+
+        let avg_load_time = if load_count > 0 {
+            total_load / load_count as f64
+        } else {
+            0.0
+        };
+
+        Self {
+            analysis_id: job.id.clone(),
+            seo_score: job.calculate_seo_score(),
+            avg_load_time,
+            total_words: pages.iter().map(|p| p.word_count).sum(),
+            total_issues: job.summary.total_issues,
+        }
+    }
+}
+
 /// Detailed analysis results
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnalysisResults {

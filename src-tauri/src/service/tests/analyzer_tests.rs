@@ -164,5 +164,8 @@ async fn analyze_page_insert_and_issue_generation() {
 
     // Edge/url discovery should include the /page-2 link
     assert_eq!(new_urls, vec!["/page-2".to_string()]);
-    assert!(result.edges.iter().any(|e| e.to_url == "/page-2"));
+    assert!(result
+        .links
+        .iter()
+        .any(|l| l.target_url.contains("/page-2")));
 }

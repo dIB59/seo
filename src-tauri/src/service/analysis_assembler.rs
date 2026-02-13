@@ -12,10 +12,8 @@ use crate::domain::{
 
 use crate::repository::ResultsRepository as ResultsRepositoryTrait;
 
-// Heuristic thresholds and defaults for assembly decisions
-const SPEED_HEURISTIC_LOAD_TIME_MS: i64 = 2000; // Pages with load time <= 2s considered fast (heuristic)
-const DEFAULT_SITEMAP_FOUND: bool = false; // Unknown if sitemap exists; keep explicit default
-const DEFAULT_ROBOTS_TXT_FOUND: bool = false; // Unknown if robots.txt found; explicit default
+const DEFAULT_SITEMAP_FOUND: bool = false;
+const DEFAULT_ROBOTS_TXT_FOUND: bool = false;
 
 pub struct AnalysisAssembler {
     repo: Arc<dyn ResultsRepositoryTrait>,
@@ -87,6 +85,7 @@ impl AnalysisAssembler {
             .map(|l| (l.page_id.clone(), l))
             .collect();
 
+        // Delegate page assembly to the rich domain model
         let assembled_pages: Vec<PageAnalysisData> = pages
             .into_iter()
             .map(|p| {
@@ -96,7 +95,7 @@ impl AnalysisAssembler {
                 let page_headings = headings_by_page.remove(&page_id).unwrap_or_default();
                 let page_images = images_by_page.remove(&page_id).unwrap_or_default();
 
-                self.assemble_single_page(p, lh_data, page_links, page_headings, page_images)
+                p.to_analysis_data(lh_data, page_links, page_headings, page_images)
             })
             .collect();
 
@@ -134,7 +133,8 @@ impl AnalysisAssembler {
             created_at: job.created_at,
         };
 
-        let summary = self.compute_summary(&job, &assembled_pages);
+        // Delegate summary computation to the domain model
+        let summary = AnalysisSummary::compute(&job, &assembled_pages);
 
         Ok(CompleteAnalysisResult {
             analysis: analysis_results,
@@ -142,119 +142,6 @@ impl AnalysisAssembler {
             issues: assembled_issues,
             summary,
         })
-    }
-
-    fn assemble_single_page(
-        &self,
-        p: crate::domain::Page,
-        lh_data: Option<&LighthouseData>,
-        detailed_links: Vec<LinkDetail>,
-        headings: Vec<HeadingElement>,
-        images: Vec<ImageElement>,
-    ) -> PageAnalysisData {
-        let load_time = p.load_time_ms.unwrap_or(0) as f64 / 1000.0;
-        let mut mobile_friendly = false;
-        let mut has_structured_data = false;
-        let mut lighthouse_seo_audits = None;
-        let mut lighthouse_performance_metrics = None;
-
-        if let Some(lh) = lh_data {
-            if let Some(raw) = lh.raw_json.as_deref() {
-                if let Ok(value) = serde_json::from_str::<serde_json::Value>(raw) {
-                    lighthouse_seo_audits = value.get("seo_audits").cloned();
-                    lighthouse_performance_metrics = value.get("performance_metrics").cloned();
-
-                    if let Some(passed) = value
-                        .get("seo_audits")
-                        .and_then(|s| s.get("viewport"))
-                        .and_then(|v| v.get("passed"))
-                        .and_then(|p| p.as_bool())
-                    {
-                        mobile_friendly = passed;
-                    }
-
-                    has_structured_data = value.get("structured_data").is_some();
-                }
-            }
-        }
-
-        // Fallback mobile-friendly heuristic (labeled Speed Heuristic)
-        if !mobile_friendly {
-            mobile_friendly = load_time <= (SPEED_HEURISTIC_LOAD_TIME_MS as f64) / 1000.0;
-        }
-
-        let internal_links = detailed_links.iter().filter(|l| !l.is_external).count() as i64;
-        let external_links = detailed_links.iter().filter(|l| l.is_external).count() as i64;
-        let links_vec = detailed_links.iter().map(|l| l.url.clone()).collect();
-
-        let h1_count = headings.iter().filter(|h| h.tag == "h1").count() as i64;
-        let h2_count = headings.iter().filter(|h| h.tag == "h2").count() as i64;
-        let h3_count = headings.iter().filter(|h| h.tag == "h3").count() as i64;
-
-        let images_without_alt = images
-            .iter()
-            .filter(|img| img.alt.as_deref().unwrap_or("").is_empty())
-            .count() as i64;
-
-        PageAnalysisData {
-            analysis_id: p.job_id,
-            url: p.url,
-            title: p.title,
-            meta_description: p.meta_description,
-            meta_keywords: None,
-            canonical_url: p.canonical_url,
-            h1_count,
-            h2_count,
-            h3_count,
-            word_count: p.word_count.unwrap_or(0),
-            image_count: images.len() as i64,
-            images_without_alt,
-            internal_links,
-            external_links,
-            load_time,
-            status_code: p.status_code,
-            content_size: p.response_size_bytes.unwrap_or(0),
-            mobile_friendly,
-            has_structured_data,
-            lighthouse_performance: lh_data.and_then(|lh| lh.performance_score),
-            lighthouse_accessibility: lh_data.and_then(|lh| lh.accessibility_score),
-            lighthouse_best_practices: lh_data.and_then(|lh| lh.best_practices_score),
-            lighthouse_seo: lh_data.and_then(|lh| lh.seo_score),
-            lighthouse_seo_audits,
-            lighthouse_performance_metrics,
-            links: links_vec,
-            headings,
-            images,
-            detailed_links,
-        }
-    }
-
-    fn compute_summary(
-        &self,
-        job: &crate::domain::Job,
-        pages: &[PageAnalysisData],
-    ) -> AnalysisSummary {
-        let (total_load, load_count) = pages.iter().fold((0.0f64, 0usize), |(sum, cnt), p| {
-            if p.load_time > 0.0 {
-                (sum + p.load_time, cnt + 1)
-            } else {
-                (sum, cnt)
-            }
-        });
-
-        let avg_load_time = if load_count > 0 {
-            total_load / load_count as f64
-        } else {
-            0.0
-        };
-
-        AnalysisSummary {
-            analysis_id: job.id.clone(),
-            seo_score: job.calculate_seo_score(),
-            avg_load_time,
-            total_words: pages.iter().map(|p| p.word_count).sum(),
-            total_issues: job.summary.total_issues,
-        }
     }
 }
 
