@@ -11,15 +11,12 @@ pub struct LicensingService {
 }
 
 impl LicensingService {
-    // This is a placeholder public key.
-    // In a real app, this would be your actual public key.
-    // generated from: ed25519-dalek KeyPair::generate(&mut OsRng)
-    const PUBLIC_KEY: [u8; 32] = [0u8; 32];
+    const PUBLIC_KEY: &'static [u8; 32] = include_bytes!("../../public_key.bin");
     const API_BASE_URL: &str = "https://api.graviplex.com/licensing";
     const LICENSE_SETTING_KEY: &str = "signed_license";
 
     pub fn new(settings_repo: Arc<SettingsRepository>) -> Result<Self, AddonError> {
-        let verifier = LicenseVerifier::new(Self::PUBLIC_KEY)?;
+        let verifier = LicenseVerifier::new(Self::PUBLIC_KEY.to_owned())?;
         let spider = Spider::new(ClientType::Standard).map_err(|_| AddonError::NetworkError)?;
         Ok(Self {
             verifier,

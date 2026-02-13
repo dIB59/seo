@@ -20,6 +20,10 @@ export class Result<T, E = string> {
 		if (this.isOk()) return this._value as T;
 		throw new Error(`unwrap on Err: ${this._error}`);
 	}
+	unwrapErr(): E {
+		if (this.isErr()) return this._error as E;
+		throw new Error(`unwrapErr on Ok: ${this._value}`);
+	}
 	expect(msg: string): T {
 		if (this.isOk()) return this._value as T;
 		throw new Error(`${msg}: ${this._error}`);

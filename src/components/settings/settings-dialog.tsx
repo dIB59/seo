@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
 import { get_gemini_api_key, get_gemini_persona, get_gemini_prompt_blocks, get_gemini_enabled, set_gemini_persona, set_gemini_enabled, set_gemini_prompt_blocks, set_gemini_api_key } from "@/src/api/ai"
+import { activate_license, get_license_tier, get_machine_id } from "@/src/api/licensing"
 import { useUI } from "@/src/context/UIContext"
 import {
     DndContext,
@@ -118,6 +119,9 @@ export function SettingsDialog() {
     const [persona, setPersona] = useState(DEFAULT_PERSONA)
     const [blocks, setBlocks] = useState<PromptBlock[]>([])
     const [aiEnabled, setAiEnabled] = useState(true)
+    const [licenseKey, setLicenseKey] = useState("")
+    const [licenseTier, setLicenseTier] = useState("Free")
+    const [machineId, setMachineId] = useState("")
     const [isLoading, setIsLoading] = useState(false)
 
     const sensors = useSensors(
@@ -166,9 +170,40 @@ export function SettingsDialog() {
                 ])
             }
 
+            const [tierRes, machineRes] = await Promise.all([
+                get_license_tier(),
+                get_machine_id()
+            ])
+
+            if (tierRes.isOk()) setLicenseTier(tierRes.unwrap())
+            if (machineRes.isOk()) setMachineId(machineRes.unwrap())
+
         } catch (error) {
             console.error("Failed to load settings:", error)
             toast.error("Failed to load settings")
+        }
+    }
+
+    const handleActivateLicense = async () => {
+        if (!licenseKey || licenseKey.trim().length === 0) {
+            toast.error("Please enter a license key")
+            return
+        }
+
+        setIsLoading(true)
+        try {
+            const res = await activate_license(licenseKey.trim())
+            if (res.isOk()) {
+                setLicenseTier(res.unwrap())
+                toast.success("License activated successfully!")
+            } else {
+                toast.error(res.unwrapErr() || "Failed to activate license")
+            }
+        } catch (error) {
+            console.error("Error activating license:", error)
+            toast.error("An unexpected error occurred")
+        } finally {
+            setIsLoading(false)
         }
     }
 
@@ -295,9 +330,10 @@ export function SettingsDialog() {
                 </DialogHeader>
 
                 <Tabs defaultValue="general" className="w-full">
-                    <TabsList className="grid w-full grid-cols-2">
+                    <TabsList className="grid w-full grid-cols-3">
                         <TabsTrigger value="general">Generic Settings</TabsTrigger>
                         <TabsTrigger value="prompt" disabled={!aiEnabled}>Prompt Builder</TabsTrigger>
+                        <TabsTrigger value="licensing">Licensing</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="general" className="py-4 space-y-6">
@@ -410,6 +446,43 @@ export function SettingsDialog() {
                             <Button onClick={handleSavePromptSettings} disabled={isLoading}>
                                 Save Order & Content
                             </Button>
+                        </div>
+                    </TabsContent>
+                    <TabsContent value="licensing" className="py-4 space-y-6">
+                        <div className="space-y-4">
+                            <div className="flex flex-col space-y-1 p-3 border rounded-lg bg-secondary/20">
+                                <Label className="font-semibold text-sm">Status</Label>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs text-muted-foreground">Current Tier:</span>
+                                    <span className={`text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded ${licenseTier === 'Premium' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                                        {licenseTier}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-center mt-1">
+                                    <span className="text-xs text-muted-foreground">Machine ID:</span>
+                                    <span className="text-[10px] font-mono select-all bg-muted px-1.5 py-0.5 rounded">
+                                        {machineId}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="licenseKey">License Key</Label>
+                                <div className="flex gap-2">
+                                    <Input
+                                        id="licenseKey"
+                                        value={licenseKey}
+                                        onChange={(e) => setLicenseKey(e.target.value)}
+                                        placeholder="XXXX-XXXX-XXXX-XXXX"
+                                    />
+                                    <Button onClick={handleActivateLicense} disabled={isLoading}>
+                                        Activate
+                                    </Button>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Enter your premium license key to unlock unlimited pages and the graph view.
+                                </p>
+                            </div>
                         </div>
                     </TabsContent>
                 </Tabs>
