@@ -6,6 +6,7 @@
 use super::{
     AuditResult, AuditScores, Auditor, CheckResult, PerformanceMetrics, Score, SeoAuditDetails,
 };
+use crate::service::spider::{ClientType, Spider};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use serde::Deserialize;
@@ -24,6 +25,7 @@ use tokio::process::Command;
 /// Trade-off: ~5-10 seconds per page due to Chrome rendering.
 pub struct DeepAuditor {
     sidecar_path: PathBuf,
+    spider: Spider,
 }
 
 impl DeepAuditor {
@@ -31,7 +33,12 @@ impl DeepAuditor {
     pub fn new() -> Self {
         let sidecar_path = Self::find_sidecar_path();
         tracing::info!("[DEEP] Sidecar path: {:?}", sidecar_path);
-        Self { sidecar_path }
+        let spider =
+            Spider::new(ClientType::Standard).expect("Failed to create spider for deep auditor");
+        Self {
+            sidecar_path,
+            spider,
+        }
     }
 
     /// Check if the sidecar binary is available.
@@ -152,13 +159,7 @@ impl DeepAuditor {
 
     async fn fetch_html_fallback(&self, url: &str) -> Result<String> {
         tracing::warn!("[DEEP] Falling back to direct HTML fetch for URL: {}", url);
-        let client = rquest::Client::new();
-        let response = client
-            .get(url)
-            .header("User-Agent", "Mozilla/5.0 (compatible; SEOBot/1.0)")
-            .send()
-            .await?;
-        Ok(response.text().await?)
+        self.spider.fetch_html(url).await
     }
 }
 
