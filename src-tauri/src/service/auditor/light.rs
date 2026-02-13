@@ -4,10 +4,9 @@
 //! Much faster than Lighthouse (~1-2s vs ~5-10s) but less comprehensive.
 
 use super::{AuditResult, AuditScores, Auditor, CheckResult, Score, SeoAuditDetails};
-use crate::service::http::{create_client, ClientType};
+use crate::service::spider::{ClientType, Spider};
 use anyhow::Result;
 use async_trait::async_trait;
-use rquest::Client;
 use scraper::{Html, Selector};
 use std::sync::OnceLock;
 use url::Url;
@@ -21,14 +20,13 @@ use url::Url;
 ///
 /// Trade-off: ~1-2 seconds per page, no JS rendering.
 pub struct LightAuditor {
-    client: Client,
+    spider: Spider,
 }
 
 impl LightAuditor {
     pub fn new() -> Self {
         Self {
-            client: create_client(ClientType::HeavyEmulation)
-                .expect("Failed to create HTTP client"),
+            spider: Spider::new(ClientType::HeavyEmulation).expect("Failed to create HTTP client"),
         }
     }
 
@@ -494,14 +492,13 @@ impl Auditor for LightAuditor {
         let parsed_url = Url::parse(url)?;
 
         // Fetch the page
-        let response = self.client.get(url).send().await?;
+        let response = self.spider.get(url).await?;
 
-        let status_code = response.status().as_u16();
-        let content_length = response.content_length();
-        let html = response.text().await?;
+        let status_code = response.status;
+        let html = response.body;
 
         let load_time_ms = start_time.elapsed().as_secs_f64() * 1000.0;
-        let content_size = content_length.unwrap_or(html.len() as u64) as usize;
+        let content_size = html.len();
 
         tracing::debug!(
             "[LIGHT] Fetched {} bytes in {:.2}ms",
