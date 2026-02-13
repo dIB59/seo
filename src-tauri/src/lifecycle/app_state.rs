@@ -16,10 +16,10 @@ use tauri::AppHandle;
 /// Complete dependency graph for the application
 pub struct AppState {
     // Repositories exposed to commands
-    pub settings_repo: Arc<SettingsRepository>,
-    pub ai_repo: Arc<AiRepository>,
-    pub job_repo: Arc<JobRepository>,
-    pub results_repo: Arc<ResultsRepository>,
+    pub settings_repo: Arc<dyn crate::repository::SettingsRepository>,
+    pub ai_repo: Arc<dyn crate::repository::AiRepository>,
+    pub job_repo: Arc<dyn crate::repository::JobRepository>,
+    pub results_repo: Arc<dyn crate::repository::ResultsRepository>,
 
     // Services exposed to commands
 
@@ -38,13 +38,13 @@ impl AppState {
         let pool = crate::db::init_db(&app_handle).await?;
 
         // 2. Build repositories (bottom layer of dependency graph)
-        let job_repo = Arc::new(JobRepository::new(pool.clone()));
+        let job_repo: Arc<dyn crate::repository::JobRepository> = Arc::new(JobRepository::new(pool.clone()));
         let link_repo = Arc::new(LinkRepository::new(pool.clone()));
         let pages_repo = Arc::new(PageRepository::new(pool.clone()));
         let issues_repo = Arc::new(IssueRepository::new(pool.clone()));
-        let results_repo = Arc::new(ResultsRepository::new(pool.clone()));
-        let settings_repo = Arc::new(SettingsRepository::new(pool.clone()));
-        let ai_repo = Arc::new(AiRepository::new(pool.clone()));
+        let results_repo: Arc<dyn crate::repository::ResultsRepository> = Arc::new(ResultsRepository::new(pool.clone()));
+        let settings_repo: Arc<dyn crate::repository::SettingsRepository> = Arc::new(SettingsRepository::new(pool.clone()));
+        let ai_repo: Arc<dyn crate::repository::AiRepository> = Arc::new(AiRepository::new(pool.clone()));
         let progress_reporter: Arc<dyn ProgressEmitter> =
             Arc::new(ProgressReporter::new(app_handle.clone()));
 
