@@ -11,6 +11,14 @@ pub trait JobRepository: Send + Sync {
     async fn create(&self, url: &str, settings: &JobSettings) -> Result<String>;
     async fn get_by_id(&self, id: &str) -> Result<Job>;
     async fn get_all(&self) -> Result<Vec<JobInfo>>;
+    async fn get_paginated(&self, limit: i64, offset: i64) -> Result<Vec<JobInfo>>;
+    async fn get_paginated_with_total(
+        &self,
+        limit: i64,
+        offset: i64,
+        url_filter: Option<String>,
+        status_filter: Option<String>,
+    ) -> Result<(Vec<JobInfo>, i64)>;
     async fn get_pending(&self) -> Result<Vec<Job>>;
     async fn get_running_jobs_id(&self) -> Result<Vec<String>>;
     async fn update_status(&self, job_id: &str, status: JobStatus) -> Result<()>;
@@ -21,6 +29,7 @@ pub trait JobRepository: Send + Sync {
         current_stage: Option<&str>,
     ) -> Result<()>;
     async fn set_error(&self, job_id: &str, error: &str) -> Result<()>;
+    async fn count(&self) -> Result<i64>;
     async fn delete(&self, job_id: &str) -> Result<()>;
 }
 

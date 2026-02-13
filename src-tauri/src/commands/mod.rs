@@ -22,6 +22,7 @@ pub fn register_commands() -> Commands<tauri::Wry> {
         analysis::start_analysis,
         analysis::get_analysis_progress,
         analysis::get_all_jobs,
+        analysis::get_paginated_jobs,
         analysis::cancel_analysis,
         analysis::get_result,
         licensing::activate_license,

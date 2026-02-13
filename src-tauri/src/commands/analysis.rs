@@ -19,6 +19,12 @@ use crate::{
 use addon_macros::addon_guard;
 
 #[derive(Debug, serde::Serialize, Type)]
+pub struct PaginatedJobsResponse {
+    pub items: Vec<AnalysisProgress>,
+    pub total: i64,
+}
+
+#[derive(Debug, serde::Serialize, Type)]
 pub struct AnalysisJobResponse {
     pub job_id: String,
     pub url: String,
@@ -210,7 +216,22 @@ impl From<AnalysisSettingsRequest> for JobSettings {
 }
 
 fn validate_url(url: &str) -> Result<Url> {
-    Url::from_str(url).with_context(|| format!("Invalid URL: {}", url))
+    // Basic parse
+    let parsed = Url::from_str(url).with_context(|| format!("Invalid URL format: {}", url))?;
+
+    // Hardened validation: check for shell injection characters or suspicious patterns
+    // if this URL is ever passed to a shell-based sidecar.
+    let dangerous_chars = ['&', ';', '|', '$', '>', '<', '`', '\\', '"', '\''];
+    if url.chars().any(|c| dangerous_chars.contains(&c)) {
+        anyhow::bail!("URL contains potentially dangerous characters");
+    }
+
+    // Ensure it's http or https
+    if parsed.scheme() != "http" && parsed.scheme() != "https" {
+        anyhow::bail!("Only http and https protocols are supported");
+    }
+
+    Ok(parsed)
 }
 
 #[tauri::command]
@@ -222,7 +243,7 @@ pub async fn start_analysis(
 ) -> Result<AnalysisJobResponse, CommandError> {
     tracing::info!("Starting analysis: {}", url);
     tracing::info!("Settings: {:?}", settings);
-    let parsed_url = validate_url(&url).context("Bad URL")?;
+    let parsed_url = validate_url(&url).map_err(CommandError::from)?;
 
     let analysis_settings: JobSettings = settings.unwrap_or_default().into();
 
@@ -258,24 +279,57 @@ pub async fn get_analysis_progress(
     Ok(job.into())
 }
 
-//TODO:
-//Implement pagination
 #[tauri::command]
 #[specta::specta]
 pub async fn get_all_jobs(
+    limit: Option<i64>,
+    offset: Option<i64>,
     app_state: State<'_, AppState>,
 ) -> Result<Vec<AnalysisProgress>, CommandError> {
-    tracing::info!("Fetching all analysis jobs");
+    tracing::info!("Fetching jobs (limit={:?}, offset={:?})", limit, offset);
 
     let repository = app_state.job_repo.clone();
 
-    let jobs = repository.get_all().await.map_err(CommandError::from)?;
+    let jobs = if let (Some(l), Some(o)) = (limit, offset) {
+        repository.get_paginated(l, o).await
+    } else {
+        repository.get_all().await
+    }
+    .map_err(CommandError::from)?;
 
     // Convert V2 Jobs to V1 AnalysisProgress
     let progress: Vec<AnalysisProgress> = jobs.into_iter().map(|j| j.into()).collect();
-    tracing::trace!("{:?}", progress.first());
 
     Ok(progress)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_paginated_jobs(
+    limit: i64,
+    offset: i64,
+    url_filter: Option<String>,
+    status_filter: Option<String>,
+    app_state: State<'_, AppState>,
+) -> Result<PaginatedJobsResponse, CommandError> {
+    tracing::info!(
+        "Fetching paginated jobs (limit={}, offset={}, url_filter={:?}, status_filter={:?})",
+        limit,
+        offset,
+        url_filter,
+        status_filter
+    );
+
+    let repository = app_state.job_repo.clone();
+
+    let (jobs, total) = repository
+        .get_paginated_with_total(limit, offset, url_filter, status_filter)
+        .await
+        .map_err(CommandError::from)?;
+
+    let items: Vec<AnalysisProgress> = jobs.into_iter().map(|j| j.into()).collect();
+
+    Ok(PaginatedJobsResponse { items, total })
 }
 
 #[tauri::command]

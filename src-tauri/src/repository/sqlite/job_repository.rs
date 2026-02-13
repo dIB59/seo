@@ -146,6 +146,98 @@ impl JobRepository {
             .collect())
     }
 
+    /// Get paginated jobs for history listing.
+    pub async fn get_paginated(&self, limit: i64, offset: i64) -> Result<Vec<JobInfo>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT 
+                id, url, status, progress, 
+                total_pages, total_issues, created_at
+            FROM jobs
+            ORDER BY created_at DESC
+            LIMIT ?1 OFFSET ?2
+            "#,
+            limit,
+            offset
+        )
+        .fetch_all(&self.pool)
+        .await
+        .context("Failed to fetch paginated jobs")?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| JobInfo {
+                id: row.id,
+                url: row.url,
+                status: map_job_status(&row.status),
+                progress: row.progress,
+                total_pages: row.total_pages,
+                total_issues: row.total_issues,
+                created_at: parse_datetime(&row.created_at),
+            })
+            .collect())
+    }
+
+    /// Optimized count and fetch in one query using window functions
+    pub async fn get_paginated_with_total(
+        &self,
+        limit: i64,
+        offset: i64,
+        url_filter: Option<String>,
+        status_filter: Option<String>,
+    ) -> Result<(Vec<JobInfo>, i64)> {
+        let url_pattern = url_filter
+            .map(|f| format!("%{}%", f))
+            .unwrap_or_else(|| "%".to_string());
+        let status_pattern = status_filter.unwrap_or_else(|| "%".to_string());
+
+        let rows = sqlx::query!(
+            r#"
+            SELECT 
+                id, url, status, progress, 
+                total_pages, total_issues, created_at,
+                COUNT(*) OVER() as "total_count!"
+            FROM jobs
+            WHERE url LIKE ?1 AND status LIKE ?2
+            ORDER BY created_at DESC
+            LIMIT ?3 OFFSET ?4
+            "#,
+            url_pattern,
+            status_pattern,
+            limit,
+            offset
+        )
+        .fetch_all(&self.pool)
+        .await
+        .context("Failed to fetch paginated jobs with total and filters")?;
+
+        let total = rows.first().map(|r| r.total_count).unwrap_or(0);
+
+        let items = rows
+            .into_iter()
+            .map(|row| JobInfo {
+                id: row.id,
+                url: row.url,
+                status: map_job_status(&row.status),
+                progress: row.progress,
+                total_pages: row.total_pages,
+                total_issues: row.total_issues,
+                created_at: parse_datetime(&row.created_at),
+            })
+            .collect();
+
+        Ok((items, total))
+    }
+
+    pub async fn count(&self) -> Result<i64> {
+        let row = sqlx::query!("SELECT COUNT(*) as count FROM jobs")
+            .fetch_one(&self.pool)
+            .await
+            .context("Failed to count jobs")?;
+
+        Ok(row.count as i64)
+    }
+
     /// Get pending/running jobs (for job processor).
     pub async fn get_pending(&self) -> Result<Vec<Job>> {
         let rows = sqlx::query!(
@@ -319,6 +411,21 @@ impl JobRepositoryTrait for JobRepository {
         JobRepository::get_all(self).await
     }
 
+    async fn get_paginated(&self, limit: i64, offset: i64) -> Result<Vec<JobInfo>> {
+        JobRepository::get_paginated(self, limit, offset).await
+    }
+
+    async fn get_paginated_with_total(
+        &self,
+        limit: i64,
+        offset: i64,
+        url_filter: Option<String>,
+        status_filter: Option<String>,
+    ) -> Result<(Vec<JobInfo>, i64)> {
+        JobRepository::get_paginated_with_total(self, limit, offset, url_filter, status_filter)
+            .await
+    }
+
     async fn get_pending(&self) -> Result<Vec<Job>> {
         JobRepository::get_pending(self).await
     }
@@ -342,6 +449,10 @@ impl JobRepositoryTrait for JobRepository {
 
     async fn set_error(&self, job_id: &str, error: &str) -> Result<()> {
         JobRepository::set_error(self, job_id, error).await
+    }
+
+    async fn count(&self) -> Result<i64> {
+        JobRepository::count(self).await
     }
 
     async fn delete(&self, job_id: &str) -> Result<()> {

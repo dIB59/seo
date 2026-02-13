@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
 import { get_gemini_api_key, get_gemini_persona, get_gemini_prompt_blocks, get_gemini_enabled, set_gemini_persona, set_gemini_enabled, set_gemini_prompt_blocks, set_gemini_api_key } from "@/src/api/ai"
+import { useUI } from "@/src/context/UIContext"
 import {
     DndContext,
     closestCenter,
@@ -112,7 +113,7 @@ function SortableBlock({ block, onRemove, onUpdate }: { block: PromptBlock, onRe
 }
 
 export function SettingsDialog() {
-    const [open, setOpen] = useState(false)
+    const { isSettingsOpen: open, setSettingsOpen: setOpen } = useUI()
     const [apiKey, setApiKey] = useState("")
     const [persona, setPersona] = useState(DEFAULT_PERSONA)
     const [blocks, setBlocks] = useState<PromptBlock[]>([])
@@ -127,19 +128,10 @@ export function SettingsDialog() {
     );
 
     useEffect(() => {
-        const handleOpen = () => {
-            setOpen(true)
+        if (open) {
             loadSettings()
         }
-
-        window.addEventListener("open-settings-dialog", handleOpen)
-        window.addEventListener("open-api-key-dialog", handleOpen)
-
-        return () => {
-            window.removeEventListener("open-settings-dialog", handleOpen)
-            window.removeEventListener("open-api-key-dialog", handleOpen)
-        }
-    }, [])
+    }, [open])
 
     const loadSettings = async () => {
         try {

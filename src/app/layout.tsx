@@ -14,6 +14,7 @@ export const metadata: Metadata = {
 }
 
 import { SettingsDialog } from "@/src/components/settings/settings-dialog"
+import { UIProvider } from "@/src/context/UIContext"
 
 export default function RootLayout({
   children,
@@ -31,9 +32,11 @@ export default function RootLayout({
         )}
       </head>
       <body className={`font-sans antialiased`}>
-        {children}
-        <Toaster />
-        <SettingsDialog />
+        <UIProvider>
+          {children}
+          <Toaster />
+          <SettingsDialog />
+        </UIProvider>
       </body>
     </html>
   )
