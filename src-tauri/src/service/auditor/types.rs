@@ -53,6 +53,21 @@ pub struct AuditScores {
     pub performance_metrics: Option<PerformanceMetrics>,
 }
 
+impl AuditScores {
+    pub fn seo_percent(&self) -> Option<f64> {
+        self.seo.map(|s| s.percent())
+    }
+    pub fn perf_percent(&self) -> Option<f64> {
+        self.performance.map(|s| s.percent())
+    }
+    pub fn acc_percent(&self) -> Option<f64> {
+        self.accessibility.map(|s| s.percent())
+    }
+    pub fn bp_percent(&self) -> Option<f64> {
+        self.best_practices.map(|s| s.percent())
+    }
+}
+
 /// Detailed performance metrics.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PerformanceMetrics {
