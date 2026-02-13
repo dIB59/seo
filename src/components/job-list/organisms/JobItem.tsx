@@ -39,7 +39,7 @@ export function JobItem({ job, onViewResult, onCancel }: JobItemProps) {
                 )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-h-[40px]">
                 {job.job_status === "completed" && (
                     <ViewResultButton onClick={() => onViewResult(job.job_id)} />
                 )}
