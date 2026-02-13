@@ -1,4 +1,3 @@
-import { logger } from "@/src/lib/logger";
 import React from "react"
 
 // Listens only to discovery events. Returns { count, total } where each can be null

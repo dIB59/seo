@@ -7,7 +7,7 @@ interface JobListProps {
     onCancel: (jobId: string) => void
 }
 
-export function JobList({ jobs, onViewResult, onCancel }: JobListProps) {
+export const JobList = function JobList({ jobs, onViewResult, onCancel }: JobListProps) {
     if (jobs.length === 0) {
         return (
             <div className="text-center py-12 text-muted-foreground">

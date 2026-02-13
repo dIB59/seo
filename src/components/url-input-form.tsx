@@ -1,8 +1,6 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
+import React, { useState, memo } from "react"
 import { Globe, Play, Settings2 } from "lucide-react"
 import { Button } from "@/src/components/ui/button"
 import { Input } from "@/src/components/ui/input"
@@ -25,7 +23,7 @@ const defaultSettings: AnalysisSettingsRequest = {
   delay_between_requests: 5,
 }
 
-export function UrlInputForm({ onSubmit, isLoading }: UrlInputFormProps) {
+export const UrlInputForm = memo(function UrlInputForm({ onSubmit, isLoading }: UrlInputFormProps) {
   const [url, setUrl] = useState("")
   const [settings, setSettings] = useState<AnalysisSettingsRequest>(defaultSettings)
   const [showSettings, setShowSettings] = useState(false)
@@ -145,4 +143,4 @@ export function UrlInputForm({ onSubmit, isLoading }: UrlInputFormProps) {
       </Collapsible>
     </form>
   )
-}
+})
