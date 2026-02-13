@@ -261,7 +261,7 @@ impl AnalyzerService {
                     &href,
                     text,
                     Some(status_code as i64),
-                    url, // job base url - wait, auditor result might not have base url, using current page url as base for context
+                    url,
                 )
             })
             .collect();
