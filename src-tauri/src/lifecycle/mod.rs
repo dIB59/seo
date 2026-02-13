@@ -9,7 +9,7 @@ pub fn init_logging() {
             tracing_subscriber::EnvFilter::default()
                 .add_directive("sqlx=warn".parse().unwrap())
                 .add_directive("app=debug".parse().unwrap())
-                .add_directive("info".parse().unwrap())
+                .add_directive("info".parse().unwrap()),
         )
         .compact()
         .with_target(false)
@@ -33,17 +33,14 @@ pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
 
 // No shutdown handling (as requested)
 pub fn handle_run_event(app_handle: &tauri::AppHandle, event: tauri::RunEvent) {
-    if let RunEvent::ExitRequested {..}| RunEvent::Exit= event {
+    if let RunEvent::ExitRequested { .. } | RunEvent::Exit = event {
         shutdown_services(app_handle);
     }
-   
 }
 
 /// Gracefully shutdown all managed services.
 fn shutdown_services(app_handle: &AppHandle) {
-    // Shutdown LighthouseService
     if let Some(app_state) = app_handle.try_state::<AppState>() {
-        let lighthouse = app_state.lighthouse_service.clone();
         let job_processor = app_state.job_processor.clone();
         tauri::async_runtime::block_on(async move {
             tracing::info!("Shutting down Job Processor...");
@@ -52,13 +49,6 @@ fn shutdown_services(app_handle: &AppHandle) {
             } else {
                 tracing::info!("Job Processor shut down successfully");
             }
-            tracing::info!("Shutting down Lighthouse service...");
-            if let Err(e) = lighthouse.shutdown().await {
-                tracing::error!("Error shutting down Lighthouse: {}", e);
-            } else {
-                tracing::info!("Lighthouse service shut down successfully");
-            }
         });
-
     }
 }

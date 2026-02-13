@@ -46,6 +46,16 @@ impl AnalyzerService {
         }
     }
 
+    pub fn deep_auditor(&self) -> Arc<DeepAuditor> {
+        self.deep_auditor.clone()
+    }
+
+    pub async fn shutdown(&self) -> Result<()> {
+        self.light_auditor.shutdown().await?;
+        self.deep_auditor.shutdown().await?;
+        Ok(())
+    }
+
     pub async fn analyze_page(
         &self,
         url: &str,
@@ -255,14 +265,7 @@ impl AnalyzerService {
         let analysis_links: Vec<NewLink> = edges
             .into_iter()
             .map(|(href, status_code, text)| {
-                NewLink::create(
-                    job_id,
-                    &page_id,
-                    &href,
-                    text,
-                    Some(status_code as i64),
-                    url,
-                )
+                NewLink::create(job_id, &page_id, &href, text, Some(status_code as i64), url)
             })
             .collect();
 

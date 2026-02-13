@@ -7,7 +7,7 @@ use crate::{
     service::{
         licensing_service::LicensingService,
         processor::{reporter::ProgressEmitter, AnalyzerService},
-        JobProcessor, LighthouseService, ProgressReporter,
+        JobProcessor, ProgressReporter,
     },
 };
 use std::sync::{Arc, RwLock};
@@ -22,7 +22,6 @@ pub struct AppState {
     pub results_repo: Arc<ResultsRepository>,
 
     // Services exposed to commands
-    pub lighthouse_service: Arc<LighthouseService>,
 
     // Background services (not exposed to commands, but kept alive via AppState)
     pub job_processor: Arc<JobProcessor>, // underscore = intentionally unused but kept alive
@@ -51,14 +50,14 @@ impl AppState {
 
         // 3. Build services (middle layer)
         let analyzer = AnalyzerService::new(pages_repo, issues_repo);
+        // 4. Start background tasks
+        let deep_auditor = analyzer.deep_auditor();
         let job_processor = Arc::new(JobProcessor::new(
             job_repo.clone(),
             link_repo,
             analyzer,
             progress_reporter.clone(),
         ));
-
-        // 4. Start background tasks
         let proc_clone = job_processor.clone();
         tauri::async_runtime::spawn(async move {
             if let Err(e) = proc_clone.run().await {
@@ -66,13 +65,13 @@ impl AppState {
             }
         });
 
-        let lighthouse = Arc::new(LighthouseService::new());
-        let lh_clone = lighthouse.clone();
+        // Pre-warm DeepAuditor
+        let da_clone = deep_auditor.clone();
         tauri::async_runtime::spawn(async move {
-            match lh_clone.start_persistent().await {
-                Ok(_) => tracing::info!("Lighthouse persistent mode started"),
+            match da_clone.start_persistent().await {
+                Ok(_) => tracing::info!("DeepAuditor persistent mode started"),
                 Err(e) => tracing::warn!(
-                    "Lighthouse persistent mode failed (falling back to one-shot): {}",
+                    "DeepAuditor persistent mode failed (falling back to one-shot): {}",
                     e
                 ),
             }
@@ -91,7 +90,6 @@ impl AppState {
             ai_repo,
             job_repo,
             results_repo,
-            lighthouse_service: lighthouse,
             job_processor: job_processor,
             permissions: RwLock::new(UserPermissions::new(initial_tier)),
             licensing_service,

@@ -1,18 +1,31 @@
-//! Deep Auditor - Full Lighthouse-based SEO analysis.
-//!
-//! Uses a bundled sidecar binary (lighthouse-runner) to run comprehensive
-//! Lighthouse audits. Slower but provides detailed scores and metrics.
-
 use super::{
     AuditResult, AuditScores, Auditor, CheckResult, PerformanceMetrics, Score, SeoAuditDetails,
 };
 use crate::service::spider::{ClientType, Spider};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::process::Stdio;
-use tokio::process::Command;
+use std::sync::Arc;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::process::{Child, ChildStdin, ChildStdout, Command};
+use tokio::sync::Mutex;
+
+/// Holds the persistent sidecar process state
+struct PersistentProcess {
+    #[allow(dead_code)]
+    child: Child,
+    stdin: ChildStdin,
+    stdout: BufReader<ChildStdout>,
+}
+
+/// Request format for the persistent sidecar
+#[derive(Debug, Serialize)]
+struct PersistentRequest {
+    action: String,
+    url: Option<String>,
+}
 
 /// Deep auditor using Lighthouse via bundled sidecar binary.
 ///
@@ -25,6 +38,7 @@ use tokio::process::Command;
 /// Trade-off: ~5-10 seconds per page due to Chrome rendering.
 pub struct DeepAuditor {
     sidecar_path: PathBuf,
+    persistent_process: Arc<Mutex<Option<PersistentProcess>>>,
     spider: Spider,
 }
 
@@ -37,6 +51,7 @@ impl DeepAuditor {
             Spider::new(ClientType::Standard).expect("Failed to create spider for deep auditor");
         Self {
             sidecar_path,
+            persistent_process: Arc::new(Mutex::new(None)),
             spider,
         }
     }
@@ -50,22 +65,34 @@ impl DeepAuditor {
                 .is_ok()
     }
 
+    /// Find the path to the lighthouse-runner sidecar binary.
     fn find_sidecar_path() -> PathBuf {
         let exe_path = std::env::current_exe().unwrap_or_default();
         let exe_dir = exe_path.parent().unwrap_or(std::path::Path::new("."));
+
+        // Get the target triple suffix for the current platform
         let suffix = Self::get_target_triple();
         let binary_name = format!("lighthouse-runner-{}", suffix);
 
-        // Try production location
+        // Try production location first (same directory as the main executable)
         let production_path = exe_dir.join(&binary_name);
         if production_path.exists() {
             return production_path;
         }
 
         // Try without suffix
-        let plain_path = exe_dir.join("lighthouse-runner");
-        if plain_path.exists() {
-            return plain_path;
+        let production_path_plain = exe_dir.join("lighthouse-runner");
+        if production_path_plain.exists() {
+            return production_path_plain;
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            // Try inside MacOS bundle
+            let macos_path = exe_dir.join(&binary_name);
+            if macos_path.exists() {
+                return macos_path;
+            }
         }
 
         // Try development location
@@ -80,6 +107,7 @@ impl DeepAuditor {
         PathBuf::from(binary_name)
     }
 
+    /// Get the target triple suffix for the current platform
     fn get_target_triple() -> &'static str {
         #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
         {
@@ -105,6 +133,180 @@ impl DeepAuditor {
         )))]
         {
             "unknown"
+        }
+    }
+
+    /// Start a persistent sidecar process that keeps Chrome running.
+    pub async fn start_persistent(&self) -> Result<()> {
+        let mut process = self.persistent_process.lock().await;
+
+        if process.is_some() {
+            return Ok(());
+        }
+
+        if !self.is_available() {
+            anyhow::bail!("Lighthouse sidecar not found at: {:?}", self.sidecar_path);
+        }
+
+        tracing::info!("[DEEP] Starting persistent sidecar process...");
+
+        let mut child = Command::new(&self.sidecar_path)
+            .arg("--persistent")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .context("Failed to spawn persistent lighthouse-runner")?;
+
+        let stdin = child
+            .stdin
+            .take()
+            .context("Failed to get stdin of sidecar process")?;
+        let stdout = child
+            .stdout
+            .take()
+            .context("Failed to get stdout of sidecar process")?;
+
+        let mut stdout = BufReader::new(stdout);
+
+        // Wait for ready signal
+        let mut ready_line = String::new();
+        stdout
+            .read_line(&mut ready_line)
+            .await
+            .context("Failed to read ready signal from sidecar")?;
+
+        let ready_response: serde_json::Value = serde_json::from_str(&ready_line)
+            .context("Failed to parse ready signal from sidecar")?;
+
+        if !ready_response
+            .get("ready")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+        {
+            anyhow::bail!("Sidecar did not report ready status");
+        }
+
+        tracing::info!("[DEEP] Persistent process started and ready");
+
+        *process = Some(PersistentProcess {
+            child,
+            stdin,
+            stdout,
+        });
+
+        Ok(())
+    }
+
+    /// Analyze using persistent process
+    async fn analyze_persistent(&self, url: &str) -> Result<AuditResult> {
+        let mut process_guard = self.persistent_process.lock().await;
+        let process = process_guard
+            .as_mut()
+            .context("Persistent process not started")?;
+
+        let start_time = std::time::Instant::now();
+        let request = PersistentRequest {
+            action: "analyze".to_string(),
+            url: Some(url.to_string()),
+        };
+
+        let request_json = serde_json::to_string(&request)?;
+        process.stdin.write_all(request_json.as_bytes()).await?;
+        process.stdin.write_all(b"\n").await?;
+        process.stdin.flush().await?;
+
+        let mut response_line = String::new();
+        process
+            .stdout
+            .read_line(&mut response_line)
+            .await
+            .context("Failed to read response from persistent sidecar")?;
+
+        let process_time_ms = start_time.elapsed().as_secs_f64() * 1000.0;
+        let response: SidecarResponse =
+            serde_json::from_str(&response_line).context("Failed to parse sidecar output")?;
+
+        if !response.success {
+            anyhow::bail!(
+                "Lighthouse failed: {}",
+                response.error.unwrap_or_else(|| "Unknown error".into())
+            );
+        }
+
+        Ok(self.build_result(response, process_time_ms, url).await)
+    }
+
+    /// One-shot analysis
+    async fn analyze_oneshot(&self, url: &str) -> Result<AuditResult> {
+        let start_time = std::time::Instant::now();
+
+        let output = Command::new(&self.sidecar_path)
+            .arg(url)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .await
+            .context("Failed to spawn lighthouse-runner")?;
+
+        let process_time_ms = start_time.elapsed().as_secs_f64() * 1000.0;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+
+        if !output.status.success() {
+            anyhow::bail!(
+                "Lighthouse failed: {}",
+                if !stderr.is_empty() {
+                    stderr.to_string()
+                } else {
+                    "Unknown error".into()
+                }
+            );
+        }
+
+        let response: SidecarResponse =
+            serde_json::from_str(&stdout).context("Failed to parse lighthouse output")?;
+
+        if !response.success {
+            anyhow::bail!(
+                "Lighthouse analysis failed: {}",
+                response.error.unwrap_or_else(|| "Unknown error".into())
+            );
+        }
+
+        Ok(self.build_result(response, process_time_ms, url).await)
+    }
+
+    async fn build_result(
+        &self,
+        response: SidecarResponse,
+        process_time_ms: f64,
+        url: &str,
+    ) -> AuditResult {
+        let scores = self.convert_scores(&response);
+
+        let load_time_ms = scores
+            .performance_metrics
+            .as_ref()
+            .and_then(|pm| pm.time_to_interactive)
+            .or(response.load_time_ms)
+            .unwrap_or(process_time_ms);
+
+        let html = match &response.html {
+            Some(h) if !h.is_empty() => h.clone(),
+            _ => self.fetch_html_fallback(url).await.unwrap_or_default(),
+        };
+
+        let content_size = response.content_size.unwrap_or(html.len());
+        let status_code = response.status_code.unwrap_or(200);
+
+        AuditResult {
+            url: response.url.unwrap_or_else(|| url.to_string()),
+            html,
+            status_code,
+            load_time_ms,
+            content_size,
+            scores,
         }
     }
 
@@ -174,85 +376,16 @@ impl Auditor for DeepAuditor {
     async fn analyze(&self, url: &str) -> Result<AuditResult> {
         tracing::info!("[DEEP] Starting analysis: {}", url);
 
-        if !self.is_available() {
-            anyhow::bail!("Lighthouse sidecar not found at: {:?}", self.sidecar_path);
+        // Try persistent process first
+        {
+            let process = self.persistent_process.lock().await;
+            if process.is_some() {
+                drop(process);
+                return self.analyze_persistent(url).await;
+            }
         }
 
-        let start_time = std::time::Instant::now();
-
-        let output = Command::new(&self.sidecar_path)
-            .arg(url)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
-            .await
-            .context("Failed to spawn lighthouse-runner")?;
-
-        let process_time_ms = start_time.elapsed().as_secs_f64() * 1000.0;
-        tracing::info!("[DEEP] Process completed in {:.2}ms", process_time_ms);
-
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-
-        if !stderr.is_empty() {
-            tracing::debug!("[DEEP] stderr: {}", stderr.trim());
-        }
-
-        if !output.status.success() {
-            anyhow::bail!(
-                "Lighthouse failed: {}",
-                if !stderr.is_empty() {
-                    stderr.to_string()
-                } else {
-                    "Unknown error".into()
-                }
-            );
-        }
-
-        let response: SidecarResponse =
-            serde_json::from_str(&stdout).context("Failed to parse lighthouse output")?;
-
-        if !response.success {
-            anyhow::bail!(
-                "Lighthouse analysis failed: {}",
-                response.error.unwrap_or_else(|| "Unknown error".into())
-            );
-        }
-
-        let scores = self.convert_scores(&response);
-
-        // Load time priority: TTI -> HTTP time -> process time
-        let load_time_ms = scores
-            .performance_metrics
-            .as_ref()
-            .and_then(|pm| pm.time_to_interactive)
-            .or(response.load_time_ms)
-            .unwrap_or(process_time_ms);
-
-        // Get HTML (from Lighthouse or fallback fetch)
-        let html = match &response.html {
-            Some(h) if !h.is_empty() => h.clone(),
-            _ => self.fetch_html_fallback(url).await.unwrap_or_default(),
-        };
-
-        let content_size = response.content_size.unwrap_or(html.len());
-        let status_code = response.status_code.unwrap_or(200);
-
-        tracing::info!(
-            "[DEEP] Complete - status: {}, size: {} bytes, load: {:.2}ms",
-            status_code,
-            content_size,
-            load_time_ms
-        );
-
-        Ok(AuditResult {
-            url: response.url.unwrap_or_else(|| url.to_string()),
-            html,
-            status_code,
-            load_time_ms,
-            content_size,
-            scores,
-        })
+        self.analyze_oneshot(url).await
     }
 
     fn name(&self) -> &'static str {
@@ -260,7 +393,25 @@ impl Auditor for DeepAuditor {
     }
 
     async fn shutdown(&self) -> Result<()> {
-        tracing::info!("[DEEP] Shutdown (no-op for sidecar approach)");
+        let mut process = self.persistent_process.lock().await;
+
+        if let Some(mut p) = process.take() {
+            tracing::info!("[DEEP] Shutting down persistent process...");
+
+            let shutdown_req = PersistentRequest {
+                action: "shutdown".to_string(),
+                url: None,
+            };
+            if let Ok(json) = serde_json::to_string(&shutdown_req) {
+                let _ = p.stdin.write_all(json.as_bytes()).await;
+                let _ = p.stdin.write_all(b"\n").await;
+                let _ = p.stdin.flush().await;
+            }
+
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(2), p.child.wait()).await;
+            let _ = p.child.kill().await;
+        }
+
         Ok(())
     }
 }
