@@ -1,4 +1,4 @@
-use crate::domain::models::JobSettings;
+use crate::domain::JobSettings;
 use crate::service::discovery::{PageDiscovery, ResourceChecker};
 use crate::service::processor::reporter::{ProgressEmitter, ProgressEvent};
 use anyhow::{Context, Result};

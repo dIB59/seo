@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use std::sync::{Arc, Mutex};
 
-use crate::domain::models::{LighthouseData, NewHeading, NewImage, NewIssue, Page};
+use crate::domain::{Issue, LighthouseData, NewHeading, NewImage, NewIssue, Page, PageInfo};
 use crate::repository::{IssueRepository, PageRepository};
 use crate::service::auditor::{AuditResult, AuditScores, Auditor, SeoAuditDetails};
 use crate::service::processor::AnalyzerService;
@@ -21,44 +21,33 @@ impl MockPageRepo {
 
 #[async_trait]
 impl PageRepository for MockPageRepo {
-    async fn insert(&self, page: &crate::domain::models::Page) -> Result<String> {
+    async fn insert(&self, page: &Page) -> Result<String> {
         let mut guard = self.inserted_pages.lock().unwrap();
         guard.push(page.clone());
         Ok(page.id.clone())
     }
 
-    async fn insert_batch(&self, _pages: &[crate::domain::models::Page]) -> Result<()> {
+    async fn insert_batch(&self, _pages: &[Page]) -> Result<()> {
         Ok(())
     }
 
-    async fn get_by_job_id(&self, _job_id: &str) -> Result<Vec<crate::domain::models::Page>> {
+    async fn get_by_job_id(&self, _job_id: &str) -> Result<Vec<Page>> {
         Ok(vec![])
     }
 
-    async fn get_info_by_job_id(
-        &self,
-        _job_id: &str,
-    ) -> Result<Vec<crate::domain::models::PageInfo>> {
+    async fn get_info_by_job_id(&self, _job_id: &str) -> Result<Vec<PageInfo>> {
         Ok(vec![])
     }
 
-    async fn get_by_id(&self, _page_id: &str) -> Result<crate::domain::models::Page> {
+    async fn get_by_id(&self, _page_id: &str) -> Result<Page> {
         Err(anyhow::anyhow!("not implemented"))
     }
 
-    async fn replace_headings(
-        &self,
-        _page_id: &str,
-        _headings: &[crate::domain::models::NewHeading],
-    ) -> Result<()> {
+    async fn replace_headings(&self, _page_id: &str, _headings: &[NewHeading]) -> Result<()> {
         Ok(())
     }
 
-    async fn replace_images(
-        &self,
-        _page_id: &str,
-        _images: &[crate::domain::models::NewImage],
-    ) -> Result<()> {
+    async fn replace_images(&self, _page_id: &str, _images: &[NewImage]) -> Result<()> {
         Ok(())
     }
 
@@ -89,25 +78,25 @@ impl MockIssueRepo {
 
 #[async_trait]
 impl IssueRepository for MockIssueRepo {
-    async fn insert_batch(&self, issues: &[crate::domain::models::NewIssue]) -> Result<()> {
+    async fn insert_batch(&self, issues: &[NewIssue]) -> Result<()> {
         let mut guard = self.inserted_issues.lock().unwrap();
         guard.extend_from_slice(issues);
         Ok(())
     }
 
-    async fn get_by_job_id(&self, _job_id: &str) -> Result<Vec<crate::domain::models::Issue>> {
+    async fn get_by_job_id(&self, _job_id: &str) -> Result<Vec<Issue>> {
         Ok(vec![])
     }
 
-    async fn get_by_page_id(&self, _page_id: &str) -> Result<Vec<crate::domain::models::Issue>> {
+    async fn get_by_page_id(&self, _page_id: &str) -> Result<Vec<Issue>> {
         Ok(vec![])
     }
 
     async fn get_by_job_and_severity(
         &self,
         _job_id: &str,
-        _severity: crate::domain::models::IssueSeverity,
-    ) -> Result<Vec<crate::domain::models::Issue>> {
+        _severity: crate::domain::IssueSeverity,
+    ) -> Result<Vec<Issue>> {
         Ok(vec![])
     }
 

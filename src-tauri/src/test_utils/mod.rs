@@ -64,7 +64,7 @@ pub async fn set_up_benchmark_db() -> SqlitePool {
 /// Benchmark data generators for realistic test data
 /// Made public for use in benches/
 pub mod generators {
-    use crate::domain::models::{
+    use crate::domain::{
         HeadingElement, ImageElement, IssueSeverity, LinkDetail, PageAnalysisData, SeoIssue,
     };
 
@@ -254,7 +254,7 @@ pub mod fixtures {
 /// Helper assertions for tests
 #[cfg(test)]
 pub mod assertions {
-    use crate::domain::models::SeoIssue;
+    use crate::domain::SeoIssue;
 
     /// Checks if issues contain a specific issue title
     pub fn has_issue(issues: &[SeoIssue], title: &str) -> bool {

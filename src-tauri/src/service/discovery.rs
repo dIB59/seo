@@ -9,7 +9,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 use url::Url;
 
-use crate::domain::models::ResourceStatus;
+use crate::domain::ResourceStatus;
 
 use crate::service::spider::{ClientType, Spider};
 

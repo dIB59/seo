@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 
 use super::map_link_type;
-use crate::domain::models::{Link, NewLink};
+use crate::domain::{Link, NewLink};
 
 /// Link counts by type.
 #[derive(Debug, Clone, Default)]
@@ -284,23 +284,23 @@ use async_trait::async_trait;
 
 #[async_trait]
 impl LinkRepositoryTrait for LinkRepository {
-    async fn insert_batch(&self, links: &[crate::domain::models::NewLink]) -> Result<()> {
+    async fn insert_batch(&self, links: &[crate::domain::NewLink]) -> Result<()> {
         LinkRepository::insert_batch(self, links).await
     }
 
-    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::models::Link>> {
+    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::Link>> {
         LinkRepository::get_by_job_id(self, job_id).await
     }
 
-    async fn get_outgoing(&self, source_page_id: &str) -> Result<Vec<crate::domain::models::Link>> {
+    async fn get_outgoing(&self, source_page_id: &str) -> Result<Vec<crate::domain::Link>> {
         LinkRepository::get_outgoing(self, source_page_id).await
     }
 
-    async fn get_incoming(&self, target_page_id: &str) -> Result<Vec<crate::domain::models::Link>> {
+    async fn get_incoming(&self, target_page_id: &str) -> Result<Vec<crate::domain::Link>> {
         LinkRepository::get_incoming(self, target_page_id).await
     }
 
-    async fn get_broken(&self, job_id: &str) -> Result<Vec<crate::domain::models::Link>> {
+    async fn get_broken(&self, job_id: &str) -> Result<Vec<crate::domain::Link>> {
         LinkRepository::get_broken(self, job_id).await
     }
 

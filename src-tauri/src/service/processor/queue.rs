@@ -1,4 +1,4 @@
-use crate::domain::models::{Job, JobStatus};
+use crate::domain::{Job, JobStatus};
 use crate::repository::JobRepository as JobRepositoryTrait;
 use anyhow::Result;
 use std::sync::Arc;
@@ -54,7 +54,7 @@ impl JobQueue {
         self.repo.update_status(job_id, JobStatus::Cancelled).await
     }
 
-    pub async fn cancel_all_running_jobs(&self)  -> Result<()> {
+    pub async fn cancel_all_running_jobs(&self) -> Result<()> {
         let jobs = self.repo.get_running_jobs_id().await?;
         tracing::info!("Cancelling {} running jobs", jobs.len());
         for job in jobs {

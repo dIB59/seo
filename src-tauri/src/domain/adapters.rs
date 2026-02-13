@@ -3,7 +3,7 @@
 //! This module provides conversion functions from domain models to the
 //! API response types used by the frontend.
 
-use crate::domain::models::{AnalysisProgress, Job, JobInfo};
+use crate::domain::{AnalysisProgress, Job, JobInfo};
 
 // ============================================================================
 // JOB TO ANALYSIS PROGRESS

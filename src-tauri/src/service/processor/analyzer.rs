@@ -1,4 +1,4 @@
-use crate::domain::models::{
+use crate::domain::{
     IssueSeverity, JobSettings, LighthouseData, NewHeading, NewImage, NewIssue, NewLink, Page,
 };
 use crate::extractor::page_extractor::{ExtractedHeading, ExtractedImage, PageExtractor};

@@ -5,13 +5,12 @@ use std::collections::HashMap;
 use anyhow::Result;
 use std::sync::Arc;
 
-use crate::domain::models::{
+use crate::domain::{
     AnalysisResults, AnalysisSummary, CompleteAnalysisResult, HeadingElement, ImageElement,
-    LighthouseData, LinkDetail, LinkType, PageAnalysisData, SeoIssue,
+    LighthouseData, LinkDetail, PageAnalysisData, SeoIssue,
 };
 
 use crate::repository::ResultsRepository as ResultsRepositoryTrait;
-use url::Url;
 
 // Heuristic thresholds and defaults for assembly decisions
 const SPEED_HEURISTIC_LOAD_TIME_MS: i64 = 2000; // Pages with load time <= 2s considered fast (heuristic)
@@ -47,7 +46,7 @@ impl AnalysisAssembler {
         let mut links_by_page: HashMap<String, Vec<LinkDetail>> = HashMap::new();
         for link in links {
             let source_url = page_url_by_id.get(&link.source_page_id);
-            let is_external = is_external_by_url(source_url, &link.target_url, &link.link_type);
+            let is_external = link.is_external_for_url(source_url);
 
             links_by_page
                 .entry(link.source_page_id)
@@ -147,7 +146,7 @@ impl AnalysisAssembler {
 
     fn assemble_single_page(
         &self,
-        p: crate::domain::models::Page,
+        p: crate::domain::Page,
         lh_data: Option<&LighthouseData>,
         detailed_links: Vec<LinkDetail>,
         headings: Vec<HeadingElement>,
@@ -232,7 +231,7 @@ impl AnalysisAssembler {
 
     fn compute_summary(
         &self,
-        job: &crate::domain::models::Job,
+        job: &crate::domain::Job,
         pages: &[PageAnalysisData],
     ) -> AnalysisSummary {
         let (total_load, load_count) = pages.iter().fold((0.0f64, 0usize), |(sum, cnt), p| {
@@ -251,7 +250,7 @@ impl AnalysisAssembler {
 
         AnalysisSummary {
             analysis_id: job.id.clone(),
-            seo_score: calculate_seo_score(job),
+            seo_score: job.calculate_seo_score(),
             avg_load_time,
             total_words: pages.iter().map(|p| p.word_count).sum(),
             total_issues: job.summary.total_issues,
@@ -259,43 +258,10 @@ impl AnalysisAssembler {
     }
 }
 
-fn is_external_by_url(source_url: Option<&String>, target_url: &str, link_type: &LinkType) -> bool {
-    let source_url = match source_url {
-        Some(url) => url,
-        None => return !matches!(link_type, LinkType::Internal),
-    };
-
-    let source = Url::parse(source_url).ok();
-    let target = Url::parse(target_url).ok();
-
-    if let (Some(source), Some(target)) = (source, target) {
-        let same_host = source.host_str() == target.host_str();
-        let same_port = source.port() == target.port();
-        return !(same_host && same_port);
-    }
-
-    !matches!(link_type, LinkType::Internal)
-}
-
-fn calculate_seo_score(job: &crate::domain::models::Job) -> i64 {
-    let total = job.summary.total_issues;
-    let critical = job.summary.critical_issues;
-    let warning = job.summary.warning_issues;
-
-    if total == 0 {
-        return 100;
-    }
-
-    let deductions = (critical * 10) + (warning * 5) + (total - critical - warning);
-    let score = 100 - deductions;
-
-    score.clamp(0, 100)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::models::{JobSettings, LighthouseData, LinkType, NewLink, Page};
+    use crate::domain::{JobSettings, LighthouseData, LinkType, NewLink, Page};
     use crate::repository::*;
     use crate::test_utils::fixtures;
     use chrono::Utc;

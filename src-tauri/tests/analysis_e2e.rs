@@ -2,7 +2,7 @@
 //!
 //! These tests verify the full analysis pipeline against real URLs.
 
-use app::{domain::models::JobSettings, repository::sqlite_job_repo};
+use app::{domain::JobSettings, repository::sqlite_job_repo};
 use sqlx::SqlitePool;
 
 /// Creates an in-memory SQLite database with migrations applied for testing.

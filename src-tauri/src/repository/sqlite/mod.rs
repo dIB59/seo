@@ -19,7 +19,7 @@ pub use page_repository::PageRepository;
 pub use results_repository::ResultsRepository;
 pub use settings_repository::SettingsRepository;
 
-use crate::domain::models::{IssueSeverity, JobStatus, LinkType};
+use crate::domain::{IssueSeverity, JobStatus, LinkType};
 
 /// Map database string to JobStatus.
 pub fn map_job_status(s: &str) -> JobStatus {

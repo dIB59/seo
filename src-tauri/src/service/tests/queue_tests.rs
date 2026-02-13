@@ -1,9 +1,9 @@
 use async_trait::async_trait;
 use std::sync::Arc;
 
-use crate::domain::models::{Job, JobSettings, JobStatus};
-use crate::service::processor::JobQueue;
+use crate::domain::{Job, JobInfo, JobSettings, JobStatus};
 use crate::repository::JobRepository;
+use crate::service::processor::JobQueue;
 use anyhow::Result;
 
 struct MockJobRepo {
@@ -26,24 +26,51 @@ impl JobRepository for MockJobRepo {
         Err(anyhow::anyhow!("not implemented"))
     }
 
-    async fn get_all(&self) -> Result<Vec<crate::domain::models::JobInfo>> {
+    async fn get_all(&self) -> Result<Vec<JobInfo>> {
         Ok(vec![])
+    }
+
+    async fn get_paginated(&self, _limit: i64, _offset: i64) -> Result<Vec<JobInfo>> {
+        Ok(vec![])
+    }
+
+    async fn get_paginated_with_total(
+        &self,
+        _limit: i64,
+        _offset: i64,
+        _url_filter: Option<String>,
+        _status_filter: Option<String>,
+    ) -> Result<(Vec<JobInfo>, i64)> {
+        Ok((vec![], 0))
     }
 
     async fn get_pending(&self) -> Result<Vec<Job>> {
         Ok(self.next.clone().into_iter().collect())
     }
 
+    async fn get_running_jobs_id(&self) -> Result<Vec<String>> {
+        Ok(vec![])
+    }
+
     async fn update_status(&self, _job_id: &str, _status: JobStatus) -> Result<()> {
         Ok(())
     }
 
-    async fn update_progress(&self, _id: &str, _progress: f64, _current_stage: Option<&str>) -> Result<()> {
+    async fn update_progress(
+        &self,
+        _id: &str,
+        _progress: f64,
+        _current_stage: Option<&str>,
+    ) -> Result<()> {
         Ok(())
     }
 
     async fn set_error(&self, _job_id: &str, _error: &str) -> Result<()> {
         Ok(())
+    }
+
+    async fn count(&self) -> Result<i64> {
+        Ok(0)
     }
 
     async fn delete(&self, _job_id: &str) -> Result<()> {

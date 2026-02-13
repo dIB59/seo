@@ -12,7 +12,7 @@ pub use crawler::{CrawlContext, Crawler, SiteResources};
 pub use queue::JobQueue;
 pub use reporter::ProgressReporter;
 
-use crate::domain::models::{Job, JobStatus, NewLink};
+use crate::domain::{Job, JobStatus, NewLink};
 use crate::service::processor::reporter::{ProgressEmitter, ProgressEvent};
 use anyhow::Result;
 use std::sync::atomic::Ordering;

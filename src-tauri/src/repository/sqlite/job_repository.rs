@@ -12,7 +12,7 @@ use chrono::Utc;
 use sqlx::SqlitePool;
 
 use super::map_job_status;
-use crate::domain::models::{Job, JobInfo, JobSettings, JobStatus, JobSummary};
+use crate::domain::{Job, JobInfo, JobSettings, JobStatus, JobSummary};
 
 pub struct JobRepository {
     pool: SqlitePool,

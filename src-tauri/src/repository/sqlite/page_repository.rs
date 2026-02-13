@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use sqlx::SqlitePool;
 
-use crate::domain::models::{LighthouseData, NewHeading, NewImage, Page, PageInfo};
+use crate::domain::{LighthouseData, NewHeading, NewImage, Page, PageInfo};
 
 pub struct PageRepository {
     pool: SqlitePool,
@@ -395,33 +395,30 @@ use async_trait::async_trait;
 
 #[async_trait]
 impl PageRepositoryTrait for PageRepository {
-    async fn insert(&self, page: &crate::domain::models::Page) -> Result<String> {
+    async fn insert(&self, page: &crate::domain::Page) -> Result<String> {
         PageRepository::insert(self, page).await
     }
 
-    async fn insert_batch(&self, pages: &[crate::domain::models::Page]) -> Result<()> {
+    async fn insert_batch(&self, pages: &[crate::domain::Page]) -> Result<()> {
         PageRepository::insert_batch(self, pages).await
     }
 
-    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::models::Page>> {
+    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::Page>> {
         PageRepository::get_by_job_id(self, job_id).await
     }
 
-    async fn get_info_by_job_id(
-        &self,
-        job_id: &str,
-    ) -> Result<Vec<crate::domain::models::PageInfo>> {
+    async fn get_info_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::PageInfo>> {
         PageRepository::get_info_by_job_id(self, job_id).await
     }
 
-    async fn get_by_id(&self, page_id: &str) -> Result<crate::domain::models::Page> {
+    async fn get_by_id(&self, page_id: &str) -> Result<crate::domain::Page> {
         PageRepository::get_by_id(self, page_id).await
     }
 
     async fn replace_headings(
         &self,
         page_id: &str,
-        headings: &[crate::domain::models::NewHeading],
+        headings: &[crate::domain::NewHeading],
     ) -> Result<()> {
         PageRepository::replace_headings(self, page_id, headings).await
     }
@@ -429,7 +426,7 @@ impl PageRepositoryTrait for PageRepository {
     async fn replace_images(
         &self,
         page_id: &str,
-        images: &[crate::domain::models::NewImage],
+        images: &[crate::domain::NewImage],
     ) -> Result<()> {
         PageRepository::replace_images(self, page_id, images).await
     }
@@ -438,14 +435,14 @@ impl PageRepositoryTrait for PageRepository {
         PageRepository::count_by_job_id(self, job_id).await
     }
 
-    async fn insert_lighthouse(&self, data: &crate::domain::models::LighthouseData) -> Result<()> {
+    async fn insert_lighthouse(&self, data: &crate::domain::LighthouseData) -> Result<()> {
         PageRepository::insert_lighthouse(self, data).await
     }
 
     async fn get_lighthouse_by_job_id(
         &self,
         job_id: &str,
-    ) -> Result<Vec<crate::domain::models::LighthouseData>> {
+    ) -> Result<Vec<crate::domain::LighthouseData>> {
         PageRepository::get_lighthouse_by_job_id(self, job_id).await
     }
 }

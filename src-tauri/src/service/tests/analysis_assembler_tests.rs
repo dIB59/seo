@@ -1,4 +1,4 @@
-use crate::domain::models::{JobSettings, LighthouseData, LinkType, NewLink, Page};
+use crate::domain::{JobSettings, LighthouseData, LinkType, NewLink, Page};
 use crate::repository::*;
 use crate::service::analysis_assembler::AnalysisAssembler;
 use crate::test_utils::fixtures;
@@ -8,8 +8,8 @@ use chrono::Utc;
 async fn test_mobile_detection_and_structured_data_from_lighthouse() {
     let pool = fixtures::setup_test_db().await;
 
-    let job_repo = JobRepository::new(pool.clone());
-    let page_repo = PageRepository::new(pool.clone());
+    let job_repo = sqlite_job_repo(pool.clone());
+    let page_repo = sqlite_page_repo(pool.clone());
 
     // Create job
     let job_id = job_repo
@@ -79,8 +79,8 @@ async fn test_mobile_detection_and_structured_data_from_lighthouse() {
 async fn test_mobile_detection_fallback_to_load_time() {
     let pool = fixtures::setup_test_db().await;
 
-    let job_repo = JobRepository::new(pool.clone());
-    let page_repo = PageRepository::new(pool.clone());
+    let job_repo = sqlite_job_repo(pool.clone());
+    let page_repo = sqlite_page_repo(pool.clone());
 
     let job_id = job_repo
         .create("https://example.com", &JobSettings::default())

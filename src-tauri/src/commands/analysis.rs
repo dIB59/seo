@@ -7,11 +7,8 @@ use url::Url;
 
 use crate::{
     domain::{
-        licensing::Addon,
-        models::{
-            AnalysisProgress, AnalysisResults, AnalysisSummary, CompleteAnalysisResult,
-            ImageElement, JobSettings, JobStatus, PageAnalysisData, SeoIssue,
-        },
+        licensing::Addon, AnalysisProgress, AnalysisResults, AnalysisSummary,
+        CompleteAnalysisResult, ImageElement, JobSettings, JobStatus, PageAnalysisData, SeoIssue,
     },
     error::CommandError,
     lifecycle::app_state::AppState,
@@ -77,13 +74,13 @@ pub struct PageAnalysisDataResponse {
     pub lighthouse_seo_audits: Option<serde_json::Value>,
     pub lighthouse_performance_metrics: Option<serde_json::Value>,
     pub images: Vec<ImageElement>,
-    pub detailed_links: Vec<crate::domain::models::LinkDetail>,
+    pub detailed_links: Vec<crate::domain::LinkDetail>,
 }
 
 #[derive(Debug, serde::Serialize, Type)]
 pub struct SeoIssueResponse {
     pub page_id: String,
-    pub severity: crate::domain::models::IssueSeverity,
+    pub severity: crate::domain::IssueSeverity,
     pub title: String,
     pub description: String,
     pub page_url: String,
