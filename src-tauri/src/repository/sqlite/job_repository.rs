@@ -123,7 +123,8 @@ impl JobRepository {
             r#"
             SELECT 
                 id, url, status, progress, 
-                total_pages, total_issues, created_at
+                total_pages, total_issues, created_at,
+                max_pages, lighthouse_analysis
             FROM jobs
             ORDER BY created_at DESC
             "#
@@ -142,6 +143,8 @@ impl JobRepository {
                 total_pages: row.total_pages,
                 total_issues: row.total_issues,
                 created_at: parse_datetime(&row.created_at),
+                max_pages: row.max_pages,
+                lighthouse_analysis: row.lighthouse_analysis != 0,
             })
             .collect())
     }
@@ -152,7 +155,8 @@ impl JobRepository {
             r#"
             SELECT 
                 id, url, status, progress, 
-                total_pages, total_issues, created_at
+                total_pages, total_issues, created_at,
+                max_pages, lighthouse_analysis
             FROM jobs
             ORDER BY created_at DESC
             LIMIT ?1 OFFSET ?2
@@ -174,6 +178,8 @@ impl JobRepository {
                 total_pages: row.total_pages,
                 total_issues: row.total_issues,
                 created_at: parse_datetime(&row.created_at),
+                max_pages: row.max_pages,
+                lighthouse_analysis: row.lighthouse_analysis != 0,
             })
             .collect())
     }
@@ -196,6 +202,7 @@ impl JobRepository {
             SELECT 
                 id, url, status, progress, 
                 total_pages, total_issues, created_at,
+                max_pages, lighthouse_analysis,
                 COUNT(*) OVER() as "total_count!"
             FROM jobs
             WHERE url LIKE ?1 AND status LIKE ?2
@@ -223,6 +230,8 @@ impl JobRepository {
                 total_pages: row.total_pages,
                 total_issues: row.total_issues,
                 created_at: parse_datetime(&row.created_at),
+                max_pages: row.max_pages,
+                lighthouse_analysis: row.lighthouse_analysis != 0,
             })
             .collect();
 

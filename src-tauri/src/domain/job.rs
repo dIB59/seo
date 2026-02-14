@@ -164,6 +164,8 @@ pub struct JobInfo {
     pub total_pages: i64,
     pub total_issues: i64,
     pub created_at: DateTime<Utc>,
+    pub max_pages: i64,
+    pub lighthouse_analysis: bool,
 }
 
 /// Complete job result with all related data.

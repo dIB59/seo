@@ -16,8 +16,9 @@ pub struct AnalysisProgress {
     pub job_status: String,
     pub result_id: Option<String>,
     pub progress: Option<f64>,
-    pub analyzed_pages: Option<i64>,
-    pub total_pages: Option<i64>,
+    pub max_pages: Option<i64>,
+    pub is_deep_audit: Option<bool>,
+    pub total_issues: Option<i64>,
 }
 
 // ============================================================================
@@ -32,8 +33,9 @@ impl From<Job> for AnalysisProgress {
             job_status: job.status.as_str().to_string(),
             result_id: Some(job.id.clone()),
             progress: Some(job.progress),
-            analyzed_pages: Some(job.summary.pages_crawled),
-            total_pages: Some(job.summary.total_pages),
+            max_pages: Some(job.settings.max_pages),
+            is_deep_audit: Some(job.settings.lighthouse_analysis),
+            total_issues: Some(job.summary.total_issues),
         }
     }
 }
@@ -46,8 +48,9 @@ impl From<JobInfo> for AnalysisProgress {
             job_status: info.status.as_str().to_string(),
             result_id: Some(info.id.clone()),
             progress: Some(info.progress),
-            analyzed_pages: Some(info.total_pages),
-            total_pages: Some(info.total_pages),
+            max_pages: Some(info.max_pages),
+            is_deep_audit: Some(info.lighthouse_analysis),
+            total_issues: Some(info.total_issues),
         }
     }
 }
