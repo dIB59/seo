@@ -20,7 +20,7 @@ use addon_macros::addon_guard;
 // Request types
 // ============================================================================
 
-#[derive(Debug, serde::Deserialize, specta::Type)]
+#[derive(Debug, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct AnalysisSettingsRequest {
     pub max_pages: i64,
     pub include_external_links: bool,
@@ -50,7 +50,7 @@ impl Default for AnalysisSettingsRequest {
             check_images: true,
             mobile_analysis: false,
             lighthouse_analysis: false,
-            delay_between_requests: 500,
+            delay_between_requests: 50,
         }
     }
 }
@@ -450,6 +450,30 @@ pub async fn start_analysis(
         url,
         status: JobStatus::Pending,
     })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_analysis_defaults() -> Result<AnalysisSettingsRequest, CommandError> {
+    Ok(AnalysisSettingsRequest::default())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_free_tier_defaults() -> Result<AnalysisSettingsRequest, CommandError> {
+    let policy = crate::domain::permissions::Policy::default();
+    let mut defaults = AnalysisSettingsRequest::default();
+
+    defaults.max_pages = policy.max_pages as i64;
+    defaults.include_external_links =
+        policy.check(crate::domain::permissions::PermissionRequest::UseFeature(
+            crate::domain::permissions::Feature::LinkAnalysis,
+        ));
+
+    // Mobile and Lighthouse are not yet in Feature enum, but their default in AnalysisSettingsRequest is false.
+    // If we want to strictly enforce them as disabled for free tier, we keep them false (which they are by default).
+
+    Ok(defaults)
 }
 
 #[tauri::command]

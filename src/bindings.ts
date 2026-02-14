@@ -157,6 +157,22 @@ async getResult(jobId: string) : Promise<Result<CompleteAnalysisResponse, Comman
     else return { status: "error", error: e  as any };
 }
 },
+async getAnalysisDefaults() : Promise<Result<AnalysisSettingsRequest, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_analysis_defaults") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getFreeTierDefaults() : Promise<Result<AnalysisSettingsRequest, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_free_tier_defaults") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async activateLicense(licenseJson: string) : Promise<Result<Policy, CommandError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("activate_license", { licenseJson }) };

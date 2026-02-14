@@ -1,5 +1,6 @@
 import * as z from "zod"
-import type { AnalysisSettingsRequest } from "@/src/lib/types"
+// Import removed as AnalysisSettingsRequest is no longer used in this file
+
 
 export const urlSchema = z.string().trim().min(1, "URL is required").refine((val) => {
     try {
@@ -28,23 +29,7 @@ export const baseSchema = createSchema(10000)
 
 export type FormValues = z.infer<typeof baseSchema>
 
-export const defaultSettings: AnalysisSettingsRequest = {
-    max_pages: 100,
-    include_external_links: false,
-    check_images: true,
-    mobile_analysis: false,
-    lighthouse_analysis: false,
-    delay_between_requests: 5,
-}
-
-export const freeSettings: AnalysisSettingsRequest = {
-    max_pages: 1,
-    include_external_links: false,
-    check_images: true,
-    mobile_analysis: false,
-    lighthouse_analysis: false,
-    delay_between_requests: 5,
-}
+// Removed defaultSettings and freeSettings as they are now fetched from the backend
 
 export const normalizeUrl = (input: string) => {
     const trimmed = input.trim()

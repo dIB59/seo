@@ -1,6 +1,6 @@
 use crate::domain::permissions::{self, LicenseTier};
 use crate::domain::TierPolicy;
-use crate::error::CommandError;
+use crate::error::{self, CommandError};
 use crate::lifecycle::app_state::AppState;
 use crate::service::hardware::HardwareService;
 use tauri::State;
@@ -48,7 +48,16 @@ pub async fn get_user_policy(
 #[tauri::command]
 #[specta::specta]
 pub async fn get_license_tier(state: State<'_, AppState>) -> Result<LicenseTier, CommandError> {
-    Ok(state.permissions.read().unwrap().tier)
+    state
+        .permissions
+        .read()
+        .map_err(|_| {
+            CommandError::from(error::AppError::ServiceError {
+                service: "Hardware",
+                message: "Failed to get machine id".to_string(),
+            })
+        })
+        .map(|policy| policy.tier)
 }
 
 #[tauri::command]

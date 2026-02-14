@@ -10,7 +10,8 @@ import { AnalysisSettingsFields } from "./organisms/AnalysisSettingsFields"
 import { Form, FormField, FormItem, FormControl } from "@/src/components/ui/form"
 import { Skeleton } from "@/src/components/ui/skeleton"
 import { usePermissions } from "@/src/hooks/use-permissions"
-import { createSchema, defaultSettings, freeSettings, normalizeUrl, type FormValues } from "./schema"
+import { createSchema, normalizeUrl, type FormValues } from "./schema"
+import { useAnalysisDefaults } from "./use-analysis-defaults"
 
 interface UrlInputFormProps {
     onSubmit: (url: string, settings: AnalysisSettingsRequest) => void
@@ -20,9 +21,10 @@ interface UrlInputFormProps {
 interface UrlInputFormContentProps extends UrlInputFormProps {
     maxPages: number
     isFreeUser: boolean
+    defaults: AnalysisSettingsRequest
 }
 
-function UrlInputFormContent({ onSubmit, isLoading, maxPages, isFreeUser }: UrlInputFormContentProps) {
+function UrlInputFormContent({ onSubmit, isLoading, maxPages, isFreeUser, defaults }: UrlInputFormContentProps) {
     const [showSettings, setShowSettings] = React.useState(false)
 
     const dynamicSchema = useMemo(() => createSchema(maxPages), [maxPages])
@@ -33,8 +35,9 @@ function UrlInputFormContent({ onSubmit, isLoading, maxPages, isFreeUser }: UrlI
         defaultValues: {
             url: "",
             settings: {
-                ...(isFreeUser ? freeSettings : defaultSettings),
-                max_pages: Math.min(defaultSettings.max_pages, maxPages)
+                ...defaults,
+                // Ensure max_pages doesn't exceed user's hard limit, even if default is higher (though backend should handle this)
+                max_pages: Math.min(defaults.max_pages, maxPages)
             },
         },
     })
@@ -42,17 +45,23 @@ function UrlInputFormContent({ onSubmit, isLoading, maxPages, isFreeUser }: UrlI
     const { watch, setValue, handleSubmit, reset, formState } = form
     const currentSettings = watch("settings")
 
-    // Note: No useEffect needed for permission sync as this component mounts with correct defaults
+    // Update form defaults if they change (e.g. user tier change)
+    // We only reset if the user hasn't modified the form yet, or if we want to force update.
+    // For now, let's rely on the parent component unwounting/remounting or just use the initial defaults.
+    // Actually, if defaults change, we might want to update the form values if they differ from *old* defaults?
+    // Let's keep it simple: The form initializes with current defaults.
 
-    const isModified = JSON.stringify(currentSettings) !== JSON.stringify(isFreeUser ? freeSettings : defaultSettings)
+    // Calculate effective defaults for comparison (including the maxPage clamp)
+    const effectiveDefaults = useMemo(() => ({
+        ...defaults,
+        max_pages: Math.min(defaults.max_pages, maxPages)
+    }), [defaults, maxPages])
+
+    const isModified = JSON.stringify(currentSettings) !== JSON.stringify(effectiveDefaults)
 
     const handleReset = useCallback(() => {
-        setValue("settings", isFreeUser ? freeSettings : defaultSettings, { shouldDirty: true, shouldValidate: true })
-        // Re-enforce limit after reset if needed
-        if (maxPages < defaultSettings.max_pages) {
-            setValue("settings.max_pages", maxPages, { shouldValidate: true })
-        }
-    }, [setValue, maxPages, isFreeUser])
+        setValue("settings", effectiveDefaults, { shouldDirty: true, shouldValidate: true })
+    }, [setValue, effectiveDefaults])
 
     const onFormSubmit = (values: FormValues) => {
         const normalizedUrl = normalizeUrl(values.url)
@@ -96,9 +105,10 @@ function UrlInputFormContent({ onSubmit, isLoading, maxPages, isFreeUser }: UrlI
 
 export function UrlInputForm(props: UrlInputFormProps) {
     const { maxPages, isFreeUser, isLoading } = usePermissions()
+    const { defaults, isLoading: isLoadingDefaults } = useAnalysisDefaults(isFreeUser)
 
-    // Prevent rendering with wrong defaults by waiting for permissions
-    if (isLoading) {
+    // Prevent rendering with wrong defaults by waiting for permissions and defaults
+    if (isLoading || isLoadingDefaults || !defaults) {
         return (
             <div className="space-y-4">
                 <Skeleton className="h-[52px] w-full rounded-md" />
@@ -106,5 +116,5 @@ export function UrlInputForm(props: UrlInputFormProps) {
         )
     }
 
-    return <UrlInputFormContent {...props} maxPages={maxPages} isFreeUser={isFreeUser} />
+    return <UrlInputFormContent {...props} maxPages={maxPages} isFreeUser={isFreeUser} defaults={defaults} />
 }
