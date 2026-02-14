@@ -1,11 +1,9 @@
-import {  PageAnalysisData } from "@/src/lib/types";
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { PageTable } from "./organisms/PageTable";
 import { QuickStatsCard } from "./molecules/QuickStat";
 import { ScoreCard } from "./molecules/ScoreCard";
 import { SiteHealthCard } from "./molecules/SiteHealthCard";
-import { SeoSummaryCard } from "./molecules/SeoSummaryCard";
 import { PageDetailModal } from "./organisms/PageDetailModal";
 import { IssuesAccordion } from "./organisms/IssuesAccordion";
 import { AnalysisHeader } from "./organisms/AnalysisHeader";

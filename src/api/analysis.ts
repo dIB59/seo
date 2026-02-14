@@ -5,7 +5,7 @@ import { Result } from "@/src/lib/result"
 /**
  * Generic helper to wrap Tauri command results into our Result type.
  */
-async function wrapTauriCommand<T>(commandPromise: Promise<{ status: "ok" | "error"; data?: T; error?: unknown }>): Promise<Result<T, string>> {
+export async function wrapTauriCommand<T>(commandPromise: Promise<{ status: "ok" | "error"; data?: T; error?: unknown }>): Promise<Result<T, string>> {
     const res = await commandPromise;
     return res.status === "ok" ? Result.Ok(res.data as T) : Result.Err(res.error as string);
 }

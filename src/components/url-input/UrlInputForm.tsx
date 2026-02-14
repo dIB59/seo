@@ -10,7 +10,8 @@ import { SettingsCollapsible } from "./molecules/SettingsCollapsible"
 import { SettingInput } from "./atoms/SettingInput"
 import { SettingToggle } from "./atoms/SettingToggle"
 import { Separator } from "@/src/components/ui/separator"
-import { Form, FormField, FormItem, FormControl } from "@/src/components/ui/form"
+import { Form, FormField, FormItem, FormControl, FormMessage } from "@/src/components/ui/form"
+import { usePermissions } from "@/src/hooks/use-permissions"
 
 const urlSchema = z.string().trim().min(1, "URL is required").refine((val) => {
     try {
@@ -22,7 +23,7 @@ const urlSchema = z.string().trim().min(1, "URL is required").refine((val) => {
     }
 }, "Invalid URL format")
 
-const formSchema = z.object({
+const baseSchema = z.object({
     url: urlSchema,
     settings: z.object({
         max_pages: z.number().min(1).max(10000),
@@ -34,7 +35,7 @@ const formSchema = z.object({
     })
 })
 
-type FormValues = z.infer<typeof formSchema>
+type FormValues = z.infer<typeof baseSchema>
 
 interface UrlInputFormProps {
     onSubmit: (url: string, settings: AnalysisSettingsRequest) => void
@@ -50,27 +51,66 @@ const defaultSettings: AnalysisSettingsRequest = {
     delay_between_requests: 5,
 }
 
+const freeSettings: AnalysisSettingsRequest = {
+    max_pages: 1,
+    include_external_links: false,
+    check_images: true,
+    mobile_analysis: false,
+    lighthouse_analysis: false,
+    delay_between_requests: 5,
+}
+
 export function UrlInputForm({ onSubmit, isLoading }: UrlInputFormProps) {
     const [showSettings, setShowSettings] = React.useState(false)
+    const { maxPages, isFreeUser, isLoading: isPermissionsLoading } = usePermissions()
+
+    const dynamicSchema = useMemo(() => z.object({
+        url: urlSchema,
+        settings: z.object({
+            max_pages: z.number().min(1).max(maxPages, `Max pages limited to ${maxPages} on your current tier`),
+            include_external_links: z.boolean(),
+            check_images: z.boolean(),
+            mobile_analysis: z.boolean(),
+            lighthouse_analysis: z.boolean(),
+            delay_between_requests: z.number().min(0).max(5000),
+        })
+    }), [maxPages])
+
     const form = useForm<FormValues>({
-        resolver: zodResolver(formSchema),
+        resolver: zodResolver(dynamicSchema),
         mode: "onChange",
         defaultValues: {
             url: "",
-            settings: defaultSettings,
+            settings: {
+                ...defaultSettings,
+                max_pages: Math.min(defaultSettings.max_pages, maxPages)
+            },
         },
     })
 
     const { watch, setValue, handleSubmit, reset, formState } = form
     const currentSettings = watch("settings")
 
-    const isModified = useMemo(() => {
-        return JSON.stringify(currentSettings) !== JSON.stringify(defaultSettings)
-    }, [currentSettings])
+    React.useEffect(() => {
+        if (!isPermissionsLoading) {
+            reset({
+                ...form.getValues(),
+                settings: {
+                    ...(isFreeUser ? freeSettings : defaultSettings),
+                }
+            })
+        }
+    }, [isPermissionsLoading, isFreeUser, reset])
+
+    const isModified = JSON.stringify(currentSettings) !== JSON.stringify(isFreeUser ? freeSettings : defaultSettings)
 
     const handleReset = useCallback(() => {
-        setValue("settings", defaultSettings, { shouldDirty: true, shouldValidate: true })
-    }, [setValue])
+        setValue("settings", isFreeUser ? freeSettings : defaultSettings, { shouldDirty: true, shouldValidate: true })
+        // Re-enforce limit after reset
+        if (maxPages < defaultSettings.max_pages) {
+            setValue("settings.max_pages", maxPages, { shouldValidate: true })
+        }
+    }, [setValue, maxPages, isFreeUser])
 
     const normalizeUrl = (input: string) => {
         const trimmed = input.trim()
@@ -125,16 +165,29 @@ export function UrlInputForm({ onSubmit, isLoading }: UrlInputFormProps) {
                                     <FormField
                                         control={form.control}
                                         name="settings.max_pages"
+
                                         render={({ field }) => (
-                                            <SettingInput
-                                                id="max-pages"
-                                                label="Max Pages"
-                                                tooltip="Total number of pages to crawl before stopping."
-                                                value={field.value}
-                                                onChange={field.onChange}
-                                                min={1}
-                                                max={10000}
-                                            />
+                                            <FormItem>
+                                                <FormControl>
+                                                    <SettingInput
+                                                        id="max-pages"
+                                                        label="Max Pages"
+                                                        tooltip="Total number of pages to crawl before stopping."
+                                                        value={field.value}
+                                                        onChange={field.onChange}
+                                                        min={1}
+                                                        max={maxPages}
+                                                        disabled={isFreeUser && maxPages === 1}
+                                                    />
+                                                </FormControl>
+                                                {isFreeUser && (
+                                                    <p className="text-[10px] text-muted-foreground mt-1">
+                                                        Free tier limited to {maxPages} page.{" "}
+                                                        <span className="text-primary cursor-pointer hover:underline">Upgrade to Premium</span>
+                                                    </p>
+                                                )}
+                                                <FormMessage />
+                                            </FormItem>
                                         )}
                                     />
                                     <FormField

@@ -11,11 +11,12 @@ interface SettingInputProps {
     onChange: (value: number) => void
     min?: number
     max?: number
+    disabled?: boolean
 }
 
-export function SettingInput({ id, label, tooltip, value, onChange, min, max }: SettingInputProps) {
+export function SettingInput({ id, label, tooltip, value, onChange, min, max, disabled }: SettingInputProps) {
     return (
-        <div className="space-y-2">
+        <div className={`space-y-2 ${disabled ? "opacity-60 cursor-not-allowed" : ""}`}>
             <div className="flex items-center gap-1.5">
                 <Label htmlFor={id} className="text-sm font-medium">
                     {label}
@@ -41,6 +42,7 @@ export function SettingInput({ id, label, tooltip, value, onChange, min, max }: 
                 className="bg-background h-9 text-sm"
                 min={min}
                 max={max}
+                disabled={disabled}
             />
         </div>
     )
