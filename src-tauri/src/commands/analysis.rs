@@ -1,6 +1,4 @@
 use std::collections::HashMap;
-use std::str::FromStr;
-use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -14,13 +12,65 @@ use crate::{
     },
     error::CommandError,
     lifecycle::app_state::AppState,
-    repository::ResultsRepository,
 };
 use addon_macros::addon_guard;
 
 // ============================================================================
-// Display types (frontend-ready, Specta-friendly)
+// Request types
 // ============================================================================
+
+#[derive(Debug, serde::Deserialize, specta::Type)]
+pub struct AnalysisSettingsRequest {
+    pub max_pages: i64,
+    pub include_external_links: bool,
+    pub check_images: bool,
+    pub mobile_analysis: bool,
+    pub lighthouse_analysis: bool,
+    pub delay_between_requests: i64,
+}
+
+impl Default for AnalysisSettingsRequest {
+    fn default() -> Self {
+        Self {
+            max_pages: 100,
+            include_external_links: false,
+            check_images: true,
+            mobile_analysis: false,
+            lighthouse_analysis: false,
+            delay_between_requests: 500,
+        }
+    }
+}
+
+impl From<AnalysisSettingsRequest> for JobSettings {
+    fn from(req: AnalysisSettingsRequest) -> Self {
+        Self {
+            max_pages: req.max_pages,
+            include_external_links: req.include_external_links,
+            check_images: req.check_images,
+            mobile_analysis: req.mobile_analysis,
+            lighthouse_analysis: req.lighthouse_analysis,
+            delay_between_requests: req.delay_between_requests,
+        }
+    }
+}
+
+// ============================================================================
+// Response types
+// ============================================================================
+
+#[derive(Debug, serde::Serialize, Type)]
+pub struct AnalysisJobResponse {
+    pub job_id: String,
+    pub url: String,
+    pub status: JobStatus,
+}
+
+#[derive(Debug, serde::Serialize, Type)]
+pub struct PaginatedJobsResponse {
+    pub items: Vec<AnalysisProgress>,
+    pub total: i64,
+}
 
 /// Heading element for frontend display.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -104,7 +154,7 @@ pub struct AnalysisSummary {
 
 impl AnalysisSummary {
     /// Compute summary statistics from a Job and its assembled pages.
-    pub fn compute(job: &Job, pages: &[PageAnalysisData]) -> Self {
+    fn compute(job: &Job, pages: &[PageAnalysisData]) -> Self {
         let (total_load, load_count) = pages.iter().fold((0.0f64, 0usize), |(sum, cnt), p| {
             if p.load_time > 0.0 {
                 (sum + p.load_time, cnt + 1)
@@ -155,277 +205,206 @@ pub struct CompleteAnalysisResponse {
     pub summary: AnalysisSummary,
 }
 
-// ============================================================================
-// Request / response types for other commands
-// ============================================================================
+impl CompleteAnalysisResponse {
+    /// Assemble a single page's DTO from domain entities.
+    fn assemble_page(
+        page: Page,
+        lh_data: Option<&LighthouseData>,
+        detailed_links: Vec<LinkDetail>,
+        headings: Vec<HeadingElement>,
+        images: Vec<ImageElement>,
+    ) -> PageAnalysisData {
+        let load_time = page.load_time_ms.unwrap_or(0) as f64 / 1000.0;
 
-#[derive(Debug, serde::Serialize, Type)]
-pub struct PaginatedJobsResponse {
-    pub items: Vec<AnalysisProgress>,
-    pub total: i64,
-}
+        // Lighthouse-derived fields
+        let mobile_friendly = lh_data.map_or(false, |lh| lh.is_mobile_friendly())
+            || page.is_mobile_friendly_heuristic();
+        let has_structured_data =
+            page.has_structured_data || lh_data.map_or(false, |lh| lh.has_structured_data());
+        let (lighthouse_seo_audits, lighthouse_performance_metrics) =
+            lh_data.map(|lh| lh.interpret_raw()).unwrap_or((None, None));
 
-#[derive(Debug, serde::Serialize, Type)]
-pub struct AnalysisJobResponse {
-    pub job_id: String,
-    pub url: String,
-    pub status: JobStatus,
-}
+        // Link stats
+        let internal_links = detailed_links.iter().filter(|l| !l.is_external).count() as i64;
+        let external_links = detailed_links.iter().filter(|l| l.is_external).count() as i64;
 
-#[derive(Debug, serde::Deserialize, specta::Type)]
-pub struct AnalysisSettingsRequest {
-    pub max_pages: i64,
-    pub include_external_links: bool,
-    pub check_images: bool,
-    pub mobile_analysis: bool,
-    pub lighthouse_analysis: bool,
-    pub delay_between_requests: i64,
-}
+        // Heading stats
+        let h1_count = headings.iter().filter(|h| h.tag == "h1").count() as i64;
+        let h2_count = headings.iter().filter(|h| h.tag == "h2").count() as i64;
+        let h3_count = headings.iter().filter(|h| h.tag == "h3").count() as i64;
 
-impl Default for AnalysisSettingsRequest {
-    fn default() -> Self {
-        Self {
-            max_pages: 100,
-            include_external_links: false,
-            check_images: true,
-            mobile_analysis: false,
-            lighthouse_analysis: false,
-            delay_between_requests: 500,
+        // Image stats
+        let images_without_alt = images
+            .iter()
+            .filter(|img| img.alt.as_deref().unwrap_or("").is_empty())
+            .count() as i64;
+
+        PageAnalysisData {
+            analysis_id: page.job_id,
+            url: page.url,
+            title: page.title,
+            meta_description: page.meta_description,
+            meta_keywords: None,
+            canonical_url: page.canonical_url,
+            h1_count,
+            h2_count,
+            h3_count,
+            word_count: page.word_count.unwrap_or(0),
+            image_count: images.len() as i64,
+            images_without_alt,
+            internal_links,
+            external_links,
+            load_time,
+            status_code: page.status_code,
+            content_size: page.response_size_bytes.unwrap_or(0),
+            mobile_friendly,
+            has_structured_data,
+            lighthouse_performance: lh_data.and_then(|lh| lh.performance_score),
+            lighthouse_accessibility: lh_data.and_then(|lh| lh.accessibility_score),
+            lighthouse_best_practices: lh_data.and_then(|lh| lh.best_practices_score),
+            lighthouse_seo: lh_data.and_then(|lh| lh.seo_score),
+            lighthouse_seo_audits,
+            lighthouse_performance_metrics,
+            images,
+            detailed_links,
         }
     }
 }
 
-impl From<AnalysisSettingsRequest> for JobSettings {
-    fn from(req: AnalysisSettingsRequest) -> Self {
-        Self {
-            max_pages: req.max_pages,
-            include_external_links: req.include_external_links,
-            check_images: req.check_images,
-            mobile_analysis: req.mobile_analysis,
-            lighthouse_analysis: req.lighthouse_analysis,
-            delay_between_requests: req.delay_between_requests,
+impl From<crate::domain::CompleteJobResult> for CompleteAnalysisResponse {
+    fn from(result: crate::domain::CompleteJobResult) -> Self {
+        let job = result.job;
+        let pages = result.pages;
+        let issues = result.issues;
+        let links = result.links;
+        let lighthouse = result.lighthouse;
+        let headings = result.headings;
+        let images = result.images;
+
+        let page_url_by_id: HashMap<String, String> = pages
+            .iter()
+            .map(|p| (p.id.clone(), p.url.clone()))
+            .collect();
+
+        // Index auxiliary data by page_id to avoid O(N²) lookups
+        let mut links_by_page: HashMap<String, Vec<LinkDetail>> = HashMap::new();
+        for link in links {
+            let source_url = page_url_by_id.get(&link.source_page_id);
+            let is_external = link.is_external_for_url(source_url);
+
+            links_by_page
+                .entry(link.source_page_id)
+                .or_default()
+                .push(LinkDetail {
+                    url: link.target_url,
+                    text: link.link_text.unwrap_or_default(),
+                    is_external,
+                    is_broken: link.status_code.map_or(false, |c| c >= 400),
+                    status_code: link.status_code,
+                });
+        }
+
+        let mut headings_by_page: HashMap<String, Vec<HeadingElement>> = HashMap::new();
+        for heading in headings {
+            headings_by_page
+                .entry(heading.page_id)
+                .or_default()
+                .push(HeadingElement {
+                    tag: format!("h{}", heading.level),
+                    text: heading.text,
+                });
+        }
+
+        let mut images_by_page: HashMap<String, Vec<ImageElement>> = HashMap::new();
+        for image in images {
+            images_by_page
+                .entry(image.page_id)
+                .or_default()
+                .push(ImageElement {
+                    src: image.src,
+                    alt: image.alt,
+                });
+        }
+
+        let lighthouse_by_page: HashMap<String, LighthouseData> = lighthouse
+            .into_iter()
+            .map(|l| (l.page_id.clone(), l))
+            .collect();
+
+        // Assemble pages
+        let assembled_pages: Vec<PageAnalysisData> = pages
+            .into_iter()
+            .map(|p| {
+                let page_id = p.id.clone();
+                let lh_data = lighthouse_by_page.get(&page_id);
+                let page_links = links_by_page.remove(&page_id).unwrap_or_default();
+                let page_headings = headings_by_page.remove(&page_id).unwrap_or_default();
+                let page_images = images_by_page.remove(&page_id).unwrap_or_default();
+
+                Self::assemble_page(p, lh_data, page_links, page_headings, page_images)
+            })
+            .collect();
+
+        // Assemble issues
+        let assembled_issues: Vec<SeoIssue> = issues
+            .into_iter()
+            .map(|issue| {
+                let page_id = issue.page_id.clone().unwrap_or_default();
+                let page_url = page_url_by_id.get(&page_id).cloned().unwrap_or_default();
+
+                SeoIssue {
+                    page_id,
+                    severity: issue.severity,
+                    title: issue.issue_type,
+                    description: issue.message,
+                    page_url,
+                    element: issue.details.clone(),
+                    recommendation: issue.details.unwrap_or_default(),
+                    line_number: None,
+                }
+            })
+            .collect();
+
+        let analysis = AnalysisResults {
+            id: job.id.clone(),
+            url: job.url.clone(),
+            status: job.status.clone(),
+            progress: job.progress,
+            total_pages: job.summary.total_pages,
+            analyzed_pages: job.summary.pages_crawled,
+            started_at: Some(job.created_at.to_rfc3339()),
+            completed_at: job.completed_at.map(|d| d.to_rfc3339()),
+            sitemap_found: false,
+            robots_txt_found: false,
+            ssl_certificate: job.url.starts_with("https"),
+            created_at: job.created_at.to_rfc3339(),
+        };
+
+        let summary = AnalysisSummary::compute(&job, &assembled_pages);
+
+        CompleteAnalysisResponse {
+            analysis,
+            pages: assembled_pages,
+            issues: assembled_issues,
+            summary,
         }
     }
 }
 
 // ============================================================================
-// Assembly helpers (absorb AnalysisAssembler logic)
-// ============================================================================
-
-const DEFAULT_SITEMAP_FOUND: bool = false;
-const DEFAULT_ROBOTS_TXT_FOUND: bool = false;
-
-/// Assemble a single `PageAnalysisData` from domain entities.
-fn assemble_page(
-    page: Page,
-    lh_data: Option<&LighthouseData>,
-    detailed_links: Vec<LinkDetail>,
-    headings: Vec<HeadingElement>,
-    images: Vec<ImageElement>,
-) -> PageAnalysisData {
-    let load_time = page.load_time_ms.unwrap_or(0) as f64 / 1000.0;
-
-    // Lighthouse-derived booleans
-    let mut mobile_friendly = false;
-    let mut has_structured_data = false;
-    let mut lighthouse_seo_audits = None;
-    let mut lighthouse_performance_metrics = None;
-
-    if let Some(lh) = lh_data {
-        mobile_friendly = lh.is_mobile_friendly();
-        has_structured_data = lh.has_structured_data();
-        let (seo, perf) = lh.interpret_raw();
-        lighthouse_seo_audits = seo;
-        lighthouse_performance_metrics = perf;
-    }
-
-    // Fallback: speed heuristic
-    if !mobile_friendly {
-        mobile_friendly = page.is_mobile_friendly_heuristic();
-    }
-
-    // Link stats
-    let internal_links = detailed_links.iter().filter(|l| !l.is_external).count() as i64;
-    let external_links = detailed_links.iter().filter(|l| l.is_external).count() as i64;
-
-    // Heading stats
-    let h1_count = headings.iter().filter(|h| h.tag == "h1").count() as i64;
-    let h2_count = headings.iter().filter(|h| h.tag == "h2").count() as i64;
-    let h3_count = headings.iter().filter(|h| h.tag == "h3").count() as i64;
-
-    // Image stats
-    let images_without_alt = images
-        .iter()
-        .filter(|img| img.alt.as_deref().unwrap_or("").is_empty())
-        .count() as i64;
-
-    PageAnalysisData {
-        analysis_id: page.job_id,
-        url: page.url,
-        title: page.title,
-        meta_description: page.meta_description,
-        meta_keywords: None,
-        canonical_url: page.canonical_url,
-        h1_count,
-        h2_count,
-        h3_count,
-        word_count: page.word_count.unwrap_or(0),
-        image_count: images.len() as i64,
-        images_without_alt,
-        internal_links,
-        external_links,
-        load_time,
-        status_code: page.status_code,
-        content_size: page.response_size_bytes.unwrap_or(0),
-        mobile_friendly,
-        has_structured_data,
-        lighthouse_performance: lh_data.and_then(|lh| lh.performance_score),
-        lighthouse_accessibility: lh_data.and_then(|lh| lh.accessibility_score),
-        lighthouse_best_practices: lh_data.and_then(|lh| lh.best_practices_score),
-        lighthouse_seo: lh_data.and_then(|lh| lh.seo_score),
-        lighthouse_seo_audits,
-        lighthouse_performance_metrics,
-        images,
-        detailed_links,
-    }
-}
-
-/// Assemble a `CompleteAnalysisResponse` from repository data.
-async fn assemble(
-    repo: Arc<dyn ResultsRepository>,
-    job_id: &str,
-) -> Result<CompleteAnalysisResponse> {
-    let job = repo.get_job(job_id).await?;
-    let pages = repo.get_pages(job_id).await?;
-    let issues = repo.get_issues(job_id).await?;
-    let links = repo.get_links(job_id).await?;
-    let lighthouse = repo.get_lighthouse(job_id).await?;
-    let headings = repo.get_headings(job_id).await?;
-    let images = repo.get_images(job_id).await?;
-
-    let page_url_by_id: HashMap<String, String> = pages
-        .iter()
-        .map(|p| (p.id.clone(), p.url.clone()))
-        .collect();
-
-    // Organize auxiliary data by page_id to avoid O(N²) lookups
-    let mut links_by_page: HashMap<String, Vec<LinkDetail>> = HashMap::new();
-    for link in links {
-        let source_url = page_url_by_id.get(&link.source_page_id);
-        let is_external = link.is_external_for_url(source_url);
-
-        links_by_page
-            .entry(link.source_page_id)
-            .or_default()
-            .push(LinkDetail {
-                url: link.target_url,
-                text: link.link_text.unwrap_or_default(),
-                is_external,
-                is_broken: link.status_code.map_or(false, |c| c >= 400),
-                status_code: link.status_code,
-            });
-    }
-
-    let mut headings_by_page: HashMap<String, Vec<HeadingElement>> = HashMap::new();
-    for heading in headings {
-        headings_by_page
-            .entry(heading.page_id)
-            .or_default()
-            .push(HeadingElement {
-                tag: format!("h{}", heading.level),
-                text: heading.text,
-            });
-    }
-
-    let mut images_by_page: HashMap<String, Vec<ImageElement>> = HashMap::new();
-    for image in images {
-        images_by_page
-            .entry(image.page_id)
-            .or_default()
-            .push(ImageElement {
-                src: image.src,
-                alt: image.alt,
-            });
-    }
-
-    let lighthouse_by_page: HashMap<String, LighthouseData> = lighthouse
-        .into_iter()
-        .map(|l| (l.page_id.clone(), l))
-        .collect();
-
-    let assembled_pages: Vec<PageAnalysisData> = pages
-        .into_iter()
-        .map(|p| {
-            let page_id = p.id.clone();
-            let lh_data = lighthouse_by_page.get(&page_id);
-            let page_links = links_by_page.remove(&page_id).unwrap_or_default();
-            let page_headings = headings_by_page.remove(&page_id).unwrap_or_default();
-            let page_images = images_by_page.remove(&page_id).unwrap_or_default();
-
-            assemble_page(p, lh_data, page_links, page_headings, page_images)
-        })
-        .collect();
-
-    let assembled_issues: Vec<SeoIssue> = issues
-        .into_iter()
-        .map(|issue| {
-            let page_id = issue.page_id.clone().unwrap_or_default();
-            let page_url = page_url_by_id.get(&page_id).cloned().unwrap_or_default();
-
-            SeoIssue {
-                page_id,
-                severity: issue.severity,
-                title: issue.issue_type,
-                description: issue.message,
-                page_url,
-                element: issue.details.clone(),
-                recommendation: issue.details.unwrap_or_default(),
-                line_number: None,
-            }
-        })
-        .collect();
-
-    let analysis_results = AnalysisResults {
-        id: job.id.clone(),
-        url: job.url.clone(),
-        status: job.status.clone(),
-        progress: job.progress,
-        total_pages: job.summary.total_pages,
-        analyzed_pages: job.summary.pages_crawled,
-        started_at: Some(job.created_at.to_rfc3339()),
-        completed_at: job.completed_at.map(|d| d.to_rfc3339()),
-        sitemap_found: DEFAULT_SITEMAP_FOUND,
-        robots_txt_found: DEFAULT_ROBOTS_TXT_FOUND,
-        ssl_certificate: job.url.starts_with("https"),
-        created_at: job.created_at.to_rfc3339(),
-    };
-
-    let summary = AnalysisSummary::compute(&job, &assembled_pages);
-
-    Ok(CompleteAnalysisResponse {
-        analysis: analysis_results,
-        pages: assembled_pages,
-        issues: assembled_issues,
-        summary,
-    })
-}
-
-// ============================================================================
-// Tauri commands
+// Commands
 // ============================================================================
 
 fn validate_url(url: &str) -> Result<Url> {
-    // Basic parse
-    let parsed = Url::from_str(url).with_context(|| format!("Invalid URL format: {}", url))?;
+    let parsed = Url::parse(url).with_context(|| format!("Invalid URL format: {}", url))?;
 
-    // Hardened validation: check for shell injection characters or suspicious patterns
-    // if this URL is ever passed to a shell-based sidecar.
+    // Hardened validation: reject shell-injection characters in case
+    // this URL is ever passed to a shell-based sidecar.
     let dangerous_chars = ['&', ';', '|', '$', '>', '<', '`', '\\', '"', '\''];
     if url.chars().any(|c| dangerous_chars.contains(&c)) {
         anyhow::bail!("URL contains potentially dangerous characters");
     }
 
-    // Ensure it's http or https
     if parsed.scheme() != "http" && parsed.scheme() != "https" {
         anyhow::bail!("Only http and https protocols are supported");
     }
@@ -434,7 +413,7 @@ fn validate_url(url: &str) -> Result<Url> {
 }
 
 #[tauri::command]
-#[specta::specta] // < You must annotate your commands
+#[specta::specta]
 pub async fn start_analysis(
     url: String,
     settings: Option<AnalysisSettingsRequest>,
@@ -474,7 +453,6 @@ pub async fn get_analysis_progress(
         .await
         .map_err(CommandError::from)?;
 
-    // Convert V2 Job to V1 AnalysisProgress
     Ok(job.into())
 }
 
@@ -496,7 +474,6 @@ pub async fn get_all_jobs(
     }
     .map_err(CommandError::from)?;
 
-    // Convert V2 Jobs to V1 AnalysisProgress
     let progress: Vec<AnalysisProgress> = jobs.into_iter().map(|j| j.into()).collect();
 
     Ok(progress)
@@ -552,16 +529,20 @@ pub async fn get_result(
     job_id: String,
     app_state: State<'_, AppState>,
 ) -> Result<CompleteAnalysisResponse, CommandError> {
-    tracing::trace!("Getting result ID for job: {}", job_id);
+    tracing::trace!("Getting result for job: {}", job_id);
 
-    let repo = app_state.results_repo.clone();
-    let result = assemble(repo, &job_id).await.map_err(CommandError::from)?;
+    let result: CompleteAnalysisResponse = app_state
+        .results_repo
+        .get_complete_result(&job_id)
+        .await
+        .map_err(CommandError::from)?
+        .into();
 
     Ok(result)
 }
 
 // ============================================================================
-// Tests (moved from service/analysis_assembler.rs)
+// Tests
 // ============================================================================
 
 #[cfg(test)]
@@ -600,6 +581,8 @@ mod tests {
             word_count: Some(100),
             load_time_ms: Some(4000),
             response_size_bytes: Some(1024),
+            has_viewport: false,
+            has_structured_data: false,
             crawled_at: Utc::now(),
         };
 
@@ -626,7 +609,11 @@ mod tests {
         page_repo.insert_lighthouse(&lh).await.unwrap();
 
         let results_repo = sqlite_results_repo(pool.clone());
-        let result = assemble(results_repo, &job_id).await.unwrap();
+        let result: CompleteAnalysisResponse = results_repo
+            .get_complete_result(&job_id)
+            .await
+            .unwrap()
+            .into();
 
         assert_eq!(result.pages.len(), 1);
         let page = &result.pages[0];
@@ -654,7 +641,7 @@ mod tests {
             .await
             .unwrap();
 
-        // Insert a page with short load time (1s) and no lighthouse data
+        // Insert a page with short load time (1s), viewport present, and no lighthouse data
         let page = Page {
             id: "".to_string(),
             job_id: job_id.clone(),
@@ -669,13 +656,19 @@ mod tests {
             word_count: Some(200),
             load_time_ms: Some(1000),
             response_size_bytes: Some(512),
+            has_viewport: true,
+            has_structured_data: false,
             crawled_at: Utc::now(),
         };
 
         page_repo.insert(&page).await.unwrap();
 
         let results_repo = sqlite_results_repo(pool.clone());
-        let result = assemble(results_repo, &job_id).await.unwrap();
+        let result: CompleteAnalysisResponse = results_repo
+            .get_complete_result(&job_id)
+            .await
+            .unwrap()
+            .into();
 
         assert_eq!(result.pages.len(), 1);
         let page = &result.pages[0];
@@ -715,6 +708,8 @@ mod tests {
             word_count: Some(10),
             load_time_ms: Some(500),
             response_size_bytes: Some(256),
+            has_viewport: false,
+            has_structured_data: false,
             crawled_at: Utc::now(),
         };
 
@@ -749,7 +744,11 @@ mod tests {
         link_repo.insert_batch(&links).await.unwrap();
 
         let results_repo = sqlite_results_repo(pool.clone());
-        let result = assemble(results_repo, &job_id).await.unwrap();
+        let result: CompleteAnalysisResponse = results_repo
+            .get_complete_result(&job_id)
+            .await
+            .unwrap()
+            .into();
 
         assert_eq!(result.pages.len(), 1);
         let page = &result.pages[0];

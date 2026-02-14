@@ -174,5 +174,7 @@ pub struct CompleteJobResult {
     pub issues: Vec<crate::domain::issue::Issue>,
     pub links: Vec<crate::domain::link::Link>,
     pub lighthouse: Vec<crate::domain::lighthouse::LighthouseData>,
+    pub headings: Vec<crate::domain::Heading>,
+    pub images: Vec<crate::domain::Image>,
     pub ai_insights: Option<crate::domain::ai::AiInsight>,
 }

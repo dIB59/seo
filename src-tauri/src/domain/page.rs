@@ -27,13 +27,17 @@ pub struct Page {
     pub load_time_ms: Option<i64>,
     pub response_size_bytes: Option<i64>,
 
+    // SEO flags (extracted from HTML, available without Lighthouse)
+    pub has_viewport: bool,
+    pub has_structured_data: bool,
+
     pub crawled_at: DateTime<Utc>,
 }
 
 impl Page {
-    /// Speed-based mobile-friendly heuristic (fallback when no Lighthouse viewport data).
+    /// Page-level mobile-friendly heuristic: viewport meta tag present AND fast load time.
     pub fn is_mobile_friendly_heuristic(&self) -> bool {
-        self.load_time_ms.unwrap_or(0) <= SPEED_HEURISTIC_LOAD_TIME_MS
+        self.has_viewport && self.load_time_ms.unwrap_or(0) <= SPEED_HEURISTIC_LOAD_TIME_MS
     }
 
     /// Perform a basic SEO audit on the page and generate a list of issues.
@@ -118,6 +122,8 @@ mod tests {
             word_count: Some(100),
             load_time_ms: Some(1000),
             response_size_bytes: Some(512),
+            has_viewport: true,
+            has_structured_data: false,
             crawled_at: Utc::now(),
         };
         overrides(&mut page);

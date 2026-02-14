@@ -223,4 +223,167 @@ impl PageExtractor {
 
         (internal, external, all)
     }
+    pub fn extract_has_viewport(html: &Html) -> bool {
+        static SELECTOR: OnceLock<Selector> = OnceLock::new();
+        let selector = SELECTOR.get_or_init(|| Selector::parse("meta[name='viewport']").unwrap());
+
+        html.select(selector)
+            .next()
+            .and_then(|el| el.value().attr("content"))
+            .map(|content| content.contains("width=device-width"))
+            .unwrap_or(false)
+    }
+
+    pub fn extract_has_structured_data(html: &Html) -> bool {
+        static SELECTOR: OnceLock<Selector> = OnceLock::new();
+        let selector =
+            SELECTOR.get_or_init(|| Selector::parse("script[type='application/ld+json']").unwrap());
+
+        html.select(selector).next().is_some()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_has_viewport() {
+        let html_content = r#"
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <title>Test Page</title>
+            </head>
+            <body></body>
+            </html>
+        "#;
+        let html = Html::parse_document(html_content);
+        assert!(PageExtractor::extract_has_viewport(&html));
+    }
+
+    #[test]
+    fn test_extract_no_viewport() {
+        let html_content = r#"
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Test Page</title>
+            </head>
+            <body></body>
+            </html>
+        "#;
+        let html = Html::parse_document(html_content);
+        assert!(!PageExtractor::extract_has_viewport(&html));
+    }
+
+    #[test]
+    fn test_extract_has_structured_data() {
+        let html_content = r#"
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <script type="application/ld+json">
+                {
+                    "@context": "https://schema.org",
+                    "@type": "Organization",
+                    "url": "http://www.example.com",
+                    "name": "Unlimited Ball Bearings Corp."
+                }
+                </script>
+            </head>
+            <body></body>
+            </html>
+        "#;
+        let html = Html::parse_document(html_content);
+        assert!(PageExtractor::extract_has_structured_data(&html));
+    }
+
+    #[test]
+    fn test_extract_no_structured_data() {
+        let html_content = r#"
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Test Page</title>
+            </head>
+            <body>
+                <script>console.log('hello');</script>
+            </body>
+            </html>
+        "#;
+        let html = Html::parse_document(html_content);
+        assert!(!PageExtractor::extract_has_structured_data(&html));
+    }
+
+    #[test]
+    fn test_extract_has_viewport() {
+        let html_content = r#"
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <title>Test Page</title>
+            </head>
+            <body></body>
+            </html>
+        "#;
+        let html = Html::parse_document(html_content);
+        assert!(PageExtractor::extract_has_viewport(&html));
+    }
+
+    #[test]
+    fn test_extract_no_viewport() {
+        let html_content = r#"
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Test Page</title>
+            </head>
+            <body></body>
+            </html>
+        "#;
+        let html = Html::parse_document(html_content);
+        assert!(!PageExtractor::extract_has_viewport(&html));
+    }
+
+    #[test]
+    fn test_extract_has_structured_data() {
+        let html_content = r#"
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <script type="application/ld+json">
+                {
+                    "@context": "https://schema.org",
+                    "@type": "Organization",
+                    "url": "http://www.example.com",
+                    "name": "Unlimited Ball Bearings Corp."
+                }
+                </script>
+            </head>
+            <body></body>
+            </html>
+        "#;
+        let html = Html::parse_document(html_content);
+        assert!(PageExtractor::extract_has_structured_data(&html));
+    }
+
+    #[test]
+    fn test_extract_no_structured_data() {
+        let html_content = r#"
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Test Page</title>
+            </head>
+            <body>
+                <script>console.log('hello');</script>
+            </body>
+            </html>
+        "#;
+        let html = Html::parse_document(html_content);
+        assert!(!PageExtractor::extract_has_structured_data(&html));
+    }
 }

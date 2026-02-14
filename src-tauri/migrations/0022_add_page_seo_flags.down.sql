@@ -1,0 +1,2 @@
+-- SQLite doesn't support DROP COLUMN directly; these columns have defaults so they're safe to leave.
+-- For a true rollback, recreate the pages table without these columns.

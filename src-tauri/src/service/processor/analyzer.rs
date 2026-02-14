@@ -74,6 +74,10 @@ impl AnalyzerService {
             let canonical_url = PageExtractor::extract_canonical(&html);
             let word_count = PageExtractor::extract_word_count(&html);
 
+            // Extract SEO flags
+            let has_viewport = PageExtractor::extract_has_viewport(&html);
+            let has_structured_data = PageExtractor::extract_has_structured_data(&html);
+
             // Extract links
             let (internal_links, _external_links, all_links) =
                 PageExtractor::extract_links(&html, url);
@@ -97,6 +101,8 @@ impl AnalyzerService {
                 word_count: Some(word_count),
                 load_time_ms: Some(audit_result.load_time_ms as i64),
                 response_size_bytes: Some(audit_result.content_size as i64),
+                has_viewport,
+                has_structured_data,
                 crawled_at: chrono::Utc::now(),
             };
 

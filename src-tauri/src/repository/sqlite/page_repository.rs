@@ -32,9 +32,10 @@ impl PageRepository {
             INSERT INTO pages (
                 id, job_id, url, depth, status_code, content_type,
                 title, meta_description, canonical_url, robots_meta,
-                word_count, load_time_ms, response_size_bytes, crawled_at
+                word_count, load_time_ms, response_size_bytes,
+                has_viewport, has_structured_data, crawled_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(job_id, url) DO UPDATE SET
                 depth = excluded.depth,
                 status_code = excluded.status_code,
@@ -46,6 +47,8 @@ impl PageRepository {
                 word_count = excluded.word_count,
                 load_time_ms = excluded.load_time_ms,
                 response_size_bytes = excluded.response_size_bytes,
+                has_viewport = excluded.has_viewport,
+                has_structured_data = excluded.has_structured_data,
                 crawled_at = excluded.crawled_at
             RETURNING id
             "#,
@@ -62,6 +65,8 @@ impl PageRepository {
             page.word_count,
             page.load_time_ms,
             page.response_size_bytes,
+            page.has_viewport,
+            page.has_structured_data,
             crawled_at_str
         )
         .fetch_one(&self.pool)
@@ -91,7 +96,8 @@ impl PageRepository {
                 INSERT INTO pages (
                     id, job_id, url, depth, status_code, content_type,
                     title, meta_description, canonical_url, robots_meta,
-                    word_count, load_time_ms, response_size_bytes, crawled_at
+                    word_count, load_time_ms, response_size_bytes,
+                    has_viewport, has_structured_data, crawled_at
                 ) "#,
             );
 
@@ -114,6 +120,8 @@ impl PageRepository {
                     .push_bind(page.word_count)
                     .push_bind(page.load_time_ms)
                     .push_bind(page.response_size_bytes)
+                    .push_bind(page.has_viewport)
+                    .push_bind(page.has_structured_data)
                     .push_bind(page.crawled_at.to_rfc3339());
             });
 
@@ -135,7 +143,8 @@ impl PageRepository {
             SELECT 
                 id, job_id, url, depth, status_code, content_type,
                 title, meta_description, canonical_url, robots_meta,
-                word_count, load_time_ms, response_size_bytes, crawled_at
+                word_count, load_time_ms, response_size_bytes,
+                has_viewport, has_structured_data, crawled_at
             FROM pages
             WHERE job_id = ?
             ORDER BY depth ASC, url ASC
@@ -162,6 +171,8 @@ impl PageRepository {
                 word_count: row.word_count,
                 load_time_ms: row.load_time_ms,
                 response_size_bytes: row.response_size_bytes,
+                has_viewport: row.has_viewport != 0,
+                has_structured_data: row.has_structured_data != 0,
                 crawled_at: parse_datetime(row.crawled_at.as_str()),
             })
             .collect())
@@ -206,7 +217,8 @@ impl PageRepository {
             SELECT 
                 id, job_id, url, depth, status_code, content_type,
                 title, meta_description, canonical_url, robots_meta,
-                word_count, load_time_ms, response_size_bytes, crawled_at
+                word_count, load_time_ms, response_size_bytes,
+                has_viewport, has_structured_data, crawled_at
             FROM pages
             WHERE id = ?
             "#,
@@ -230,6 +242,8 @@ impl PageRepository {
             word_count: row.word_count,
             load_time_ms: row.load_time_ms,
             response_size_bytes: row.response_size_bytes,
+            has_viewport: row.has_viewport != 0,
+            has_structured_data: row.has_structured_data != 0,
             crawled_at: parse_datetime(row.crawled_at.as_str()),
         })
     }

@@ -61,7 +61,15 @@ impl ResultsRepository {
         let lighthouse = self.get_lighthouse(job_id).await?;
         tracing::debug!("Fetched {} lighthouse records", lighthouse.len());
 
-        // 6. Get AI insights (optional)
+        // 6. Get headings
+        let headings = self.get_headings(job_id).await?;
+        tracing::debug!("Fetched {} headings", headings.len());
+
+        // 7. Get images
+        let images = self.get_images(job_id).await?;
+        tracing::debug!("Fetched {} images", images.len());
+
+        // 8. Get AI insights (optional)
         let ai_insights = self.get_ai_insights(job_id).await.ok();
 
         let total_time = query_start.elapsed();
@@ -80,6 +88,8 @@ impl ResultsRepository {
             issues,
             links,
             lighthouse,
+            headings,
+            images,
             ai_insights,
         })
     }
@@ -138,7 +148,8 @@ impl ResultsRepository {
             SELECT 
                 id, job_id, url, depth, status_code, content_type,
                 title, meta_description, canonical_url, robots_meta,
-                word_count, load_time_ms, response_size_bytes, crawled_at
+                word_count, load_time_ms, response_size_bytes,
+                has_viewport, has_structured_data, crawled_at
             FROM pages
             WHERE job_id = ?
             ORDER BY depth ASC, url ASC
@@ -165,6 +176,8 @@ impl ResultsRepository {
                 word_count: row.word_count,
                 load_time_ms: row.load_time_ms,
                 response_size_bytes: row.response_size_bytes,
+                has_viewport: row.has_viewport != 0,
+                has_structured_data: row.has_structured_data != 0,
                 crawled_at: parse_datetime(row.crawled_at.as_str()),
             })
             .collect())
