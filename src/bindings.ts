@@ -180,14 +180,6 @@ async getLicenseTier() : Promise<Result<LicenseTier, CommandError>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
-},
-async getMachineId() : Promise<Result<string, CommandError>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("get_machine_id") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
 }
 }
 

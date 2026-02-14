@@ -8,7 +8,8 @@ use url::Url;
 
 use crate::{
     domain::{
-        licensing::Addon, AnalysisProgress, Job, JobSettings, JobStatus, LighthouseData, Page,
+        permissions::PermissionRequest, AnalysisProgress, Job, JobSettings, JobStatus,
+        LighthouseData, Page,
     },
     error::CommandError,
     lifecycle::app_state::AppState,
@@ -27,6 +28,18 @@ pub struct AnalysisSettingsRequest {
     pub mobile_analysis: bool,
     pub lighthouse_analysis: bool,
     pub delay_between_requests: i64,
+}
+
+trait SettingsExt {
+    fn requested_page_count(&self) -> usize;
+}
+
+impl SettingsExt for Option<AnalysisSettingsRequest> {
+    fn requested_page_count(&self) -> usize {
+        self.as_ref()
+            .unwrap_or(&AnalysisSettingsRequest::default())
+            .max_pages as usize
+    }
 }
 
 impl Default for AnalysisSettingsRequest {
@@ -413,11 +426,12 @@ fn validate_url(url: &str) -> Result<Url> {
 }
 
 #[tauri::command]
+#[addon_guard(PermissionRequest::AnalyzePages(settings.requested_page_count()))]
 #[specta::specta]
 pub async fn start_analysis(
     url: String,
     settings: Option<AnalysisSettingsRequest>,
-    app_state: State<'_, AppState>,
+    #[provider] app_state: State<'_, AppState>,
 ) -> Result<AnalysisJobResponse, CommandError> {
     tracing::info!("Starting analysis: {}", url);
     tracing::info!("Settings: {:?}", settings);
@@ -510,7 +524,7 @@ pub async fn get_paginated_jobs(
 
 #[tauri::command]
 #[specta::specta]
-#[addon_guard(Addon::LinkAnalysis)]
+#[addon_guard(PermissionRequest::UseFeature(crate::domain::permissions::Feature::LinkAnalysis))]
 pub async fn cancel_analysis(
     job_id: String,
     #[provider] state: State<'_, AppState>,

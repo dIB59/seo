@@ -1,4 +1,5 @@
-use crate::domain::licensing::{AddonError, LicenseTier, LicenseVerifier, SignedLicense};
+use crate::domain::licensing::{AddonError, LicenseVerifier, SignedLicense};
+use crate::domain::permissions::LicenseTier;
 use crate::service::hardware::HardwareService;
 use crate::service::spider::{ClientType, Spider};
 use std::sync::Arc;
@@ -14,7 +15,9 @@ impl LicensingService {
     const API_BASE_URL: &str = "https://api.graviplex.com/licensing";
     const LICENSE_SETTING_KEY: &str = "signed_license";
 
-    pub fn new(settings_repo: Arc<dyn crate::repository::SettingsRepository>) -> Result<Self, AddonError> {
+    pub fn new(
+        settings_repo: Arc<dyn crate::repository::SettingsRepository>,
+    ) -> Result<Self, AddonError> {
         let verifier = LicenseVerifier::new(Self::PUBLIC_KEY.to_owned())?;
         let spider = Spider::new(ClientType::Standard).map_err(|_| AddonError::NetworkError)?;
         Ok(Self {

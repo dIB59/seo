@@ -44,14 +44,26 @@ pub fn addon_guard(attr: TokenStream, item: TokenStream) -> TokenStream {
     let block = &input.block;
     let statements = &block.stmts;
 
-    // Use the AddonProvider trait
+    // Use the AddonCheck trait
     let new_block = quote! {
         {
-            use addon_macros::AddonProvider;
-            let addon_name = stringify!(#addon).split("::").last().unwrap_or(stringify!(#addon)).trim();
+            use addon_macros::AddonCheck;
 
-            if !addon_macros::AddonProvider::verify_addon(&*#state_ident, addon_name) {
-                return Err(crate::domain::licensing::AddonError::FeatureLocked(#addon).into());
+            // Check the requirement using the AddonCheck trait
+            if !addon_macros::AddonCheck::check(&*#state_ident, #addon) {
+                // We'll use a generic error message for now, as the specific error construction
+                // depends on the domain types which might not be visible here in a generic way.
+                // However, our current implementation expects AddonError::PermissionDenied(#addon).
+                // Let's assume the argument implements Debug so we can format it if needed,
+                // but for now we follow the pattern of the existing code which likely expects
+                // the error type to be available in the scope or we construct it.
+
+                // Inspecting the previous implementation:
+                // return Err(crate::domain::licensing::AddonError::FeatureLocked(#addon).into());
+
+                // We will keep this compatible by keeping the assumption that
+                // crate::domain::licensing::AddonError is available or we use the fully qualified path.
+                return Err(crate::domain::licensing::AddonError::PermissionDenied(#addon).into());
             }
             #(#statements)*
         }

@@ -1,5 +1,8 @@
 use crate::{
-    domain::licensing::{LicenseTier, UserPermissions},
+    domain::{
+        // licensing::LicensingService, // Removed invalid import
+        permissions::{LicenseTier, Policy},
+    },
     repository::{
         sqlite_ai_repo, sqlite_issue_repo, sqlite_job_repo, sqlite_link_repo, sqlite_page_repo,
         sqlite_results_repo, sqlite_settings_repo,
@@ -27,7 +30,7 @@ pub struct AppState {
     pub job_processor: Arc<JobProcessor>, // underscore = intentionally unused but kept alive
 
     // Licensing and Permissions
-    pub permissions: RwLock<UserPermissions>,
+    pub permissions: RwLock<Policy>,
     pub licensing_service: Arc<LicensingService>,
 }
 
@@ -91,7 +94,7 @@ impl AppState {
             job_repo,
             results_repo,
             job_processor: job_processor,
-            permissions: RwLock::new(UserPermissions::new(initial_tier)),
+            permissions: RwLock::new(Policy::new(initial_tier)),
             licensing_service,
         })
     }
@@ -103,11 +106,11 @@ impl AppState {
     }
 }
 
-impl addon_macros::AddonProvider for AppState {
-    fn verify_addon(&self, addon_name: &str) -> bool {
+impl addon_macros::AddonCheck<crate::domain::permissions::PermissionRequest> for AppState {
+    fn check(&self, requirement: crate::domain::permissions::PermissionRequest) -> bool {
         self.permissions
             .read()
-            .map(|p| p.check_addon_str(addon_name))
+            .map(|p| p.check(requirement))
             .unwrap_or(false)
     }
 }

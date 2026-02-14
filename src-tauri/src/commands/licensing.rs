@@ -1,4 +1,4 @@
-use crate::domain::licensing::LicenseTier;
+use crate::domain::permissions::LicenseTier;
 use crate::error::CommandError;
 use crate::lifecycle::app_state::AppState;
 use tauri::State;
@@ -39,10 +39,4 @@ pub async fn activate_with_key(
 #[specta::specta]
 pub async fn get_license_tier(state: State<'_, AppState>) -> Result<LicenseTier, CommandError> {
     Ok(state.permissions.read().map(|p| p.tier).unwrap_or_default())
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn get_machine_id() -> Result<String, CommandError> {
-    Ok(crate::service::hardware::HardwareService::get_machine_id())
 }
