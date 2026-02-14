@@ -51,3 +51,4 @@ target/rust-analyzer
 src/bindings.ts
 
 .agents
+.agent
