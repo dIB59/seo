@@ -59,7 +59,7 @@ export function JobHistory() {
     }, [mutate]);
 
     return (
-        <div className="space-y-6">
+        <div className="flex-1 flex flex-col gap-2">
             {/* Error Message */}
             {error && (
                 <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
@@ -88,6 +88,7 @@ export function JobHistory() {
                 currentPage={currentPage}
                 totalPages={totalPages}
                 onPageChange={setCurrentPage}
+                className="mt-auto"
             />
         </div>
     );

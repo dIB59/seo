@@ -11,13 +11,14 @@ interface JobPaginationProps {
     currentPage: number;
     totalPages: number;
     onPageChange: (page: number) => void;
+    className?: string;
 }
 
-export const JobPagination = function JobPagination({ currentPage, totalPages, onPageChange }: JobPaginationProps) {
+export const JobPagination = function JobPagination({ currentPage, totalPages, onPageChange, className }: JobPaginationProps) {
     if (totalPages <= 1) return null;
 
     return (
-        <div className="mt-8">
+        <div className={`mt-8 ${className || ""}`}>
             <Pagination>
                 <PaginationContent>
                     <PaginationItem>

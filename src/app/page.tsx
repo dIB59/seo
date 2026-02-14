@@ -34,7 +34,7 @@ export default function Home() {
     }, []);
 
     return (
-        <main className="min-h-screen p-6 max-w-5xl mx-auto">
+        <main className="min-h-screen p-6 max-w-5xl mx-auto flex flex-col">
             <HomeHeader
                 isValidating={false} // Validation status is now managed inside JobHistory
                 onRefresh={handleRefresh}
@@ -49,7 +49,7 @@ export default function Home() {
             )}
 
             {/* URL Input Form */}
-            <div className="mb-12">
+            <div className="mb-2">
                 <UrlInputForm onSubmit={handleSubmit} isLoading={isLoading} />
             </div>
 
