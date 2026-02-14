@@ -5,7 +5,7 @@ export function JobStatusBadge({ status }: { status: string }) {
     switch (status) {
         case "queued":
             return <span className={cn(baseClasses, "bg-muted text-muted-foreground")}>Queued</span>
-        case 'discovering':
+        case 'discovery':
             return <span className={cn(baseClasses, "bg-primary/20 text-primary")}>Discovering</span>
         case "processing":
             return <span className={cn(baseClasses, "bg-primary/20 text-primary")}>Processing</span>

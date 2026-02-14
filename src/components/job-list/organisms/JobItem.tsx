@@ -1,13 +1,12 @@
 import type { AnalysisProgress } from "@/src/lib/types"
-import { DiscoveryProgress } from "../atoms/DiscoveryProgress"
 import { getStatusIcon } from "../atoms/JobStatusIcon"
 import { CancelButton } from "../atoms/CancelButton"
 import { ViewResultButton } from "../atoms/ViewResultButton"
 import { JobProgressBar } from "../atoms/JobProgressBar"
 
-import { useDiscoveryProgress } from "../hooks/useDiscoveryProgress"
 import { JobItemHeader } from "../molecules/JobItemHeader"
 import { ScanSearch } from "lucide-react"
+import { useDiscoveryProgress } from "../hooks/useDiscoveryProgress"
 import { useAnalysisProgress } from "../hooks/useAnalysisProgress"
 
 interface JobItemProps {
@@ -17,8 +16,11 @@ interface JobItemProps {
 }
 
 export function JobItem({ job, onViewResult, onCancel }: JobItemProps) {
-    const discovery = useDiscoveryProgress(job.job_id, job.job_status)
-    const analysisProg = useAnalysisProgress(job.job_id, job.job_status)
+    const { count: pagesDiscovered, total: discoveryTotal } = useDiscoveryProgress(job.job_id, job.job_status)
+    const pagesAnalyzed = useAnalysisProgress(job.job_id, job.job_status)
+
+    const isDiscovering = job.job_status === "discovery"
+    const isAnalyzing = job.job_status === "processing"
 
     return (
         <div
@@ -56,16 +58,20 @@ export function JobItem({ job, onViewResult, onCancel }: JobItemProps) {
             <div className="flex-1 min-w-0">
                 <JobItemHeader job={job} />
 
-                {(job.job_status === "processing") && job.progress !== null && (
+                {isAnalyzing && pagesAnalyzed !== null && (
                     <JobProgressBar
-                        progress={job.progress}
-                        current={analysisProg ?? 0}
-                        total={job.max_pages}
+                        current={pagesAnalyzed}
+                        total={discoveryTotal}
+                        label={`Analyzed ${pagesAnalyzed} / ${discoveryTotal}`}
                     />
                 )}
 
-                {job.job_status === "discovery" && (
-                    <DiscoveryProgress count={discovery.count} total={discovery.total} />
+                {isDiscovering && (
+                    <JobProgressBar
+                        current={pagesDiscovered ?? 0}
+                        total={discoveryTotal}
+                        label={!discoveryTotal ? `Discovered ${pagesDiscovered ?? 0} / ${discoveryTotal}` : undefined}
+                    />
                 )}
             </div>
 
