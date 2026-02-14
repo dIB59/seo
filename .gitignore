@@ -47,7 +47,6 @@ bin
 src-tauri/binaries/lighthouse-runner/node_modules
 **/*.db
 src-tauri/.sqlx_dev.db
-src-tauri/.sqlx_dev.db
 target/rust-analyzer
 src/bindings.ts
-src-tauri/.sqlx_dev.db
+

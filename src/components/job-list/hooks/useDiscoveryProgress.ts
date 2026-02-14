@@ -22,7 +22,7 @@ export function useDiscoveryProgress(jobId: string, jobStatus: string) {
             )
         }
 
-        if (jobStatus === "discovering" || jobStatus === "processing" || jobStatus === "running") {
+        if (jobStatus === "discovery" || jobStatus === "processing") {
             // subscribe during discovery, processing, or running so UI can show current/total
             // even after discovery completes and processing begins
             setupDiscovery()

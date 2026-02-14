@@ -103,7 +103,7 @@ impl ResultsRepository {
                 rate_limit_ms, user_agent, lighthouse_analysis,
                 total_pages, pages_crawled, total_issues, 
                 critical_issues, warning_issues, info_issues,
-                progress, current_stage, error_message
+                progress, error_message
             FROM jobs
             WHERE id = ?
             "#,
@@ -137,7 +137,6 @@ impl ResultsRepository {
                 info_issues: row.info_issues,
             },
             progress: row.progress,
-            current_stage: row.current_stage,
             error_message: row.error_message,
         })
     }

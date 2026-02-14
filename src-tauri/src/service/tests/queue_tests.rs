@@ -56,12 +56,7 @@ impl JobRepository for MockJobRepo {
         Ok(())
     }
 
-    async fn update_progress(
-        &self,
-        _id: &str,
-        _progress: f64,
-        _current_stage: Option<&str>,
-    ) -> Result<()> {
+    async fn update_progress(&self, _id: &str, _progress: f64) -> Result<()> {
         Ok(())
     }
 
@@ -90,7 +85,6 @@ async fn fetch_next_job_returns_mocked_job() {
         settings: JobSettings::default(),
         summary: Default::default(),
         progress: 0.0,
-        current_stage: None,
         error_message: None,
     };
 

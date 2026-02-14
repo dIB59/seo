@@ -205,7 +205,7 @@ export type AnalysisJobResponse = { job_id: string; url: string; status: JobStat
 /**
  * Analysis progress for frontend updates
  */
-export type AnalysisProgress = { job_id: string; url: string; job_status: string; result_id: string | null; progress: number | null; max_pages: number | null; is_deep_audit: boolean | null; total_issues: number | null }
+export type AnalysisProgress = { job_id: string; url: string; job_status: JobStatus; result_id: string | null; progress: number | null; max_pages: number | null; is_deep_audit: boolean | null; total_issues: number | null }
 /**
  * Analysis results with date/time mapped to strings for Specta.
  */
@@ -236,7 +236,7 @@ export type IssueSeverity = "critical" | "warning" | "info"
 /**
  * Status of an SEO analysis job.
  */
-export type JobStatus = "pending" | "running" | "completed" | "failed" | "cancelled"
+export type JobStatus = "pending" | "discovery" | "processing" | "completed" | "failed" | "cancelled"
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 export type LicenseTier = "Free" | "Premium"
 /**

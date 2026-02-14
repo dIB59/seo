@@ -2,57 +2,6 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-/// Status of an SEO analysis job.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
-#[serde(rename_all = "lowercase")]
-pub enum JobStatus {
-    Pending,
-    Running,
-    Completed,
-    Failed,
-    Cancelled,
-}
-
-impl JobStatus {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Pending => "pending",
-            Self::Running => "running",
-            Self::Completed => "completed",
-            Self::Failed => "failed",
-            Self::Cancelled => "cancelled",
-        }
-    }
-
-    pub fn is_terminal(&self) -> bool {
-        matches!(self, Self::Completed | Self::Failed | Self::Cancelled)
-    }
-
-    pub fn is_active(&self) -> bool {
-        matches!(self, Self::Running)
-    }
-}
-
-impl std::str::FromStr for JobStatus {
-    type Err = ();
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "pending" | "queued" => Ok(Self::Pending),
-            "running" | "processing" | "discovering" | "analyzing" => Ok(Self::Running),
-            "completed" => Ok(Self::Completed),
-            "failed" | "error" => Ok(Self::Failed),
-            "cancelled" => Ok(Self::Cancelled),
-            _ => Err(()),
-        }
-    }
-}
-
-impl std::fmt::Display for JobStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
-
 /// Job settings for crawl configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobSettings {
@@ -107,7 +56,6 @@ pub struct Job {
 
     // Progress tracking
     pub progress: f64,
-    pub current_stage: Option<String>,
     pub error_message: Option<String>,
 }
 
@@ -125,7 +73,6 @@ impl Job {
             settings: JobSettings::default(),
             summary: JobSummary::default(),
             progress: 0.0,
-            current_stage: None,
             error_message: None,
         }
     }
@@ -166,6 +113,60 @@ pub struct JobInfo {
     pub created_at: DateTime<Utc>,
     pub max_pages: i64,
     pub lighthouse_analysis: bool,
+}
+
+/// Status of an SEO analysis job.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "lowercase")]
+pub enum JobStatus {
+    Pending,
+    Discovery,
+    Processing,
+    Completed,
+    Failed,
+    Cancelled,
+}
+
+impl JobStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Discovery => "discovery",
+            Self::Processing => "processing",
+            Self::Completed => "completed",
+            Self::Failed => "failed",
+            Self::Cancelled => "cancelled",
+        }
+    }
+
+    pub fn is_terminal(&self) -> bool {
+        matches!(self, Self::Completed | Self::Failed | Self::Cancelled)
+    }
+
+    pub fn is_active(&self) -> bool {
+        matches!(self, Self::Discovery | Self::Processing)
+    }
+}
+
+impl std::str::FromStr for JobStatus {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "pending" | "queued" => Ok(Self::Pending),
+            "discovery" | "discovering" => Ok(Self::Discovery),
+            "processing" | "analyzing" | "running" => Ok(Self::Processing), // Map legacy "running" to Processing
+            "completed" => Ok(Self::Completed),
+            "failed" | "error" => Ok(Self::Failed),
+            "cancelled" => Ok(Self::Cancelled),
+            _ => Err(()),
+        }
+    }
+}
+
+impl std::fmt::Display for JobStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
 }
 
 /// Complete job result with all related data.

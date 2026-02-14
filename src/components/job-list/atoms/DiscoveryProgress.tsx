@@ -7,7 +7,7 @@ export function DiscoveryProgress({ count, total }: { count: number | null; tota
             <div className="mt-2 flex items-center gap-3">
                 <Progress value={pct} className="flex-1 h-1.5" />
                 <span className="text-xs text-muted-foreground whitespace-nowrap">
-                    {count ?? 0} / {total} pages • {pct}%
+                    {count ?? 0} / {total} pages
                 </span>
             </div>
         )
@@ -20,7 +20,7 @@ export function DiscoveryProgress({ count, total }: { count: number | null; tota
                 <div className="h-full bg-blue-500 animate-[shimmer_2s_infinite] w-[40%]" />
             </div>
             <span className="text-xs text-muted-foreground whitespace-nowrap">
-                Discovered {count ?? 0} pages...
+                Discovered {count ?? 0} pages
             </span>
         </div>
     )

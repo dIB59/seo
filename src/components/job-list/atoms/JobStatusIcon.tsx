@@ -4,7 +4,7 @@ export function getStatusIcon(status: string) {
     switch (status) {
         case "queued":
             return <Clock className="h-4 w-4 text-muted-foreground" />
-        case 'discovering':
+        case 'discovery':
             return <Search className="h-4 w-4 text-primary animate-pulse" />
         case "processing":
             return <Loader2 className="h-4 w-4 text-primary animate-spin" />

@@ -7,8 +7,8 @@ import { JobProgressBar } from "../atoms/JobProgressBar"
 
 import { useDiscoveryProgress } from "../hooks/useDiscoveryProgress"
 import { JobItemHeader } from "../molecules/JobItemHeader"
-
 import { ScanSearch } from "lucide-react"
+import { useAnalysisProgress } from "../hooks/useAnalysisProgress"
 
 interface JobItemProps {
     job: AnalysisProgress
@@ -18,6 +18,7 @@ interface JobItemProps {
 
 export function JobItem({ job, onViewResult, onCancel }: JobItemProps) {
     const discovery = useDiscoveryProgress(job.job_id, job.job_status)
+    const analysisProg = useAnalysisProgress(job.job_id, job.job_status)
 
     return (
         <div
@@ -28,7 +29,7 @@ export function JobItem({ job, onViewResult, onCancel }: JobItemProps) {
                     {getStatusIcon(job.job_status)}
                 </div>
 
-                {job.total_issues !== undefined && (
+                {job.total_issues !== undefined && job.total_issues !== null && (
                     <div className="flex justify-center" title={`Total Issues: ${job.total_issues}`}>
                         <div className="flex items-center justify-center w-6 h-6 bg-destructive/10 text-destructive rounded font-medium text-[10px]">
                             {job.total_issues > 99 ? '99+' : job.total_issues}
@@ -55,15 +56,15 @@ export function JobItem({ job, onViewResult, onCancel }: JobItemProps) {
             <div className="flex-1 min-w-0">
                 <JobItemHeader job={job} />
 
-                {(job.job_status === "processing" || job.job_status === "running") && job.progress !== null && (
+                {(job.job_status === "processing") && job.progress !== null && (
                     <JobProgressBar
                         progress={job.progress}
-                        current={discovery.count ?? job.analyzed_pages}
-                        total={discovery.total ?? job.total_pages}
+                        current={analysisProg ?? 0}
+                        total={job.max_pages}
                     />
                 )}
 
-                {job.job_status === "discovering" && (
+                {job.job_status === "discovery" && (
                     <DiscoveryProgress count={discovery.count} total={discovery.total} />
                 )}
             </div>

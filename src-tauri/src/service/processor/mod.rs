@@ -95,8 +95,8 @@ impl JobProcessor {
         let cancel_flag = self.canceler.get_cancel_flag(&job.id);
 
         // Initialize job
-        job.status = JobStatus::Running;
-        self.job_queue.mark_running(&job.id).await?;
+        job.status = JobStatus::Discovery;
+        self.job_queue.mark_discovery(&job.id).await?;
 
         // Check site resources (robots.txt, sitemap, SSL)
         let _resources = self.crawler.check_resources(&job.url).await?;
@@ -126,6 +126,10 @@ impl JobProcessor {
             tracing::warn!("Job {} cancelled before analysis", job.id);
             return Ok(job.id.clone());
         }
+
+        // Update status to Processing
+        job.status = JobStatus::Processing;
+        self.job_queue.mark_processing(&job.id).await?;
 
         let max_pages = job.settings.max_pages as usize;
         let auditor = self.analyzer.select_auditor(&job.settings);

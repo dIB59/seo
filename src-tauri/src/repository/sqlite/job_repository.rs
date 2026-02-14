@@ -78,7 +78,7 @@ impl JobRepository {
                 rate_limit_ms, user_agent, lighthouse_analysis,
                 total_pages, pages_crawled, total_issues, 
                 critical_issues, warning_issues, info_issues,
-                progress, current_stage, error_message
+                progress, error_message
             FROM jobs
             WHERE id = ?
             "#,
@@ -112,7 +112,6 @@ impl JobRepository {
                 info_issues: row.info_issues,
             },
             progress: row.progress,
-            current_stage: row.current_stage,
             error_message: row.error_message,
         })
     }
@@ -257,9 +256,9 @@ impl JobRepository {
                 rate_limit_ms, user_agent, lighthouse_analysis,
                 total_pages, pages_crawled, total_issues, 
                 critical_issues, warning_issues, info_issues,
-                progress, current_stage, error_message
+                progress, error_message
             FROM jobs
-            WHERE status IN ('pending', 'running')
+            WHERE status IN ('pending', 'discovery', 'processing')
             ORDER BY created_at ASC
             "#
         )
@@ -293,7 +292,6 @@ impl JobRepository {
                     info_issues: row.info_issues,
                 },
                 progress: row.progress,
-                current_stage: row.current_stage,
                 error_message: row.error_message,
             })
             .collect())
@@ -327,20 +325,14 @@ impl JobRepository {
     }
 
     /// Update job progress.
-    pub async fn update_progress(
-        &self,
-        job_id: &str,
-        progress: f64,
-        current_stage: Option<&str>,
-    ) -> Result<()> {
+    pub async fn update_progress(&self, job_id: &str, progress: f64) -> Result<()> {
         sqlx::query!(
             r#"
             UPDATE jobs 
-            SET progress = ?1, current_stage = ?2
-            WHERE id = ?3
+            SET progress = ?1
+            WHERE id = ?2
             "#,
             progress,
-            current_stage,
             job_id,
         )
         .execute(&self.pool)
@@ -385,7 +377,7 @@ impl JobRepository {
     async fn get_running_jobs_id(&self) -> Result<Vec<String>> {
         let rows = sqlx::query!(
             r#"
-            SELECT id FROM jobs WHERE status = 'running'
+            SELECT id FROM jobs WHERE status IN ('discovery', 'processing')
             "#
         )
         .fetch_all(&self.pool)
@@ -447,13 +439,8 @@ impl JobRepositoryTrait for JobRepository {
         JobRepository::update_status(self, job_id, status).await
     }
 
-    async fn update_progress(
-        &self,
-        id: &str,
-        progress: f64,
-        current_stage: Option<&str>,
-    ) -> Result<()> {
-        JobRepository::update_progress(self, id, progress, current_stage).await
+    async fn update_progress(&self, id: &str, progress: f64) -> Result<()> {
+        JobRepository::update_progress(self, id, progress).await
     }
 
     async fn set_error(&self, job_id: &str, error: &str) -> Result<()> {
