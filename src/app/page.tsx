@@ -3,12 +3,12 @@
 import { useCallback, useState } from "react";
 import { mutate as globalMutate } from "swr";
 import { HomeHeader } from "@/src/components/home/HomeHeader";
-import { UrlInputForm } from "@/src/components/url-input-form";
 import { JobHistory } from "@/src/components/job-list/organisms/JobHistory";
 import { useUI } from "../context/UIContext";
 import { startAnalysis } from "@/src/api/analysis";
 import type { AnalysisSettingsRequest } from "@/src/lib/types";
 import { logger } from "../lib/logger";
+import { UrlInputForm } from "../components/url-input/UrlInputForm";
 
 export default function Home() {
     const { openSettings } = useUI();
