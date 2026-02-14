@@ -157,7 +157,7 @@ async getResult(jobId: string) : Promise<Result<CompleteAnalysisResponse, Comman
     else return { status: "error", error: e  as any };
 }
 },
-async activateLicense(licenseJson: string) : Promise<Result<LicenseTier, CommandError>> {
+async activateLicense(licenseJson: string) : Promise<Result<Policy, CommandError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("activate_license", { licenseJson }) };
 } catch (e) {
@@ -165,9 +165,17 @@ async activateLicense(licenseJson: string) : Promise<Result<LicenseTier, Command
     else return { status: "error", error: e  as any };
 }
 },
-async activateWithKey(key: string) : Promise<Result<LicenseTier, CommandError>> {
+async activateWithKey(key: string) : Promise<Result<Policy, CommandError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("activate_with_key", { key }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getUserPolicy() : Promise<Result<Policy, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_user_policy") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -176,6 +184,14 @@ async activateWithKey(key: string) : Promise<Result<LicenseTier, CommandError>> 
 async getLicenseTier() : Promise<Result<LicenseTier, CommandError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_license_tier") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getMachineId() : Promise<Result<string, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_machine_id") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -216,6 +232,10 @@ export type CommandError = string
  * Complete analysis response returned by `get_result`.
  */
 export type CompleteAnalysisResponse = { analysis: AnalysisResults; pages: PageAnalysisData[]; issues: SeoIssue[]; summary: AnalysisSummary }
+/**
+ * Represents a static capability/feature of the application.
+ */
+export type Feature = "LinkAnalysis" | "GraphView" | "ExportReports"
 export type GeminiRequest = { analysis_id: string; url: string; seo_score: number; pages_count: number; total_issues: number; critical_issues: number; warning_issues: number; suggestion_issues: number; top_issues: string[]; avg_load_time: number; total_words: number; ssl_certificate: boolean; sitemap_found: boolean; robots_txt_found: boolean }
 /**
  * Image element for frontend display.
@@ -240,6 +260,10 @@ export type LinkDetail = { href: string; text: string; is_external: boolean; is_
  */
 export type PageAnalysisData = { analysis_id: string; url: string; title: string | null; meta_description: string | null; meta_keywords: string | null; canonical_url: string | null; h1_count: number; h2_count: number; h3_count: number; word_count: number; image_count: number; images_without_alt: number; internal_links: number; external_links: number; load_time: number; status_code: number | null; content_size: number; mobile_friendly: boolean; has_structured_data: boolean; lighthouse_performance: number | null; lighthouse_accessibility: number | null; lighthouse_best_practices: number | null; lighthouse_seo: number | null; lighthouse_seo_audits: JsonValue | null; lighthouse_performance_metrics: JsonValue | null; images: ImageElement[]; detailed_links: LinkDetail[] }
 export type PaginatedJobsResponse = { items: AnalysisProgress[]; total: number }
+/**
+ * Represents the active set of rules for a user.
+ */
+export type Policy = { tier: LicenseTier; max_pages: number; enabled_features: Feature[] }
 /**
  * SEO issue (frontend-compatible format).
  */

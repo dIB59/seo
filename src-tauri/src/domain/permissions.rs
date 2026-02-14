@@ -57,7 +57,7 @@ impl TierPolicy for LicenseTier {
 }
 
 /// Represents the active set of rules for a user.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct Policy {
     pub tier: LicenseTier,
     pub max_pages: usize,

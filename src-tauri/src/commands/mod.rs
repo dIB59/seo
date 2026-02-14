@@ -27,7 +27,9 @@ pub fn register_commands() -> Commands<tauri::Wry> {
         analysis::get_result,
         licensing::activate_license,
         licensing::activate_with_key,
+        licensing::get_user_policy,
         licensing::get_license_tier,
+        licensing::get_machine_id,
     ];
     s
 }

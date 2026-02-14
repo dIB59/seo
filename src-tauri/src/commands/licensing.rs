@@ -1,6 +1,8 @@
-use crate::domain::permissions::LicenseTier;
+use crate::domain::permissions::{self, LicenseTier};
+use crate::domain::TierPolicy;
 use crate::error::CommandError;
 use crate::lifecycle::app_state::AppState;
+use crate::service::hardware::HardwareService;
 use tauri::State;
 
 #[tauri::command]
@@ -8,7 +10,7 @@ use tauri::State;
 pub async fn activate_license(
     license_json: String,
     state: State<'_, AppState>,
-) -> Result<LicenseTier, CommandError> {
+) -> Result<crate::domain::permissions::Policy, CommandError> {
     let tier = state
         .licensing_service
         .activate(&license_json)
@@ -16,7 +18,7 @@ pub async fn activate_license(
         .map_err(|e| CommandError::from(e))?;
 
     state.update_from_tier(tier);
-    Ok(tier)
+    Ok(tier.get_policy())
 }
 
 #[tauri::command]
@@ -24,7 +26,7 @@ pub async fn activate_license(
 pub async fn activate_with_key(
     key: String,
     state: State<'_, AppState>,
-) -> Result<LicenseTier, CommandError> {
+) -> Result<crate::domain::permissions::Policy, CommandError> {
     let tier = state
         .licensing_service
         .activate_with_key(&key)
@@ -32,11 +34,25 @@ pub async fn activate_with_key(
         .map_err(|e| CommandError::from(e))?;
 
     state.update_from_tier(tier);
-    Ok(tier)
+    Ok(tier.get_policy())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_user_policy(
+    state: State<'_, AppState>,
+) -> Result<crate::domain::permissions::Policy, CommandError> {
+    Ok(state.permissions.read().unwrap().clone())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn get_license_tier(state: State<'_, AppState>) -> Result<LicenseTier, CommandError> {
-    Ok(state.permissions.read().map(|p| p.tier).unwrap_or_default())
+    Ok(state.permissions.read().unwrap().tier)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_machine_id() -> Result<String, CommandError> {
+    Ok(HardwareService::get_machine_id())
 }
