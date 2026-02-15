@@ -4,14 +4,12 @@ import { useCallback, useState } from "react";
 import { mutate as globalMutate } from "swr";
 import { HomeHeader } from "@/src/components/home/HomeHeader";
 import { JobHistory } from "@/src/components/job-list/organisms/JobHistory";
-import { useUI } from "../context/UIContext";
 import { startAnalysis } from "@/src/api/analysis";
 import type { AnalysisSettingsRequest } from "@/src/lib/types";
 import { logger } from "../lib/logger";
 import { UrlInputForm } from "../components/url-input/UrlInputForm";
 
 export default function Home() {
-    const { openSettings } = useUI();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -38,7 +36,6 @@ export default function Home() {
             <HomeHeader
                 isValidating={false} // Validation status is now managed inside JobHistory
                 onRefresh={handleRefresh}
-                onOpenSettings={openSettings}
             />
 
             {/* Error Message */}

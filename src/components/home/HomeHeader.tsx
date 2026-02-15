@@ -6,13 +6,11 @@ import pkg from "@/package.json";
 interface HeaderProps {
     isValidating: boolean;
     onRefresh: () => void;
-    onOpenSettings: () => void;
 }
 
 export const HomeHeader = React.memo(function HomeHeader({
     isValidating,
     onRefresh,
-    onOpenSettings,
 }: HeaderProps) {
     return (
         <div className="flex flex-col gap-1 mb-8">
@@ -44,7 +42,7 @@ export const HomeHeader = React.memo(function HomeHeader({
                     <Button
                         variant="outline"
                         size="sm"
-                        onClick={onOpenSettings}
+                        onClick={() => window.location.href = '/config'}
                         className="h-8 bg-background/50 border-input/60 hover:bg-accent hover:text-accent-foreground"
                     >
                         <Settings className="h-3.5 w-3.5 mr-2" />
