@@ -59,7 +59,7 @@ export function JobHistory() {
     }, [mutate]);
 
     return (
-        <div className="flex-1 flex flex-col gap-6 relative min-h-[500px]">
+        <div className="flex-1 flex flex-col relative min-h-[500px]">
             {/* Technical Background Pattern */}
             <div className="absolute inset-0 -z-10 opacity-[0.03]"
                 style={{
@@ -68,9 +68,9 @@ export function JobHistory() {
                 }}
             />
 
-            <div className="flex flex-col gap-4">
-                {/* Header / Filter Section */}
-                <div className="backdrop-blur-sm bg-background/80 sticky top-0 z-10 pb-4 border-b border-border/40">
+            <div className="flex flex-col gap-0">
+                {/* Header / Filter Section - Sticky Toolbar */}
+                <div className="sticky top-0 z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/40 pt-4 pb-2 px-1">
                     <JobFilterBar
                         total={total}
                         urlFilter={urlFilter}
@@ -83,16 +83,16 @@ export function JobHistory() {
                     />
                 </div>
 
-                {/* Error Message */}
-                {error && (
-                    <div className="p-4 bg-destructive/5 border border-destructive/20 rounded-md flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
-                        <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
-                        <p className="text-sm text-destructive font-mono">{error}</p>
-                    </div>
-                )}
-
                 {/* Main Content Area */}
-                <div className="relative">
+                <div className="relative p-1">
+                    {/* Error Message */}
+                    {error && (
+                        <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-md flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+                            <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
+                            <p className="text-sm text-destructive font-mono">{error}</p>
+                        </div>
+                    )}
+
                     <JobList
                         jobs={jobs}
                         onViewResult={handleViewResult}
@@ -101,12 +101,13 @@ export function JobHistory() {
                 </div>
             </div>
 
-            <JobPagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={setCurrentPage}
-                className="mt-auto pt-4 border-t border-border/40"
-            />
+            <div className="mt-auto p-4 border-t border-border/40 bg-background/40 backdrop-blur-sm">
+                <JobPagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={setCurrentPage}
+                />
+            </div>
         </div>
     );
 }
