@@ -3,7 +3,6 @@
 
 import { useFormContext } from "react-hook-form"
 import { FormField, FormItem, FormControl, FormMessage } from "@/src/components/ui/form"
-import { Separator } from "@/src/components/ui/separator"
 import { SettingInput } from "../atoms/SettingInput"
 import { SettingToggle } from "../atoms/SettingToggle"
 import type { FormValues } from "../schema"
@@ -17,11 +16,15 @@ export function AnalysisSettingsFields({ maxPages, isFreeUser }: AnalysisSetting
     const { control } = useFormContext<FormValues>()
 
     return (
-        <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                {/* Column 1: Scope & Performance */}
                 <div className="space-y-4">
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Crawl Scope</h4>
-                    <div className="grid grid-cols-1 gap-4">
+                    <div className="flex items-center gap-2 pb-2 border-b border-border/40">
+                        <h4 className="text-[10px] font-mono font-semibold uppercase tracking-wider text-muted-foreground">Scope & Limits</h4>
+                    </div>
+
+                    <div className="space-y-4">
                         <FormField
                             control={control}
                             name="settings.max_pages"
@@ -40,10 +43,10 @@ export function AnalysisSettingsFields({ maxPages, isFreeUser }: AnalysisSetting
                                         />
                                     </FormControl>
                                     {isFreeUser && (
-                                        <p className="text-[10px] text-muted-foreground mt-1">
-                                            Free tier limited to {maxPages} page.{" "}
-                                            <span className="text-primary cursor-pointer hover:underline">Upgrade to Premium</span>
-                                        </p>
+                                        <div className="flex items-center gap-1.5 mt-1.5 px-2 py-1 bg-amber-500/10 text-amber-600 rounded text-[10px] border border-amber-500/20 w-fit">
+                                            <span>Free Tier Limit</span>
+                                            <span className="font-mono">{maxPages}</span>
+                                        </div>
                                     )}
                                     <FormMessage />
                                 </FormItem>
@@ -55,7 +58,7 @@ export function AnalysisSettingsFields({ maxPages, isFreeUser }: AnalysisSetting
                             render={({ field }) => (
                                 <SettingInput
                                     id="delay"
-                                    label="Delay (ms)"
+                                    label="Request Delay (ms)"
                                     tooltip="Pause between page requests to avoid hitting rate limits."
                                     value={field.value}
                                     onChange={field.onChange}
@@ -67,9 +70,13 @@ export function AnalysisSettingsFields({ maxPages, isFreeUser }: AnalysisSetting
                     </div>
                 </div>
 
+                {/* Column 2: Analysis Capabilities */}
                 <div className="space-y-4">
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Analysis Features</h4>
-                    <div className="space-y-3">
+                    <div className="flex items-center gap-2 pb-2 border-b border-border/40">
+                        <h4 className="text-[10px] font-mono font-semibold uppercase tracking-wider text-muted-foreground">Capabilities</h4>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3">
                         <FormField
                             control={control}
                             name="settings.lighthouse_analysis"
@@ -77,8 +84,8 @@ export function AnalysisSettingsFields({ maxPages, isFreeUser }: AnalysisSetting
                                 <SettingToggle
                                     id="deep-audit"
                                     label="Deep Audit"
-                                    description="Complete Lighthouse analysis"
-                                    tooltip="Runs a full Headless Chrome audit. Slower but provides detailed performance and SEO scoring."
+                                    description="Full Lighthouse performance & SEO scan"
+                                    tooltip="Runs a full Headless Chrome audit. Slower but provides detailed metrics."
                                     checked={field.value}
                                     onCheckedChange={field.onChange}
                                 />
@@ -90,49 +97,40 @@ export function AnalysisSettingsFields({ maxPages, isFreeUser }: AnalysisSetting
                             render={({ field }) => (
                                 <SettingToggle
                                     id="mobile"
-                                    label="Mobile View"
-                                    description="Analyze as mobile device"
+                                    label="Mobile Emulation"
+                                    description="Simulate mobile device viewport"
                                     checked={field.value}
                                     onCheckedChange={field.onChange}
                                 />
                             )}
                         />
+                        <div className="grid grid-cols-2 gap-3 pt-2">
+                            <FormField
+                                control={control}
+                                name="settings.check_images"
+                                render={({ field }) => (
+                                    <SettingToggle
+                                        id="check-images"
+                                        label="Check Images"
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                    />
+                                )}
+                            />
+                            <FormField
+                                control={control}
+                                name="settings.include_external_links"
+                                render={({ field }) => (
+                                    <SettingToggle
+                                        id="external-links"
+                                        label="External Links"
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                    />
+                                )}
+                            />
+                        </div>
                     </div>
-                </div>
-            </div>
-
-            <Separator className="bg-border/40" />
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-3">
-                    <FormField
-                        control={control}
-                        name="settings.check_images"
-                        render={({ field }) => (
-                            <SettingToggle
-                                id="check-images"
-                                label="Check Images"
-                                description="Detect missing alt tags & broken images"
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                            />
-                        )}
-                    />
-                </div>
-                <div className="space-y-3">
-                    <FormField
-                        control={control}
-                        name="settings.include_external_links"
-                        render={({ field }) => (
-                            <SettingToggle
-                                id="external-links"
-                                label="Include External"
-                                description="Check status of outbound links"
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                            />
-                        )}
-                    />
                 </div>
             </div>
         </div>

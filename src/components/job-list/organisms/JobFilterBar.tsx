@@ -80,8 +80,8 @@ export const JobFilterBar = function JobFilterBar({
                 </Select>
 
                 <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
-                    <SelectTrigger className="w-[80px] h-9 bg-background/50 border-input/60">
-                        <span className="text-muted-foreground mr-1">Show</span>
+                    <SelectTrigger className="w-[90px] h-9 bg-background/50 border-input/60">
+                        <span className="text-muted-foreground">Show</span>
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
