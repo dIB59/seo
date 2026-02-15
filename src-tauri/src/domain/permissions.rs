@@ -45,7 +45,7 @@ impl TierPolicy for LicenseTier {
             },
             LicenseTier::Premium => Policy {
                 tier: LicenseTier::Premium,
-                max_pages: usize::MAX, // Unlimited for premium
+                max_pages: 100000, // Unlimited for premium
                 enabled_features: HashSet::from([
                     Feature::LinkAnalysis,
                     Feature::GraphView,
