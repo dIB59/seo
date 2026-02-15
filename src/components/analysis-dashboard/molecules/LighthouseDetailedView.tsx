@@ -1,4 +1,4 @@
-import { PageAnalysisData, LighthouseAuditResult } from "@/src/lib/types"
+import { PageAnalysisData, LighthouseAuditResult, JsonValue } from "@/src/lib/types"
 import { Zap, Eye, Shield, Search, CheckCircle2, XCircle, Clock, Gauge, Activity, LayoutPanelTop, MousePointer, ChevronDown } from "lucide-react"
 import { ScoreRing } from "../atoms/ScoreRing"
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card"
@@ -25,7 +25,7 @@ function formatTime(ms: number | null): string {
 // Get color based on performance metric thresholds
 function getMetricColor(metric: string, value: number | null): string {
     if (value === null) return "text-muted-foreground"
-    
+
     // Thresholds based on Lighthouse recommendations
     const thresholds: Record<string, { good: number; moderate: number }> = {
         first_contentful_paint: { good: 1800, moderate: 3000 },
@@ -35,10 +35,10 @@ function getMetricColor(metric: string, value: number | null): string {
         total_blocking_time: { good: 200, moderate: 600 },
         cumulative_layout_shift: { good: 0.1, moderate: 0.25 },
     }
-    
+
     const threshold = thresholds[metric]
     if (!threshold) return "text-muted-foreground"
-    
+
     if (value <= threshold.good) return "text-success"
     if (value <= threshold.moderate) return "text-warning"
     return "text-destructive"
@@ -56,12 +56,12 @@ function AuditBadge({ audit, label }: { audit: LighthouseAuditResult; label: str
                 )}
                 <span className="text-sm">{label}</span>
             </div>
-            <Badge 
-                variant="outline" 
+            <Badge
+                variant="outline"
                 className={cn(
                     "text-xs",
-                    audit.passed 
-                        ? "bg-success/15 text-success border-success/20" 
+                    audit.passed
+                        ? "bg-success/15 text-success border-success/20"
                         : "bg-destructive/15 text-destructive border-destructive/20"
                 )}
             >
@@ -72,7 +72,7 @@ function AuditBadge({ audit, label }: { audit: LighthouseAuditResult; label: str
 }
 
 // Performance metric row component
-function MetricRow({ label, value, metric, icon: Icon }: { 
+function MetricRow({ label, value, metric, icon: Icon }: {
     label: string
     value: number | null
     metric: string
@@ -81,7 +81,7 @@ function MetricRow({ label, value, metric, icon: Icon }: {
     const isCLS = metric === "cumulative_layout_shift"
     const displayValue = isCLS ? (value?.toFixed(3) ?? "N/A") : formatTime(value)
     const colorClass = getMetricColor(metric, value)
-    
+
     return (
         <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/30">
             <div className="flex items-center gap-2">
@@ -98,7 +98,7 @@ function MetricRow({ label, value, metric, icon: Icon }: {
 export function LighthouseDetailedView({ page }: LighthouseDetailedViewProps) {
     const [seoOpen, setSeoOpen] = useState(true)
     const [perfOpen, setPerfOpen] = useState(true)
-    
+
     // Only show if we have Lighthouse data
     if (!page.lighthouse_performance && !page.lighthouse_seo) return null
 
@@ -109,7 +109,7 @@ export function LighthouseDetailedView({ page }: LighthouseDetailedViewProps) {
         { label: "SEO", value: page.lighthouse_seo, icon: Search, color: "text-green-500" },
     ]
 
-    const parseSafe = (v: any) => {
+    const parseSafe = (v: JsonValue) => {
         if (!v) return null
         if (typeof v === "string") {
             try { return JSON.parse(v) } catch { return null }
@@ -172,38 +172,38 @@ export function LighthouseDetailedView({ page }: LighthouseDetailedViewProps) {
                         <CollapsibleContent>
                             <CardContent className="pt-0">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                    <MetricRow 
-                                        label="First Contentful Paint (FCP)" 
+                                    <MetricRow
+                                        label="First Contentful Paint (FCP)"
                                         value={perfMetrics.first_contentful_paint}
                                         metric="first_contentful_paint"
                                         icon={Clock}
                                     />
-                                    <MetricRow 
-                                        label="Largest Contentful Paint (LCP)" 
+                                    <MetricRow
+                                        label="Largest Contentful Paint (LCP)"
                                         value={perfMetrics.largest_contentful_paint}
                                         metric="largest_contentful_paint"
                                         icon={LayoutPanelTop}
                                     />
-                                    <MetricRow 
-                                        label="Speed Index" 
+                                    <MetricRow
+                                        label="Speed Index"
                                         value={perfMetrics.speed_index}
                                         metric="speed_index"
                                         icon={Gauge}
                                     />
-                                    <MetricRow 
-                                        label="Time to Interactive (TTI)" 
+                                    <MetricRow
+                                        label="Time to Interactive (TTI)"
                                         value={perfMetrics.time_to_interactive}
                                         metric="time_to_interactive"
                                         icon={MousePointer}
                                     />
-                                    <MetricRow 
-                                        label="Total Blocking Time (TBT)" 
+                                    <MetricRow
+                                        label="Total Blocking Time (TBT)"
                                         value={perfMetrics.total_blocking_time}
                                         metric="total_blocking_time"
                                         icon={Clock}
                                     />
-                                    <MetricRow 
-                                        label="Cumulative Layout Shift (CLS)" 
+                                    <MetricRow
+                                        label="Cumulative Layout Shift (CLS)"
                                         value={perfMetrics.cumulative_layout_shift}
                                         metric="cumulative_layout_shift"
                                         icon={LayoutPanelTop}

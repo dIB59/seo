@@ -2,8 +2,9 @@ import { Card, CardContent } from "@/src/components/ui/card"
 import { FileText, Clock, ImageIcon, Link2, ExternalLink } from "lucide-react"
 import { Badge } from "@/src/components/ui/badge"
 import PageStructure from "@/src/components/page-detail-view/molecules/PageStructure"
+import { PageAnalysisData } from "@/src/bindings"
 
-export default function PageInfoCard({ page }: { page: any }) {
+export default function PageInfoCard({ page }: { page: PageAnalysisData }) {
     return (
         <Card>
             <CardContent className="py-4">

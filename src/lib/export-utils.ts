@@ -361,7 +361,6 @@ export async function generatePDF(result: CompleteAnalysisResponse): Promise<voi
     // ========================================================================
     const criticalIssues = issues.filter((i) => i.severity === "critical")
     const warningIssues = issues.filter((i) => i.severity === "warning")
-    const infoIssues = issues.filter((i) => i.severity === "info")
 
     // Critical Issues
     if (criticalIssues.length > 0) {

@@ -1,7 +1,7 @@
 import { PageAnalysisData } from "@/src/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card"
 import { ScoreRing } from "../atoms/ScoreRing"
-import { Search, Eye, Shield, Zap } from "lucide-react"
+import { Search, Zap } from "lucide-react"
 
 interface SeoSummaryCardProps {
     pages: PageAnalysisData[]
@@ -22,7 +22,7 @@ export function SeoSummaryCard({ pages }: SeoSummaryCardProps) {
 
     // Count pages with SEO scores (always available from Light or Deep audit)
     const pagesWithScores = pages.filter((p) => p.lighthouse_seo !== null).length
-    
+
     // Determine if we have deep audit data (performance metrics only from deep audit)
     const hasDeepAuditData = avgPerformance !== null
 
@@ -32,8 +32,8 @@ export function SeoSummaryCard({ pages }: SeoSummaryCardProps) {
     ]
 
     // Filter scores based on what data we have
-    const displayScores = hasDeepAuditData 
-        ? scores 
+    const displayScores = hasDeepAuditData
+        ? scores
         : scores.filter(s => s.alwaysShow)
 
     return (
