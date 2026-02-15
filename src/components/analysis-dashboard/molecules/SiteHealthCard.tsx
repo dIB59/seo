@@ -17,7 +17,7 @@ export function SiteHealthCard({
     return (
         <Card className="bg-card/40 backdrop-blur-sm border-white/5 shadow-sm relative group">
             <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-            <CardContent className="p-6 relative z-10">
+            <CardContent className="p-4 relative z-10">
                 <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-4">Site Health</h3>
 
                 <div className="grid grid-cols-3 gap-4 mb-6">

@@ -5,7 +5,6 @@ import { CheckCircle2, ExternalLink } from "lucide-react"
 import { Button } from "../../ui/button"
 import { open } from '@tauri-apps/plugin-shell';
 import { Card, CardContent } from "../../ui/card"
-import { IssueBadge } from "../atoms/IssueBadge"
 import { IssueIcon } from "../atoms/IssueIcon"
 import { useVirtualizer } from "@tanstack/react-virtual"
 
@@ -86,8 +85,8 @@ export function IssuesAccordion({ issues }: { issues: SeoIssue[] }) {
     return (
         <Accordion type="multiple" className="space-y-3">
             {Object.entries(groupedIssues).map(([title, issueGroup]) => (
-                <AccordionItem key={title} value={title} className="group border border-white/5 rounded-xl bg-card/30 backdrop-blur-sm overflow-hidden transition-all duration-200 data-[state=open]:bg-card/50 data-[state=open]:shadow-md">
-                    <AccordionTrigger className="hover:no-underline px-4 py-3 transition-colors hover:bg-white/5">
+                <AccordionItem key={title} value={title} className="group border border-white/5 rounded-xl bg-card/30 backdrop-blur-sm overflow-hidden transition-all duration-200 hover:border-white/10 hover:shadow-md data-[state=open]:bg-card/50 data-[state=open]:shadow-md data-[state=open]:border-white/10">
+                    <AccordionTrigger className="hover:no-underline px-4 py-3 transition-colors hover:bg-primary/5 active:bg-primary/10 cursor-pointer data-[state=open]:bg-primary/5 group-hover:bg-white/[0.02]">
                         <div className="flex items-center gap-4 w-full text-left">
                             <div className="shrink-0 p-2 rounded-lg bg-background/50 border border-border/50">
                                 <IssueIcon type={issueGroup[0].severity} />
@@ -95,11 +94,13 @@ export function IssuesAccordion({ issues }: { issues: SeoIssue[] }) {
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1">
                                     <span className="font-medium truncate">{title}</span>
-                                    <IssueBadge type={issueGroup[0].severity} />
                                 </div>
                                 <span className="text-xs text-muted-foreground font-mono">
                                     {issueGroup.length} {issueGroup.length === 1 ? "page" : "pages"} affected
                                 </span>
+                            </div>
+                            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted/30 border border-transparent group-hover:border-primary/10 group-hover:bg-primary/5 text-xs font-medium text-muted-foreground group-hover:text-primary transition-all mr-2">
+                                View Details
                             </div>
                         </div>
                     </AccordionTrigger>
