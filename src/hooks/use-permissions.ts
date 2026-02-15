@@ -1,44 +1,28 @@
-import { useState, useEffect } from "react";
+import useSWR from "swr";
 import { getUserPolicy } from "@/src/api/permissions";
-import type { Policy, Feature } from "@/src/bindings";
-import { toast } from "@/src/hooks/use-toast";
+import { get_machine_id } from "@/src/api/licensing";
+import type { Feature } from "@/src/bindings";
+
+async function fetchPermissions() {
+    const [policyRes, machineRes] = await Promise.all([
+        getUserPolicy(),
+        get_machine_id()
+    ]);
+
+    return {
+        policy: policyRes.isOk() ? policyRes.unwrap() : undefined,
+        machineId: machineRes.isOk() ? machineRes.unwrap() : "",
+    };
+}
 
 export function usePermissions() {
-    const [policy, setPolicy] = useState<Policy | undefined>(undefined);
-    const [isLoading, setIsLoading] = useState(true);
+    const { data, isLoading, mutate } = useSWR("app-permissions", fetchPermissions, {
+        revalidateOnFocus: false,
+        revalidateOnReconnect: false,
+    });
 
-    useEffect(() => {
-        let mounted = true;
-
-        const fetchPolicy = async () => {
-            try {
-                const result = await getUserPolicy();
-                if (!mounted) return;
-
-                if (result.isOk()) {
-                    setPolicy(result.unwrap());
-                } else {
-                    const error = result.unwrapErr();
-                    console.error("Failed to fetch policy:", error);
-                    toast({
-                        variant: "destructive",
-                        title: "Permission Error",
-                        description: "Could not load user permissions. Some features may be restricted.",
-                    });
-                }
-            } catch (error) {
-                console.error("Error fetching policy:", error);
-            } finally {
-                if (mounted) setIsLoading(false);
-            }
-        };
-
-        fetchPolicy();
-
-        return () => {
-            mounted = false;
-        };
-    }, []);
+    const policy = data?.policy;
+    const machineId = data?.machineId || "";
 
     const hasFeature = (feature: Feature): boolean => {
         if (!policy) return false;
@@ -52,7 +36,9 @@ export function usePermissions() {
 
     return {
         policy,
+        machineId,
         isLoading,
+        mutate,
         hasFeature,
         canAnalyzePages,
         isFreeUser: policy?.tier === "Free",

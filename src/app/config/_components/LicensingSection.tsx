@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { activate_license, get_machine_id } from "@/src/api/licensing";
-import { getUserPolicy } from "@/src/api/permissions";
-import { Policy } from "@/src/bindings";
+import { activate_license } from "@/src/api/licensing";
+import { usePermissions } from "@/src/hooks/use-permissions";
 
 // Sub-components
 import { PlanStatusCard } from "./licensing/PlanStatusCard";
@@ -16,29 +15,16 @@ import { ActivationForm } from "./licensing/ActivationForm";
  * Follows "Refined Technical" aesthetic with modular architecture.
  */
 export function LicensingSection() {
-    const [isLoading, setIsLoading] = useState(false);
-    const [policy, setPolicy] = useState<Policy | undefined>(undefined);
-    const [machineId, setMachineId] = useState("");
-
-    useEffect(() => {
-        loadData();
-    }, []);
-
-    const loadData = async () => {
-        const [policyRes, machineRes] = await Promise.all([
-            getUserPolicy(),
-            get_machine_id()
-        ]);
-        if (policyRes.isOk()) setPolicy(policyRes.unwrap());
-        if (machineRes.isOk()) setMachineId(machineRes.unwrap());
-    };
+    const [isActivating, setIsActivating] = useState(false);
+    const { policy, machineId, mutate } = usePermissions();
 
     const handleActivate = async (key: string) => {
-        setIsLoading(true);
+        setIsActivating(true);
         try {
             const res = await activate_license(key);
             if (res.isOk()) {
-                setPolicy(res.unwrap());
+                const newPolicy = res.unwrap();
+                mutate({ policy: newPolicy, machineId }, { revalidate: false });
                 toast.success("Identity Verified", {
                     description: "Premium features have been unlocked for your device.",
                     duration: 4000,
@@ -53,7 +39,7 @@ export function LicensingSection() {
                 description: "Failed to reach licensing server. Please check connection.",
             });
         } finally {
-            setIsLoading(false);
+            setIsActivating(false);
         }
     };
 
@@ -71,7 +57,7 @@ export function LicensingSection() {
 
                 <div className="space-y-6 pt-2">
                     <MachineIdBox machineId={machineId} />
-                    <ActivationForm isLoading={isLoading} onActivate={handleActivate} />
+                    <ActivationForm isLoading={isActivating} onActivate={handleActivate} />
                 </div>
             </div>
 
