@@ -8,6 +8,12 @@ interface PlanStatusCardProps {
 export function PlanStatusCard({ policy }: PlanStatusCardProps) {
     const isPremium = policy?.tier === "Premium";
 
+    const formatLimit = (limit: number) => {
+        // Handle extremely large numbers (Specta/Rust UINT64_MAX or similar)
+        if (limit > 1000000000000) return "Unlimited";
+        return limit.toLocaleString();
+    };
+
     return (
         <div className="relative group overflow-hidden rounded-xl border border-border/10">
             <div
@@ -27,11 +33,6 @@ export function PlanStatusCard({ policy }: PlanStatusCardProps) {
                                 <span className={`text-2xl font-black tracking-tight ${isPremium ? "text-primary italic" : "text-foreground"}`}>
                                     {policy?.tier || "..."}
                                 </span>
-                                {isPremium && (
-                                    <div className="bg-primary/10 text-primary text-[8px] font-bold px-1.5 py-0.5 rounded border border-primary/20 uppercase tracking-tighter">
-                                        Pro
-                                    </div>
-                                )}
                             </div>
                         </div>
 
@@ -39,7 +40,7 @@ export function PlanStatusCard({ policy }: PlanStatusCardProps) {
                             <div className="flex gap-6">
                                 <div className="flex flex-col items-end">
                                     <span className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest leading-none">Limit</span>
-                                    <span className="text-lg font-bold tabular-nums leading-tight">{policy.max_pages}</span>
+                                    <span className="text-lg font-bold tabular-nums leading-tight">{formatLimit(policy.max_pages)}</span>
                                 </div>
                                 <div className="flex flex-col items-end">
                                     <span className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest leading-none">Status</span>

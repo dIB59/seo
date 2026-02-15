@@ -1,6 +1,5 @@
 import { Policy } from "@/src/bindings";
 import { Badge } from "@/src/components/ui/badge";
-import { Zap } from "lucide-react";
 
 interface FeatureBadgesProps {
     policy: Policy;
@@ -12,7 +11,6 @@ export function FeatureBadges({ policy }: FeatureBadgesProps) {
     return (
         <div className="space-y-3 pt-2">
             <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-                <Zap className="h-3 w-3 text-primary/80" />
                 Enabled Capabilities
             </h4>
             <div className="flex flex-wrap gap-2">

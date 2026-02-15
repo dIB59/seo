@@ -63,6 +63,7 @@ impl crate::repository::SettingsRepository for SettingsRepository {
             "gemini_requirements" => "gemini_requirements",
             "gemini_context_options" => "gemini_context_options",
             "gemini_prompt_blocks" => "gemini_prompt_blocks",
+            "signed_license" => "signed_license",
             _ => {
                 tracing::warn!(
                     "Unknown setting key requested for structured table: {}",
@@ -120,6 +121,7 @@ impl crate::repository::SettingsRepository for SettingsRepository {
             "gemini_requirements" => "gemini_requirements",
             "gemini_context_options" => "gemini_context_options",
             "gemini_prompt_blocks" => "gemini_prompt_blocks",
+            "signed_license" => "signed_license",
             _ => return Err(anyhow::anyhow!("Unknown setting key: {}", key)),
         };
 
