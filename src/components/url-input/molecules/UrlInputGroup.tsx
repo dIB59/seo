@@ -14,7 +14,7 @@ export function UrlInputGroup({ url, setUrl, onClear, isLoading, isValid }: UrlI
     return (
         <div className="relative group">
             {/* Control Bar Container */}
-            <div className="flex items-center p-1 bg-card border border-border rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/50 transition-all duration-300">
+            <div className="flex items-center p-1 ml-1 bg-card border border-border rounded-lg shadow-sm focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/50 transition-all duration-300">
                 {/* Icon Marker */}
                 <div className="flex items-center justify-center w-10 h-10 text-muted-foreground/50 border-r border-border/40">
                     <Globe className="h-4 w-4" />
