@@ -3,8 +3,6 @@ import { getStatusIcon } from "../atoms/JobStatusIcon"
 import { CancelButton } from "../atoms/CancelButton"
 import { ViewResultButton } from "../atoms/ViewResultButton"
 import { JobProgressBar } from "../atoms/JobProgressBar"
-
-import { JobItemHeader } from "../molecules/JobItemHeader"
 import { ScanSearch } from "lucide-react"
 import { useDiscoveryProgress } from "../hooks/useDiscoveryProgress"
 import { useAnalysisProgress } from "../hooks/useAnalysisProgress"
@@ -24,58 +22,73 @@ export function JobItem({ job, onViewResult, onCancel }: JobItemProps) {
 
     return (
         <div
-            className="group flex items-center gap-4 p-4 bg-card border border-border rounded-lg hover:border-primary/50 transition-colors"
+            className="group relative flex items-center gap-4 p-3 bg-card/40 hover:bg-card/90 border-b border-border/50 first:border-t hover:border-transparent hover:shadow-sm transition-all duration-200"
         >
-            <div className="flex-shrink-0 grid grid-cols-2 gap-2 place-items-center">
-                <div className="flex justify-center">
+            {/* 1. Status Column (Fixed Width) */}
+            <div className="flex-shrink-0 w-10 flex justify-center">
+                <div className="relative">
+                    <div className="absolute inset-0 bg-primary/20 blur-md rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500 scale-150" />
                     {getStatusIcon(job.job_status)}
                 </div>
+            </div>
 
-                {job.total_issues !== undefined && job.total_issues !== null && (
-                    <div className="flex justify-center" title={`Total Issues: ${job.total_issues}`}>
-                        <div className="flex items-center justify-center w-6 h-6 bg-destructive/10 text-destructive rounded font-medium text-[10px]">
-                            {job.total_issues > 99 ? '99+' : job.total_issues}
+            {/* 2. Main Info Column (Grow) */}
+            <div className="flex-1 min-w-0 flex flex-col justify-center gap-1.5 py-1">
+                {/* URL Row */}
+                <div className="flex items-center gap-2">
+                    <span className="font-medium text-sm truncate text-foreground/90 tracking-tight">{job.url}</span>
+                    {job.is_deep_audit && (
+                        <div className="flex items-center justify-center w-5 h-5 bg-amber-500/10 text-amber-600 rounded-[4px] border border-amber-500/20" title="Deep Audit Enabled">
+                            <ScanSearch className="w-3 h-3" />
                         </div>
+                    )}
+                </div>
+
+                {/* Progress Bar (Only visible when active) */}
+                {(isAnalyzing || isDiscovering) && (
+                    <div className="max-w-[200px]">
+                        {isAnalyzing && pagesAnalyzed !== null && (
+                            <JobProgressBar
+                                current={pagesAnalyzed}
+                                total={discoveryTotal}
+                                label={`Analyzed ${pagesAnalyzed} / ${discoveryTotal}`}
+                            />
+                        )}
+                        {isDiscovering && (
+                            <JobProgressBar
+                                current={pagesDiscovered ?? 0}
+                                total={discoveryTotal}
+                                label={!discoveryTotal ? `Discovered ${pagesDiscovered ?? 0} / ${discoveryTotal}` : undefined}
+                            />
+                        )}
                     </div>
                 )}
+            </div>
 
+            {/* 3. Metrics Column (Fixed Widths, Right Aligned) */}
+            <div className="hidden sm:flex items-center gap-6 mr-4">
+                {/* Pages Limit */}
                 {job.max_pages !== undefined && (
-                    <div className="flex justify-center" title={`Page Limit: ${job.max_pages}`}>
-                        <div className="flex items-center justify-center w-6 h-6 bg-muted text-[10px] font-medium text-muted-foreground rounded">
-                            {job.max_pages}
-                        </div>
+                    <div className="flex flex-col items-end gap-0.5">
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-medium leading-none">Limit</span>
+                        <span className="text-xs font-mono text-muted-foreground leading-none">{job.max_pages}</span>
                     </div>
                 )}
-                {job.is_deep_audit && (
-                    <div className="flex justify-center" title="Deep Audit Enabled">
-                        <div className="flex items-center justify-center w-6 h-6 bg-amber-500/10 text-amber-600 rounded">
-                            <ScanSearch className="w-3.5 h-3.5" />
+
+                {/* Issues Count */}
+                {job.total_issues !== undefined && job.total_issues !== null && (
+                    <div className="flex flex-col items-end gap-0.5 min-w-[60px]">
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-medium leading-none">Issues</span>
+                        <div className={`flex items-center gap-1.5 text-xs font-mono leading-none ${job.total_issues > 0 ? "text-destructive" : "text-muted-foreground"}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${job.total_issues > 0 ? "bg-destructive" : "bg-muted"}`} />
+                            {job.total_issues > 999 ? '999+' : job.total_issues}
                         </div>
                     </div>
                 )}
             </div>
 
-            <div className="flex-1 min-w-0">
-                <JobItemHeader job={job} />
-
-                {isAnalyzing && pagesAnalyzed !== null && (
-                    <JobProgressBar
-                        current={pagesAnalyzed}
-                        total={discoveryTotal}
-                        label={`Analyzed ${pagesAnalyzed} / ${discoveryTotal}`}
-                    />
-                )}
-
-                {isDiscovering && (
-                    <JobProgressBar
-                        current={pagesDiscovered ?? 0}
-                        total={discoveryTotal}
-                        label={!discoveryTotal ? `Discovered ${pagesDiscovered ?? 0} / ${discoveryTotal}` : undefined}
-                    />
-                )}
-            </div>
-
-            <div className="flex items-center gap-2 max-h-[30px]">
+            {/* 4. Actions Column (Fixed Width) */}
+            <div className="flex-shrink-0 w-[140px] flex justify-end items-center pl-4 border-l border-border/40 min-h-[40px]">
                 {job.job_status === "completed" ? (
                     <ViewResultButton onClick={() => onViewResult(job.job_id)} />
                 ) : (

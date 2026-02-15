@@ -7,9 +7,10 @@ export function CancelButton({ onClick }: { onClick: () => void }) {
             variant="ghost"
             size="sm"
             onClick={onClick}
-            className="text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
         >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4 mr-1" />
+            Cancel
         </Button>
     )
 }
