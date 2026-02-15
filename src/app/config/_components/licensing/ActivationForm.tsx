@@ -40,7 +40,7 @@ export function ActivationForm({ isLoading, onActivate }: ActivationFormProps) {
                         {isLoading ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
                         ) : (
-                            "Verify"
+                            "Activate"
                         )}
                     </Button>
                 </div>

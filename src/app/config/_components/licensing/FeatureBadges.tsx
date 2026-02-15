@@ -10,9 +10,12 @@ export function FeatureBadges({ policy }: FeatureBadgesProps) {
 
     return (
         <div className="space-y-3 pt-2">
-            <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-                Enabled Capabilities
-            </h4>
+            <div className="space-y-0.5">
+                <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                    Authorized Capabilities
+                </h4>
+                <p className="text-[9px] text-muted-foreground/40 font-medium">Unlocked features based on current subscription tier</p>
+            </div>
             <div className="flex flex-wrap gap-2">
                 {policy.enabled_features.map((feature, index) => (
                     <div
