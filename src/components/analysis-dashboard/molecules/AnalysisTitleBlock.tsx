@@ -3,36 +3,28 @@ import { open } from '@tauri-apps/plugin-shell';
 
 export function AnalysisTitleBlock({
     url,
-    pageCount,
-    completedAt,
 }: {
     url: string
-    pageCount: number
-    completedAt?: string | null
 }) {
     return (
         <div className="min-w-0">
             <div className="flex items-center gap-2">
-                <h2 className="text-xl font-semibold truncate">
+                <h2 className="text-2xl font-bold tracking-tight truncate">
                     {url}
                 </h2>
                 <a
                     href={url}
                     rel="noopener noreferrer"
-                    className="shrink-0"
+                    className="shrink-0 opacity-50 hover:opacity-100 transition-opacity"
                     target="_blank"
                     onClick={(e) => {
                         e.preventDefault()
                         open(url)
                     }}
                 >
-                    <ExternalLink className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                    <ExternalLink className="h-5 w-5" />
                 </a>
             </div>
-            <p className="text-sm text-muted-foreground">
-                {pageCount} pages analyzed ·{" "}
-                {completedAt ? new Date(completedAt).toLocaleDateString() : ""}
-            </p>
         </div>
     )
 }

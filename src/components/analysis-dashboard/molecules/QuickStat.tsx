@@ -15,10 +15,11 @@ export function QuickStatsCard({
 	const totalInternalLinks = pages.reduce((acc, p) => acc + p.internal_links, 0)
 
 	return (
-		<Card>
-			<CardContent className="p-6">
-				<h3 className="text-sm font-semibold mb-3">Quick Stats</h3>
-				<div className="grid grid-cols-2 gap-3">
+		<Card className="bg-card/40 backdrop-blur-sm border-white/5 shadow-sm relative group">
+			<div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+			<CardContent className="p-6 relative z-10">
+				<h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-4">Quick Stats</h3>
+				<div className="grid grid-cols-2 gap-4">
 					<StatItem icon={Clock} label="Avg Load Time" value={`${summary.avg_load_time.toFixed(2)}s`} />
 					<StatItem icon={FileText} label="Total Words" value={summary.total_words.toLocaleString()} />
 					<StatItem
@@ -28,7 +29,7 @@ export function QuickStatsCard({
 							<span>
 								{totalImages}
 								{totalMissingAlt > 0 && (
-									<span className="text-destructive/80 text-xs ml-1">({totalMissingAlt} no alt)</span>
+									<span className="text-destructive/80 ml-1 font-sans">({totalMissingAlt})</span>
 								)}
 							</span>
 						}
