@@ -80,9 +80,6 @@ pub mod generators {
                 )),
                 meta_keywords: Some("seo, test, benchmark".to_string()),
                 canonical_url: Some(format!("https://example.com/page-{}", i)),
-                h1_count: 1,
-                h2_count: (i % 5) as i64 + 1,
-                h3_count: (i % 3) as i64,
                 word_count: 500 + (i % 1000) as i64,
                 image_count: (i % 10) as i64,
                 images_without_alt: (i % 3) as i64,
@@ -119,6 +116,10 @@ pub mod generators {
                         status_code: None,
                     },
                 ],
+                headings: vec![crate::commands::analysis::HeadingElement {
+                    tag: "h1".to_string(),
+                    text: format!("Heading for page {}", i),
+                }],
             })
             .collect()
     }

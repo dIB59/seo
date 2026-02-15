@@ -104,9 +104,9 @@ function HealthyPageModal({
                     <div>
                         <h4 className="text-sm font-medium mb-3">Page Structure</h4>
                         <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-                            <MetricBadge label="H1 Tags" value={page.h1_count} />
-                            <MetricBadge label="H2 Tags" value={page.h2_count} />
-                            <MetricBadge label="H3 Tags" value={page.h3_count} />
+                            <MetricBadge label="H1 Tags" value={page.headings.filter(h => h.tag === "h1").length} />
+                            <MetricBadge label="H2 Tags" value={page.headings.filter(h => h.tag === "h2").length} />
+                            <MetricBadge label="H3 Tags" value={page.headings.filter(h => h.tag === "h3").length} />
                             <MetricBadge label="Images" value={page.image_count} />
                             <MetricBadge label="Int. Links" value={page.internal_links} />
                             <MetricBadge label="Ext. Links" value={page.external_links} />

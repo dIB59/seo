@@ -1,14 +1,35 @@
 // Import generated bindings for internal type references and re-export commonly used types
-import type { AnalysisResultsResponse, PageAnalysisDataResponse, CompleteAnalysisResponse, SeoIssueResponse, IssueSeverity, ImageElement, JsonValue, AnalysisProgress, AnalysisSettingsRequest, AnalysisJobResponse, LinkDetail } from "../bindings"
+import type {
+  AnalysisResults,
+  PageAnalysisData,
+  CompleteAnalysisResponse,
+  SeoIssue,
+  IssueSeverity,
+  ImageElement,
+  JsonValue,
+  AnalysisProgress,
+  AnalysisSettingsRequest,
+  AnalysisJobResponse,
+  LinkDetail
+} from "../bindings"
 
 // Re-export selected generated types as a single canonical surface for the app
-export type { AnalysisResultsResponse, PageAnalysisDataResponse, CompleteAnalysisResponse, SeoIssueResponse, IssueSeverity, ImageElement, JsonValue, AnalysisProgress, AnalysisSettingsRequest, AnalysisJobResponse, LinkDetail }
+export type {
+  AnalysisResults,
+  PageAnalysisData,
+  CompleteAnalysisResponse,
+  SeoIssue,
+  IssueSeverity,
+  ImageElement,
+  JsonValue,
+  AnalysisProgress,
+  AnalysisSettingsRequest,
+  AnalysisJobResponse,
+  LinkDetail
+}
 
 // Backwards-compatible aliases for older names used across the app
-export type AnalysisResults = AnalysisResultsResponse
-export type PageAnalysisData = PageAnalysisDataResponse
 export type CompleteAnalysisResult = CompleteAnalysisResponse
-export type SeoIssue = SeoIssueResponse
 
 
 // Detailed Lighthouse audit result for a single check
@@ -56,8 +77,10 @@ export type IssueType = IssueSeverity
 // Extended types for detailed page view (backend will populate these)
 // ============================================================================
 
+export type HeadingTag = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'
+
 export interface HeadingElement {
-  tag: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'
+  tag: HeadingTag | string
   text: string
 }
 
@@ -71,8 +94,4 @@ export interface LinkElement {
 }
 
 // Extended page data with detailed elements
-export type PageDetailData = Omit<PageAnalysisData, 'images' | 'detailed_links' | 'headings'> & {
-  headings?: HeadingElement[]
-  images?: ImageElement[]
-  detailed_links?: LinkElement[]
-}
+export type PageDetailData = PageAnalysisData

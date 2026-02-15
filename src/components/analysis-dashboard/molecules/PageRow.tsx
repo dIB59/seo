@@ -46,7 +46,7 @@ export function PageRow({ page, index, onClick }: PageRowProps) {
         <LoadTime loadTime={page.load_time} isBroken={isBroken} />
       </div>
       <WordsCell count={page.word_count} isBroken={isBroken} />
-      <HeadingCounts h1={page.h1_count} h2={page.h2_count} h3={page.h3_count} isBroken={isBroken} />
+      <HeadingCounts h1={page.headings.filter((h) => h.tag === "h1").length} h2={page.headings.filter((h) => h.tag === "h2").length} h3={page.headings.filter((h) => h.tag === "h3").length} isBroken={isBroken} />
       <div className={CELL.base}>
         <ImageCount
           count={page.image_count}

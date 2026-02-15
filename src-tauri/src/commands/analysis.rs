@@ -119,9 +119,6 @@ pub struct PageAnalysisData {
     pub meta_description: Option<String>,
     pub meta_keywords: Option<String>,
     pub canonical_url: Option<String>,
-    pub h1_count: i64,
-    pub h2_count: i64,
-    pub h3_count: i64,
     pub word_count: i64,
     pub image_count: i64,
     pub images_without_alt: i64,
@@ -140,6 +137,7 @@ pub struct PageAnalysisData {
     pub lighthouse_performance_metrics: Option<serde_json::Value>,
     pub images: Vec<ImageElement>,
     pub detailed_links: Vec<LinkDetail>,
+    pub headings: Vec<HeadingElement>,
 }
 
 /// SEO issue (frontend-compatible format).
@@ -241,11 +239,6 @@ impl CompleteAnalysisResponse {
         let internal_links = detailed_links.iter().filter(|l| !l.is_external).count() as i64;
         let external_links = detailed_links.iter().filter(|l| l.is_external).count() as i64;
 
-        // Heading stats
-        let h1_count = headings.iter().filter(|h| h.tag == "h1").count() as i64;
-        let h2_count = headings.iter().filter(|h| h.tag == "h2").count() as i64;
-        let h3_count = headings.iter().filter(|h| h.tag == "h3").count() as i64;
-
         // Image stats
         let images_without_alt = images
             .iter()
@@ -259,9 +252,6 @@ impl CompleteAnalysisResponse {
             meta_description: page.meta_description,
             meta_keywords: None,
             canonical_url: page.canonical_url,
-            h1_count,
-            h2_count,
-            h3_count,
             word_count: page.word_count.unwrap_or(0),
             image_count: images.len() as i64,
             images_without_alt,
@@ -280,6 +270,7 @@ impl CompleteAnalysisResponse {
             lighthouse_performance_metrics,
             images,
             detailed_links,
+            headings,
         }
     }
 }
@@ -580,12 +571,25 @@ pub async fn get_result(
 }
 
 // ============================================================================
-// Tests
-// ============================================================================
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use specta_typescript::Typescript;
+
+    #[test]
+    fn export_bindings() {
+        let mut builder = tauri_specta::Builder::<tauri::Wry>::new();
+        builder = builder.commands(crate::commands::register_commands());
+        builder
+            .export(
+                Typescript::default()
+                    .formatter(specta_typescript::formatter::prettier)
+                    .bigint(specta_typescript::BigIntExportBehavior::Number),
+                "../src/bindings.ts",
+            )
+            .expect("Failed to export typescript bindings");
+    }
+
     use crate::domain::{JobSettings, LighthouseData, LinkType, NewLink, Page};
     use crate::repository::*;
     use crate::test_utils::fixtures;
