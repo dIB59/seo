@@ -2,12 +2,10 @@ import { useMemo, useEffect, useState } from "react"
 import type { CompleteAnalysisResponse } from "@/src/lib/types"
 import { normalizeUrl, resolveInternalUrl } from "./url-utils"
 import { calculateNodeDegrees } from "./node-utils"
+import type { GraphNode, GraphLink } from "./graph-types"
 
 export const useGraphData = (data: CompleteAnalysisResponse, selectedNodeId: string | null) => {
     return useMemo(() => {
-        type GraphNode = any
-        type GraphLink = any
-
         const nodes: GraphNode[] = []
         const links: GraphLink[] = []
 

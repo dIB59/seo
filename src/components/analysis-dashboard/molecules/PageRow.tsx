@@ -35,7 +35,7 @@ export function PageRow({ page, index, onClick }: PageRowProps) {
     <div
       onClick={() => onClick(index)}
       className={cn(
-        "grid px-4 py-3 border-b cursor-pointer items-center",
+        "grid px-4 py-3 border-b border-border/30 cursor-pointer items-center transition-colors duration-150 border-l-2 border-l-transparent hover:border-l-primary/50",
         GRID_COLS,
         GRID_GAP,
         rowClass
