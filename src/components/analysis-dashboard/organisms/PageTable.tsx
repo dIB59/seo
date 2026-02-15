@@ -37,28 +37,29 @@ export function PageTable({
 
   return (
     <div className="bg-card/40 backdrop-blur border border-border/40 rounded-lg overflow-hidden">
-      {/* Header — same grid structure as PageRow for perfect alignment */}
-      <div
-        className={`grid ${GRID_COLS} ${GRID_GAP} px-4 py-2.5 border-b border-border/30 bg-muted/15 text-[10px] uppercase tracking-[0.08em] font-semibold text-muted-foreground/70`}
-      >
-        <div className="flex items-center pl-4">Page</div>
-        <div className="flex items-center justify-center">Load</div>
-        <div className="flex items-center justify-center">Words</div>
-        <div className="flex items-center justify-center">H1 / H2 / H3</div>
-        <div className="flex items-center justify-center">Images</div>
-        <div className="flex items-center justify-center">Int · Ext</div>
-        <div className="flex items-center justify-center">Status</div>
-        <div className="flex items-center justify-center">SEO</div>
-        <div></div>
-      </div>
-
-      {/* Scrollable body */}
+      {/* Single scroll container for both header and body */}
       <div className="overflow-x-auto">
         <div
           ref={parentRef}
-          className="overflow-auto"
+          className="overflow-y-scroll"
           style={{ height: "600px" }}
         >
+          {/* Sticky header — inside scroll container so it shares the same width as rows */}
+          <div
+            className={`grid ${GRID_COLS} ${GRID_GAP} px-4 py-2.5 items-center border-b border-border/30 bg-muted/15 text-[10px] uppercase tracking-[0.08em] font-semibold text-muted-foreground/70 sticky top-0 z-10 backdrop-blur bg-card/95`}
+          >
+            <div className="flex items-center pl-4">Page</div>
+            <div className="flex items-center justify-center">Load</div>
+            <div className="flex items-center justify-center">Words</div>
+            <div className="flex items-center justify-center">H1 / H2 / H3</div>
+            <div className="flex items-center justify-center">Images</div>
+            <div className="flex items-center justify-center">Int · Ext</div>
+            <div className="flex items-center justify-center">Status</div>
+            <div className="flex items-center justify-center">SEO</div>
+            <div></div>
+          </div>
+
+          {/* Virtualized rows */}
           <div
             style={{
               height: `${virtualizer.getTotalSize()}px`,
