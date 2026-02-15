@@ -17,7 +17,7 @@ export const JobList = function JobList({ jobs, onViewResult, onCancel }: JobLis
     }
 
     return (
-        <div className="space-y-3">
+        <div className="space-y-0">
             {jobs.map((job) => (
                 <JobItem
                     key={job.job_id}

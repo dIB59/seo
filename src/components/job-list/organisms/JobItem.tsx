@@ -38,9 +38,9 @@ export function JobItem({ job, onViewResult, onCancel }: JobItemProps) {
                 <div className="flex items-center gap-2">
                     <span className="font-medium text-sm truncate text-foreground/90 tracking-tight">{job.url}</span>
                     {job.is_deep_audit && (
-                        <div className="flex items-center justify-center w-5 h-5 bg-amber-500/10 text-amber-600 rounded-[4px] border border-amber-500/20" title="Deep Audit Enabled">
-                            <ScanSearch className="w-3 h-3" />
-                        </div>
+                        <span title="Deep Audit Enabled" className="flex items-center text-amber-500/70">
+                            <ScanSearch size={14} strokeWidth={2} />
+                        </span>
                     )}
                 </div>
 
