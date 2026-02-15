@@ -50,6 +50,10 @@ impl LicensingService {
         self.verifier.verify(&signed_license, &machine_id)
     }
 
+    pub async fn activate_with_key_mocked(&self, key: &str) -> Result<LicenseTier, AddonError> {
+        Ok(LicenseTier::Premium)
+    }
+
     /// Activates a license using a key by communicating with the REST API.
     pub async fn activate_with_key(&self, key: &str) -> Result<LicenseTier, AddonError> {
         let machine_id = HardwareService::get_machine_id();

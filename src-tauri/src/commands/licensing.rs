@@ -29,7 +29,7 @@ pub async fn activate_with_key(
 ) -> Result<crate::domain::permissions::Policy, CommandError> {
     let tier = state
         .licensing_service
-        .activate_with_key(&key)
+        .activate_with_key_mocked(&key)
         .await
         .map_err(|e| CommandError::from(e))?;
 

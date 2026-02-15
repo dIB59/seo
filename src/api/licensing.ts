@@ -1,7 +1,7 @@
-import { commands } from "@/src/bindings";
+import { commands, Policy } from "@/src/bindings";
 import { Result } from "../lib/result";
 
-export const activate_license = async (key: string): Promise<Result<string, string>> => {
+export const activate_license = async (key: string): Promise<Result<Policy, string>> => {
     const res = await commands.activateWithKey(key);
     return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "Failed to activate license");
 }
