@@ -70,7 +70,7 @@ export function JobHistory() {
 
             <div className="flex flex-col gap-0">
                 {/* Header / Filter Section - Sticky Toolbar */}
-                <div className="sticky top-0 z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/40 pt-4 pb-2 px-1">
+                <div className="sticky top-0 z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 pt-4 pb-2 px-1">
                     <JobFilterBar
                         total={total}
                         urlFilter={urlFilter}
