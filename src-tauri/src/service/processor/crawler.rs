@@ -18,6 +18,12 @@ pub struct CrawlContext {
     pub cancel_flag: Arc<AtomicBool>,
 }
 
+impl Default for Crawler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Crawler {
     pub fn new() -> Self {
         Self {

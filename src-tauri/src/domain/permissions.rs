@@ -64,11 +64,13 @@ pub struct Policy {
     pub enabled_features: HashSet<Feature>,
 }
 
-impl Policy {
-    pub fn default() -> Self {
+impl Default for Policy {
+    fn default() -> Self {
         LicenseTier::Free.get_policy()
     }
+}
 
+impl Policy {
     pub fn new(tier: LicenseTier) -> Self {
         tier.get_policy()
     }

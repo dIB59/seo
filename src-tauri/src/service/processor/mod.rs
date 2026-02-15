@@ -50,21 +50,20 @@ impl JobProcessor {
     }
 
     pub async fn shutdown(&self) -> Result<()> {
-        // Get current cancel flags and set them
         self.canceler.cancel_all();
         match self.job_queue.cancel_all_running_jobs().await {
             Ok(_) => {
                 tracing::info!("All running jobs cancelled successfully");
-                return Ok(());
+                Ok(())
             }
             Err(e) => {
                 tracing::error!("Failed to cancel running jobs during shutdown: {}", e);
-                return Err(anyhow::anyhow!(
+                Err(anyhow::anyhow!(
                     "Failed to cancel running jobs during shutdown: {}",
                     e
-                ));
+                ))
             }
-        };
+        }
     }
 
     /// Main polling loop - fetches and processes pending jobs.

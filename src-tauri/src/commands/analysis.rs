@@ -228,10 +228,10 @@ impl CompleteAnalysisResponse {
         let load_time = page.load_time_ms.unwrap_or(0) as f64 / 1000.0;
 
         // Lighthouse-derived fields
-        let mobile_friendly = lh_data.map_or(false, |lh| lh.is_mobile_friendly())
+        let mobile_friendly = lh_data.is_some_and(|lh| lh.is_mobile_friendly())
             || page.is_mobile_friendly_heuristic();
         let has_structured_data =
-            page.has_structured_data || lh_data.map_or(false, |lh| lh.has_structured_data());
+            page.has_structured_data || lh_data.is_some_and(|lh| lh.has_structured_data());
         let (lighthouse_seo_audits, lighthouse_performance_metrics) =
             lh_data.map(|lh| lh.interpret_raw()).unwrap_or((None, None));
 
@@ -303,7 +303,7 @@ impl From<crate::domain::CompleteJobResult> for CompleteAnalysisResponse {
                     url: link.target_url,
                     text: link.link_text.unwrap_or_default(),
                     is_external,
-                    is_broken: link.status_code.map_or(false, |c| c >= 400),
+                    is_broken: link.status_code.is_some_and(|c| c >= 400),
                     status_code: link.status_code,
                 });
         }
@@ -453,14 +453,15 @@ pub async fn get_analysis_defaults() -> Result<AnalysisSettingsRequest, CommandE
 #[specta::specta]
 pub async fn get_free_tier_defaults() -> Result<AnalysisSettingsRequest, CommandError> {
     let policy = crate::domain::permissions::Policy::default();
-    let mut defaults = AnalysisSettingsRequest::default();
-
-    defaults.max_pages = policy.max_pages as i64;
-    defaults.include_external_links =
-        policy.check(crate::domain::permissions::PermissionRequest::UseFeature(
-            crate::domain::permissions::Feature::LinkAnalysis,
-        ));
-
+    let defaults = AnalysisSettingsRequest {
+        max_pages: policy.max_pages as i64,
+        include_external_links: policy.check(
+            crate::domain::permissions::PermissionRequest::UseFeature(
+                crate::domain::permissions::Feature::LinkAnalysis,
+            ),
+        ),
+        ..Default::default()
+    };
     // Mobile and Lighthouse are not yet in Feature enum, but their default in AnalysisSettingsRequest is false.
     // If we want to strictly enforce them as disabled for free tier, we keep them false (which they are by default).
 
@@ -812,14 +813,14 @@ mod tests {
 
         // First link: internal link_type and unparsable target (empty string) -> fallback to link_type -> is_external = false
         assert_eq!(void_link.url, "", "expected empty target url");
-        assert_eq!(
-            void_link.is_external, false,
+        assert!(
+            !void_link.is_external,
             "empty target should be treated as internal when link_type is Internal"
         );
 
         // Second link: external link_type and unparsable target -> is_external = true
-        assert_eq!(
-            void_link_external.is_external, true,
+        assert!(
+            void_link_external.is_external,
             "javascript:external:void(0) should be treated as external when link_type is External"
         );
     }

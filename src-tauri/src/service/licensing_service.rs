@@ -51,6 +51,15 @@ impl LicensingService {
     }
 
     pub async fn activate_with_key_mocked(&self, key: &str) -> Result<LicenseTier, AddonError> {
+        tracing::debug!("Activating license with key: {}", key);
+        let signed_license: SignedLicense =
+            serde_json::from_str(key).map_err(|_| AddonError::InvalidSignature)?;
+
+        let verifi = self
+            .verifier
+            .verify(&signed_license, &HardwareService::get_machine_id());
+
+        tracing::debug!("License result: {:?}", verifi);
         Ok(LicenseTier::Premium)
     }
 

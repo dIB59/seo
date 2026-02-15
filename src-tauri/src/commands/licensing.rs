@@ -1,4 +1,4 @@
-use crate::domain::permissions::{self, LicenseTier};
+use crate::domain::permissions::LicenseTier;
 use crate::domain::TierPolicy;
 use crate::error::{self, CommandError};
 use crate::lifecycle::app_state::AppState;
@@ -15,7 +15,7 @@ pub async fn activate_license(
         .licensing_service
         .activate(&license_json)
         .await
-        .map_err(|e| CommandError::from(e))?;
+        .map_err(CommandError::from)?;
 
     state.update_from_tier(tier);
     Ok(tier.get_policy())
@@ -31,7 +31,7 @@ pub async fn activate_with_key(
         .licensing_service
         .activate_with_key_mocked(&key)
         .await
-        .map_err(|e| CommandError::from(e))?;
+        .map_err(CommandError::from)?;
 
     state.update_from_tier(tier);
     Ok(tier.get_policy())

@@ -28,6 +28,7 @@ use app::{
 // - analysis_jobs, analysis_results, page_analysis, seo_issues, page_edge
 
 /// Benchmark V1 all jobs retrieval
+#[allow(dead_code)]
 fn bench_get_all_jobs_v1(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
     let pool = rt.block_on(connect_test_db_v1());

@@ -93,7 +93,7 @@ impl AppState {
             ai_repo,
             job_repo,
             results_repo,
-            job_processor: job_processor,
+            job_processor,
             permissions: RwLock::new(Policy::new(initial_tier)),
             licensing_service,
         })
