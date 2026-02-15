@@ -59,6 +59,10 @@ impl crate::repository::SettingsRepository for SettingsRepository {
             "default_rate_limit_ms" => "default_rate_limit_ms",
             "theme" => "theme",
             "gemini_enabled" => "gemini_enabled",
+            "gemini_persona" => "gemini_persona",
+            "gemini_requirements" => "gemini_requirements",
+            "gemini_context_options" => "gemini_context_options",
+            "gemini_prompt_blocks" => "gemini_prompt_blocks",
             _ => {
                 tracing::warn!(
                     "Unknown setting key requested for structured table: {}",
@@ -112,6 +116,10 @@ impl crate::repository::SettingsRepository for SettingsRepository {
             "default_rate_limit_ms" => "default_rate_limit_ms",
             "theme" => "theme",
             "gemini_enabled" => "gemini_enabled",
+            "gemini_persona" => "gemini_persona",
+            "gemini_requirements" => "gemini_requirements",
+            "gemini_context_options" => "gemini_context_options",
+            "gemini_prompt_blocks" => "gemini_prompt_blocks",
             _ => return Err(anyhow::anyhow!("Unknown setting key: {}", key)),
         };
 
