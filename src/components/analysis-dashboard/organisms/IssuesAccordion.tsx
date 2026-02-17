@@ -64,6 +64,61 @@ function VirtualIssuePageList({ pages }: { pages: SeoIssue[] }) {
     )
 }
 
+/* --- Compound / presentational building blocks (keeps top-level JSX very explicit) --- */
+const AffectedList = VirtualIssuePageList
+
+const IssueRoot = ({ children, value }: { children: React.ReactNode; value: string }) => (
+  <AccordionItem
+    value={value}
+    className="group border border-white/5 rounded-xl bg-card/30 backdrop-blur-sm overflow-hidden transition-all duration-200 hover:border-white/10 hover:shadow-md data-[state=open]:bg-card/50 data-[state=open]:shadow-md data-[state=open]:border-white/10"
+  >
+    {children}
+  </AccordionItem>
+)
+
+const IssueTrigger = ({ children }: { children: React.ReactNode }) => (
+  <AccordionTrigger className="w-full flex hover:no-underline px-4 py-3 transition-colors hover:bg-primary/5 active:bg-primary/10 data-[state=open]:bg-primary/5 group-hover:bg-white/[0.02]">
+    {children}
+  </AccordionTrigger>
+)
+
+const IssueHeader = ({ iconType, title, count, badgeLabel }: { iconType: string; title: string; count: number, badgeLabel: string }) => (
+  <div className="flex items-center gap-4 w-full text-left pr-4">
+    <div className="shrink-0 p-2 rounded-lg bg-background/50 border border-border/50">
+      <IssueIcon type={iconType} />
+    </div>
+    <div className="flex-1 min-w-0">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="font-medium truncate">{title}</span>
+      </div>
+      <span className="text-xs text-muted-foreground font-mono">{count} {count === 1 ? 'page' : 'pages'} affected</span>
+    </div>
+    <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted/30 border border-transparent group-hover:border-primary/10 group-hover:bg-primary/5 text-xs font-medium text-muted-foreground group-hover:text-primary transition-all">
+        {badgeLabel}
+    </div>
+  </div>
+)
+
+const IssueContent = ({ children }: { children: React.ReactNode }) => (
+  <AccordionContent className="px-4 pb-4">{children}</AccordionContent>
+)
+
+const DescriptionBlock = ({ text }: { text?: string }) => (
+  <div className="space-y-1.5">
+    <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Description</p>
+    <p className="text-sm text-foreground/80 leading-relaxed">{text}</p>
+  </div>
+)
+
+const RecommendationBlock = ({ text }: { text?: string }) => (
+  <div className="space-y-1.5">
+    <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Recommendation</p>
+    <div className="p-3 bg-primary/5 border border-primary/10 rounded-lg">
+      <p className="text-sm text-primary/90 leading-relaxed">{text}</p>
+    </div>
+  </div>
+)
+
 export function IssuesAccordion({ issues }: { issues: SeoIssue[] }) {
     const groupedIssues: Record<string, SeoIssue[]> = {}
     issues.forEach((issue) => {
@@ -85,52 +140,25 @@ export function IssuesAccordion({ issues }: { issues: SeoIssue[] }) {
     return (
         <Accordion type="multiple" className="space-y-3">
             {Object.entries(groupedIssues).map(([title, issueGroup]) => (
-                <AccordionItem
-                    key={title}
-                    value={title}
-                    className="group border border-white/5 rounded-xl bg-card/30 backdrop-blur-sm overflow-hidden transition-all duration-200 hover:border-white/10 hover:shadow-md data-[state=open]:bg-card/50 data-[state=open]:shadow-md data-[state=open]:border-white/10"
-                >
-                    <AccordionTrigger
-                        className="w-full flex hover:no-underline px-4 py-3 transition-colors hover:bg-primary/5 active:bg-primary/10 data-[state=open]:bg-primary/5 group-hover:bg-white/[0.02]"
-                    >
-                        <div className="flex items-center gap-4 w-full text-left pr-4">
-                            <div className="shrink-0 p-2 rounded-lg bg-background/50 border border-border/50">
-                                <IssueIcon type={issueGroup[0].severity} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <span className="font-medium truncate">{title}</span>
-                                </div>
-                                <span className="text-xs text-muted-foreground font-mono">
-                                    {issueGroup.length} {issueGroup.length === 1 ? "page" : "pages"} affected
-                                </span>
-                            </div>
-                            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted/30 border border-transparent group-hover:border-primary/10 group-hover:bg-primary/5 text-xs font-medium text-muted-foreground group-hover:text-primary transition-all">
-                                View Details
-                            </div>
-                        </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="px-4 pb-4">
+                <IssueRoot key={title} value={title}>
+                    <IssueTrigger>
+                        <IssueHeader iconType={issueGroup[0].severity} title={title} count={issueGroup.length} badgeLabel="View Details" />
+                    </IssueTrigger>
+
+                    <IssueContent>
                         <div className="space-y-4 pt-2 mt-2">
                             <div className="grid md:grid-cols-2 gap-4">
-                                <div className="space-y-1.5">
-                                    <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Description</p>
-                                    <p className="text-sm text-foreground/80 leading-relaxed">{issueGroup[0].description}</p>
-                                </div>
-                                <div className="space-y-1.5">
-                                    <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Recommendation</p>
-                                    <div className="p-3 bg-primary/5 border border-primary/10 rounded-lg">
-                                        <p className="text-sm text-primary/90 leading-relaxed">{issueGroup[0].recommendation}</p>
-                                    </div>
-                                </div>
+                                <DescriptionBlock text={issueGroup[0].description} />
+                                <RecommendationBlock text={issueGroup[0].recommendation} />
                             </div>
+
                             <div className="space-y-2">
                                 <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Affected URLs</p>
-                                <VirtualIssuePageList pages={issueGroup} />
+                                <AffectedList pages={issueGroup} />
                             </div>
                         </div>
-                    </AccordionContent>
-                </AccordionItem>
+                    </IssueContent>
+                </IssueRoot>
             ))}
         </Accordion>
     )
