@@ -39,11 +39,7 @@ export function PageTable({
     <div className="bg-card/40 backdrop-blur border border-border/40 rounded-lg overflow-hidden">
       {/* Single scroll container for both header and body */}
       <div className="overflow-x-auto">
-        <div
-          ref={parentRef}
-          className="overflow-y-scroll"
-          style={{ height: "600px" }}
-        >
+        <div ref={parentRef} className="overflow-y-scroll" style={{ height: "600px" }}>
           {/* Sticky header — inside scroll container so it shares the same width as rows */}
           <div
             className={`grid ${GRID_COLS} ${GRID_GAP} px-4 py-2.5 items-center border-b border-border/30 bg-muted/15 text-[10px] uppercase tracking-[0.08em] font-semibold text-muted-foreground/70 sticky top-0 z-10 backdrop-blur bg-card/95`}
@@ -81,11 +77,7 @@ export function PageTable({
                     transform: `translateY(${virtualItem.start}px)`,
                   }}
                 >
-                  <PageRow
-                    page={page}
-                    index={virtualItem.index}
-                    onClick={onSelectPage}
-                  />
+                  <PageRow page={page} index={virtualItem.index} onClick={onSelectPage} />
                 </div>
               );
             })}
