@@ -1,13 +1,27 @@
 use crate::domain::permissions::{LicenseTier, PermissionRequest};
+use crate::domain::TierVersion;
 use serde::{Deserialize, Serialize};
 
+/// Core license payload that is signed by the licensing server. `tier_version`
+/// is now a typed `TierVersion` value object (serialized as a string to keep
+/// JSON compact and compatible with existing string-form usage).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LicenseData {
     pub key: String,
     pub machine_id: String,
     pub tier: LicenseTier,
+    pub tier_version: TierVersion,
+    /// optional arbitrary metadata from the licensing server
+    pub tier_meta: Option<serde_json::Value>,
     pub expires_at: Option<chrono::DateTime<chrono::Utc>>,
     pub issued_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl LicenseData {
+    /// Convenience: return tuple if `tier_version` is present.
+    pub fn tier_version_tuple(&self) -> (u64, u64, u64) {
+        (self.tier_version.major, self.tier_version.minor, self.tier_version.patch)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -106,21 +120,30 @@ mod tests {
             ed25519_dalek::SigningKey::generate(&mut csprng);
         let public_key = signing_key.verifying_key();
 
-        // 2. Create data
+        // 2. Create data (now includes typed `tier_version` + optional tier_meta)
         let machine_id = "test-machine-id".to_string();
         let data = LicenseData {
             key: "AAAA-BBBB-CCCC".to_string(),
             machine_id: machine_id.clone(),
             tier: LicenseTier::Premium,
+            tier_version: TierVersion::new(2, 0, 0),
+            tier_meta: None,
             expires_at: None,
             issued_at: chrono::Utc::now(),
         };
+
+        // ensure value-object comparisons work as expected
+        let tv = data.tier_version;
+        assert_eq!(tv, TierVersion::new(2, 0, 0));
+        assert!(tv >= TierVersion::new(1, 9, 0));
+        assert!(tv >= TierVersion::new(2, 0, 0));
+        assert!(tv < TierVersion::new(2, 1, 0));
 
         // 3. Sign data
         let data_json = serde_json::to_string(&data).unwrap();
         let signature = signing_key.sign(data_json.as_bytes());
         let signed_license = SignedLicense {
-            data,
+            data: data.clone(),
             signature: hex::encode(signature.to_bytes()),
         };
 
@@ -130,5 +153,10 @@ mod tests {
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), LicenseTier::Premium);
+
+        // round-trip: deserializing the signed structure should preserve version
+        let serialized = serde_json::to_string(&signed_license).unwrap();
+        let deserialized: SignedLicense = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.data.tier_version, TierVersion::new(2, 0, 0));
     }
 }
