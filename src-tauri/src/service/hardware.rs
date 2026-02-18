@@ -17,10 +17,22 @@ impl HardwareService {
             }
         }
     }
+}
 
-    /// Returns a hashed version of the machine ID for privacy if needed,
-    /// but for license binding the raw ID or a stable hash is fine.
-    pub fn get_license_id() -> String {
-        Self::get_machine_id()
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_machine_id_is_non_empty() {
+        let id = HardwareService::get_machine_id();
+        assert!(!id.is_empty(), "Machine ID should not be empty");
+    }
+
+    #[test]
+    fn test_get_machine_id_is_consistent() {
+        let id1 = HardwareService::get_machine_id();
+        let id2 = HardwareService::get_machine_id();
+        assert_eq!(id1, id2, "Machine ID should be consistent across calls");
     }
 }

@@ -95,27 +95,75 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_free_tier_restrictions() {
-        let policy = Policy::new(LicenseTier::Free);
-
-        // Check page limits
-        assert!(policy.check(PermissionRequest::AnalyzePages(1)));
-        assert!(!policy.check(PermissionRequest::AnalyzePages(2)));
-
-        // Check features
-        assert!(!policy.check(PermissionRequest::UseFeature(Feature::LinkAnalysis)));
+    fn test_policy_default_is_free() {
+        let policy = Policy::default();
+        assert_eq!(policy.tier, LicenseTier::Free);
+        assert_eq!(policy.max_pages, 1);
+        assert!(policy.enabled_features.is_empty());
     }
 
     #[test]
-    fn test_premium_tier_capabilities() {
+    fn test_policy_update_from_tier() {
+        let mut policy = Policy::new(LicenseTier::Free);
+        assert_eq!(policy.tier, LicenseTier::Free);
+
+        policy.update_from_tier(LicenseTier::Premium);
+        assert_eq!(policy.tier, LicenseTier::Premium);
+        assert_eq!(policy.max_pages, 100000);
+        assert!(policy.enabled_features.contains(&Feature::LinkAnalysis));
+        assert!(policy.enabled_features.contains(&Feature::GraphView));
+        assert!(policy.enabled_features.contains(&Feature::ExportReports));
+
+        policy.update_from_tier(LicenseTier::Free);
+        assert_eq!(policy.tier, LicenseTier::Free);
+        assert_eq!(policy.max_pages, 1);
+        assert!(policy.enabled_features.is_empty());
+    }
+
+    #[test]
+    fn test_all_features_restricted_on_free() {
+        let policy = Policy::new(LicenseTier::Free);
+        let features = [
+            Feature::LinkAnalysis,
+            Feature::GraphView,
+            Feature::ExportReports,
+        ];
+
+        for feature in features {
+            assert!(
+                !policy.check(PermissionRequest::UseFeature(feature)),
+                "Feature {:?} should be restricted on Free tier",
+                feature
+            );
+        }
+    }
+
+    #[test]
+    fn test_all_features_allowed_on_premium() {
         let policy = Policy::new(LicenseTier::Premium);
+        let features = [
+            Feature::LinkAnalysis,
+            Feature::GraphView,
+            Feature::ExportReports,
+        ];
 
-        // Check page limits
-        assert!(policy.check(PermissionRequest::AnalyzePages(1)));
-        assert!(policy.check(PermissionRequest::AnalyzePages(10000)));
+        for feature in features {
+            assert!(
+                policy.check(PermissionRequest::UseFeature(feature)),
+                "Feature {:?} should be allowed on Premium tier",
+                feature
+            );
+        }
+    }
 
-        // Check features
-        assert!(policy.check(PermissionRequest::UseFeature(Feature::LinkAnalysis)));
-        assert!(policy.check(PermissionRequest::UseFeature(Feature::GraphView)));
+    #[test]
+    fn test_analyze_pages_boundary() {
+        let free_policy = Policy::new(LicenseTier::Free);
+        assert!(free_policy.check(PermissionRequest::AnalyzePages(1)));
+        assert!(!free_policy.check(PermissionRequest::AnalyzePages(2)));
+
+        let premium_policy = Policy::new(LicenseTier::Premium);
+        assert!(premium_policy.check(PermissionRequest::AnalyzePages(100000)));
+        assert!(!premium_policy.check(PermissionRequest::AnalyzePages(100001)));
     }
 }

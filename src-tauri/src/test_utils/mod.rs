@@ -48,7 +48,7 @@ pub async fn connect_test_db_v1() -> SqlitePool {
 pub async fn set_up_benchmark_db() -> SqlitePool {
     let pool = sqlx::sqlite::SqlitePoolOptions::new()
         .max_connections(1)
-        .connect("sqlite::memory:")
+        .connect("sqlite::memory:?cache=shared")
         .await
         .expect("Failed to create benchmark database");
     sqlx::migrate!()
@@ -195,7 +195,7 @@ pub mod fixtures {
     /// Creates an in-memory SQLite database with migrations applied
     pub async fn setup_test_db() -> SqlitePool {
         let pool = sqlx::sqlite::SqlitePoolOptions::new()
-            .max_connections(1)
+            .max_connections(5)
             .connect("sqlite::memory:")
             .await
             .expect("Failed to create test database");
