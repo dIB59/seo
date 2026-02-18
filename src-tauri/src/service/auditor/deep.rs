@@ -480,7 +480,6 @@ struct SidecarPerformanceMetrics {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::service::spider::{ClientType, Spider};
 
     #[test]
     fn test_sidecar_response_parsing() {
