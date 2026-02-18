@@ -168,4 +168,153 @@ mod tests {
         let deserialized: SignedLicense = serde_json::from_str(&serialized).unwrap();
         assert_eq!(deserialized.data.tier_version, TierVersion::new(2, 0, 0));
     }
+
+    #[test]
+    fn test_license_verification_hardware_mismatch() {
+        use ed25519_dalek::Signer;
+        use rand::rngs::OsRng;
+
+        let mut csprng = OsRng;
+        let signing_key = ed25519_dalek::SigningKey::generate(&mut csprng);
+        let public_key = signing_key.verifying_key();
+
+        let data = LicenseData {
+            key: "KEY".to_string(),
+            machine_id: "machine-1".to_string(),
+            tier: LicenseTier::Premium,
+            tier_version: TierVersion::new(1, 0, 0),
+            tier_meta: None,
+            expires_at: None,
+            issued_at: chrono::Utc::now(),
+        };
+
+        let data_json = serde_json::to_string(&data).unwrap();
+        let signature = signing_key.sign(data_json.as_bytes());
+        let signed_license = SignedLicense {
+            data,
+            signature: hex::encode(signature.to_bytes()),
+        };
+
+        let verifier = LicenseVerifier::new(public_key.to_bytes()).unwrap();
+        let result = verifier.verify(&signed_license, "machine-2");
+
+        assert!(matches!(result, Err(AddonError::HardwareMismatch)));
+    }
+
+    #[test]
+    fn test_license_verification_expired() {
+        use ed25519_dalek::Signer;
+        use rand::rngs::OsRng;
+
+        let mut csprng = OsRng;
+        let signing_key = ed25519_dalek::SigningKey::generate(&mut csprng);
+        let public_key = signing_key.verifying_key();
+
+        let data = LicenseData {
+            key: "KEY".to_string(),
+            machine_id: "machine-1".to_string(),
+            tier: LicenseTier::Premium,
+            tier_version: TierVersion::new(1, 0, 0),
+            tier_meta: None,
+            expires_at: Some(chrono::Utc::now() - chrono::Duration::days(1)),
+            issued_at: chrono::Utc::now() - chrono::Duration::days(2),
+        };
+
+        let data_json = serde_json::to_string(&data).unwrap();
+        let signature = signing_key.sign(data_json.as_bytes());
+        let signed_license = SignedLicense {
+            data,
+            signature: hex::encode(signature.to_bytes()),
+        };
+
+        let verifier = LicenseVerifier::new(public_key.to_bytes()).unwrap();
+        let result = verifier.verify(&signed_license, "machine-1");
+
+        assert!(matches!(result, Err(AddonError::LicenseExpired)));
+    }
+
+    #[test]
+    fn test_license_verification_invalid_signature() {
+        use ed25519_dalek::Signer;
+        use rand::rngs::OsRng;
+
+        let mut csprng = OsRng;
+        let signing_key = ed25519_dalek::SigningKey::generate(&mut csprng);
+        let public_key = signing_key.verifying_key();
+
+        let data = LicenseData {
+            key: "KEY".to_string(),
+            machine_id: "machine-1".to_string(),
+            tier: LicenseTier::Premium,
+            tier_version: TierVersion::new(1, 0, 0),
+            tier_meta: None,
+            expires_at: None,
+            issued_at: chrono::Utc::now(),
+        };
+
+        let data_json = serde_json::to_string(&data).unwrap();
+        let signature = signing_key.sign(data_json.as_bytes());
+        let mut signed_license = SignedLicense {
+            data,
+            signature: hex::encode(signature.to_bytes()),
+        };
+
+        // Corrupt the signature
+        signed_license.signature = "00".repeat(64);
+
+        let verifier = LicenseVerifier::new(public_key.to_bytes()).unwrap();
+        let result = verifier.verify(&signed_license, "machine-1");
+
+        assert!(matches!(result, Err(AddonError::InvalidSignature)));
+    }
+
+    #[test]
+    fn test_license_verification_tampered_data() {
+        use ed25519_dalek::Signer;
+        use rand::rngs::OsRng;
+
+        let mut csprng = OsRng;
+        let signing_key = ed25519_dalek::SigningKey::generate(&mut csprng);
+        let public_key = signing_key.verifying_key();
+
+        let data = LicenseData {
+            key: "KEY".to_string(),
+            machine_id: "machine-1".to_string(),
+            tier: LicenseTier::Free, // Originally Free
+            tier_version: TierVersion::new(1, 0, 0),
+            tier_meta: None,
+            expires_at: None,
+            issued_at: chrono::Utc::now(),
+        };
+
+        let data_json = serde_json::to_string(&data).unwrap();
+        let signature = signing_key.sign(data_json.as_bytes());
+        let mut signed_license = SignedLicense {
+            data,
+            signature: hex::encode(signature.to_bytes()),
+        };
+
+        // Tamper with data: change tier to Premium
+        signed_license.data.tier = LicenseTier::Premium;
+
+        let verifier = LicenseVerifier::new(public_key.to_bytes()).unwrap();
+        let result = verifier.verify(&signed_license, "machine-1");
+
+        assert!(matches!(result, Err(AddonError::InvalidSignature)));
+    }
+
+    #[test]
+    fn test_license_data_tier_version_tuple() {
+        let data = LicenseData {
+            key: "KEY".to_string(),
+            machine_id: "MID".to_string(),
+            tier: LicenseTier::Free,
+            tier_version: TierVersion::new(1, 2, 3),
+            tier_meta: None,
+            expires_at: None,
+            issued_at: chrono::Utc::now(),
+        };
+
+        assert_eq!(data.tier_version_tuple(), (1, 2, 3));
+    }
 }

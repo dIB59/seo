@@ -174,6 +174,35 @@ mod tests {
     use crate::test_utils::fixtures::setup_test_db;
 
     #[tokio::test]
+    async fn test_mock_initial_state_is_free() {
+        let pool = setup_test_db().await;
+        let settings_repo = sqlite_settings_repo(pool);
+        let service = MockLicensingService::new(settings_repo);
+
+        let tier = service.load_license().await.unwrap();
+        assert_eq!(tier, LicenseTier::Free);
+    }
+
+    #[tokio::test]
+    async fn test_mock_key_generation_and_verification() {
+        let pool = setup_test_db().await;
+        let settings_repo = sqlite_settings_repo(pool);
+        let service = MockLicensingService::new(settings_repo);
+
+        let premium_key = service.generate_short_key(LicenseTier::Premium);
+        let free_key = service.generate_short_key(LicenseTier::Free);
+
+        assert_eq!(
+            service.verify_short_key(&premium_key).unwrap(),
+            LicenseTier::Premium
+        );
+        assert_eq!(
+            service.verify_short_key(&free_key).unwrap(),
+            LicenseTier::Free
+        );
+    }
+
+    #[tokio::test]
     async fn test_mock_activation_fallbacks() {
         let _ = tracing_subscriber::fmt()
             .with_env_filter("app=debug")
@@ -185,7 +214,6 @@ mod tests {
 
         // 1. Generate a valid short key for Premium
         let premium_key = service.generate_short_key(LicenseTier::Premium);
-        println!("Generated Premium Key: {}", premium_key);
 
         // 2. Activate with valid key -> Premium
         let tier = service.activate_with_key(&premium_key).await.unwrap();
@@ -195,13 +223,13 @@ mod tests {
         let loaded_tier = service.load_license().await.unwrap();
         assert_eq!(loaded_tier, LicenseTier::Premium);
 
-        // 4. Activate with invalid key -> Free
-        let tier = service.activate_with_key("INVALID-KEY").await.unwrap();
-        assert_eq!(tier, LicenseTier::Free);
+        // 4. Activate with invalid key -> AddonError::InvalidLicenseKey
+        let tier_err = service.activate_with_key("INVALID-KEY").await;
+        assert!(matches!(tier_err, Err(AddonError::InvalidLicenseKey)));
 
-        // 5. Activate with tampered key (wrong tier) -> Free
+        // 5. Activate with tampered key (wrong tier) -> AddonError::InvalidSignature
         let tampered_key = premium_key.replace("P-", "F-");
-        let tier = service.activate_with_key(&tampered_key).await.unwrap();
-        assert_eq!(tier, LicenseTier::Free);
+        let tier_err = service.activate_with_key(&tampered_key).await;
+        assert!(matches!(tier_err, Err(AddonError::InvalidSignature)));
     }
 }
