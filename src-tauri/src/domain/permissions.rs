@@ -19,7 +19,9 @@ pub enum Feature {
     ExportReports,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, specta::Type)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default, specta::Type,
+)]
 pub enum LicenseTier {
     #[default]
     Free,

@@ -544,9 +544,7 @@ mod tests {
 
     #[test]
     fn test_check_title() {
-        let spider =
-            crate::service::spider::Spider::new_agent(crate::service::spider::ClientType::Standard)
-                .unwrap();
+        let spider = Spider::new_agent(ClientType::Standard).unwrap();
         let auditor = LightAuditor::new(spider);
 
         // Good title (30-60 chars)
@@ -573,9 +571,7 @@ mod tests {
 
     #[test]
     fn test_check_image_alt() {
-        let spider =
-            crate::service::spider::Spider::new_agent(crate::service::spider::ClientType::Standard)
-                .unwrap();
+        let spider = Spider::new_agent(ClientType::Standard).unwrap();
         let auditor = LightAuditor::new(spider);
 
         // All images have alt
@@ -660,9 +656,7 @@ mod tests {
 
     #[test]
     fn test_check_link_text_various() {
-        let spider =
-            crate::service::spider::Spider::new_agent(crate::service::spider::ClientType::Standard)
-                .unwrap();
+        let spider = Spider::new_agent(ClientType::Standard).unwrap();
         let auditor = LightAuditor::new(spider);
 
         // Good text

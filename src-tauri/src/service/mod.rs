@@ -2,7 +2,7 @@ pub mod auditor;
 pub mod discovery;
 pub mod gemini;
 pub mod hardware;
-pub mod licensing_service;
+pub mod licensing;
 pub mod processor;
 pub mod spider;
 

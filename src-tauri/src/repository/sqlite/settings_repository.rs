@@ -84,8 +84,9 @@ impl crate::repository::SettingsRepository for SettingsRepository {
 
     async fn set_setting(&self, key: &str, value: &str) -> Result<()> {
         let k = SettingsRepository::canonical_key(key);
+        tracing::debug!("Updating setting: {} (canonical: {})", key, k);
 
-        // Try key/value upsert first
+        // Try key/value upsert first (for compatibility with KV-style tables)
         let kv_res: std::result::Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> =
             sqlx::query(
                 "INSERT INTO settings (key, value) VALUES (?, ?)
@@ -97,12 +98,21 @@ impl crate::repository::SettingsRepository for SettingsRepository {
             .await;
 
         match kv_res {
-            Ok(_) => return Ok(()),
+            Ok(_) => {
+                tracing::debug!("Updated setting via KV table: {}", k);
+                return Ok(());
+            }
             Err(e) => {
                 let msg = e.to_string();
-                if !msg.contains("no column named") && !msg.contains("no such column") {
-                    return Err(e).context("Failed to set setting in database")?;
+                if !msg.contains("no column named")
+                    && !msg.contains("no such table")
+                    && !msg.contains("no such column")
+                {
+                    tracing::error!("Failed to set setting in KV table: {}", e);
+                    return Err(e)
+                        .context(format!("Failed to set setting '{}' in database", key))?;
                 }
+                tracing::debug!("KV table update failed or table missing, falling back to structured table for: {}", k);
             }
         }
 
@@ -122,7 +132,11 @@ impl crate::repository::SettingsRepository for SettingsRepository {
             "gemini_context_options" => "gemini_context_options",
             "gemini_prompt_blocks" => "gemini_prompt_blocks",
             "signed_license" => "signed_license",
-            _ => return Err(anyhow::anyhow!("Unknown setting key: {}", key)),
+            _ => {
+                let err_msg = format!("Unknown setting key: {}. This key must be added to the schema and SettingsRepository mapping.", key);
+                tracing::error!("{}", err_msg);
+                return Err(anyhow::anyhow!(err_msg));
+            }
         };
 
         let query = format!(
@@ -136,8 +150,13 @@ impl crate::repository::SettingsRepository for SettingsRepository {
             .bind(value)
             .execute(&self.pool)
             .await
-            .context("Failed to set setting in structured settings table")?;
+            .map_err(|e| {
+                tracing::error!("Failed to update structured setting '{}': {}", column, e);
+                e
+            })
+            .context(format!("Failed to set setting '{}' in structured settings table. Verify the column exists.", key))?;
 
+        tracing::debug!("Updated structured setting successfully: {}", column);
         Ok(())
     }
 }

@@ -20,7 +20,11 @@ pub struct LicenseData {
 impl LicenseData {
     /// Convenience: return tuple if `tier_version` is present.
     pub fn tier_version_tuple(&self) -> (u64, u64, u64) {
-        (self.tier_version.major, self.tier_version.minor, self.tier_version.patch)
+        (
+            self.tier_version.major,
+            self.tier_version.minor,
+            self.tier_version.patch,
+        )
     }
 }
 
@@ -83,6 +87,11 @@ impl LicenseVerifier {
 
         Ok(signed_license.data.tier)
     }
+}
+#[async_trait::async_trait]
+pub trait LicensingAgent: Send + Sync {
+    async fn load_license(&self) -> Result<LicenseTier, AddonError>;
+    async fn activate_with_key(&self, key: &str) -> Result<LicenseTier, AddonError>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, thiserror::Error, specta::Type)]

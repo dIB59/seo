@@ -1,7 +1,8 @@
-use crate::domain::licensing::{AddonError, LicenseVerifier, SignedLicense};
+use crate::domain::licensing::{AddonError, LicenseVerifier, LicensingAgent, SignedLicense};
 use crate::domain::permissions::LicenseTier;
 use crate::service::hardware::HardwareService;
 use crate::service::spider::SpiderAgent;
+use async_trait::async_trait;
 use std::sync::Arc;
 
 pub struct LicensingService {
@@ -27,9 +28,12 @@ impl LicensingService {
             spider,
         })
     }
+}
 
+#[async_trait]
+impl LicensingAgent for LicensingService {
     /// Loads the license from the database.
-    pub async fn load_license(&self) -> Result<LicenseTier, AddonError> {
+    async fn load_license(&self) -> Result<LicenseTier, AddonError> {
         let license_content = self
             .settings_repo
             .get_setting(Self::LICENSE_SETTING_KEY)
@@ -51,21 +55,8 @@ impl LicensingService {
         self.verifier.verify(&signed_license, &machine_id)
     }
 
-    pub async fn activate_with_key_mocked(&self, key: &str) -> Result<LicenseTier, AddonError> {
-        tracing::debug!("Activating license with key: {}", key);
-        let signed_license: SignedLicense =
-            serde_json::from_str(key).map_err(|_| AddonError::InvalidSignature)?;
-
-        let verifi = self
-            .verifier
-            .verify(&signed_license, &HardwareService::get_machine_id());
-
-        tracing::debug!("License result: {:?}", verifi);
-        Ok(LicenseTier::Premium)
-    }
-
     /// Activates a license using a key by communicating with the REST API.
-    pub async fn activate_with_key(&self, key: &str) -> Result<LicenseTier, AddonError> {
+    async fn activate_with_key(&self, key: &str) -> Result<LicenseTier, AddonError> {
         let machine_id = HardwareService::get_machine_id();
 
         let payload = serde_json::to_value(&crate::domain::licensing::LicenseActivationRequest {
@@ -96,23 +87,6 @@ impl LicensingService {
 
         self.settings_repo
             .set_setting(Self::LICENSE_SETTING_KEY, &license_json)
-            .await
-            .map_err(|_| AddonError::VerificationFailed)?;
-
-        Ok(tier)
-    }
-
-    /// Saves a new license string (e.g. from the UI) to database.
-    pub async fn activate(&self, license_json: &str) -> Result<LicenseTier, AddonError> {
-        let signed_license: SignedLicense =
-            serde_json::from_str(license_json).map_err(|_| AddonError::InvalidSignature)?;
-
-        let machine_id = HardwareService::get_machine_id();
-        let tier = self.verifier.verify(&signed_license, &machine_id)?;
-
-        // Save valid license to database
-        self.settings_repo
-            .set_setting(Self::LICENSE_SETTING_KEY, license_json)
             .await
             .map_err(|_| AddonError::VerificationFailed)?;
 

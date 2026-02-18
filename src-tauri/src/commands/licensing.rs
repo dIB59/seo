@@ -8,14 +8,17 @@ use tauri::State;
 #[tauri::command]
 #[specta::specta]
 pub async fn activate_license(
-    license_json: String,
+    license_key: String,
     state: State<'_, AppState>,
 ) -> Result<crate::domain::permissions::Policy, CommandError> {
     let tier = state
         .licensing_service
-        .activate(&license_json)
+        .activate_with_key(&license_key)
         .await
-        .map_err(CommandError::from)?;
+        .map_err(|e| {
+            tracing::error!("[MOCK] Failed to activate license: {}", e);
+            CommandError::from(e)
+        })?;
 
     state.update_from_tier(tier);
     Ok(tier.get_policy())
@@ -29,9 +32,12 @@ pub async fn activate_with_key(
 ) -> Result<crate::domain::permissions::Policy, CommandError> {
     let tier = state
         .licensing_service
-        .activate_with_key_mocked(&key)
+        .activate_with_key(&key)
         .await
-        .map_err(CommandError::from)?;
+        .map_err(|e| {
+            tracing::error!("[MOCK] Failed to activate license: {}", e);
+            CommandError::from(e)
+        })?;
 
     state.update_from_tier(tier);
     Ok(tier.get_policy())

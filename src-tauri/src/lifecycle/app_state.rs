@@ -5,7 +5,7 @@ use crate::{
         sqlite_results_repo, sqlite_settings_repo,
     },
     service::{
-        licensing_service::LicensingService,
+        licensing,
         processor::{reporter::ProgressEmitter, AnalyzerService, Crawler},
         spider::{ClientType, Spider, SpiderAgent},
         JobProcessor, ProgressReporter,
@@ -30,7 +30,7 @@ pub struct AppState {
 
     // Licensing and Permissions
     pub permissions: RwLock<Policy>,
-    pub licensing_service: Arc<LicensingService>,
+    pub licensing_service: Arc<dyn crate::domain::licensing::LicensingAgent>,
 }
 
 impl AppState {
@@ -86,10 +86,15 @@ impl AppState {
         });
 
         // 5. Licensing Init
-        let licensing_service = Arc::new(LicensingService::new(
-            settings_repo.clone(),
-            standard_spider.clone(),
-        )?);
+        // Use MockLicensingService in development mode or if a specific flag is set
+        let licensing_service: Arc<dyn crate::domain::licensing::LicensingAgent> =
+            match cfg!(debug_assertions) {
+                true => Arc::new(licensing::MockLicensingService::new(settings_repo.clone())),
+                false => Arc::new(licensing::LicensingService::new(
+                    settings_repo.clone(),
+                    standard_spider.clone(),
+                )?),
+            };
         let initial_tier = licensing_service.load_license().await.unwrap_or_default();
         if initial_tier != LicenseTier::Free {
             tracing::info!("License verified: {:?}", initial_tier);

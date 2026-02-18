@@ -173,9 +173,9 @@ async getFreeTierDefaults() : Promise<Result<AnalysisSettingsRequest, CommandErr
     else return { status: "error", error: e  as any };
 }
 },
-async activateLicense(licenseJson: string) : Promise<Result<Policy, CommandError>> {
+async activateLicense(licenseKey: string) : Promise<Result<Policy, CommandError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("activate_license", { licenseJson }) };
+    return { status: "ok", data: await TAURI_INVOKE("activate_license", { licenseKey }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
