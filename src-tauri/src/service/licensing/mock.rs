@@ -34,16 +34,16 @@ impl MockLicensingService {
 
     /// Verifies a short product key format: TIER-MACH-SIG
     /// e.g. P-ABCDEF-GHIJKL
-    fn verify_short_key(&self, key: &str) -> Option<LicenseTier> {
+    fn verify_short_key(&self, key: &str) -> Result<LicenseTier, AddonError> {
         let parts: Vec<&str> = key.split('-').collect();
         if parts.len() != 3 {
-            return None;
+            return Err(AddonError::InvalidLicenseKey);
         }
 
         let tier = match parts[0] {
             "P" => LicenseTier::Premium,
             "F" => LicenseTier::Free,
-            _ => return None,
+            _ => return Err(AddonError::VerificationFailed),
         };
 
         let _mach_part = parts[1];
@@ -62,9 +62,9 @@ impl MockLicensingService {
 
         // Match truncated hash (first 6 chars)
         if sig_part.to_lowercase() == expected_hash[..sig_part.len()].to_lowercase() {
-            Some(tier)
+            Ok(tier)
         } else {
-            None
+            Err(AddonError::InvalidSignature)
         }
     }
 
@@ -126,13 +126,7 @@ impl LicensingAgent for MockLicensingService {
         tracing::info!("[MOCK] Activating license with key: {}", key);
 
         // 1. Try to verify as a short Product Key
-        let tier = if let Some(tier) = self.verify_short_key(key) {
-            tracing::info!("[MOCK] Short Product Key verified successfully: {:?}", tier);
-            tier
-        } else {
-            tracing::warn!("[MOCK] Invalid product key, defaulting to Free tier.");
-            return Ok(LicenseTier::Free);
-        };
+        let tier = self.verify_short_key(key)?;
 
         let machine_id = HardwareService::get_machine_id();
 
