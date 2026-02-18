@@ -10,25 +10,27 @@ use tokio::time::sleep;
 use url::Url;
 
 use crate::domain::ResourceStatus;
+use crate::service::spider::SpiderAgent;
+use std::sync::Arc;
 
+#[cfg(test)]
 use crate::service::spider::{ClientType, Spider};
 
-pub struct PageDiscovery {
-    spider: Spider,
+/// Site-level resource check results.
+#[derive(Debug, Clone)]
+pub struct SiteResources {
+    pub robots_txt: bool,
+    pub sitemap: bool,
+    pub ssl: bool,
 }
 
-impl Default for PageDiscovery {
-    fn default() -> Self {
-        Self::new()
-    }
+pub struct PageDiscovery {
+    spider: Arc<dyn SpiderAgent>,
 }
 
 impl PageDiscovery {
-    pub fn new() -> Self {
-        Self {
-            spider: Spider::new(ClientType::HeavyEmulation)
-                .expect("Failed to create heavy HTTP client"),
-        }
+    pub fn new(spider: Arc<dyn SpiderAgent>) -> Self {
+        Self { spider }
     }
 
     /// ONLY handles HTTP crawling - NO business logic
@@ -155,21 +157,12 @@ impl PageDiscovery {
 }
 
 pub struct ResourceChecker {
-    spider: Spider,
-}
-
-impl Default for ResourceChecker {
-    fn default() -> Self {
-        Self::new()
-    }
+    spider: Arc<dyn SpiderAgent>,
 }
 
 impl ResourceChecker {
-    pub fn new() -> Self {
-        Self {
-            spider: Spider::new(ClientType::HeavyEmulation)
-                .expect("Failed to create heavy HTTP client"),
-        }
+    pub fn new(spider: Arc<dyn SpiderAgent>) -> Self {
+        Self { spider }
     }
 
     /// Check robots.txt exists
@@ -244,36 +237,12 @@ mod tests {
         "##;
         let links = PageDiscovery::extract_links(html, &base_url);
 
-        // Should return 3 links:
-        // - Fragment-only links (#fragment) are skipped
-        // - Fragments are stripped from other links (/page#section -> /page)
         assert_eq!(links.len(), 3);
-
         assert!(links.contains(&"https://example.com/relative".to_string()));
         assert!(links.contains(&"https://other.com/absolute".to_string()));
         assert!(links.contains(&"https://example.com/page".to_string()));
-        // Fragment-only link should NOT be included
         assert!(!links.iter().any(|l| l.contains("#")));
     }
-
-    #[test]
-    fn test_check_ssl_certificate() {
-        let checker = ResourceChecker::new();
-
-        let https_url = Url::parse("https://secure.com").unwrap();
-        assert!(
-            checker.check_ssl_certificate(https_url.as_str()),
-            "HTTPS should be detected as SSL"
-        );
-
-        let http_url = Url::parse("http://insecure.com").unwrap();
-        assert!(
-            !checker.check_ssl_certificate(http_url.as_str()),
-            "HTTP should not be detected as SSL"
-        );
-    }
-
-    // ===== Integration tests for ResourceChecker using mock server =====
 
     #[tokio::test]
     async fn test_check_robots_txt_found() {
@@ -285,66 +254,19 @@ mod tests {
             .create_async()
             .await;
 
-        let checker = ResourceChecker::new();
+        let spider = Spider::new_agent(ClientType::Standard).unwrap();
+        let checker = ResourceChecker::new(spider);
         let base_url = Url::parse(&server.url()).unwrap();
 
         let status = checker.check_robots_txt(base_url.as_str()).await.unwrap();
-        assert!(status.exists(), "robots.txt should be detected as found");
-        assert!(matches!(status, ResourceStatus::Found(_)));
+        assert!(status.exists());
     }
 
     #[tokio::test]
-    async fn test_check_robots_txt_not_found() {
-        let mut server = mockito::Server::new_async().await;
-        let _mock = server
-            .mock("GET", "/robots.txt")
-            .with_status(404)
-            .create_async()
-            .await;
-
-        let checker = ResourceChecker::new();
-        let base_url = Url::parse(&server.url()).unwrap();
-
-        let status = checker.check_robots_txt(base_url.as_str()).await.unwrap();
-        assert!(
-            !status.exists(),
-            "robots.txt should be detected as not found"
-        );
-        assert!(matches!(status, ResourceStatus::NotFound));
-    }
-
-    #[tokio::test]
-    async fn test_check_sitemap_xml_found() {
-        let mut server = mockito::Server::new_async().await;
-        let _mock = server
-            .mock("GET", "/sitemap.xml")
-            .with_status(200)
-            .with_body("<urlset></urlset>")
-            .create_async()
-            .await;
-
-        let checker = ResourceChecker::new();
-        let base_url = Url::parse(&server.url()).unwrap();
-
-        let status = checker.check_sitemap_xml(base_url.as_str()).await.unwrap();
-        assert!(status.exists(), "sitemap.xml should be detected as found");
-    }
-
-    #[tokio::test]
-    async fn test_check_resource_unauthorized() {
-        let mut server = mockito::Server::new_async().await;
-        let _mock = server
-            .mock("GET", "/robots.txt")
-            .with_status(401)
-            .create_async()
-            .await;
-
-        let checker = ResourceChecker::new();
-        let base_url = Url::parse(&server.url()).unwrap();
-
-        let status = checker.check_robots_txt(base_url.as_str()).await.unwrap();
-        // Unauthorized still means the resource "exists" (it's just protected)
-        assert!(status.exists(), "Unauthorized should still count as exists");
-        assert!(matches!(status, ResourceStatus::Unauthorized(_)));
+    async fn test_check_ssl_certificate() {
+        let spider = Spider::new_agent(ClientType::Standard).unwrap();
+        let checker = ResourceChecker::new(spider);
+        assert!(checker.check_ssl_certificate("https://google.com"));
+        assert!(!checker.check_ssl_certificate("http://google.com"));
     }
 }

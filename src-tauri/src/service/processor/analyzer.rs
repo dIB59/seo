@@ -2,6 +2,7 @@ use crate::domain::{JobSettings, LighthouseData, NewHeading, NewImage, NewIssue,
 use crate::extractor::page_extractor::{ExtractedHeading, ExtractedImage, PageExtractor};
 use crate::repository::{IssueRepository as IssueRepoTrait, PageRepository as PageRepoTrait};
 use crate::service::auditor::{Auditor, DeepAuditor, LightAuditor};
+use crate::service::spider::SpiderAgent;
 use anyhow::Result;
 use scraper::Html;
 use std::sync::Arc;
@@ -20,14 +21,17 @@ pub struct PageResult {
 }
 
 impl AnalyzerService {
-    /// Create analyzer with mocked or alternate repos (DI-friendly, for tests).
     /// Create analyzer with mocked or alternate repos (DI-only).
-    pub fn new(page_db: Arc<dyn PageRepoTrait>, issue_db: Arc<dyn IssueRepoTrait>) -> Self {
+    pub fn new(
+        page_db: Arc<dyn PageRepoTrait>,
+        issue_db: Arc<dyn IssueRepoTrait>,
+        deep_spider: Arc<dyn SpiderAgent>,
+    ) -> Self {
         Self {
             page_db,
             issue_db,
-            light_auditor: Arc::new(LightAuditor::new()),
-            deep_auditor: Arc::new(DeepAuditor::new()),
+            light_auditor: Arc::new(LightAuditor::new(deep_spider.clone())),
+            deep_auditor: Arc::new(DeepAuditor::new(deep_spider.clone())),
         }
     }
 

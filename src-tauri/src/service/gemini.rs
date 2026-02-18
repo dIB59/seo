@@ -1,3 +1,5 @@
+use crate::service::spider::SpiderAgent;
+#[cfg(test)]
 use crate::service::spider::{ClientType, Spider};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -37,6 +39,7 @@ pub async fn generate_gemini_analysis(
     ai_repo: std::sync::Arc<dyn crate::repository::AiRepository>,
     settings_repo: std::sync::Arc<dyn crate::repository::SettingsRepository>,
     request: GeminiRequest,
+    spider: std::sync::Arc<dyn SpiderAgent>,
     api_base_url: Option<String>,
 ) -> Result<String> {
     // 1. Check cache first
@@ -111,7 +114,6 @@ pub async fn generate_gemini_analysis(
     });
 
     // Make API request
-    let spider = Spider::new(ClientType::Standard)?;
     let response = spider
         .post_json(&api_url, &request_body)
         .await
@@ -234,9 +236,11 @@ mod tests {
 
         let ai_repo = crate::repository::sqlite_ai_repo(pool.clone());
         let settings_repo = crate::repository::sqlite_settings_repo(pool.clone());
-        let result = generate_gemini_analysis(ai_repo, settings_repo, request, Some(server.url()))
-            .await
-            .unwrap();
+        let spider = Spider::new_agent(ClientType::Standard).unwrap();
+        let result =
+            generate_gemini_analysis(ai_repo, settings_repo, request, spider, Some(server.url()))
+                .await
+                .unwrap();
 
         // 4. Verify - use contains() for resilience against minor text changes
         assert!(
@@ -259,7 +263,8 @@ mod tests {
 
         let ai_repo = crate::repository::sqlite_ai_repo(pool.clone());
         let settings_repo = crate::repository::sqlite_settings_repo(pool.clone());
-        let result = generate_gemini_analysis(ai_repo, settings_repo, request, None).await;
+        let spider = Spider::new_agent(ClientType::Standard).unwrap();
+        let result = generate_gemini_analysis(ai_repo, settings_repo, request, spider, None).await;
 
         assert!(result.is_err(), "Should fail when API key is missing");
         let err = result.unwrap_err().to_string();
@@ -291,8 +296,10 @@ mod tests {
 
         let ai_repo = crate::repository::sqlite_ai_repo(pool.clone());
         let settings_repo = crate::repository::sqlite_settings_repo(pool.clone());
+        let spider = Spider::new_agent(ClientType::Standard).unwrap();
         let result =
-            generate_gemini_analysis(ai_repo, settings_repo, request, Some(server.url())).await;
+            generate_gemini_analysis(ai_repo, settings_repo, request, spider, Some(server.url()))
+                .await;
 
         assert!(result.is_err(), "Should fail when API returns error");
         let err = result.unwrap_err().to_string();
@@ -346,6 +353,7 @@ mod tests {
             ai_repo.clone(),
             settings_repo.clone(),
             request.clone(),
+            Spider::new_agent(ClientType::Standard).unwrap(),
             Some(server.url()),
         )
         .await
@@ -356,9 +364,15 @@ mod tests {
         );
 
         // Second call with same analysis_id - should use cache
-        let result2 = generate_gemini_analysis(ai_repo, settings_repo, request, Some(server.url()))
-            .await
-            .unwrap();
+        let result2 = generate_gemini_analysis(
+            ai_repo,
+            settings_repo,
+            request,
+            Spider::new_agent(ClientType::Standard).unwrap(),
+            Some(server.url()),
+        )
+        .await
+        .unwrap();
         assert!(
             result2.contains("Cached"),
             "Second call should return cached result"

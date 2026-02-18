@@ -1,25 +1,26 @@
 use crate::domain::licensing::{AddonError, LicenseVerifier, SignedLicense};
 use crate::domain::permissions::LicenseTier;
 use crate::service::hardware::HardwareService;
-use crate::service::spider::{ClientType, Spider};
+use crate::service::spider::SpiderAgent;
 use std::sync::Arc;
 
 pub struct LicensingService {
     verifier: LicenseVerifier,
     settings_repo: Arc<dyn crate::repository::SettingsRepository>,
-    spider: Spider,
+    spider: Arc<dyn SpiderAgent>,
 }
 
 impl LicensingService {
-    const PUBLIC_KEY: &'static [u8; 32] = include_bytes!("../../public_key.bin");
+    const PUBLIC_KEY: &'static [u8; 32] =
+        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/public_key.bin"));
     const API_BASE_URL: &str = "https://api.graviplex.com/licensing";
     const LICENSE_SETTING_KEY: &str = "signed_license";
 
     pub fn new(
         settings_repo: Arc<dyn crate::repository::SettingsRepository>,
+        spider: Arc<dyn SpiderAgent>,
     ) -> Result<Self, AddonError> {
         let verifier = LicenseVerifier::new(Self::PUBLIC_KEY.to_owned())?;
-        let spider = Spider::new(ClientType::Standard).map_err(|_| AddonError::NetworkError)?;
         Ok(Self {
             verifier,
             settings_repo,
@@ -67,15 +68,15 @@ impl LicensingService {
     pub async fn activate_with_key(&self, key: &str) -> Result<LicenseTier, AddonError> {
         let machine_id = HardwareService::get_machine_id();
 
+        let payload = serde_json::to_value(&crate::domain::licensing::LicenseActivationRequest {
+            key: key.to_string(),
+            machine_id: machine_id.clone(),
+        })
+        .map_err(|_| AddonError::VerificationFailed)?;
+
         let response = self
             .spider
-            .post_json(
-                &format!("{}/activate", Self::API_BASE_URL),
-                &crate::domain::licensing::LicenseActivationRequest {
-                    key: key.to_string(),
-                    machine_id: machine_id.clone(),
-                },
-            )
+            .post_json(&format!("{}/activate", Self::API_BASE_URL), &payload)
             .await
             .map_err(|_| AddonError::NetworkError)?;
 

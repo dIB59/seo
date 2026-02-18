@@ -4,11 +4,12 @@
 //! Much faster than Lighthouse (~1-2s vs ~5-10s) but less comprehensive.
 
 use super::{AuditResult, AuditScores, Auditor, CheckResult, Score, SeoAuditDetails};
-use crate::service::spider::{ClientType, Spider};
+use crate::service::spider::SpiderAgent;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use scraper::{Html, Selector};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use url::Url;
 
 /// Light auditor using direct HTTP fetching.
@@ -20,14 +21,12 @@ use url::Url;
 ///
 /// Trade-off: ~1-2 seconds per page, no JS rendering.
 pub struct LightAuditor {
-    spider: Spider,
+    spider: Arc<dyn SpiderAgent>,
 }
 
 impl LightAuditor {
-    pub fn new() -> Self {
-        Self {
-            spider: Spider::new(ClientType::HeavyEmulation).expect("Failed to create HTTP client"),
-        }
+    pub fn new(spider: Arc<dyn SpiderAgent>) -> Self {
+        Self { spider }
     }
 
     /// Analyze HTML and compute SEO scores.
@@ -477,12 +476,6 @@ impl LightAuditor {
     }
 }
 
-impl Default for LightAuditor {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[async_trait]
 impl Auditor for LightAuditor {
     async fn analyze(&self, url: &str) -> Result<AuditResult> {
@@ -547,10 +540,14 @@ impl Auditor for LightAuditor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::service::spider::{ClientType, Spider};
 
     #[test]
     fn test_check_title() {
-        let auditor = LightAuditor::new();
+        let spider =
+            crate::service::spider::Spider::new_agent(crate::service::spider::ClientType::Standard)
+                .unwrap();
+        let auditor = LightAuditor::new(spider);
 
         // Good title (30-60 chars)
         let html = "<html><head><title>This Is a Good Title for SEO Testing Purposes</title></head></html>";
@@ -576,7 +573,10 @@ mod tests {
 
     #[test]
     fn test_check_image_alt() {
-        let auditor = LightAuditor::new();
+        let spider =
+            crate::service::spider::Spider::new_agent(crate::service::spider::ClientType::Standard)
+                .unwrap();
+        let auditor = LightAuditor::new(spider);
 
         // All images have alt
         let html = r#"<html><body><img src="a.jpg" alt="desc"><img src="b.jpg" alt="other"></body></html>"#;
@@ -660,7 +660,10 @@ mod tests {
 
     #[test]
     fn test_check_link_text_various() {
-        let auditor = LightAuditor::new();
+        let spider =
+            crate::service::spider::Spider::new_agent(crate::service::spider::ClientType::Standard)
+                .unwrap();
+        let auditor = LightAuditor::new(spider);
 
         // Good text
         let html = r#"<html><body><a href=\"/a\">Read this article</a></body></html>"#;

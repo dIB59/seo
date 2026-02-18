@@ -6,9 +6,10 @@ mod crawler;
 mod queue;
 pub mod reporter;
 
+pub use crate::service::discovery::SiteResources;
 pub use analyzer::{AnalyzerService, PageResult};
 pub use canceler::JobCanceler;
-pub use crawler::{CrawlContext, Crawler, SiteResources};
+pub use crawler::{CrawlContext, Crawler};
 pub use queue::JobQueue;
 pub use reporter::ProgressReporter;
 
@@ -37,16 +38,21 @@ impl JobProcessor {
         job_repo: Arc<dyn crate::repository::JobRepository>,
         link_repo: Arc<dyn crate::repository::LinkRepository>,
         analyzer: AnalyzerService,
+        crawler: Crawler,
         progress_emitter: Arc<dyn ProgressEmitter>, // ← Trait object
     ) -> Self {
         Self {
             job_queue: JobQueue::new(job_repo),
-            crawler: Crawler::new(),
+            crawler,
             analyzer,
             progress_emitter,
             canceler: JobCanceler::new(),
             link_db: link_repo,
         }
+    }
+
+    pub fn analyzer(&self) -> &AnalyzerService {
+        &self.analyzer
     }
 
     pub async fn shutdown(&self) -> Result<()> {

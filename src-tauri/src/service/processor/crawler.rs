@@ -1,6 +1,7 @@
 use crate::domain::JobSettings;
-use crate::service::discovery::{PageDiscovery, ResourceChecker};
+use crate::service::discovery::{PageDiscovery, ResourceChecker, SiteResources};
 use crate::service::processor::reporter::{ProgressEmitter, ProgressEvent};
+use crate::service::spider::SpiderAgent;
 use anyhow::{Context, Result};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -18,17 +19,11 @@ pub struct CrawlContext {
     pub cancel_flag: Arc<AtomicBool>,
 }
 
-impl Default for Crawler {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl Crawler {
-    pub fn new() -> Self {
+    pub fn new(spider: Arc<dyn SpiderAgent>) -> Self {
         Self {
-            discovery: PageDiscovery::new(),
-            resource_checker: ResourceChecker::new(),
+            discovery: PageDiscovery::new(spider.clone()),
+            resource_checker: ResourceChecker::new(spider),
         }
     }
 
@@ -92,12 +87,4 @@ impl Crawler {
 
         Ok(discovered)
     }
-}
-
-/// Site-level resource check results.
-#[allow(dead_code)]
-pub struct SiteResources {
-    pub robots_txt: bool,
-    pub sitemap: bool,
-    pub ssl: bool,
 }

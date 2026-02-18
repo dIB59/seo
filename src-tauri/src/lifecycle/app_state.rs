@@ -1,15 +1,13 @@
 use crate::{
-    domain::{
-        // licensing::LicensingService, // Removed invalid import
-        permissions::{LicenseTier, Policy},
-    },
+    domain::permissions::{LicenseTier, Policy},
     repository::{
         sqlite_ai_repo, sqlite_issue_repo, sqlite_job_repo, sqlite_link_repo, sqlite_page_repo,
         sqlite_results_repo, sqlite_settings_repo,
     },
     service::{
         licensing_service::LicensingService,
-        processor::{reporter::ProgressEmitter, AnalyzerService},
+        processor::{reporter::ProgressEmitter, AnalyzerService, Crawler},
+        spider::{ClientType, Spider, SpiderAgent},
         JobProcessor, ProgressReporter,
     },
 };
@@ -24,10 +22,11 @@ pub struct AppState {
     pub job_repo: Arc<dyn crate::repository::JobRepository>,
     pub results_repo: Arc<dyn crate::repository::ResultsRepository>,
 
-    // Services exposed to commands
+    pub standard_spider: Arc<dyn SpiderAgent>,
+    pub heavy_spider: Arc<dyn SpiderAgent>,
 
     // Background services (not exposed to commands, but kept alive via AppState)
-    pub job_processor: Arc<JobProcessor>, // underscore = intentionally unused but kept alive
+    pub job_processor: Arc<JobProcessor>,
 
     // Licensing and Permissions
     pub permissions: RwLock<Policy>,
@@ -40,7 +39,11 @@ impl AppState {
         // 1. Initialize database
         let pool = crate::db::init_db(&app_handle).await?;
 
-        // 2. Build repositories (bottom layer of dependency graph)
+        // 2. Build spiders (foundation for services)
+        let standard_spider = Spider::new_agent(ClientType::Standard)?;
+        let heavy_spider = Spider::new_agent(ClientType::HeavyEmulation)?;
+
+        // 3. Build repositories
         let job_repo = sqlite_job_repo(pool.clone());
         let link_repo = sqlite_link_repo(pool.clone());
         let pages_repo = sqlite_page_repo(pool.clone());
@@ -51,16 +54,18 @@ impl AppState {
         let progress_reporter: Arc<dyn ProgressEmitter> =
             Arc::new(ProgressReporter::new(app_handle.clone()));
 
-        // 3. Build services (middle layer)
-        let analyzer = AnalyzerService::new(pages_repo, issues_repo);
-        // 4. Start background tasks
-        let deep_auditor = analyzer.deep_auditor();
+        // 4. Build services
+        let analyzer = AnalyzerService::new(pages_repo, issues_repo, heavy_spider.clone());
+        let crawler = Crawler::new(heavy_spider.clone());
+
         let job_processor = Arc::new(JobProcessor::new(
             job_repo.clone(),
             link_repo,
             analyzer,
+            crawler,
             progress_reporter.clone(),
         ));
+
         let proc_clone = job_processor.clone();
         tauri::async_runtime::spawn(async move {
             if let Err(e) = proc_clone.run().await {
@@ -69,7 +74,7 @@ impl AppState {
         });
 
         // Pre-warm DeepAuditor
-        let da_clone = deep_auditor.clone();
+        let da_clone = job_processor.analyzer().deep_auditor();
         tauri::async_runtime::spawn(async move {
             match da_clone.start_persistent().await {
                 Ok(_) => tracing::info!("DeepAuditor persistent mode started"),
@@ -81,18 +86,23 @@ impl AppState {
         });
 
         // 5. Licensing Init
-        let licensing_service = Arc::new(LicensingService::new(settings_repo.clone())?);
+        let licensing_service = Arc::new(LicensingService::new(
+            settings_repo.clone(),
+            standard_spider.clone(),
+        )?);
         let initial_tier = licensing_service.load_license().await.unwrap_or_default();
         if initial_tier != LicenseTier::Free {
             tracing::info!("License verified: {:?}", initial_tier);
         }
 
-        // 6. Return composed state (only expose what commands need)
+        // 6. Return composed state
         Ok(AppState {
             settings_repo,
             ai_repo,
             job_repo,
             results_repo,
+            standard_spider,
+            heavy_spider,
             job_processor,
             permissions: RwLock::new(Policy::new(initial_tier)),
             licensing_service,

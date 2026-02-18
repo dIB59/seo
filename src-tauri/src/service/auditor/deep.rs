@@ -1,7 +1,8 @@
 use super::{
     AuditResult, AuditScores, Auditor, CheckResult, PerformanceMetrics, Score, SeoAuditDetails,
 };
-use crate::service::spider::{ClientType, Spider};
+use crate::service::spider::SpiderAgent;
+
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -39,16 +40,14 @@ struct PersistentRequest {
 pub struct DeepAuditor {
     sidecar_path: PathBuf,
     persistent_process: Arc<Mutex<Option<PersistentProcess>>>,
-    spider: Spider,
+    spider: Arc<dyn SpiderAgent>,
 }
 
 impl DeepAuditor {
     /// Create a new DeepAuditor, locating the sidecar binary.
-    pub fn new() -> Self {
+    pub fn new(spider: Arc<dyn SpiderAgent>) -> Self {
         let sidecar_path = Self::find_sidecar_path();
         tracing::info!("[DEEP] Sidecar path: {:?}", sidecar_path);
-        let spider =
-            Spider::new(ClientType::Standard).expect("Failed to create spider for deep auditor");
         Self {
             sidecar_path,
             persistent_process: Arc::new(Mutex::new(None)),
@@ -365,12 +364,6 @@ impl DeepAuditor {
     }
 }
 
-impl Default for DeepAuditor {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[async_trait]
 impl Auditor for DeepAuditor {
     async fn analyze(&self, url: &str) -> Result<AuditResult> {
@@ -487,6 +480,7 @@ struct SidecarPerformanceMetrics {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::service::spider::{ClientType, Spider};
 
     #[test]
     fn test_sidecar_response_parsing() {

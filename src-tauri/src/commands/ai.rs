@@ -27,9 +27,15 @@ pub async fn get_gemini_insights(
         }
     }
 
-    generate_gemini_analysis(ai_repo, settings_repo, request, None)
-        .await
-        .map_err(|e| format!("Failed to generate AI insights: {}", e))
+    generate_gemini_analysis(
+        ai_repo,
+        settings_repo,
+        request,
+        app_state.standard_spider.clone(),
+        None,
+    )
+    .await
+    .map_err(|e| format!("Failed to generate AI insights: {}", e))
 }
 
 #[command]
