@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT id FROM jobs WHERE status = 'running'\n            ",
+  "query": "\n            SELECT id FROM jobs WHERE status IN ('discovery', 'processing')\n            ",
   "describe": {
     "columns": [
       {
@@ -16,5 +16,5 @@
       false
     ]
   },
-  "hash": "b760ffdadbfa68673cd38bc06d3f4bee9719fa73541d08bca32d3f56507ae053"
+  "hash": "26c20d2553f5d634d23455f2b633575cafd413f6eeac4f3c48f1c736c21448ee"
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT \n                id, url, status, created_at, updated_at, completed_at,\n                max_pages, max_depth, respect_robots_txt, include_subdomains, \n                rate_limit_ms, user_agent, lighthouse_analysis,\n                total_pages, pages_crawled, total_issues, \n                critical_issues, warning_issues, info_issues,\n                progress, current_stage, error_message\n            FROM jobs\n            WHERE status IN ('pending', 'running')\n            ORDER BY created_at ASC\n            ",
+  "query": "\n            SELECT \n                id, url, status, created_at, updated_at, completed_at,\n                max_pages, max_depth, respect_robots_txt, include_subdomains, \n                rate_limit_ms, user_agent, lighthouse_analysis,\n                total_pages, pages_crawled, total_issues, \n                critical_issues, warning_issues, info_issues,\n                progress, error_message\n            FROM jobs\n            WHERE status IN ('pending', 'discovery', 'processing')\n            ORDER BY created_at ASC\n            ",
   "describe": {
     "columns": [
       {
@@ -104,13 +104,8 @@
         "type_info": "Float"
       },
       {
-        "name": "current_stage",
-        "ordinal": 20,
-        "type_info": "Text"
-      },
-      {
         "name": "error_message",
-        "ordinal": 21,
+        "ordinal": 20,
         "type_info": "Text"
       }
     ],
@@ -138,9 +133,8 @@
       false,
       false,
       false,
-      true,
       true
     ]
   },
-  "hash": "3fe0496e579dcedc02ea55f627c039e75fa3213693e48f1ef840ea57a5be4a55"
+  "hash": "0e5e0b13805cb6c4a1b2330d701f40b0384beca139e97400139ad8d5a06e364f"
 }
