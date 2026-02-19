@@ -1,15 +1,9 @@
-//! Link repository for the redesigned schema.
-//!
-//! Links (page edges) have a direct `job_id` foreign key, enabling fast
-//! graph queries without joining through page_analysis → analysis_results.
-
 use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 
 use super::map_link_type;
 use crate::domain::{Link, NewLink};
 
-/// Link counts by type.
 #[derive(Debug, Clone, Default)]
 pub struct LinkCounts {
     pub internal: i64,
@@ -23,7 +17,6 @@ impl LinkCounts {
     }
 }
 
-/// External domain summary.
 #[derive(Debug, Clone)]
 pub struct ExternalDomain {
     pub domain: String,
@@ -39,7 +32,6 @@ impl LinkRepository {
         Self { pool }
     }
 
-    /// Insert multiple links in a batch.
     pub async fn insert_batch(&self, links: &[NewLink]) -> Result<()> {
         if links.is_empty() {
             return Ok(());
@@ -76,7 +68,6 @@ impl LinkRepository {
         Ok(())
     }
 
-    /// Get all links for a job (FAST: direct FK lookup).
     pub async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<Link>> {
         let rows = sqlx::query!(
             r#"
@@ -108,7 +99,6 @@ impl LinkRepository {
             .collect())
     }
 
-    /// Get outgoing links from a page.
     pub async fn get_outgoing(&self, source_page_id: &str) -> Result<Vec<Link>> {
         let rows = sqlx::query!(
             r#"
@@ -140,7 +130,6 @@ impl LinkRepository {
             .collect())
     }
 
-    /// Get incoming links to a page.
     pub async fn get_incoming(&self, target_page_id: &str) -> Result<Vec<Link>> {
         let rows = sqlx::query!(
             r#"
@@ -172,7 +161,6 @@ impl LinkRepository {
             .collect())
     }
 
-    /// Get broken links for a job (status_code >= 400 or NULL).
     pub async fn get_broken(&self, job_id: &str) -> Result<Vec<Link>> {
         let rows = sqlx::query!(
             r#"
@@ -204,7 +192,6 @@ impl LinkRepository {
             .collect())
     }
 
-    /// Get link counts by type for a job.
     pub async fn count_by_type(&self, job_id: &str) -> Result<LinkCounts> {
         let row = sqlx::query!(
             r#"
@@ -228,7 +215,6 @@ impl LinkRepository {
         })
     }
 
-    /// Get external domains linked from a job.
     pub async fn get_external_domains(&self, job_id: &str) -> Result<Vec<ExternalDomain>> {
         let rows = sqlx::query!(
             r#"
@@ -256,7 +242,6 @@ impl LinkRepository {
             .collect())
     }
 
-    /// Update link status codes (after checking links).
     pub async fn update_status_codes(&self, updates: &[(i64, i64)]) -> Result<()> {
         if updates.is_empty() {
             return Ok(());

@@ -32,7 +32,6 @@ impl LicensingService {
 
 #[async_trait]
 impl LicensingAgent for LicensingService {
-    /// Loads the license from the database.
     async fn load_license(&self) -> Result<LicenseTier, AddonError> {
         let license_content = self
             .settings_repo
@@ -55,7 +54,6 @@ impl LicensingAgent for LicensingService {
         self.verifier.verify(&signed_license, &machine_id)
     }
 
-    /// Activates a license using a key by communicating with the REST API.
     async fn activate_with_key(&self, key: &str) -> Result<LicenseTier, AddonError> {
         let machine_id = HardwareService::get_machine_id();
 

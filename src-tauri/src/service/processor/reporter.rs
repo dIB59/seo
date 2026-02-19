@@ -3,18 +3,15 @@ use tauri::Emitter;
 // src/service/progress.rs
 use serde::Serialize;
 
-/// Domain events for job progress reporting
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "event", rename_all = "snake_case")]
 pub enum ProgressEvent {
-    /// Analysis phase: pages processed, % complete
     Analysis {
         job_id: String,
         progress: f64,
         pages_analyzed: usize,
         total_pages: usize, // Optional total for more accurate progress
     },
-    /// Discovery phase: URLs found during crawl
     Discovery {
         job_id: String,
         count: usize,

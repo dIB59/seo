@@ -1,12 +1,3 @@
-//! Job repository for the redesigned schema.
-//!
-//! The `jobs` table consolidates:
-//! - Job metadata (id, url, status, timestamps)
-//! - Settings (max_pages, max_depth, rate_limit, etc.)
-//! - Summary stats (total_pages, total_issues, etc.)
-//!
-//! Uses compile-time checked queries with sqlx::query!() macro.
-
 use anyhow::{Context, Result};
 use chrono::Utc;
 use sqlx::SqlitePool;
@@ -23,8 +14,6 @@ impl JobRepository {
         Self { pool }
     }
 
-    /// Create a new job with settings.
-    /// Returns the job ID (UUID string).
     pub async fn create(&self, url: &str, settings: &JobSettings) -> Result<String> {
         let id = uuid::Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
@@ -68,7 +57,6 @@ impl JobRepository {
         Ok(id)
     }
 
-    /// Get a job by ID with full details.
     pub async fn get_by_id(&self, job_id: &str) -> Result<Job> {
         let row = sqlx::query!(
             r#"
@@ -116,7 +104,6 @@ impl JobRepository {
         })
     }
 
-    /// Get all jobs (lightweight info for listing).
     pub async fn get_all(&self) -> Result<Vec<JobInfo>> {
         let rows = sqlx::query!(
             r#"
@@ -148,7 +135,6 @@ impl JobRepository {
             .collect())
     }
 
-    /// Get paginated jobs for history listing.
     pub async fn get_paginated(&self, limit: i64, offset: i64) -> Result<Vec<JobInfo>> {
         let rows = sqlx::query!(
             r#"
@@ -183,7 +169,6 @@ impl JobRepository {
             .collect())
     }
 
-    /// Optimized count and fetch in one query using window functions
     pub async fn get_paginated_with_total(
         &self,
         limit: i64,
@@ -246,7 +231,6 @@ impl JobRepository {
         Ok(row.count as i64)
     }
 
-    /// Get pending/running jobs (for job processor).
     pub async fn get_pending(&self) -> Result<Vec<Job>> {
         let rows = sqlx::query!(
             r#"
@@ -297,7 +281,6 @@ impl JobRepository {
             .collect())
     }
 
-    /// Update job status.
     pub async fn update_status(&self, job_id: &str, status: JobStatus) -> Result<()> {
         let status_str = status.as_str();
         let completed_at = if status.is_terminal() {
@@ -324,7 +307,6 @@ impl JobRepository {
         Ok(())
     }
 
-    /// Update job progress.
     pub async fn update_progress(&self, job_id: &str, progress: f64) -> Result<()> {
         sqlx::query!(
             r#"
@@ -342,7 +324,6 @@ impl JobRepository {
         Ok(())
     }
 
-    /// Update job with error.
     pub async fn set_error(&self, job_id: &str, error: &str) -> Result<()> {
         let now = Utc::now().to_rfc3339();
 
@@ -363,7 +344,6 @@ impl JobRepository {
         Ok(())
     }
 
-    /// Delete a job and all related data (CASCADE).
     pub async fn delete(&self, job_id: &str) -> Result<()> {
         sqlx::query!("DELETE FROM jobs WHERE id = ?", job_id)
             .execute(&self.pool)

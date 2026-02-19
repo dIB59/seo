@@ -1,7 +1,7 @@
 import { PageAnalysisData } from "@/src/lib/types";
 import { cn } from "@/src/lib/utils";
 import { Dialog, DialogContent, DialogTitle } from "@radix-ui/react-dialog";
-import { Separator } from "@radix-ui/react-dropdown-menu";
+import { Separator } from "../../ui/separator";
 import { BarChart3, Clock, FileCode, Link2, FileText, Smartphone, ImageIcon } from "lucide-react";
 import { DialogHeader } from "../../ui/dialog";
 import { MetricBadge } from "../atoms/MetricBadge";
@@ -34,7 +34,6 @@ function BrokenPageModal({ page, open, onClose }: { page: PageAnalysisData; open
                     <p className="text-sm text-muted-foreground truncate">{page.title || "No title"}</p>
                 </DialogHeader>
 
-                {/* scrollable body */}
                 <div className="overflow-auto">
                     <h4 className="text-sm font-medium mb-3">Content Metrics</h4>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

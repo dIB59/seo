@@ -13,7 +13,6 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 use tokio::sync::Mutex;
 
-/// Holds the persistent sidecar process state
 struct PersistentProcess {
     #[allow(dead_code)]
     child: Child,
@@ -21,22 +20,12 @@ struct PersistentProcess {
     stdout: BufReader<ChildStdout>,
 }
 
-/// Request format for the persistent sidecar
 #[derive(Debug, Serialize)]
 struct PersistentRequest {
     action: String,
     url: Option<String>,
 }
 
-/// Deep auditor using Lighthouse via bundled sidecar binary.
-///
-/// Provides comprehensive SEO analysis including:
-/// - Performance scores and Core Web Vitals
-/// - Accessibility audit
-/// - Best practices check
-/// - Detailed SEO audits
-///
-/// Trade-off: ~5-10 seconds per page due to Chrome rendering.
 pub struct DeepAuditor {
     sidecar_path: PathBuf,
     persistent_process: Arc<Mutex<Option<PersistentProcess>>>,
@@ -44,7 +33,6 @@ pub struct DeepAuditor {
 }
 
 impl DeepAuditor {
-    /// Create a new DeepAuditor, locating the sidecar binary.
     pub fn new(spider: Arc<dyn SpiderAgent>) -> Self {
         let sidecar_path = Self::find_sidecar_path();
         tracing::info!("[DEEP] Sidecar path: {:?}", sidecar_path);
@@ -55,7 +43,6 @@ impl DeepAuditor {
         }
     }
 
-    /// Check if the sidecar binary is available.
     pub fn is_available(&self) -> bool {
         self.sidecar_path.exists()
             || std::process::Command::new(&self.sidecar_path)
@@ -64,7 +51,6 @@ impl DeepAuditor {
                 .is_ok()
     }
 
-    /// Find the path to the lighthouse-runner sidecar binary.
     fn find_sidecar_path() -> PathBuf {
         let exe_path = std::env::current_exe().unwrap_or_default();
         let exe_dir = exe_path.parent().unwrap_or(std::path::Path::new("."));
@@ -106,7 +92,6 @@ impl DeepAuditor {
         PathBuf::from(binary_name)
     }
 
-    /// Get the target triple suffix for the current platform
     fn get_target_triple() -> &'static str {
         #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
         {
@@ -135,7 +120,6 @@ impl DeepAuditor {
         }
     }
 
-    /// Start a persistent sidecar process that keeps Chrome running.
     pub async fn start_persistent(&self) -> Result<()> {
         let mut process = self.persistent_process.lock().await;
 
@@ -197,7 +181,6 @@ impl DeepAuditor {
         Ok(())
     }
 
-    /// Analyze using persistent process
     async fn analyze_persistent(&self, url: &str) -> Result<AuditResult> {
         let mut process_guard = self.persistent_process.lock().await;
         let process = process_guard
@@ -236,7 +219,6 @@ impl DeepAuditor {
         Ok(self.build_result(response, process_time_ms, url).await)
     }
 
-    /// One-shot analysis
     async fn analyze_oneshot(&self, url: &str) -> Result<AuditResult> {
         let start_time = std::time::Instant::now();
 

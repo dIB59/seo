@@ -1,8 +1,3 @@
-//! Page repository for the redesigned schema.
-//!
-//! Pages have a direct `job_id` foreign key, eliminating the need to
-//! join through analysis_results.
-
 use anyhow::{Context, Result};
 use chrono::Utc;
 use sqlx::SqlitePool;
@@ -18,7 +13,6 @@ impl PageRepository {
         Self { pool }
     }
 
-    /// Insert a single page.
     pub async fn insert(&self, page: &Page) -> Result<String> {
         let id = if page.id.is_empty() {
             uuid::Uuid::new_v4().to_string()
@@ -81,7 +75,6 @@ impl PageRepository {
         Ok(row.id)
     }
 
-    /// Insert multiple pages in a batch.
     pub async fn insert_batch(&self, pages: &[Page]) -> Result<()> {
         if pages.is_empty() {
             return Ok(());
@@ -136,7 +129,6 @@ impl PageRepository {
         Ok(())
     }
 
-    /// Get all pages for a job (FAST: direct FK lookup).
     pub async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<Page>> {
         let rows = sqlx::query!(
             r#"
@@ -178,7 +170,6 @@ impl PageRepository {
             .collect())
     }
 
-    /// Get page info with issue counts for listing.
     pub async fn get_info_by_job_id(&self, job_id: &str) -> Result<Vec<PageInfo>> {
         let rows = sqlx::query!(
             r#"
@@ -210,7 +201,6 @@ impl PageRepository {
             .collect())
     }
 
-    /// Get a single page by ID.
     pub async fn get_by_id(&self, page_id: &str) -> Result<Page> {
         let row = sqlx::query!(
             r#"
@@ -248,7 +238,6 @@ impl PageRepository {
         })
     }
 
-    /// Replace all headings for a page.
     pub async fn replace_headings(&self, page_id: &str, headings: &[NewHeading]) -> Result<()> {
         sqlx::query!("DELETE FROM page_headings WHERE page_id = ?", page_id)
             .execute(&self.pool)
@@ -277,7 +266,6 @@ impl PageRepository {
         Ok(())
     }
 
-    /// Replace all images for a page.
     pub async fn replace_images(&self, page_id: &str, images: &[NewImage]) -> Result<()> {
         sqlx::query!("DELETE FROM page_images WHERE page_id = ?", page_id)
             .execute(&self.pool)
@@ -310,7 +298,6 @@ impl PageRepository {
         Ok(())
     }
 
-    /// Get page count for a job (FAST: uses index).
     pub async fn count_by_job_id(&self, job_id: &str) -> Result<i64> {
         let row = sqlx::query!(
             "SELECT COUNT(*) as count FROM pages WHERE job_id = ?",
@@ -323,7 +310,6 @@ impl PageRepository {
         Ok(row.count as i64)
     }
 
-    /// Insert Lighthouse data for a page.
     pub async fn insert_lighthouse(&self, data: &LighthouseData) -> Result<()> {
         let created_at = Utc::now().to_rfc3339();
         sqlx::query!(
@@ -358,7 +344,6 @@ impl PageRepository {
         Ok(())
     }
 
-    /// Get Lighthouse data for pages in a job.
     pub async fn get_lighthouse_by_job_id(&self, job_id: &str) -> Result<Vec<LighthouseData>> {
         let rows = sqlx::query!(
             r#"

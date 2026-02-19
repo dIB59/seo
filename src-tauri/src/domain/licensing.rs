@@ -11,7 +11,6 @@ pub struct LicenseData {
     pub machine_id: String,
     pub tier: LicenseTier,
     pub tier_version: TierVersion,
-    /// optional arbitrary metadata from the licensing server
     pub tier_meta: Option<serde_json::Value>,
     pub expires_at: Option<chrono::DateTime<chrono::Utc>>,
     pub issued_at: chrono::DateTime<chrono::Utc>,
@@ -56,22 +55,20 @@ impl LicenseVerifier {
         signed_license: &SignedLicense,
         current_machine_id: &str,
     ) -> Result<LicenseTier, AddonError> {
-        // 1. Verify Hardware Binding
         if signed_license.data.machine_id != current_machine_id {
             return Err(AddonError::HardwareMismatch);
         }
 
-        // 2. Verify Expiration
-        if let Some(expiry) = signed_license.data.expires_at {
-            if expiry < chrono::Utc::now() {
-                return Err(AddonError::LicenseExpired);
-            }
+        if signed_license
+            .data
+            .expires_at
+            .is_some_and(|expiry| expiry < chrono::Utc::now())
+        {
+            return Err(AddonError::LicenseExpired);
         }
 
-        // 3. Verify Signature
         use ed25519_dalek::Verifier;
 
-        // Use JSON for stable serialization across different platforms/languages
         let data_json = serde_json::to_string(&signed_license.data)
             .map_err(|_| AddonError::VerificationFailed)?;
 

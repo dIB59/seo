@@ -1,8 +1,3 @@
-//! Unified results repository for the redesigned schema.
-//!
-//! This provides a high-level API to fetch complete job results with
-//! all related data in optimized queries.
-
 use anyhow::{Context, Result};
 use chrono::Utc;
 use sqlx::SqlitePool;
@@ -23,18 +18,6 @@ impl ResultsRepository {
         Self { pool }
     }
 
-    /// Get complete job result with all related data.
-    /// This is the main query for displaying analysis results.
-    ///
-    /// Performance: With the new schema, this uses direct FK lookups:
-    /// - 1 query for job
-    /// - 1 query for pages (WHERE job_id = ?)
-    /// - 1 query for issues (WHERE job_id = ?)
-    /// - 1 query for links (WHERE job_id = ?)
-    /// - 1 query for lighthouse (JOIN on pages)
-    /// - 1 query for AI insights
-    ///
-    /// Total: 6 simple queries vs the old 5+ queries with expensive JOINs.
     pub async fn get_complete_result(&self, job_id: &str) -> Result<CompleteJobResult> {
         let query_start = std::time::Instant::now();
 
@@ -374,7 +357,6 @@ impl ResultsRepository {
         })
     }
 
-    /// Save AI insights for a job.
     pub async fn save_ai_insights(
         &self,
         job_id: &str,
@@ -473,7 +455,6 @@ impl ResultsRepositoryTrait for ResultsRepository {
     }
 }
 
-/// Parse datetime string to UTC DateTime.
 fn parse_datetime(s: &str) -> chrono::DateTime<Utc> {
     chrono::DateTime::parse_from_rfc3339(s)
         .map(|dt| dt.with_timezone(&Utc))

@@ -21,10 +21,6 @@ pub struct AnalysisProgress {
     pub total_issues: Option<i64>,
 }
 
-// ============================================================================
-// JOB TO ANALYSIS PROGRESS
-// ============================================================================
-
 impl From<Job> for AnalysisProgress {
     fn from(job: Job) -> Self {
         Self {

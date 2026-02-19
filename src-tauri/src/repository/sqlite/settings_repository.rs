@@ -11,10 +11,8 @@ impl SettingsRepository {
         Self { pool }
     }
 
-    /// Canonicalize commonly-used keys (aliases) to the stored key name.
     fn canonical_key(key: &str) -> &str {
         match key {
-            // In V2 schema the API key column is named `google_api_key`
             "google_api_key" | "gemini_api_key" => "google_api_key",
             "gemini_enabled" => "gemini_enabled",
             "gemini_persona" => "gemini_persona",

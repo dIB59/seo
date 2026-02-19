@@ -21,7 +21,6 @@ pub struct PageResult {
 }
 
 impl AnalyzerService {
-    /// Create analyzer with mocked or alternate repos (DI-only).
     pub fn new(
         page_db: Arc<dyn PageRepoTrait>,
         issue_db: Arc<dyn IssueRepoTrait>,

@@ -131,9 +131,9 @@ async fn dump_schema(pool: &SqlitePool, output_path: &std::path::Path) -> anyhow
     for row in rows {
         if let Some(sql) = row.sql {
             writeln!(file, "{};\n", sql)?;
+            tracing::debug!("{:?}", sql);
         }
     }
-
     Ok(())
 }
 

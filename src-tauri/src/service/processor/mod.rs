@@ -1,5 +1,3 @@
-//! Job processing orchestration for SEO analysis (V2 schema).
-
 mod analyzer;
 mod canceler;
 mod crawler;
@@ -19,7 +17,6 @@ use anyhow::Result;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-/// Orchestrates SEO analysis jobs using the normalized schema.
 pub struct JobProcessor {
     // Components
     job_queue: JobQueue,
@@ -33,13 +30,12 @@ pub struct JobProcessor {
 }
 
 impl JobProcessor {
-    /// Construct a JobProcessor with explicit repository and service dependencies (DI-only).
     pub fn new(
         job_repo: Arc<dyn crate::repository::JobRepository>,
         link_repo: Arc<dyn crate::repository::LinkRepository>,
         analyzer: AnalyzerService,
         crawler: Crawler,
-        progress_emitter: Arc<dyn ProgressEmitter>, // ← Trait object
+        progress_emitter: Arc<dyn ProgressEmitter>,
     ) -> Self {
         Self {
             job_queue: JobQueue::new(job_repo),
@@ -72,7 +68,6 @@ impl JobProcessor {
         }
     }
 
-    /// Main polling loop - fetches and processes pending jobs.
     pub async fn run(&self) -> Result<()> {
         tracing::info!("JobProcessor: Starting job polling loop");
 
@@ -87,14 +82,12 @@ impl JobProcessor {
         }
     }
 
-    /// Cancels a running job.
     pub async fn cancel(&self, job_id: &str) -> Result<()> {
         tracing::info!("Cancelling job {}", job_id);
         self.canceler.set_cancelled(job_id);
         self.job_queue.mark_cancelled(job_id).await
     }
 
-    /// Processes a single analysis job through its full lifecycle.
     pub(crate) async fn process_job(&self, mut job: Job) -> Result<String> {
         let timer = JobTimer::start(&job.id);
         let cancel_flag = self.canceler.get_cancel_flag(&job.id);
@@ -204,7 +197,6 @@ impl JobProcessor {
     }
 }
 
-/// Job timer for measuring total crawl time.
 struct JobTimer {
     start: std::time::Instant,
 }

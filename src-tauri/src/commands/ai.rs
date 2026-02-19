@@ -11,7 +11,6 @@ pub async fn get_gemini_insights(
     request: GeminiRequest,
     app_state: State<'_, AppState>,
 ) -> Result<String, String> {
-    // Check if AI is enabled globally
     tracing::info!("Analysis Id for AI insight: {:?}", request.analysis_id);
     let settings_repo = app_state.settings_repo.clone();
     let ai_repo = app_state.ai_repo.clone();
@@ -47,7 +46,6 @@ pub async fn get_gemini_enabled(app_state: State<'_, AppState>) -> Result<bool, 
         .await
         .map_err(|e| format!("Failed to check AI settings: {}", e))?;
 
-    // Default to true if not set
     Ok(val.map(|v| v != "false").unwrap_or(true))
 }
 

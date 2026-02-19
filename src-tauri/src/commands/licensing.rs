@@ -16,7 +16,7 @@ pub async fn activate_license(
         .activate_with_key(&license_key)
         .await
         .map_err(|e| {
-            tracing::error!("[MOCK] Failed to activate license: {}", e);
+            tracing::error!("Failed to activate license: {}", e);
             CommandError::from(e)
         })?;
 
@@ -35,7 +35,7 @@ pub async fn activate_with_key(
         .activate_with_key(&key)
         .await
         .map_err(|e| {
-            tracing::error!("[MOCK] Failed to activate license: {}", e);
+            tracing::error!("Failed to activate license: {}", e);
             CommandError::from(e)
         })?;
 

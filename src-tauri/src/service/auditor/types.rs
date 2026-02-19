@@ -1,21 +1,14 @@
-//! Shared types for audit results.
-//!
-//! These types are auditor-agnostic and work with both Light and Deep auditors.
-
 use serde::{Deserialize, Serialize};
 
-/// Wrapper type for scores, storing a raw 0.0-1.0 value and helpers.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
 #[serde(transparent)]
 pub struct Score(pub f64);
 
 impl Score {
-    /// Return the raw 0.0-1.0 value
     pub fn raw(&self) -> f64 {
         self.0
     }
 
-    /// Convert to percentage with 2-decimal precision (0.0 - 100.0)
     pub fn percent(&self) -> f64 {
         (self.0 * 10000.0).round() / 100.0
     }
@@ -31,7 +24,6 @@ impl From<f64> for Score {
     }
 }
 
-/// Result from an audit analysis.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditResult {
     pub url: String,
@@ -42,7 +34,6 @@ pub struct AuditResult {
     pub scores: AuditScores,
 }
 
-/// Audit category scores (0.0 to 1.0).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AuditScores {
     pub performance: Option<Score>,
@@ -68,7 +59,6 @@ impl AuditScores {
     }
 }
 
-/// Detailed performance metrics.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PerformanceMetrics {
     pub first_contentful_paint: Option<f64>,
@@ -79,7 +69,6 @@ pub struct PerformanceMetrics {
     pub cumulative_layout_shift: Option<f64>,
 }
 
-/// Individual check result.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CheckResult {
     pub passed: bool,
@@ -89,7 +78,6 @@ pub struct CheckResult {
     pub description: Option<String>,
 }
 
-/// Detailed SEO audit results.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SeoAuditDetails {
     pub document_title: CheckResult,
@@ -105,7 +93,6 @@ pub struct SeoAuditDetails {
     pub is_crawlable: CheckResult,
 }
 
-/// A single named audit check suitable for frontend display.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditCheck {
     pub key: &'static str,
@@ -117,8 +104,6 @@ pub struct AuditCheck {
 }
 
 impl SeoAuditDetails {
-    /// Calculate overall SEO score from individual checks.
-    /// Returns a `Score` (raw 0.0-1.0) to keep calculations encapsulated.
     pub fn calculate_score(&self) -> Score {
         let checks = [
             &self.document_title,
@@ -136,8 +121,6 @@ impl SeoAuditDetails {
         Score::from(total / checks.len() as f64)
     }
 
-    /// Return a frontend-friendly breakdown of individual SEO audit checks.
-    /// Scores returned here are percentages with 2 decimal precision.
     pub fn breakdown(&self) -> Vec<AuditCheck> {
         vec![
             AuditCheck {

@@ -45,11 +45,6 @@ function UrlInputFormContent({ onSubmit, isLoading, maxPages, isFreeUser, defaul
     const { watch, setValue, handleSubmit, reset, formState } = form
     const currentSettings = watch("settings")
 
-    // Update form defaults if they change (e.g. user tier change)
-    // We only reset if the user hasn't modified the form yet, or if we want to force update.
-    // For now, let's rely on the parent component unwounting/remounting or just use the initial defaults.
-    // Actually, if defaults change, we might want to update the form values if they differ from *old* defaults?
-    // Let's keep it simple: The form initializes with current defaults.
 
     // Calculate effective defaults for comparison (including the maxPage clamp)
     const effectiveDefaults = useMemo(() => ({

@@ -32,8 +32,6 @@ impl MockLicensingService {
         }
     }
 
-    /// Verifies a short product key format: TIER-MACH-SIG
-    /// e.g. P-ABCDEF-GHIJKL
     fn verify_short_key(&self, key: &str) -> Result<LicenseTier, AddonError> {
         let parts: Vec<&str> = key.split('-').collect();
         if parts.len() != 3 {
@@ -68,7 +66,6 @@ impl MockLicensingService {
         }
     }
 
-    /// Generates a valid short key for a tier (for testing/utility)
     pub fn generate_short_key(&self, tier: LicenseTier) -> String {
         let tier_code = match tier {
             LicenseTier::Premium => "P",

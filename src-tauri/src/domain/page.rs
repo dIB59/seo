@@ -5,8 +5,6 @@ use serde::Serialize;
 /// Pages with load time ≤ 2s considered mobile-friendly (speed heuristic fallback).
 const SPEED_HEURISTIC_LOAD_TIME_MS: i64 = 2000;
 
-/// A crawled page with SEO data.
-/// Maps to the `pages` table in the new schema.
 #[derive(Debug, Clone, Serialize)]
 pub struct Page {
     pub id: String,
@@ -15,37 +13,31 @@ pub struct Page {
     pub depth: i64,
     pub status_code: Option<i64>,
     pub content_type: Option<String>,
-
-    // Core SEO fields
     pub title: Option<String>,
     pub meta_description: Option<String>,
     pub canonical_url: Option<String>,
     pub robots_meta: Option<String>,
-
-    // Content metrics
     pub word_count: Option<i64>,
     pub load_time_ms: Option<i64>,
     pub response_size_bytes: Option<i64>,
-
-    // SEO flags (extracted from HTML, available without Lighthouse)
     pub has_viewport: bool,
     pub has_structured_data: bool,
-
     pub crawled_at: DateTime<Utc>,
 }
 
 impl Page {
-    /// Page-level mobile-friendly heuristic: viewport meta tag present AND fast load time.
     pub fn is_mobile_friendly_heuristic(&self) -> bool {
-        self.has_viewport && self.load_time_ms.unwrap_or(0) <= SPEED_HEURISTIC_LOAD_TIME_MS
+        self.has_viewport
+            && self
+                .load_time_ms
+                .is_some_and(|t| t <= SPEED_HEURISTIC_LOAD_TIME_MS)
     }
 
     /// Perform a basic SEO audit on the page and generate a list of issues.
     pub fn audit(&self) -> Vec<NewIssue> {
         let mut issues = Vec::new();
 
-        // 1. Title checks
-        if self.title.is_none() || self.title.as_ref().map(|t| t.is_empty()).unwrap_or(true) {
+        if self.title.as_ref().map_or(true, |t| t.is_empty()) {
             issues.push(NewIssue {
                 job_id: self.job_id.clone(),
                 page_id: Some(self.id.clone()),
@@ -56,13 +48,10 @@ impl Page {
             });
         }
 
-        // 2. Meta description checks
-        if self.meta_description.is_none()
-            || self
-                .meta_description
-                .as_ref()
-                .map(|d| d.is_empty())
-                .unwrap_or(true)
+        if self
+            .meta_description
+            .as_ref()
+            .map_or(true, |d| d.is_empty())
         {
             issues.push(NewIssue {
                 job_id: self.job_id.clone(),
@@ -74,18 +63,15 @@ impl Page {
             });
         }
 
-        // 3. HTTP Status Check
-        if let Some(status) = self.status_code {
-            if status >= 400 {
-                issues.push(NewIssue {
-                    job_id: self.job_id.clone(),
-                    page_id: Some(self.id.clone()),
-                    issue_type: "HTTP Error".to_string(),
-                    severity: IssueSeverity::Critical,
-                    message: format!("Page returned status code {}", status),
-                    details: Some("Fix the HTTP error".to_string()),
-                });
-            }
+        if self.status_code.is_some_and(|s| s >= 400) {
+            issues.push(NewIssue {
+                job_id: self.job_id.clone(),
+                page_id: Some(self.id.clone()),
+                issue_type: "HTTP Error".to_string(),
+                severity: IssueSeverity::Critical,
+                message: format!("Page returned status code {}", self.status_code.unwrap()),
+                details: Some("Fix the HTTP error".to_string()),
+            });
         }
 
         issues

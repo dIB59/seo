@@ -2,7 +2,6 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-/// Job settings for crawl configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobSettings {
     pub max_pages: i64,
@@ -26,7 +25,6 @@ impl Default for JobSettings {
     }
 }
 
-/// Summary statistics for a job (denormalized for fast dashboard access).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct JobSummary {
     pub total_pages: i64,
@@ -37,8 +35,6 @@ pub struct JobSummary {
     pub info_issues: i64,
 }
 
-/// Consolidated job entity - combines job metadata, settings, and summary.
-/// Maps to the `jobs` table in the new schema.
 #[derive(Debug, Clone, Serialize)]
 pub struct Job {
     pub id: String,
@@ -47,14 +43,8 @@ pub struct Job {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub completed_at: Option<DateTime<Utc>>,
-
-    // Settings (embedded)
     pub settings: JobSettings,
-
-    // Summary stats (denormalized)
     pub summary: JobSummary,
-
-    // Progress tracking
     pub progress: f64,
     pub error_message: Option<String>,
 }
@@ -84,20 +74,17 @@ impl Job {
         job
     }
 
-    /// Calculate SEO score based on issue counts.
     pub fn calculate_seo_score(&self) -> i64 {
         let total = self.summary.total_issues;
-        let critical = self.summary.critical_issues;
-        let warning = self.summary.warning_issues;
-
         if total == 0 {
             return 100;
         }
 
-        let deductions = (critical * 10) + (warning * 5) + (total - critical - warning);
-        let score = 100 - deductions;
+        let deductions = (self.summary.critical_issues * 10)
+            + (self.summary.warning_issues * 5)
+            + (total - self.summary.critical_issues - self.summary.warning_issues);
 
-        score.clamp(0, 100)
+        (100 - deductions).clamp(0, 100)
     }
 }
 
@@ -169,7 +156,6 @@ impl std::fmt::Display for JobStatus {
     }
 }
 
-/// Complete job result with all related data.
 #[derive(Debug, Clone, Serialize)]
 pub struct CompleteJobResult {
     pub job: Job,

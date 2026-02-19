@@ -4,14 +4,12 @@ import { Separator } from "../../ui/separator";
 import { ScoreRing } from "../atoms/ScoreRing";
 import { IssueBadge } from "../atoms/IssueBadge";
 import { getScoreColor, getScoreLabel } from "@/src/lib/seo-metrics";
-import { CompleteAnalysisResponse, PageAnalysisData, SeoIssue } from "@/src/lib/types";
+import { PageAnalysisData, SeoIssue } from "@/src/lib/types";
 
 export function ScoreCard({
-  summary,
   pages,
   issues,
 }: {
-  summary: CompleteAnalysisResponse["summary"];
   pages: PageAnalysisData[];
   issues: SeoIssue[];
 }) {
@@ -27,7 +25,6 @@ export function ScoreCard({
       <CardContent className="p-4 relative z-10">
         <div className="flex items-center gap-6">
           <div className="relative">
-            {/* Glow behind ring */}
             <div
               className={cn(
                 "absolute inset-0 blur-2xl opacity-20 rounded-full",

@@ -11,8 +11,6 @@ impl AiRepository {
         Self { pool }
     }
 
-    /// Get cached AI insights for a job (V2 schema)
-    /// Note: V2 stores structured insights. This returns the summary for backward compatibility.
     pub async fn get_ai_insights(&self, job_id: &str) -> Result<Option<String>> {
         let result =
             sqlx::query_scalar::<_, String>("SELECT summary FROM ai_insights WHERE job_id = ?")
@@ -24,8 +22,6 @@ impl AiRepository {
         Ok(result)
     }
 
-    /// Save AI insights to the database (V2 schema)
-    /// For backward compatibility, stores insights as the summary field.
     pub async fn save_ai_insights(&self, job_id: &str, insights: &str) -> Result<()> {
         sqlx::query!(
             "INSERT INTO ai_insights (job_id, summary, created_at, updated_at) VALUES (?, ?, datetime('now'), datetime('now'))
@@ -67,7 +63,6 @@ mod tests {
         assert!(result.is_none(), "Should return None for non-cached job");
     }
 
-    /// Helper to create a valid jobs record for FK constraint (V2 schema)
     async fn create_test_job(pool: &SqlitePool, id: &str) {
         sqlx::query(
             "INSERT INTO jobs (id, url, status, created_at, updated_at) 

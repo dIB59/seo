@@ -47,7 +47,6 @@ impl Crawler {
         })
     }
 
-    /// Discover pages using unified progress emission
     pub async fn discover_pages(
         &self,
         context: &CrawlContext,

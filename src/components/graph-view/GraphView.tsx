@@ -110,7 +110,6 @@ export default function GraphView({ data, onNodeClick, onSelectPage }: GraphView
         if (hoveredNode) forceUpdate(n => n + 1)
     }, [hoveredNode])
 
-    // Empty state
     if (data.pages.length === 0) {
         return (
             <div className="h-full flex flex-col items-center justify-center gap-4 text-muted-foreground bg-background/50">

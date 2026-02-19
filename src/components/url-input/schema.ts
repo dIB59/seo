@@ -1,5 +1,4 @@
 import * as z from "zod"
-// Import removed as AnalysisSettingsRequest is no longer used in this file
 
 
 export const urlSchema = z.string().trim().min(1, "URL is required").refine((val) => {
@@ -24,12 +23,10 @@ export const createSchema = (maxPages: number) => z.object({
     })
 })
 
-// Keep baseSchema for type inference if needed, or derive it from a default
 export const baseSchema = createSchema(10000)
 
 export type FormValues = z.infer<typeof baseSchema>
 
-// Removed defaultSettings and freeSettings as they are now fetched from the backend
 
 export const normalizeUrl = (input: string) => {
     const trimmed = input.trim()

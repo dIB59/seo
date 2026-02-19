@@ -1,17 +1,12 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
-/// Represents a request to perform an action or use a feature.
-/// This is the "intent" of the caller.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, specta::Type)]
 pub enum PermissionRequest {
-    /// Request to analyze N pages
     AnalyzePages(usize),
-    /// Request to use a specific feature
     UseFeature(Feature),
 }
 
-/// Represents a static capability/feature of the application.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, specta::Type)]
 pub enum Feature {
     LinkAnalysis,
@@ -58,7 +53,6 @@ impl TierPolicy for LicenseTier {
     }
 }
 
-/// Represents the active set of rules for a user.
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct Policy {
     pub tier: LicenseTier,
@@ -77,7 +71,6 @@ impl Policy {
         tier.get_policy()
     }
 
-    /// Check if a request is allowed by this policy.
     pub fn check(&self, request: PermissionRequest) -> bool {
         match request {
             PermissionRequest::AnalyzePages(count) => count <= self.max_pages,

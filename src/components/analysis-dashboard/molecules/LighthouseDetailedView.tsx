@@ -15,14 +15,12 @@ interface LighthouseDetailedViewProps {
     page: PageAnalysisData
 }
 
-// Format milliseconds to readable format
 function formatTime(ms: number | null): string {
     if (ms === null) return "N/A"
     if (ms < 1000) return `${Math.round(ms)}ms`
     return `${(ms / 1000).toFixed(1)}s`
 }
 
-// Get color based on performance metric thresholds
 function getMetricColor(metric: string, value: number | null): string {
     if (value === null) return "text-muted-foreground"
 
@@ -44,7 +42,6 @@ function getMetricColor(metric: string, value: number | null): string {
     return "text-destructive"
 }
 
-// Audit status badge component
 function AuditBadge({ audit, label }: { audit: LighthouseAuditResult; label: string }) {
     return (
         <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
@@ -71,7 +68,6 @@ function AuditBadge({ audit, label }: { audit: LighthouseAuditResult; label: str
     )
 }
 
-// Performance metric row component
 function MetricRow({ label, value, metric, icon: Icon }: {
     label: string
     value: number | null
@@ -99,7 +95,6 @@ export function LighthouseDetailedView({ page }: LighthouseDetailedViewProps) {
     const [seoOpen, setSeoOpen] = useState(true)
     const [perfOpen, setPerfOpen] = useState(true)
 
-    // Only show if we have Lighthouse data
     if (!page.lighthouse_performance && !page.lighthouse_seo) return null
 
     const scores = [
@@ -122,7 +117,6 @@ export function LighthouseDetailedView({ page }: LighthouseDetailedViewProps) {
 
     return (
         <div className="space-y-4">
-            {/* Main Scores */}
             <Card>
                 <CardHeader className="pb-2">
                     <CardTitle className="flex items-center gap-2 text-base">
@@ -151,7 +145,6 @@ export function LighthouseDetailedView({ page }: LighthouseDetailedViewProps) {
                 </CardContent>
             </Card>
 
-            {/* Performance Metrics */}
             {perfMetrics && (
                 <Collapsible open={perfOpen} onOpenChange={setPerfOpen}>
                     <Card>
@@ -215,7 +208,6 @@ export function LighthouseDetailedView({ page }: LighthouseDetailedViewProps) {
                 </Collapsible>
             )}
 
-            {/* SEO Audits Breakdown */}
             {seoAudits && (
                 <Collapsible open={seoOpen} onOpenChange={setSeoOpen}>
                     <Card>
@@ -257,7 +249,6 @@ export function LighthouseDetailedView({ page }: LighthouseDetailedViewProps) {
     )
 }
 
-// Compact version for the page detail modal
 export function LighthouseScoresCompact({ page }: { page: PageAnalysisData }) {
     if (!page.lighthouse_performance) return null
 

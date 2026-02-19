@@ -16,10 +16,6 @@ use crate::{
 };
 use addon_macros::addon_guard;
 
-// ============================================================================
-// Request types
-// ============================================================================
-
 #[derive(Debug, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct AnalysisSettingsRequest {
     pub max_pages: i64,
@@ -67,10 +63,6 @@ impl From<AnalysisSettingsRequest> for JobSettings {
         }
     }
 }
-
-// ============================================================================
-// Response types
-// ============================================================================
 
 #[derive(Debug, serde::Serialize, Type)]
 pub struct AnalysisJobResponse {
@@ -395,10 +387,6 @@ impl From<crate::domain::CompleteJobResult> for CompleteAnalysisResponse {
     }
 }
 
-// ============================================================================
-// Commands
-// ============================================================================
-
 fn validate_url(url: &str) -> Result<Url> {
     let parsed = Url::parse(url).with_context(|| format!("Invalid URL format: {}", url))?;
 
@@ -571,7 +559,6 @@ pub async fn get_result(
     Ok(result)
 }
 
-// ============================================================================
 #[cfg(test)]
 mod tests {
     use super::*;

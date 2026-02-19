@@ -14,17 +14,13 @@ pub enum ClientType {
 
 #[async_trait]
 pub trait SpiderAgent: Send + Sync {
-    /// Fetch HTML content from a URL.
     async fn fetch_html(&self, url: &str) -> Result<String>;
 
-    /// Fetch a URL and return a generic response DTO.
     async fn get(&self, url: &str) -> Result<SpiderResponse>;
 
-    /// POST JSON to a URL.
     async fn post_json(&self, url: &str, payload: &serde_json::Value) -> Result<SpiderResponse>;
 }
 
-/// A wrapper around the HTTP client to avoid leaking `rquest` types.
 pub struct Spider {
     client: Client,
 }
@@ -53,14 +49,12 @@ impl Spider {
 
 #[async_trait]
 impl SpiderAgent for Spider {
-    /// Fetch HTML content from a URL.
     async fn fetch_html(&self, url: &str) -> Result<String> {
         let response = self.client.get(url).send().await?;
         let body = response.text().await?;
         Ok(body)
     }
 
-    /// Fetch a URL and return a generic response DTO.
     async fn get(&self, url: &str) -> Result<SpiderResponse> {
         let response = self.client.get(url).send().await?;
         let status = response.status().as_u16();
@@ -72,7 +66,6 @@ impl SpiderAgent for Spider {
         })
     }
 
-    /// POST JSON to a URL.
     async fn post_json(&self, url: &str, payload: &serde_json::Value) -> Result<SpiderResponse> {
         let response = self.client.post(url).json(payload).send().await?;
         let status = response.status().as_u16();

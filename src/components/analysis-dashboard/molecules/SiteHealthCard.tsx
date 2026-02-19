@@ -1,5 +1,5 @@
 import { PageAnalysisData } from "@/src/lib/types"
-import { Separator } from "@radix-ui/react-dropdown-menu"
+import { Separator } from "../../ui/separator"
 import { Card, CardContent } from "../../ui/card"
 import HealthIndicator from "../atoms/HealthIndicator"
 import { CompleteAnalysisResponse } from "@/src/lib/types"

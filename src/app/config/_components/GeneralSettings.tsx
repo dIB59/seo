@@ -20,7 +20,6 @@ interface GeneralSettingsProps {
 export function GeneralSettings({ apiKey, setApiKey, aiEnabled, setAiEnabled }: GeneralSettingsProps) {
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* AI Toggle */}
             <div className="flex items-center justify-between p-4 border border-border/50 rounded-lg bg-card/30 transition-all duration-300 hover:border-border/80 group">
                 <div className="space-y-0.5">
                     <Label className="text-base">Enable AI Features</Label>
@@ -31,7 +30,6 @@ export function GeneralSettings({ apiKey, setApiKey, aiEnabled, setAiEnabled }: 
                 <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} />
             </div>
 
-            {/* API Key */}
             <div className="space-y-2 p-4 border border-border/50 rounded-lg bg-card/30 transition-all duration-300 focus-within:border-primary/40 focus-within:ring-1 focus-within:ring-primary/10 hover:border-border/80 relative overflow-hidden group">
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/5 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 pointer-events-none" />
                 <div className="flex items-center gap-2">

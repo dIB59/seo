@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-/// Type of link (internal, external, resource).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum LinkType {
@@ -32,8 +31,6 @@ impl std::str::FromStr for LinkType {
     }
 }
 
-/// A link between pages.
-/// Maps to the `links` table with direct `job_id` FK.
 #[derive(Debug, Clone, Serialize)]
 pub struct Link {
     pub id: i64,
@@ -49,27 +46,19 @@ pub struct Link {
 }
 
 impl Link {
-    /// Check if target_url is external relative to source_url.
     pub fn is_external_for_url(&self, source_url: Option<&String>) -> bool {
-        let source_url = match source_url {
-            Some(url) => url,
-            None => return !matches!(self.link_type, LinkType::Internal),
+        let Some(source_url) = source_url else {
+            return !matches!(self.link_type, LinkType::Internal);
         };
 
-        let source = Url::parse(source_url).ok();
-        let target = Url::parse(&self.target_url).ok();
-
-        if let (Some(source), Some(target)) = (source, target) {
-            let same_host = source.host_str() == target.host_str();
-            let same_port = source.port() == target.port();
-            return !(same_host && same_port);
+        if let (Ok(source), Ok(target)) = (Url::parse(source_url), Url::parse(&self.target_url)) {
+            return source.host_str() != target.host_str() || source.port() != target.port();
         }
 
         !matches!(self.link_type, LinkType::Internal)
     }
 }
 
-/// New link to be inserted.
 #[derive(Debug, Clone)]
 pub struct NewLink {
     pub job_id: String,

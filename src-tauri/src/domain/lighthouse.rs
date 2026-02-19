@@ -1,32 +1,23 @@
 use crate::service::auditor::{AuditScores, Score};
 use serde::{Deserialize, Serialize};
 
-/// Lighthouse performance metrics for a page.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct LighthouseData {
     pub page_id: String,
-
-    // Core Web Vitals scores (0-100)
     pub performance_score: Option<f64>,
     pub accessibility_score: Option<f64>,
     pub best_practices_score: Option<f64>,
     pub seo_score: Option<f64>,
-
-    // Performance metrics
     pub first_contentful_paint_ms: Option<f64>,
     pub largest_contentful_paint_ms: Option<f64>,
     pub total_blocking_time_ms: Option<f64>,
     pub cumulative_layout_shift: Option<f64>,
     pub speed_index: Option<f64>,
     pub time_to_interactive_ms: Option<f64>,
-
-    // Raw JSON for detailed analysis
     pub raw_json: Option<String>,
 }
 
 impl LighthouseData {
-    /// Build `LighthouseData` from raw audit scores, normalizing 0.0–1.0 to percentages.
-    /// Absorbs the score mapping that previously lived in `AnalyzerService.analyze_page`.
     pub fn from_audit_scores(page_id: &str, scores: &AuditScores) -> Self {
         let normalize = |s: Option<Score>| -> Option<f64> { s.map(|s| s.percent()) };
 
@@ -54,28 +45,24 @@ impl LighthouseData {
         }
     }
 
-    /// Returns true if the page passed the mobile-friendly (viewport) audit in Lighthouse.
     pub fn is_mobile_friendly(&self) -> bool {
         self.raw_json
             .as_deref()
             .and_then(|raw| serde_json::from_str::<serde_json::Value>(raw).ok())
-            .and_then(|value| {
-                value
-                    .get("seo_audits")
-                    .and_then(|s| s.get("viewport"))
-                    .and_then(|v| v.get("passed"))
-                    .and_then(|p| p.as_bool())
+            .and_then(|v| {
+                v.get("seo_audits")?
+                    .get("viewport")?
+                    .get("passed")?
+                    .as_bool()
             })
             .unwrap_or(false)
     }
 
-    /// Returns true if structured data was detected in the Lighthouse audit.
     pub fn has_structured_data(&self) -> bool {
         self.raw_json
             .as_deref()
             .and_then(|raw| serde_json::from_str::<serde_json::Value>(raw).ok())
-            .map(|value| value.get("structured_data").is_some())
-            .unwrap_or(false)
+            .is_some_and(|v| v.get("structured_data").is_some())
     }
 
     /// Extracts both SEO audits and performance metrics as JSON values.

@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use specta::Type;
 
-/// The Gemini API endpoint path (without base URL)
 pub const GEMINI_API_PATH: &str = "/v1beta/models/gemini-2.0-flash:generateContent";
 
 #[derive(Serialize, Deserialize, Clone, Debug, Type)]
@@ -34,7 +33,6 @@ pub struct GeminiRequest {
     pub robots_txt_found: bool,
 }
 
-/// Generate AI-powered SEO analysis using Google Gemini API
 pub async fn generate_gemini_analysis(
     ai_repo: std::sync::Arc<dyn crate::repository::AiRepository>,
     settings_repo: std::sync::Arc<dyn crate::repository::SettingsRepository>,
@@ -141,7 +139,6 @@ pub async fn generate_gemini_analysis(
     Ok(text)
 }
 
-/// Helper to substitute variables in prompt templates
 pub fn replace_prompt_vars(text: &str, request: &GeminiRequest) -> String {
     text.replace("{url}", &request.url)
         .replace("{score}", &request.seo_score.to_string())

@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-/// Global application settings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
     pub openai_api_key: Option<String>,

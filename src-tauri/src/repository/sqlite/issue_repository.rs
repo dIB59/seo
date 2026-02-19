@@ -1,8 +1,3 @@
-//! Issue repository for the redesigned schema.
-//!
-//! Issues have a direct `job_id` foreign key, eliminating expensive JOINs
-//! through analysis_results → page_analysis.
-
 use anyhow::{Context, Result};
 use chrono::Utc;
 use sqlx::SqlitePool;
@@ -10,7 +5,6 @@ use sqlx::SqlitePool;
 use super::map_severity;
 use crate::domain::{Issue, IssueSeverity, NewIssue};
 
-/// Issue counts by severity.
 #[derive(Debug, Clone, Default)]
 pub struct IssueCounts {
     pub critical: i64,
@@ -24,7 +18,6 @@ impl IssueCounts {
     }
 }
 
-/// Grouped issue summary.
 #[derive(Debug, Clone)]
 pub struct IssueGroup {
     pub issue_type: String,
@@ -42,7 +35,6 @@ impl IssueRepository {
         Self { pool }
     }
 
-    /// Insert multiple issues in a batch (FAST: single transaction).
     pub async fn insert_batch(&self, issues: &[NewIssue]) -> Result<()> {
         if issues.is_empty() {
             return Ok(());
@@ -77,7 +69,6 @@ impl IssueRepository {
         Ok(())
     }
 
-    /// Get all issues for a job (FAST: direct FK lookup, no JOINs!).
     pub async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<Issue>> {
         let rows = sqlx::query!(
             r#"
@@ -114,7 +105,6 @@ impl IssueRepository {
             .collect())
     }
 
-    /// Get issues for a specific page.
     pub async fn get_by_page_id(&self, page_id: &str) -> Result<Vec<Issue>> {
         let rows = sqlx::query!(
             r#"
@@ -150,7 +140,6 @@ impl IssueRepository {
             .collect())
     }
 
-    /// Get issues by severity for a job.
     pub async fn get_by_job_and_severity(
         &self,
         job_id: &str,
@@ -187,7 +176,6 @@ impl IssueRepository {
             .collect())
     }
 
-    /// Get issue counts by severity for a job (FAST: uses index).
     pub async fn count_by_severity(&self, job_id: &str) -> Result<IssueCounts> {
         let row = sqlx::query!(
             r#"
@@ -211,7 +199,6 @@ impl IssueRepository {
         })
     }
 
-    /// Get total issue count for a job.
     pub async fn count_by_job_id(&self, job_id: &str) -> Result<i64> {
         let row = sqlx::query!(
             "SELECT COUNT(*) as count FROM issues WHERE job_id = ?",
@@ -224,7 +211,6 @@ impl IssueRepository {
         Ok(row.count as i64)
     }
 
-    /// Get grouped issues by type for dashboard display.
     pub async fn get_grouped_by_type(&self, job_id: &str) -> Result<Vec<IssueGroup>> {
         let rows = sqlx::query!(
             r#"

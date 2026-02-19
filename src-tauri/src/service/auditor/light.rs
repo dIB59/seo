@@ -1,8 +1,3 @@
-//! Light Auditor - Fast HTTP-based SEO analysis with custom scoring.
-//!
-//! Performs quick SEO analysis using direct HTTP fetching and HTML parsing.
-//! Much faster than Lighthouse (~1-2s vs ~5-10s) but less comprehensive.
-
 use super::{AuditResult, AuditScores, Auditor, CheckResult, Score, SeoAuditDetails};
 use crate::service::spider::SpiderAgent;
 
@@ -12,14 +7,6 @@ use scraper::{Html, Selector};
 use std::sync::{Arc, OnceLock};
 use url::Url;
 
-/// Light auditor using direct HTTP fetching.
-///
-/// Provides fast SEO analysis by:
-/// - Direct HTTP request (no Chrome overhead)
-/// - HTML parsing for SEO elements
-/// - Custom scoring based on best practices
-///
-/// Trade-off: ~1-2 seconds per page, no JS rendering.
 pub struct LightAuditor {
     spider: Arc<dyn SpiderAgent>,
 }
@@ -29,7 +16,6 @@ impl LightAuditor {
         Self { spider }
     }
 
-    /// Analyze HTML and compute SEO scores.
     fn analyze_html(&self, html: &str, url: &Url) -> (AuditScores, SeoAuditDetails) {
         let document = Html::parse_document(html);
         let details = self.extract_seo_details(&document, url);

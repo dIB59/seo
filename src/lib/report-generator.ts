@@ -131,7 +131,6 @@ export function generateCSV(result: CompleteAnalysisResponse): string {
     ].join(",");
 
     const rows = pages.map((p) => {
-        // Count issues for this page - usually matched by page_url
         const issueCount = issues.filter((i) => i.page_url === p.url).length;
 
         // Escape URL to prevent CSV injection or formatting errors

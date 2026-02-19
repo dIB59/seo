@@ -5,10 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 
-/// Polling interval when no pending jobs are found
 const JOB_POLL_INTERVAL: Duration = Duration::from_secs(15);
-
-/// Delay after job fetch failure before retrying
 const JOB_FETCH_RETRY_DELAY: Duration = Duration::from_secs(10);
 
 pub struct JobQueue {
@@ -16,7 +13,6 @@ pub struct JobQueue {
 }
 
 impl JobQueue {
-    /// Create a new JobQueue from an existing repository implementation (DI-friendly).
     pub fn new(repo: Arc<dyn JobRepositoryTrait>) -> Self {
         Self { repo }
     }

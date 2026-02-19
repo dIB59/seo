@@ -16,19 +16,15 @@ const fetchJobsPaginated = ([, limit, offset, urlFilter, statusFilter]: [string,
 export function JobHistory() {
     const router = useRouter();
     const [error, setError] = useState<string | null>(null);
-
-    // State
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(5);
     const [urlFilter, setUrlFilter] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
 
-    // Derived values
     const offset = (currentPage - 1) * pageSize;
     const s_urlFilter = urlFilter.trim() || undefined;
     const s_statusFilter = statusFilter === "all" ? undefined : statusFilter;
 
-    // Data fetching
     const { data: paginatedData, mutate } = useSWR(
         ["jobs-paginated", pageSize, offset, s_urlFilter, s_statusFilter],
         fetchJobsPaginated,

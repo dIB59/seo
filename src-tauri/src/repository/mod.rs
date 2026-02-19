@@ -36,8 +36,6 @@ pub fn sqlite_ai_repo(pool: sqlx::SqlitePool) -> Arc<dyn AiRepository> {
 
 pub use sqlite::{ExternalDomain, IssueCounts, IssueGroup, LinkCounts};
 
-/// Repository trait for Job operations. Use this trait to inject mock or alternate
-/// repository implementations for testing or swapping persistence layers.
 #[async_trait]
 pub trait JobRepository: Send + Sync {
     async fn create(&self, url: &str, settings: &JobSettings) -> Result<String>;
@@ -60,7 +58,6 @@ pub trait JobRepository: Send + Sync {
     async fn delete(&self, job_id: &str) -> Result<()>;
 }
 
-/// Page repository trait - abstract page persistence/read operations.
 #[async_trait]
 pub trait PageRepository: Send + Sync {
     async fn insert(&self, page: &crate::domain::Page) -> Result<String>;
@@ -83,14 +80,12 @@ pub trait PageRepository: Send + Sync {
     ) -> Result<Vec<crate::domain::LighthouseData>>;
 }
 
-/// Settings repository trait - key/value configuration store.
 #[async_trait]
 pub trait SettingsRepository: Send + Sync {
     async fn get_setting(&self, key: &str) -> Result<Option<String>>;
     async fn set_setting(&self, key: &str, value: &str) -> Result<()>;
 }
 
-/// Link repository trait - abstract link persistence/queries.
 #[async_trait]
 pub trait LinkRepository: Send + Sync {
     async fn insert_batch(&self, links: &[crate::domain::NewLink]) -> Result<()>;
@@ -103,7 +98,6 @@ pub trait LinkRepository: Send + Sync {
     async fn update_status_codes(&self, updates: &[(i64, i64)]) -> Result<()>;
 }
 
-/// Issue repository trait - abstract issue persistence and queries.
 #[async_trait]
 pub trait IssueRepository: Send + Sync {
     async fn insert_batch(&self, issues: &[crate::domain::NewIssue]) -> Result<()>;
@@ -119,7 +113,6 @@ pub trait IssueRepository: Send + Sync {
     async fn get_grouped_by_type(&self, job_id: &str) -> Result<Vec<IssueGroup>>;
 }
 
-/// Results repository trait - high-level getters for assembled results.
 #[async_trait]
 pub trait ResultsRepository: Send + Sync {
     async fn get_complete_result(&self, job_id: &str) -> Result<crate::domain::CompleteJobResult>;
@@ -141,7 +134,6 @@ pub trait ResultsRepository: Send + Sync {
     ) -> Result<()>;
 }
 
-/// AI repository trait - simple caching interface.
 #[async_trait]
 pub trait AiRepository: Send + Sync {
     async fn get_ai_insights(&self, job_id: &str) -> Result<Option<String>>;

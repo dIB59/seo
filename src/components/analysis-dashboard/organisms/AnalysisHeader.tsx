@@ -29,7 +29,6 @@ export function AnalysisHeader({
                         url={analysis.url}
                     />
 
-                    {/* Technical Metadata Row */}
                     <div className="flex items-center gap-4 text-xs text-muted-foreground font-mono mt-2">
                         <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-muted/30 border border-border/30">
                             <Calendar className="h-3 w-3" />

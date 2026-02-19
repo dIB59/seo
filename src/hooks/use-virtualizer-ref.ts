@@ -15,16 +15,9 @@ export function useVirtualizerRef({ count, estimateSize = 53 }: UseVirtualizerRe
 
   const setRef = useCallback(
     (el: HTMLElement | null) => {
-      // disconnect previous observer
-      if (roRef.current) {
-        roRef.current.disconnect();
-        roRef.current = null;
-      }
-
       parentRef.current = el;
 
       if (el) {
-        // trigger an initial measurement once element is available
         requestAnimationFrame(() => virtualizer.measure());
 
         const ro = new ResizeObserver(() => virtualizer.measure());

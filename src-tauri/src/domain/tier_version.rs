@@ -5,10 +5,7 @@
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
-/// Value object for tier versions — parsed, comparable and serialized as
-/// a `major.minor.patch` string. Implements `PartialEq`/`PartialOrd` so callers
-/// can use `==` / `<` / `>` directly.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TierVersion {
     pub major: u64,
     pub minor: u64,
@@ -17,7 +14,11 @@ pub struct TierVersion {
 
 impl TierVersion {
     pub const fn new(major: u64, minor: u64, patch: u64) -> Self {
-        Self { major, minor, patch }
+        Self {
+            major,
+            minor,
+            patch,
+        }
     }
 }
 
@@ -60,28 +61,6 @@ impl<'de> Deserialize<'de> for TierVersion {
     {
         let s = String::deserialize(deserializer)?;
         s.parse().map_err(serde::de::Error::custom)
-    }
-}
-
-impl PartialEq for TierVersion {
-    fn eq(&self, other: &Self) -> bool {
-        (self.major, self.minor, self.patch) == (other.major, other.minor, other.patch)
-    }
-}
-impl Eq for TierVersion {}
-
-impl PartialOrd for TierVersion {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for TierVersion {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.major
-            .cmp(&other.major)
-            .then(self.minor.cmp(&other.minor))
-            .then(self.patch.cmp(&other.patch))
     }
 }
 

@@ -12,7 +12,7 @@ import { OverviewTab } from "./molecules/OverviewTab";
 import GraphView from "../graph-view/GraphView";
 import { CompleteAnalysisResult, PageAnalysisData } from "@/src/lib/types";
 
-export default function AnalysisDashboard({
+export function AnalysisDashboard({
   data,
   onBack,
   onSelectPage,
@@ -25,20 +25,17 @@ export default function AnalysisDashboard({
 
   return (
     <div className="min-h-screen bg-background text-foreground relative overflow-hidden">
-      {/* Ambient Background */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-background to-background pointer-events-none" />
 
       <div className="relative z-10 p-4 space-y-6 max-w-[1600px] mx-auto">
         <AnalysisHeader onBack={onBack} result={data} />
 
-        {/* Key Metrics Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500 delay-100">
-          <ScoreCard summary={data.summary} pages={data.pages} issues={data.issues} />
+          <ScoreCard pages={data.pages} issues={data.issues} />
           <SiteHealthCard analysis={data.analysis} pages={data.pages} />
-          <QuickStatsCard summary={data.summary} pages={data.pages} />
+          <QuickStatsCard pages={data.pages} summary={data.summary} />
         </div>
 
-        {/* Data View Tabs */}
         <Tabs
           defaultValue="issues"
           className="animate-in fade-in slide-in-from-bottom-4 duration-500 delay-200"

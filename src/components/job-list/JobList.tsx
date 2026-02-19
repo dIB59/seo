@@ -7,7 +7,7 @@ interface JobListProps {
     onCancel: (jobId: string) => void
 }
 
-export const JobList = function JobList({ jobs, onViewResult, onCancel }: JobListProps) {
+export function JobList({ jobs, onViewResult, onCancel }: JobListProps) {
     if (jobs.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center py-16 text-muted-foreground/60 border border-dashed border-border/50 rounded-xl bg-card/20">

@@ -21,7 +21,7 @@ interface JobFilterBarProps {
     setCurrentPage: (value: number) => void;
 }
 
-export const JobFilterBar = function JobFilterBar({
+export function JobFilterBar({
     total,
     urlFilter,
     setUrlFilter,
@@ -111,4 +111,4 @@ export const JobFilterBar = function JobFilterBar({
             </div>
         </div>
     );
-};
+}

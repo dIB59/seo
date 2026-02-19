@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react"
 import type { AnalysisProgress } from "@/src/lib/types"
 import { getStatusIcon } from "../atoms/JobStatusIcon"
 import { CancelButton } from "../atoms/CancelButton"
@@ -16,6 +17,11 @@ export function JobItem({ job, onViewResult, onCancel }: JobItemProps) {
     const { count: pagesDiscovered, total: discoveryTotal } = useDiscoveryProgress(job.job_id, job.job_status)
     const pagesAnalyzed = useAnalysisProgress(job.job_id, job.job_status)
 
+    // Sticky counts to prevent UI flickering/reset to 0 when hook returns null
+    let stickyDiscovered = 0;
+
+    if (pagesDiscovered !== null) stickyDiscovered = pagesDiscovered;
+
     const isDiscovering = job.job_status === "discovery"
     const isAnalyzing = job.job_status === "processing"
     const isCompleted = job.job_status === "completed"
@@ -25,7 +31,7 @@ export function JobItem({ job, onViewResult, onCancel }: JobItemProps) {
         <div
             className="group relative flex items-center gap-4 p-3 bg-card/40 hover:bg-card/90 border-b border-border/50 first:border-t hover:border-transparent hover:shadow-sm transition-all duration-200"
         >
-            {/* 1. Status Column (Fixed Width) */}
+            {/* Status Column */}
             <div className="flex-shrink-0 w-10 flex justify-center">
                 <div className="relative">
                     <div className="absolute inset-0 bg-primary/20 blur-md rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500 scale-150" />
@@ -33,21 +39,21 @@ export function JobItem({ job, onViewResult, onCancel }: JobItemProps) {
                 </div>
             </div>
 
-            {/* 2. Main Info Column (Grow) */}
+            {/* Main Info */}
             <div className="flex-1 min-w-0 flex flex-col justify-center gap-1.5 py-1">
-                {/* URL Row */}
+                {/* URL */}
                 <div className="flex items-center gap-2">
                     <span className="font-medium text-sm truncate text-foreground/90 tracking-tight">{job.url}</span>
                 </div>
 
-                {/* Progress Bar (Only visible when active) */}
+                {/* Progress Bar */}
                 {(isAnalyzing || isDiscovering) && (
                     <div className="max-w-[200px]">
                         {isAnalyzing && pagesAnalyzed !== null && (
                             <JobProgressBar
                                 current={pagesAnalyzed}
-                                total={discoveryTotal}
-                                label={`Analyzed ${pagesAnalyzed} / ${discoveryTotal}`}
+                                total={stickyDiscovered}
+                                label={`Analyzed ${pagesAnalyzed} / ${pagesDiscovered}`}
                             />
                         )}
                         {isDiscovering && (
@@ -61,7 +67,7 @@ export function JobItem({ job, onViewResult, onCancel }: JobItemProps) {
                 )}
             </div>
 
-            {/* 3. Metrics Column (Standardized Widths, Right Aligned) */}
+            {/* Metrics */}
             <div className="hidden lg:flex items-center gap-6 mr-6">
                 {/* Pages Limit */}
                 {job.max_pages !== undefined && (
@@ -89,7 +95,7 @@ export function JobItem({ job, onViewResult, onCancel }: JobItemProps) {
                 )}
             </div>
 
-            {/* 4. Actions Column (Standard Width) */}
+            {/* Actions */}
             <div className="flex-shrink-0 w-[140px] flex justify-end items-center border-l border-border/40 min-h-[44px]">
                 <div className="flex items-center justify-end w-full gap-2">
                     {isCompleted && <ViewResultButton onClick={() => onViewResult(job.job_id)} />}

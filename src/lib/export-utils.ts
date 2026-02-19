@@ -6,10 +6,6 @@ import { writeTextFile, writeFile } from "@tauri-apps/plugin-fs"
 
 import { toast } from "sonner"
 
-// ============================================================================
-// HELPER FUNCTIONS
-// ============================================================================
-
 function getScoreLabel(score: number): string {
     if (score >= 90) return "Excellent"
     if (score >= 80) return "Good"
@@ -32,9 +28,6 @@ function formatDate(date: Date = new Date()): string {
     return date.toISOString().split("T")[0]
 }
 
-/**
- * Save file using Tauri's save dialog (if available) or browser download
- */
 async function saveFile(
     content: string | Uint8Array<ArrayBuffer>,
     defaultFilename: string,
@@ -84,9 +77,6 @@ async function saveFile(
     }
 }
 
-/**
- * Fallback to browser download if Tauri API is not available
- */
 function fallbackDownload(content: string | Uint8Array<ArrayBuffer>, filename: string) {
     // Determine MIME type based on extension
     const extension = filename.split(".").pop()?.toLowerCase()
@@ -115,9 +105,6 @@ function fallbackDownload(content: string | Uint8Array<ArrayBuffer>, filename: s
     console.log("File downloaded successfully (fallback):", filename)
 }
 
-// ============================================================================
-// PDF GENERATION
-// ============================================================================
 
 import { generateGeminiAnalysis, get_gemini_enabled } from "@/src/api/ai"
 import { Result } from "./result"
@@ -170,9 +157,6 @@ export async function generatePDF(result: CompleteAnalysisResponse): Promise<voi
         }
     }
 
-    // ========================================================================
-    // PROFESSIONAL HEADER WITH GRADIENT
-    // ========================================================================
     // Gradient effect (simulate with multiple rectangles)
     const headerHeight = 45
     for (let i = 0; i < headerHeight; i++) {
@@ -210,9 +194,6 @@ export async function generatePDF(result: CompleteAnalysisResponse): Promise<voi
 
     y += 25
 
-    // ========================================================================
-    // SEO SCORE CARD (ENHANCED)
-    // ========================================================================
     checkPageBreak(55)
 
     // Card with shadow effect
@@ -253,9 +234,6 @@ export async function generatePDF(result: CompleteAnalysisResponse): Promise<voi
 
     y += 58
 
-    // ========================================================================
-    // EXECUTIVE SUMMARY  (ENHANCED WITH METRIC CARDS)
-    // ========================================================================
     checkPageBreak(65)
 
     pdf.setFontSize(18)
@@ -299,9 +277,6 @@ export async function generatePDF(result: CompleteAnalysisResponse): Promise<voi
 
     y += (Math.ceil(metrics.length / 2) * (cardHeight + 5)) + 10
 
-    // ========================================================================
-    // SITE HEALTH
-    // ========================================================================
     checkPageBreak(40)
 
     pdf.setFontSize(16)
@@ -329,9 +304,6 @@ export async function generatePDF(result: CompleteAnalysisResponse): Promise<voi
 
     y += 10
 
-    // ========================================================================
-    // AI-POWERED INSIGHTS
-    // ========================================================================
     if (aiInsights.isOk()) {
         checkPageBreak(60)
 
@@ -356,9 +328,6 @@ export async function generatePDF(result: CompleteAnalysisResponse): Promise<voi
         y += 15
     }
 
-    // ========================================================================
-    // ISSUES BREAKDOWN
-    // ========================================================================
     const criticalIssues = issues.filter((i) => i.severity === "critical")
     const warningIssues = issues.filter((i) => i.severity === "warning")
 
@@ -418,13 +387,6 @@ export async function generatePDF(result: CompleteAnalysisResponse): Promise<voi
         y += 5
     }
 
-    // ========================================================================
-    // PAGE SUMMARY TABLE
-    // ========================================================================
-    checkPageBreak(30)
-
-    pdf.setFontSize(14)
-    pdf.setTextColor(0, 0, 0)
     pdf.text("Page Summary", margin, y)
     y += 10
 
@@ -469,9 +431,6 @@ export async function generatePDF(result: CompleteAnalysisResponse): Promise<voi
         pdf.text(`...and ${pages.length - 15} more pages`, margin + 2, y)
     }
 
-    // ========================================================================
-    // FOOTER
-    // ========================================================================
     const totalPages = pdf.internal.pages.length - 1
     for (let i = 1; i <= totalPages; i++) {
         pdf.setPage(i)
@@ -491,9 +450,6 @@ export async function generatePDF(result: CompleteAnalysisResponse): Promise<voi
     ])
 }
 
-// ============================================================================
-// TEXT EXPORT
-// ============================================================================
 
 export async function downloadTextReport(result: CompleteAnalysisResponse): Promise<void> {
     const reportText = generateReport(result)
@@ -505,9 +461,6 @@ export async function downloadTextReport(result: CompleteAnalysisResponse): Prom
     ])
 }
 
-// ============================================================================
-// CSV EXPORT
-// ============================================================================
 
 export async function downloadCSVReport(result: CompleteAnalysisResponse): Promise<void> {
     const csvData = generateCSV(result)

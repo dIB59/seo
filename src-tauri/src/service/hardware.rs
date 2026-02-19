@@ -3,8 +3,6 @@ use machine_uid;
 pub struct HardwareService;
 
 impl HardwareService {
-    /// Returns a unique hardware ID for the current machine.
-    /// On macOS, this uses the IOPlatformUUID.
     pub fn get_machine_id() -> String {
         match machine_uid::get() {
             Ok(uid) => uid,

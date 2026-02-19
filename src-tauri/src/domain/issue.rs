@@ -2,7 +2,6 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-/// Severity level for SEO issues.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "lowercase")]
 pub enum IssueSeverity {
@@ -33,8 +32,6 @@ impl std::str::FromStr for IssueSeverity {
     }
 }
 
-/// An SEO issue found during analysis.
-/// Maps to the `issues` table with direct `job_id` FK.
 #[derive(Debug, Clone, Serialize)]
 pub struct Issue {
     pub id: i64,
@@ -49,7 +46,6 @@ pub struct Issue {
     pub created_at: DateTime<Utc>,
 }
 
-/// Builder for creating issues.
 pub struct IssueBuilder {
     job_id: String,
     page_id: Option<String>,
@@ -98,7 +94,6 @@ impl IssueBuilder {
     }
 }
 
-/// New issue to be inserted (without auto-generated fields).
 #[derive(Debug, Clone)]
 pub struct NewIssue {
     pub job_id: String,

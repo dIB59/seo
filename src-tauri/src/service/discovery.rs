@@ -1,5 +1,3 @@
-//! Page discovery and resource checking services
-
 use anyhow::Result;
 use scraper::{Html, Selector};
 use std::collections::HashSet;
@@ -16,7 +14,6 @@ use std::sync::Arc;
 #[cfg(test)]
 use crate::service::spider::{ClientType, Spider};
 
-/// Site-level resource check results.
 #[derive(Debug, Clone)]
 pub struct SiteResources {
     pub robots_txt: bool,
@@ -33,7 +30,6 @@ impl PageDiscovery {
         Self { spider }
     }
 
-    /// ONLY handles HTTP crawling - NO business logic
     pub async fn discover(
         &self,
         start_url_str: &str,
@@ -136,9 +132,6 @@ impl PageDiscovery {
         Ok(visited.into_iter().map(|u| u.to_string()).collect())
     }
 
-    /// Extract all absolute links (`<a href="…">`) from HTML.
-    /// Uses a cached selector for performance.
-    /// Strips URL fragments (#...) from links.
     pub fn extract_links(html: &str, base_url: &Url) -> Vec<String> {
         static SELECTOR: OnceLock<Selector> = OnceLock::new();
         let selector = SELECTOR.get_or_init(|| Selector::parse("a[href]").unwrap());
@@ -165,19 +158,16 @@ impl ResourceChecker {
         Self { spider }
     }
 
-    /// Check robots.txt exists
     pub async fn check_robots_txt(&self, base_url_str: &str) -> Result<ResourceStatus> {
         tracing::debug!("[RESOURCE] Checking robots.txt for {}", base_url_str);
         self.check_resource(base_url_str, "robots.txt").await
     }
 
-    /// Check sitemap.xml exists
     pub async fn check_sitemap_xml(&self, base_url_str: &str) -> Result<ResourceStatus> {
         tracing::debug!("[RESOURCE] Checking sitemap.xml for {}", base_url_str);
         self.check_resource(base_url_str, "sitemap.xml").await
     }
 
-    /// Check SSL certificate (HTTPS)
     pub fn check_ssl_certificate(&self, url_str: &str) -> bool {
         let has_ssl = url_str.starts_with("https"); // Simple check or parse
         tracing::debug!("[RESOURCE] SSL check for {}: {}", url_str, has_ssl);
