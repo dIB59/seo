@@ -88,7 +88,7 @@ impl AppState {
         // 5. Licensing Init
         // Use MockLicensingService in development mode or if a specific flag is set
         let licensing_service: Arc<dyn crate::domain::licensing::LicensingAgent> =
-            match cfg!(debug_assertions) {
+            match cfg!(debug_assertions) || cfg!(feature = "mock-licensing") {
                 true => Arc::new(licensing::MockLicensingService::new(settings_repo.clone())),
                 false => Arc::new(licensing::LicensingService::new(
                     settings_repo.clone(),
