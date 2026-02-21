@@ -19,17 +19,12 @@
     ],
     "security": {
       "csp": null,
-      "capabilities": [
-        "default"
-      ]
+      "capabilities": ["default"]
     }
   },
   "bundle": {
     "active": false,
-    "targets": [
-      "deb",
-      "rpm"
-    ],
+    "targets": ["deb", "rpm"],
     "linux": {
       "deb": {
         "files": {}
@@ -47,8 +42,6 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": [
-      "binaries/lighthouse-runner/lighthouse-runner"
-    ]
+    "externalBin": ["binaries/lighthouse-runner/lighthouse-runner"]
   }
 }
