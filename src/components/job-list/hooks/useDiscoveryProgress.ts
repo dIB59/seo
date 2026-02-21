@@ -12,7 +12,7 @@ export function useDiscoveryProgress(jobId: string, jobStatus: string) {
         const setupDiscovery = async () => {
             const { listen } = await import("@tauri-apps/api/event")
             unlisten = await listen<{ job_id: string; count: number; total_pages?: number }>(
-                "discovery-progress",
+                "discovery:progress",
                 (event) => {
                     if (event.payload.job_id === jobId) {
                         setCount(event.payload.count ?? null)
@@ -22,7 +22,7 @@ export function useDiscoveryProgress(jobId: string, jobStatus: string) {
             )
         }
 
-        if (jobStatus === "discovering" || jobStatus === "processing" || jobStatus === "running") {
+        if (jobStatus === "discovery" || jobStatus === "processing") {
             // subscribe during discovery, processing, or running so UI can show current/total
             // even after discovery completes and processing begins
             setupDiscovery()

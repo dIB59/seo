@@ -20,10 +20,10 @@ export function ExportMenu({
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="shrink-0 bg-transparent">
+                <Button variant="outline" className="shrink-0 bg-background/50 hover:bg-primary/10 hover:text-primary hover:border-primary/20 transition-all duration-300 shadow-sm">
                     <Download className="h-4 w-4 mr-2" />
                     Export Report
-                    <ChevronDown className="h-4 w-4 ml-2" />
+                    <ChevronDown className="h-4 w-4 ml-2 opacity-50" />
                 </Button>
             </DropdownMenuTrigger>
 

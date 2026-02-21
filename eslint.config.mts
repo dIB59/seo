@@ -7,9 +7,33 @@ import youMightNotNeedAnEffect from "eslint-plugin-react-you-might-not-need-an-e
 
 export default defineConfig([
   {
-    ignores: ["src/components/ui/**/*"],
+    ignores: [
+      "src/components/ui/**/*",
+      "src/bindings.ts",
+      "src-tauri/**/*",
+      "node_modules/**/*",
+      ".next/**/*",
+      "out/**/*",
+      "target/**/*"
+    ],
   },
-  { files: ["**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"], plugins: { js }, extends: ["js/recommended"], languageOptions: { globals: globals.browser } },
+  {
+    files: ["**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"],
+    plugins: { js },
+    extends: ["js/recommended"],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+        ...globals.mocha,
+        describe: "readonly",
+        it: "readonly",
+        expect: "readonly",
+        $: "readonly",
+        browser: "readonly"
+      }
+    }
+  },
   tseslint.configs.recommended,
   pluginReact.configs.flat.recommended,
   pluginReact.configs.flat["jsx-runtime"],

@@ -12,13 +12,13 @@ export function OverviewTab({ issues, pages }: { issues: SeoIssue[]; pages: Page
     const slowPages = pages.filter((p) => p.load_time >= 2).length
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-sm">Issue Distribution</CardTitle>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="bg-card/40 backdrop-blur-sm border-white/5 shadow-sm">
+                <CardHeader className="pb-2">
+                    <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Issue Distribution</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                         <ProgressRow label="Critical" value={criticalCount} total={issues.length} color="destructive" />
                         <ProgressRow label="Warning" value={warningCount} total={issues.length} color="warning" />
                         <ProgressRow label="Suggestion" value={suggestionCount} total={issues.length} color="primary" />
@@ -26,12 +26,12 @@ export function OverviewTab({ issues, pages }: { issues: SeoIssue[]; pages: Page
                 </CardContent>
             </Card>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-sm">Performance Summary</CardTitle>
+            <Card className="bg-card/40 backdrop-blur-sm border-white/5 shadow-sm">
+                <CardHeader className="pb-2">
+                    <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Performance Summary</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                         <ProgressRow label="Fast (<1s)" value={fastPages} total={pages.length} color="success" />
                         <ProgressRow label="Medium (1-2s)" value={mediumPages} total={pages.length} color="warning" />
                         <ProgressRow label="Slow (>2s)" value={slowPages} total={pages.length} color="destructive" />

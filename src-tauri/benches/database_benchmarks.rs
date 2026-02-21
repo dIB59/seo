@@ -15,8 +15,9 @@ use std::{hint::black_box, time::Duration};
 use tokio::runtime::Runtime;
 
 use app::{
-    repository::sqlite::{IssueRepository, LinkRepository},
-    repository::sqlite::{JobRepository, PageRepository, ResultsRepository},
+    repository::{
+        sqlite_issue_repo, sqlite_job_repo, sqlite_link_repo, sqlite_page_repo, sqlite_results_repo,
+    },
     test_utils::{connect_test_db_no_migrate, connect_test_db_v1},
 };
 
@@ -27,10 +28,11 @@ use app::{
 // - analysis_jobs, analysis_results, page_analysis, seo_issues, page_edge
 
 /// Benchmark V1 all jobs retrieval
+#[allow(dead_code)]
 fn bench_get_all_jobs_v1(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
     let pool = rt.block_on(connect_test_db_v1());
-    let repo = JobRepository::new(pool);
+    let repo = sqlite_job_repo(pool);
 
     c.bench_function("read_v1/get_all_jobs", |b| {
         b.to_async(&rt).iter(|| async {
@@ -50,7 +52,7 @@ fn bench_get_all_jobs_v1(c: &mut Criterion) {
 fn bench_get_complete_result_v2(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
     let pool = rt.block_on(connect_test_db_no_migrate());
-    let repo = ResultsRepository::new(pool);
+    let repo = sqlite_results_repo(pool);
 
     // Use existing job ID from migrated data
     c.bench_function("read_v2/get_complete_result", |b| {
@@ -69,7 +71,7 @@ fn bench_get_complete_result_v2(c: &mut Criterion) {
 fn bench_get_pending_jobs_v2(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
     let pool = rt.block_on(connect_test_db_no_migrate());
-    let repo = JobRepository::new(pool);
+    let repo = sqlite_job_repo(pool);
 
     c.bench_function("read_v2/get_pending_jobs", |b| {
         b.to_async(&rt).iter(|| async {
@@ -83,7 +85,7 @@ fn bench_get_pending_jobs_v2(c: &mut Criterion) {
 fn bench_get_all_jobs_v2(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
     let pool = rt.block_on(connect_test_db_no_migrate());
-    let repo = JobRepository::new(pool);
+    let repo = sqlite_job_repo(pool);
 
     c.bench_function("read_v2/get_all_jobs", |b| {
         b.to_async(&rt).iter(|| async {
@@ -97,7 +99,7 @@ fn bench_get_all_jobs_v2(c: &mut Criterion) {
 fn bench_get_progress_v2(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
     let pool = rt.block_on(connect_test_db_no_migrate());
-    let repo = JobRepository::new(pool);
+    let repo = sqlite_job_repo(pool);
 
     c.bench_function("read_v2/get_progress", |b| {
         let job_id = "13"; // Using string ID
@@ -112,7 +114,7 @@ fn bench_get_progress_v2(c: &mut Criterion) {
 fn bench_get_issues_by_job_v2(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
     let pool = rt.block_on(connect_test_db_no_migrate());
-    let repo = IssueRepository::new(pool);
+    let repo = sqlite_issue_repo(pool);
 
     c.bench_function("read_v2/get_issues_by_job", |b| {
         let job_id = "12"; // Using string ID
@@ -127,7 +129,7 @@ fn bench_get_issues_by_job_v2(c: &mut Criterion) {
 fn bench_get_pages_by_job_v2(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
     let pool = rt.block_on(connect_test_db_no_migrate());
-    let repo = PageRepository::new(pool);
+    let repo = sqlite_page_repo(pool);
 
     c.bench_function("read_v2/get_pages_by_job", |b| {
         let job_id = "12"; // Using string ID
@@ -142,7 +144,7 @@ fn bench_get_pages_by_job_v2(c: &mut Criterion) {
 fn bench_get_links_by_job_v2(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
     let pool = rt.block_on(connect_test_db_no_migrate());
-    let repo = LinkRepository::new(pool);
+    let repo = sqlite_link_repo(pool);
 
     c.bench_function("read_v2/get_links_by_job", |b| {
         let job_id = "12"; // Using string ID

@@ -1,13 +1,8 @@
-//! Page repository for the redesigned schema.
-//!
-//! Pages have a direct `job_id` foreign key, eliminating the need to
-//! join through analysis_results.
-
 use anyhow::{Context, Result};
 use chrono::Utc;
 use sqlx::SqlitePool;
 
-use crate::domain::models::{LighthouseData, NewHeading, NewImage, Page, PageInfo};
+use crate::domain::{LighthouseData, NewHeading, NewImage, Page, PageInfo};
 
 pub struct PageRepository {
     pool: SqlitePool,
@@ -18,7 +13,6 @@ impl PageRepository {
         Self { pool }
     }
 
-    /// Insert a single page.
     pub async fn insert(&self, page: &Page) -> Result<String> {
         let id = if page.id.is_empty() {
             uuid::Uuid::new_v4().to_string()
@@ -32,9 +26,10 @@ impl PageRepository {
             INSERT INTO pages (
                 id, job_id, url, depth, status_code, content_type,
                 title, meta_description, canonical_url, robots_meta,
-                word_count, load_time_ms, response_size_bytes, crawled_at
+                word_count, load_time_ms, response_size_bytes,
+                has_viewport, has_structured_data, crawled_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(job_id, url) DO UPDATE SET
                 depth = excluded.depth,
                 status_code = excluded.status_code,
@@ -46,6 +41,8 @@ impl PageRepository {
                 word_count = excluded.word_count,
                 load_time_ms = excluded.load_time_ms,
                 response_size_bytes = excluded.response_size_bytes,
+                has_viewport = excluded.has_viewport,
+                has_structured_data = excluded.has_structured_data,
                 crawled_at = excluded.crawled_at
             RETURNING id
             "#,
@@ -62,6 +59,8 @@ impl PageRepository {
             page.word_count,
             page.load_time_ms,
             page.response_size_bytes,
+            page.has_viewport,
+            page.has_structured_data,
             crawled_at_str
         )
         .fetch_one(&self.pool)
@@ -76,7 +75,6 @@ impl PageRepository {
         Ok(row.id)
     }
 
-    /// Insert multiple pages in a batch.
     pub async fn insert_batch(&self, pages: &[Page]) -> Result<()> {
         if pages.is_empty() {
             return Ok(());
@@ -91,7 +89,8 @@ impl PageRepository {
                 INSERT INTO pages (
                     id, job_id, url, depth, status_code, content_type,
                     title, meta_description, canonical_url, robots_meta,
-                    word_count, load_time_ms, response_size_bytes, crawled_at
+                    word_count, load_time_ms, response_size_bytes,
+                    has_viewport, has_structured_data, crawled_at
                 ) "#,
             );
 
@@ -114,6 +113,8 @@ impl PageRepository {
                     .push_bind(page.word_count)
                     .push_bind(page.load_time_ms)
                     .push_bind(page.response_size_bytes)
+                    .push_bind(page.has_viewport)
+                    .push_bind(page.has_structured_data)
                     .push_bind(page.crawled_at.to_rfc3339());
             });
 
@@ -128,14 +129,14 @@ impl PageRepository {
         Ok(())
     }
 
-    /// Get all pages for a job (FAST: direct FK lookup).
     pub async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<Page>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
                 id, job_id, url, depth, status_code, content_type,
                 title, meta_description, canonical_url, robots_meta,
-                word_count, load_time_ms, response_size_bytes, crawled_at
+                word_count, load_time_ms, response_size_bytes,
+                has_viewport, has_structured_data, crawled_at
             FROM pages
             WHERE job_id = ?
             ORDER BY depth ASC, url ASC
@@ -162,12 +163,13 @@ impl PageRepository {
                 word_count: row.word_count,
                 load_time_ms: row.load_time_ms,
                 response_size_bytes: row.response_size_bytes,
+                has_viewport: row.has_viewport != 0,
+                has_structured_data: row.has_structured_data != 0,
                 crawled_at: parse_datetime(row.crawled_at.as_str()),
             })
             .collect())
     }
 
-    /// Get page info with issue counts for listing.
     pub async fn get_info_by_job_id(&self, job_id: &str) -> Result<Vec<PageInfo>> {
         let rows = sqlx::query!(
             r#"
@@ -199,14 +201,14 @@ impl PageRepository {
             .collect())
     }
 
-    /// Get a single page by ID.
     pub async fn get_by_id(&self, page_id: &str) -> Result<Page> {
         let row = sqlx::query!(
             r#"
             SELECT 
                 id, job_id, url, depth, status_code, content_type,
                 title, meta_description, canonical_url, robots_meta,
-                word_count, load_time_ms, response_size_bytes, crawled_at
+                word_count, load_time_ms, response_size_bytes,
+                has_viewport, has_structured_data, crawled_at
             FROM pages
             WHERE id = ?
             "#,
@@ -230,11 +232,12 @@ impl PageRepository {
             word_count: row.word_count,
             load_time_ms: row.load_time_ms,
             response_size_bytes: row.response_size_bytes,
+            has_viewport: row.has_viewport != 0,
+            has_structured_data: row.has_structured_data != 0,
             crawled_at: parse_datetime(row.crawled_at.as_str()),
         })
     }
 
-    /// Replace all headings for a page.
     pub async fn replace_headings(&self, page_id: &str, headings: &[NewHeading]) -> Result<()> {
         sqlx::query!("DELETE FROM page_headings WHERE page_id = ?", page_id)
             .execute(&self.pool)
@@ -263,7 +266,6 @@ impl PageRepository {
         Ok(())
     }
 
-    /// Replace all images for a page.
     pub async fn replace_images(&self, page_id: &str, images: &[NewImage]) -> Result<()> {
         sqlx::query!("DELETE FROM page_images WHERE page_id = ?", page_id)
             .execute(&self.pool)
@@ -296,7 +298,6 @@ impl PageRepository {
         Ok(())
     }
 
-    /// Get page count for a job (FAST: uses index).
     pub async fn count_by_job_id(&self, job_id: &str) -> Result<i64> {
         let row = sqlx::query!(
             "SELECT COUNT(*) as count FROM pages WHERE job_id = ?",
@@ -309,7 +310,6 @@ impl PageRepository {
         Ok(row.count as i64)
     }
 
-    /// Insert Lighthouse data for a page.
     pub async fn insert_lighthouse(&self, data: &LighthouseData) -> Result<()> {
         let created_at = Utc::now().to_rfc3339();
         sqlx::query!(
@@ -344,7 +344,6 @@ impl PageRepository {
         Ok(())
     }
 
-    /// Get Lighthouse data for pages in a job.
     pub async fn get_lighthouse_by_job_id(&self, job_id: &str) -> Result<Vec<LighthouseData>> {
         let rows = sqlx::query!(
             r#"
@@ -395,33 +394,30 @@ use async_trait::async_trait;
 
 #[async_trait]
 impl PageRepositoryTrait for PageRepository {
-    async fn insert(&self, page: &crate::domain::models::Page) -> Result<String> {
+    async fn insert(&self, page: &crate::domain::Page) -> Result<String> {
         PageRepository::insert(self, page).await
     }
 
-    async fn insert_batch(&self, pages: &[crate::domain::models::Page]) -> Result<()> {
+    async fn insert_batch(&self, pages: &[crate::domain::Page]) -> Result<()> {
         PageRepository::insert_batch(self, pages).await
     }
 
-    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::models::Page>> {
+    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::Page>> {
         PageRepository::get_by_job_id(self, job_id).await
     }
 
-    async fn get_info_by_job_id(
-        &self,
-        job_id: &str,
-    ) -> Result<Vec<crate::domain::models::PageInfo>> {
+    async fn get_info_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::PageInfo>> {
         PageRepository::get_info_by_job_id(self, job_id).await
     }
 
-    async fn get_by_id(&self, page_id: &str) -> Result<crate::domain::models::Page> {
+    async fn get_by_id(&self, page_id: &str) -> Result<crate::domain::Page> {
         PageRepository::get_by_id(self, page_id).await
     }
 
     async fn replace_headings(
         &self,
         page_id: &str,
-        headings: &[crate::domain::models::NewHeading],
+        headings: &[crate::domain::NewHeading],
     ) -> Result<()> {
         PageRepository::replace_headings(self, page_id, headings).await
     }
@@ -429,7 +425,7 @@ impl PageRepositoryTrait for PageRepository {
     async fn replace_images(
         &self,
         page_id: &str,
-        images: &[crate::domain::models::NewImage],
+        images: &[crate::domain::NewImage],
     ) -> Result<()> {
         PageRepository::replace_images(self, page_id, images).await
     }
@@ -438,14 +434,14 @@ impl PageRepositoryTrait for PageRepository {
         PageRepository::count_by_job_id(self, job_id).await
     }
 
-    async fn insert_lighthouse(&self, data: &crate::domain::models::LighthouseData) -> Result<()> {
+    async fn insert_lighthouse(&self, data: &crate::domain::LighthouseData) -> Result<()> {
         PageRepository::insert_lighthouse(self, data).await
     }
 
     async fn get_lighthouse_by_job_id(
         &self,
         job_id: &str,
-    ) -> Result<Vec<crate::domain::models::LighthouseData>> {
+    ) -> Result<Vec<crate::domain::LighthouseData>> {
         PageRepository::get_lighthouse_by_job_id(self, job_id).await
     }
 }

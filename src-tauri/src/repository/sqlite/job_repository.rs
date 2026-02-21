@@ -1,18 +1,9 @@
-//! Job repository for the redesigned schema.
-//!
-//! The `jobs` table consolidates:
-//! - Job metadata (id, url, status, timestamps)
-//! - Settings (max_pages, max_depth, rate_limit, etc.)
-//! - Summary stats (total_pages, total_issues, etc.)
-//!
-//! Uses compile-time checked queries with sqlx::query!() macro.
-
 use anyhow::{Context, Result};
 use chrono::Utc;
 use sqlx::SqlitePool;
 
 use super::map_job_status;
-use crate::domain::models::{Job, JobInfo, JobSettings, JobStatus, JobSummary};
+use crate::domain::{Job, JobInfo, JobSettings, JobStatus, JobSummary};
 
 pub struct JobRepository {
     pool: SqlitePool,
@@ -23,8 +14,6 @@ impl JobRepository {
         Self { pool }
     }
 
-    /// Create a new job with settings.
-    /// Returns the job ID (UUID string).
     pub async fn create(&self, url: &str, settings: &JobSettings) -> Result<String> {
         let id = uuid::Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
@@ -68,7 +57,6 @@ impl JobRepository {
         Ok(id)
     }
 
-    /// Get a job by ID with full details.
     pub async fn get_by_id(&self, job_id: &str) -> Result<Job> {
         let row = sqlx::query!(
             r#"
@@ -78,7 +66,7 @@ impl JobRepository {
                 rate_limit_ms, user_agent, lighthouse_analysis,
                 total_pages, pages_crawled, total_issues, 
                 critical_issues, warning_issues, info_issues,
-                progress, current_stage, error_message
+                progress, error_message
             FROM jobs
             WHERE id = ?
             "#,
@@ -112,18 +100,17 @@ impl JobRepository {
                 info_issues: row.info_issues,
             },
             progress: row.progress,
-            current_stage: row.current_stage,
             error_message: row.error_message,
         })
     }
 
-    /// Get all jobs (lightweight info for listing).
     pub async fn get_all(&self) -> Result<Vec<JobInfo>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
                 id, url, status, progress, 
-                total_pages, total_issues, created_at
+                total_pages, total_issues, created_at,
+                max_pages, lighthouse_analysis
             FROM jobs
             ORDER BY created_at DESC
             "#
@@ -142,11 +129,108 @@ impl JobRepository {
                 total_pages: row.total_pages,
                 total_issues: row.total_issues,
                 created_at: parse_datetime(&row.created_at),
+                max_pages: row.max_pages,
+                lighthouse_analysis: row.lighthouse_analysis != 0,
             })
             .collect())
     }
 
-    /// Get pending/running jobs (for job processor).
+    pub async fn get_paginated(&self, limit: i64, offset: i64) -> Result<Vec<JobInfo>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT 
+                id, url, status, progress, 
+                total_pages, total_issues, created_at,
+                max_pages, lighthouse_analysis
+            FROM jobs
+            ORDER BY created_at DESC
+            LIMIT ?1 OFFSET ?2
+            "#,
+            limit,
+            offset
+        )
+        .fetch_all(&self.pool)
+        .await
+        .context("Failed to fetch paginated jobs")?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| JobInfo {
+                id: row.id,
+                url: row.url,
+                status: map_job_status(&row.status),
+                progress: row.progress,
+                total_pages: row.total_pages,
+                total_issues: row.total_issues,
+                created_at: parse_datetime(&row.created_at),
+                max_pages: row.max_pages,
+                lighthouse_analysis: row.lighthouse_analysis != 0,
+            })
+            .collect())
+    }
+
+    pub async fn get_paginated_with_total(
+        &self,
+        limit: i64,
+        offset: i64,
+        url_filter: Option<String>,
+        status_filter: Option<String>,
+    ) -> Result<(Vec<JobInfo>, i64)> {
+        let url_pattern = url_filter
+            .map(|f| format!("%{}%", f))
+            .unwrap_or_else(|| "%".to_string());
+        let status_pattern = status_filter.unwrap_or_else(|| "%".to_string());
+
+        let rows = sqlx::query!(
+            r#"
+            SELECT 
+                id, url, status, progress, 
+                total_pages, total_issues, created_at,
+                max_pages, lighthouse_analysis,
+                COUNT(*) OVER() as "total_count!"
+            FROM jobs
+            WHERE url LIKE ?1 AND status LIKE ?2
+            ORDER BY created_at DESC
+            LIMIT ?3 OFFSET ?4
+            "#,
+            url_pattern,
+            status_pattern,
+            limit,
+            offset
+        )
+        .fetch_all(&self.pool)
+        .await
+        .context("Failed to fetch paginated jobs with total and filters")?;
+
+        let total = rows.first().map(|r| r.total_count).unwrap_or(0);
+
+        let items = rows
+            .into_iter()
+            .map(|row| JobInfo {
+                id: row.id,
+                url: row.url,
+                status: map_job_status(&row.status),
+                progress: row.progress,
+                total_pages: row.total_pages,
+                total_issues: row.total_issues,
+                created_at: parse_datetime(&row.created_at),
+                max_pages: row.max_pages,
+                lighthouse_analysis: row.lighthouse_analysis != 0,
+            })
+            .collect();
+
+        Ok((items, total))
+    }
+
+    pub async fn count(&self) -> Result<i64> {
+        let row = sqlx::query!("SELECT COUNT(*) as count FROM jobs")
+            .fetch_one(&self.pool)
+            .await
+            .context("Failed to count jobs")?;
+
+        Ok(row.count as i64)
+    }
+
     pub async fn get_pending(&self) -> Result<Vec<Job>> {
         let rows = sqlx::query!(
             r#"
@@ -156,9 +240,9 @@ impl JobRepository {
                 rate_limit_ms, user_agent, lighthouse_analysis,
                 total_pages, pages_crawled, total_issues, 
                 critical_issues, warning_issues, info_issues,
-                progress, current_stage, error_message
+                progress, error_message
             FROM jobs
-            WHERE status IN ('pending', 'running')
+            WHERE status IN ('pending', 'discovery', 'processing')
             ORDER BY created_at ASC
             "#
         )
@@ -192,13 +276,11 @@ impl JobRepository {
                     info_issues: row.info_issues,
                 },
                 progress: row.progress,
-                current_stage: row.current_stage,
                 error_message: row.error_message,
             })
             .collect())
     }
 
-    /// Update job status.
     pub async fn update_status(&self, job_id: &str, status: JobStatus) -> Result<()> {
         let status_str = status.as_str();
         let completed_at = if status.is_terminal() {
@@ -225,21 +307,14 @@ impl JobRepository {
         Ok(())
     }
 
-    /// Update job progress.
-    pub async fn update_progress(
-        &self,
-        job_id: &str,
-        progress: f64,
-        current_stage: Option<&str>,
-    ) -> Result<()> {
+    pub async fn update_progress(&self, job_id: &str, progress: f64) -> Result<()> {
         sqlx::query!(
             r#"
             UPDATE jobs 
-            SET progress = ?1, current_stage = ?2
-            WHERE id = ?3
+            SET progress = ?1
+            WHERE id = ?2
             "#,
             progress,
-            current_stage,
             job_id,
         )
         .execute(&self.pool)
@@ -249,7 +324,6 @@ impl JobRepository {
         Ok(())
     }
 
-    /// Update job with error.
     pub async fn set_error(&self, job_id: &str, error: &str) -> Result<()> {
         let now = Utc::now().to_rfc3339();
 
@@ -267,11 +341,9 @@ impl JobRepository {
         .await
         .context("Failed to set job error")?;
 
-        tracing::error!("Job {} failed: {}", job_id, error);
         Ok(())
     }
 
-    /// Delete a job and all related data (CASCADE).
     pub async fn delete(&self, job_id: &str) -> Result<()> {
         sqlx::query!("DELETE FROM jobs WHERE id = ?", job_id)
             .execute(&self.pool)
@@ -280,6 +352,18 @@ impl JobRepository {
 
         tracing::info!("Deleted job {}", job_id);
         Ok(())
+    }
+
+    async fn get_running_jobs_id(&self) -> Result<Vec<String>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT id FROM jobs WHERE status IN ('discovery', 'processing')
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await
+        .context("Failed to fetch running jobs")?;
+        Ok(rows.into_iter().map(|row| row.id).collect())
     }
 }
 
@@ -308,25 +392,43 @@ impl JobRepositoryTrait for JobRepository {
         JobRepository::get_all(self).await
     }
 
+    async fn get_paginated(&self, limit: i64, offset: i64) -> Result<Vec<JobInfo>> {
+        JobRepository::get_paginated(self, limit, offset).await
+    }
+
+    async fn get_paginated_with_total(
+        &self,
+        limit: i64,
+        offset: i64,
+        url_filter: Option<String>,
+        status_filter: Option<String>,
+    ) -> Result<(Vec<JobInfo>, i64)> {
+        JobRepository::get_paginated_with_total(self, limit, offset, url_filter, status_filter)
+            .await
+    }
+
     async fn get_pending(&self) -> Result<Vec<Job>> {
         JobRepository::get_pending(self).await
+    }
+
+    async fn get_running_jobs_id(&self) -> Result<Vec<String>> {
+        JobRepository::get_running_jobs_id(self).await
     }
 
     async fn update_status(&self, job_id: &str, status: JobStatus) -> Result<()> {
         JobRepository::update_status(self, job_id, status).await
     }
 
-    async fn update_progress(
-        &self,
-        id: &str,
-        progress: f64,
-        current_stage: Option<&str>,
-    ) -> Result<()> {
-        JobRepository::update_progress(self, id, progress, current_stage).await
+    async fn update_progress(&self, id: &str, progress: f64) -> Result<()> {
+        JobRepository::update_progress(self, id, progress).await
     }
 
     async fn set_error(&self, job_id: &str, error: &str) -> Result<()> {
         JobRepository::set_error(self, job_id, error).await
+    }
+
+    async fn count(&self) -> Result<i64> {
+        JobRepository::count(self).await
     }
 
     async fn delete(&self, job_id: &str) -> Result<()> {

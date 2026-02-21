@@ -4,9 +4,10 @@ import ScoreOverview from "./ScoreOverview"
 import PerformanceMetrics from "./PerformanceMetrics"
 import SeoAuditBreakdown from "./SeoAuditBreakdown"
 import { Search, Activity } from "lucide-react"
+import { JsonValue } from "@/src/lib/types"
 
 export default function SeoAuditTab({ page }: { page: PageDetailData }) {
-    const parseSafe = (v: any) => {
+    const parseSafe = (v: JsonValue) => {
         if (!v) return null
         if (typeof v === "string") {
             try { return JSON.parse(v) } catch { return null }
