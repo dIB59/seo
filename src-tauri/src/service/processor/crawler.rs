@@ -1,6 +1,7 @@
-use crate::domain::models::JobSettings;
-use crate::service::discovery::{PageDiscovery, ResourceChecker};
+use crate::domain::JobSettings;
+use crate::service::discovery::{PageDiscovery, ResourceChecker, SiteResources};
 use crate::service::processor::reporter::{ProgressEmitter, ProgressEvent};
+use crate::service::spider::SpiderAgent;
 use anyhow::{Context, Result};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -14,27 +15,28 @@ pub struct Crawler {
 pub struct CrawlContext {
     pub job_id: String,
     pub settings: JobSettings,
-    pub start_url: Url,
+    pub start_url: String,
     pub cancel_flag: Arc<AtomicBool>,
 }
 
 impl Crawler {
-    pub fn new() -> Self {
+    pub fn new(spider: Arc<dyn SpiderAgent>) -> Self {
         Self {
-            discovery: PageDiscovery::new(),
-            resource_checker: ResourceChecker::new(),
+            discovery: PageDiscovery::new(spider.clone()),
+            resource_checker: ResourceChecker::new(spider),
         }
     }
 
-    pub async fn check_resources(&self, url: &Url) -> Result<SiteResources> {
+    pub async fn check_resources(&self, url_str: &str) -> Result<SiteResources> {
+        let url = Url::parse(url_str)?;
         let robots_txt = self
             .resource_checker
-            .check_robots_txt(url.clone())
+            .check_robots_txt(url.as_str())
             .await
             .is_ok();
         let sitemap = self
             .resource_checker
-            .check_sitemap_xml(url.clone())
+            .check_sitemap_xml(url.as_str())
             .await
             .is_ok();
 
@@ -45,12 +47,11 @@ impl Crawler {
         })
     }
 
-    /// Discover pages using unified progress emission
     pub async fn discover_pages(
         &self,
         context: &CrawlContext,
         progress_emitter: Arc<dyn ProgressEmitter>, // ← Single trait object
-    ) -> Result<Vec<Url>> {
+    ) -> Result<Vec<String>> {
         let job_id = context.job_id.clone();
         let max_pages = context.settings.max_pages as usize;
 
@@ -61,11 +62,12 @@ impl Crawler {
         let mut discovered = self
             .discovery
             .discover(
-                context.start_url.clone(),
+                &context.start_url,
                 context.settings.max_pages,
                 context.settings.delay_between_requests,
                 &context.cancel_flag,
                 move |count| {
+                    tracing::trace!("Discovery progress: {}", count);
                     // Emit discovery progress as a typed event
                     emitter.emit(ProgressEvent::Discovery {
                         job_id: job_id_clone.clone(),
@@ -79,17 +81,9 @@ impl Crawler {
 
         if discovered.is_empty() {
             tracing::warn!("[JOB] Discovery returned no pages, falling back to start URL");
-            discovered.push(context.start_url.clone());
+            discovered.push(context.start_url.to_string());
         }
 
         Ok(discovered)
     }
-}
-
-/// Site-level resource check results.
-#[allow(dead_code)]
-pub struct SiteResources {
-    pub robots_txt: bool,
-    pub sitemap: bool,
-    pub ssl: bool,
 }

@@ -1,14 +1,30 @@
-//! Issue repository for the redesigned schema.
-//!
-//! Issues have a direct `job_id` foreign key, eliminating expensive JOINs
-//! through analysis_results → page_analysis.
-
 use anyhow::{Context, Result};
 use chrono::Utc;
 use sqlx::SqlitePool;
 
 use super::map_severity;
-use crate::domain::models::{Issue, IssueSeverity, NewIssue};
+use crate::domain::{Issue, IssueSeverity, NewIssue};
+
+#[derive(Debug, Clone, Default)]
+pub struct IssueCounts {
+    pub critical: i64,
+    pub warning: i64,
+    pub info: i64,
+}
+
+impl IssueCounts {
+    pub fn total(&self) -> i64 {
+        self.critical + self.warning + self.info
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct IssueGroup {
+    pub issue_type: String,
+    pub severity: IssueSeverity,
+    pub count: i64,
+    pub sample_messages: Vec<String>,
+}
 
 pub struct IssueRepository {
     pool: SqlitePool,
@@ -19,7 +35,6 @@ impl IssueRepository {
         Self { pool }
     }
 
-    /// Insert multiple issues in a batch (FAST: single transaction).
     pub async fn insert_batch(&self, issues: &[NewIssue]) -> Result<()> {
         if issues.is_empty() {
             return Ok(());
@@ -54,7 +69,6 @@ impl IssueRepository {
         Ok(())
     }
 
-    /// Get all issues for a job (FAST: direct FK lookup, no JOINs!).
     pub async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<Issue>> {
         let rows = sqlx::query!(
             r#"
@@ -91,7 +105,6 @@ impl IssueRepository {
             .collect())
     }
 
-    /// Get issues for a specific page.
     pub async fn get_by_page_id(&self, page_id: &str) -> Result<Vec<Issue>> {
         let rows = sqlx::query!(
             r#"
@@ -127,7 +140,6 @@ impl IssueRepository {
             .collect())
     }
 
-    /// Get issues by severity for a job.
     pub async fn get_by_job_and_severity(
         &self,
         job_id: &str,
@@ -164,7 +176,6 @@ impl IssueRepository {
             .collect())
     }
 
-    /// Get issue counts by severity for a job (FAST: uses index).
     pub async fn count_by_severity(&self, job_id: &str) -> Result<IssueCounts> {
         let row = sqlx::query!(
             r#"
@@ -188,7 +199,6 @@ impl IssueRepository {
         })
     }
 
-    /// Get total issue count for a job.
     pub async fn count_by_job_id(&self, job_id: &str) -> Result<i64> {
         let row = sqlx::query!(
             "SELECT COUNT(*) as count FROM issues WHERE job_id = ?",
@@ -201,7 +211,6 @@ impl IssueRepository {
         Ok(row.count as i64)
     }
 
-    /// Get grouped issues by type for dashboard display.
     pub async fn get_grouped_by_type(&self, job_id: &str) -> Result<Vec<IssueGroup>> {
         let rows = sqlx::query!(
             r#"
@@ -253,30 +262,27 @@ use async_trait::async_trait;
 
 #[async_trait]
 impl IssueRepositoryTrait for IssueRepository {
-    async fn insert_batch(&self, issues: &[crate::domain::models::NewIssue]) -> Result<()> {
+    async fn insert_batch(&self, issues: &[crate::domain::NewIssue]) -> Result<()> {
         IssueRepository::insert_batch(self, issues).await
     }
 
-    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::models::Issue>> {
+    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::Issue>> {
         IssueRepository::get_by_job_id(self, job_id).await
     }
 
-    async fn get_by_page_id(&self, page_id: &str) -> Result<Vec<crate::domain::models::Issue>> {
+    async fn get_by_page_id(&self, page_id: &str) -> Result<Vec<crate::domain::Issue>> {
         IssueRepository::get_by_page_id(self, page_id).await
     }
 
     async fn get_by_job_and_severity(
         &self,
         job_id: &str,
-        severity: crate::domain::models::IssueSeverity,
-    ) -> Result<Vec<crate::domain::models::Issue>> {
+        severity: crate::domain::IssueSeverity,
+    ) -> Result<Vec<crate::domain::Issue>> {
         IssueRepository::get_by_job_and_severity(self, job_id, severity).await
     }
 
-    async fn count_by_severity(
-        &self,
-        job_id: &str,
-    ) -> Result<crate::repository::sqlite::IssueCounts> {
+    async fn count_by_severity(&self, job_id: &str) -> Result<IssueCounts> {
         IssueRepository::count_by_severity(self, job_id).await
     }
 
@@ -284,33 +290,7 @@ impl IssueRepositoryTrait for IssueRepository {
         IssueRepository::count_by_job_id(self, job_id).await
     }
 
-    async fn get_grouped_by_type(
-        &self,
-        job_id: &str,
-    ) -> Result<Vec<crate::repository::sqlite::IssueGroup>> {
+    async fn get_grouped_by_type(&self, job_id: &str) -> Result<Vec<IssueGroup>> {
         IssueRepository::get_grouped_by_type(self, job_id).await
     }
-}
-
-/// Issue counts by severity.
-#[derive(Debug, Clone, Default)]
-pub struct IssueCounts {
-    pub critical: i64,
-    pub warning: i64,
-    pub info: i64,
-}
-
-impl IssueCounts {
-    pub fn total(&self) -> i64 {
-        self.critical + self.warning + self.info
-    }
-}
-
-/// Grouped issue summary.
-#[derive(Debug, Clone)]
-pub struct IssueGroup {
-    pub issue_type: String,
-    pub severity: IssueSeverity,
-    pub count: i64,
-    pub sample_messages: Vec<String>,
 }

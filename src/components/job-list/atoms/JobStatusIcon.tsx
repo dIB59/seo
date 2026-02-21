@@ -1,10 +1,11 @@
-import { CheckCircle2, Clock, Loader2, Search, XCircle } from "lucide-react"
+import { JobStatus } from "@/src/bindings"
+import { CheckCircle2, Clock, Loader2, Search, XCircle, Ban } from "lucide-react"
 
-export function getStatusIcon(status: string) {
+export function getStatusIcon(status: JobStatus) {
     switch (status) {
-        case "queued":
+        case "pending":
             return <Clock className="h-4 w-4 text-muted-foreground" />
-        case 'discovering':
+        case 'discovery':
             return <Search className="h-4 w-4 text-primary animate-pulse" />
         case "processing":
             return <Loader2 className="h-4 w-4 text-primary animate-spin" />
@@ -12,6 +13,8 @@ export function getStatusIcon(status: string) {
             return <span className="text-success"><CheckCircle2 className="h-4 w-4" /></span>
         case "failed":
             return <XCircle className="h-4 w-4 text-destructive" />
+        case "cancelled":
+            return <Ban className="h-4 w-4 text-muted-foreground/60" />
         default:
             return <Clock className="h-4 w-4 text-muted-foreground" />
     }

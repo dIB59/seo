@@ -48,7 +48,7 @@ pub async fn connect_test_db_v1() -> SqlitePool {
 pub async fn set_up_benchmark_db() -> SqlitePool {
     let pool = sqlx::sqlite::SqlitePoolOptions::new()
         .max_connections(1)
-        .connect("sqlite::memory:")
+        .connect("sqlite::memory:?cache=shared")
         .await
         .expect("Failed to create benchmark database");
     sqlx::migrate!()
@@ -64,9 +64,8 @@ pub async fn set_up_benchmark_db() -> SqlitePool {
 /// Benchmark data generators for realistic test data
 /// Made public for use in benches/
 pub mod generators {
-    use crate::domain::models::{
-        HeadingElement, ImageElement, IssueSeverity, LinkDetail, PageAnalysisData, SeoIssue,
-    };
+    use crate::commands::analysis::{ImageElement, LinkDetail, PageAnalysisData, SeoIssue};
+    use crate::domain::IssueSeverity;
 
     /// Generate mock pages for benchmarking write operations
     pub fn generate_mock_pages(count: usize, analysis_id: &str) -> Vec<PageAnalysisData> {
@@ -81,9 +80,6 @@ pub mod generators {
                 )),
                 meta_keywords: Some("seo, test, benchmark".to_string()),
                 canonical_url: Some(format!("https://example.com/page-{}", i)),
-                h1_count: 1,
-                h2_count: (i % 5) as i64 + 1,
-                h3_count: (i % 3) as i64,
                 word_count: 500 + (i % 1000) as i64,
                 image_count: (i % 10) as i64,
                 images_without_alt: (i % 3) as i64,
@@ -100,17 +96,6 @@ pub mod generators {
                 lighthouse_seo: Some(88.0 + (i % 12) as f64),
                 lighthouse_seo_audits: None,
                 lighthouse_performance_metrics: None,
-                links: vec![],
-                headings: vec![
-                    HeadingElement {
-                        tag: "h1".to_string(),
-                        text: format!("Main Heading {}", i),
-                    },
-                    HeadingElement {
-                        tag: "h2".to_string(),
-                        text: format!("Subheading {}", i),
-                    },
-                ],
                 images: vec![ImageElement {
                     src: format!("/images/img-{}.jpg", i),
                     alt: Some(format!("Image {}", i)),
@@ -131,6 +116,10 @@ pub mod generators {
                         status_code: None,
                     },
                 ],
+                headings: vec![crate::commands::analysis::HeadingElement {
+                    tag: "h1".to_string(),
+                    text: format!("Heading for page {}", i),
+                }],
             })
             .collect()
     }
@@ -206,7 +195,7 @@ pub mod fixtures {
     /// Creates an in-memory SQLite database with migrations applied
     pub async fn setup_test_db() -> SqlitePool {
         let pool = sqlx::sqlite::SqlitePoolOptions::new()
-            .max_connections(1)
+            .max_connections(5)
             .connect("sqlite::memory:")
             .await
             .expect("Failed to create test database");
@@ -254,7 +243,7 @@ pub mod fixtures {
 /// Helper assertions for tests
 #[cfg(test)]
 pub mod assertions {
-    use crate::domain::models::SeoIssue;
+    use crate::commands::analysis::SeoIssue;
 
     /// Checks if issues contain a specific issue title
     pub fn has_issue(issues: &[SeoIssue], title: &str) -> bool {

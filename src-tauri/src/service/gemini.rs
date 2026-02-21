@@ -1,10 +1,11 @@
-use crate::service::http::{create_client, ClientType};
+use crate::service::spider::SpiderAgent;
+#[cfg(test)]
+use crate::service::spider::{ClientType, Spider};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use specta::Type;
 
-/// The Gemini API endpoint path (without base URL)
 pub const GEMINI_API_PATH: &str = "/v1beta/models/gemini-2.0-flash:generateContent";
 
 #[derive(Serialize, Deserialize, Clone, Debug, Type)]
@@ -32,11 +33,11 @@ pub struct GeminiRequest {
     pub robots_txt_found: bool,
 }
 
-/// Generate AI-powered SEO analysis using Google Gemini API
 pub async fn generate_gemini_analysis(
     ai_repo: std::sync::Arc<dyn crate::repository::AiRepository>,
     settings_repo: std::sync::Arc<dyn crate::repository::SettingsRepository>,
     request: GeminiRequest,
+    spider: std::sync::Arc<dyn SpiderAgent>,
     api_base_url: Option<String>,
 ) -> Result<String> {
     // 1. Check cache first
@@ -111,26 +112,18 @@ pub async fn generate_gemini_analysis(
     });
 
     // Make API request
-    let client = create_client(ClientType::Standard)?;
-    let response = client
-        .post(&api_url)
-        .header("Content-Type", "application/json")
-        .body(request_body.to_string())
-        .send()
+    let response = spider
+        .post_json(&api_url, &request_body)
         .await
         .context("Failed to send request to Gemini API")?;
 
-    if !response.status().is_success() {
-        let status = response.status();
-        let error_text = response.text().await.unwrap_or_default();
-        anyhow::bail!("Gemini API error {}: {}", status, error_text);
+    if response.status != 200 {
+        anyhow::bail!("Gemini API error {}: {}", response.status, response.body);
     }
 
     // Parse response
-    let response_json: serde_json::Value = response
-        .json()
-        .await
-        .context("Failed to parse Gemini API response")?;
+    let response_json: serde_json::Value =
+        serde_json::from_str(&response.body).context("Failed to parse Gemini API response")?;
 
     // Extract text from response
     let text = response_json["candidates"][0]["content"]["parts"][0]["text"]
@@ -146,7 +139,6 @@ pub async fn generate_gemini_analysis(
     Ok(text)
 }
 
-/// Helper to substitute variables in prompt templates
 pub fn replace_prompt_vars(text: &str, request: &GeminiRequest) -> String {
     text.replace("{url}", &request.url)
         .replace("{score}", &request.seo_score.to_string())
@@ -182,7 +174,7 @@ pub fn replace_prompt_vars(text: &str, request: &GeminiRequest) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repository::sqlite::SettingsRepository;
+    use crate::repository::sqlite_settings_repo;
 
     #[test]
     fn test_replace_prompt_vars() {
@@ -218,7 +210,7 @@ mod tests {
 
         // 1. Setup DB with API Key
         let pool = fixtures::setup_test_db().await;
-        let repo = SettingsRepository::new(pool.clone());
+        let repo = sqlite_settings_repo(pool.clone());
         repo.set_setting("gemini_api_key", "test_key")
             .await
             .unwrap();
@@ -239,14 +231,13 @@ mod tests {
         request.analysis_id = "integration_test".into();
         request.url = "https://test.com".into();
 
-        let ai_repo =
-            std::sync::Arc::new(crate::repository::sqlite::AiRepository::new(pool.clone()));
-        let settings_repo = std::sync::Arc::new(
-            crate::repository::sqlite::SettingsRepository::new(pool.clone()),
-        );
-        let result = generate_gemini_analysis(ai_repo, settings_repo, request, Some(server.url()))
-            .await
-            .unwrap();
+        let ai_repo = crate::repository::sqlite_ai_repo(pool.clone());
+        let settings_repo = crate::repository::sqlite_settings_repo(pool.clone());
+        let spider = Spider::new_agent(ClientType::Standard).unwrap();
+        let result =
+            generate_gemini_analysis(ai_repo, settings_repo, request, spider, Some(server.url()))
+                .await
+                .unwrap();
 
         // 4. Verify - use contains() for resilience against minor text changes
         assert!(
@@ -267,12 +258,10 @@ mod tests {
 
         let request = fixtures::minimal_gemini_request();
 
-        let ai_repo =
-            std::sync::Arc::new(crate::repository::sqlite::AiRepository::new(pool.clone()));
-        let settings_repo = std::sync::Arc::new(
-            crate::repository::sqlite::SettingsRepository::new(pool.clone()),
-        );
-        let result = generate_gemini_analysis(ai_repo, settings_repo, request, None).await;
+        let ai_repo = crate::repository::sqlite_ai_repo(pool.clone());
+        let settings_repo = crate::repository::sqlite_settings_repo(pool.clone());
+        let spider = Spider::new_agent(ClientType::Standard).unwrap();
+        let result = generate_gemini_analysis(ai_repo, settings_repo, request, spider, None).await;
 
         assert!(result.is_err(), "Should fail when API key is missing");
         let err = result.unwrap_err().to_string();
@@ -288,7 +277,7 @@ mod tests {
         use crate::test_utils::fixtures;
 
         let pool = fixtures::setup_test_db().await;
-        let repo = SettingsRepository::new(pool.clone());
+        let repo = sqlite_settings_repo(pool.clone());
         repo.set_setting("gemini_api_key", "bad_key").await.unwrap();
 
         let mut server = mockito::Server::new_async().await;
@@ -302,13 +291,12 @@ mod tests {
 
         let request = fixtures::minimal_gemini_request();
 
-        let ai_repo =
-            std::sync::Arc::new(crate::repository::sqlite::AiRepository::new(pool.clone()));
-        let settings_repo = std::sync::Arc::new(
-            crate::repository::sqlite::SettingsRepository::new(pool.clone()),
-        );
+        let ai_repo = crate::repository::sqlite_ai_repo(pool.clone());
+        let settings_repo = crate::repository::sqlite_settings_repo(pool.clone());
+        let spider = Spider::new_agent(ClientType::Standard).unwrap();
         let result =
-            generate_gemini_analysis(ai_repo, settings_repo, request, Some(server.url())).await;
+            generate_gemini_analysis(ai_repo, settings_repo, request, spider, Some(server.url()))
+                .await;
 
         assert!(result.is_err(), "Should fail when API returns error");
         let err = result.unwrap_err().to_string();
@@ -324,7 +312,7 @@ mod tests {
         use crate::test_utils::{fixtures, mocks};
 
         let pool = fixtures::setup_test_db().await;
-        let repo = SettingsRepository::new(pool.clone());
+        let repo = sqlite_settings_repo(pool.clone());
         repo.set_setting("gemini_api_key", "test_key")
             .await
             .unwrap();
@@ -356,15 +344,13 @@ mod tests {
         request.analysis_id = test_job_id.to_string();
 
         // First call - should hit API
-        let ai_repo =
-            std::sync::Arc::new(crate::repository::sqlite::AiRepository::new(pool.clone()));
-        let settings_repo = std::sync::Arc::new(
-            crate::repository::sqlite::SettingsRepository::new(pool.clone()),
-        );
+        let ai_repo = crate::repository::sqlite_ai_repo(pool.clone());
+        let settings_repo = crate::repository::sqlite_settings_repo(pool.clone());
         let result1 = generate_gemini_analysis(
             ai_repo.clone(),
             settings_repo.clone(),
             request.clone(),
+            Spider::new_agent(ClientType::Standard).unwrap(),
             Some(server.url()),
         )
         .await
@@ -375,9 +361,15 @@ mod tests {
         );
 
         // Second call with same analysis_id - should use cache
-        let result2 = generate_gemini_analysis(ai_repo, settings_repo, request, Some(server.url()))
-            .await
-            .unwrap();
+        let result2 = generate_gemini_analysis(
+            ai_repo,
+            settings_repo,
+            request,
+            Spider::new_agent(ClientType::Standard).unwrap(),
+            Some(server.url()),
+        )
+        .await
+        .unwrap();
         assert!(
             result2.contains("Cached"),
             "Second call should return cached result"

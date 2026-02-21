@@ -3,18 +3,15 @@ use tauri::Emitter;
 // src/service/progress.rs
 use serde::Serialize;
 
-/// Domain events for job progress reporting
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "event", rename_all = "snake_case")]
 pub enum ProgressEvent {
-    /// Analysis phase: pages processed, % complete
     Analysis {
         job_id: String,
         progress: f64,
         pages_analyzed: usize,
         total_pages: usize, // Optional total for more accurate progress
     },
-    /// Discovery phase: URLs found during crawl
     Discovery {
         job_id: String,
         count: usize,
@@ -49,6 +46,7 @@ impl<R: tauri::Runtime> ProgressReporter<R> {
 impl<R: tauri::Runtime> ProgressEmitter for ProgressReporter<R> {
     fn emit(&self, event: ProgressEvent) {
         // Route to appropriate channel based on event variant
+        tracing::trace!("Emitting progress event: {:?}", event);
         let channel = match event {
             ProgressEvent::Analysis { .. } => "analysis:progress",
             ProgressEvent::Discovery { .. } => "discovery:progress",

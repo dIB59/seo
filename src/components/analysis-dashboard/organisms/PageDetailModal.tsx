@@ -1,7 +1,7 @@
 import { PageAnalysisData } from "@/src/lib/types";
 import { cn } from "@/src/lib/utils";
 import { Dialog, DialogContent, DialogTitle } from "@radix-ui/react-dialog";
-import { Separator } from "@radix-ui/react-dropdown-menu";
+import { Separator } from "../../ui/separator";
 import { BarChart3, Clock, FileCode, Link2, FileText, Smartphone, ImageIcon } from "lucide-react";
 import { DialogHeader } from "../../ui/dialog";
 import { MetricBadge } from "../atoms/MetricBadge";
@@ -34,7 +34,6 @@ function BrokenPageModal({ page, open, onClose }: { page: PageAnalysisData; open
                     <p className="text-sm text-muted-foreground truncate">{page.title || "No title"}</p>
                 </DialogHeader>
 
-                {/* scrollable body */}
                 <div className="overflow-auto">
                     <h4 className="text-sm font-medium mb-3">Content Metrics</h4>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -104,9 +103,9 @@ function HealthyPageModal({
                     <div>
                         <h4 className="text-sm font-medium mb-3">Page Structure</h4>
                         <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-                            <MetricBadge label="H1 Tags" value={page.h1_count} />
-                            <MetricBadge label="H2 Tags" value={page.h2_count} />
-                            <MetricBadge label="H3 Tags" value={page.h3_count} />
+                            <MetricBadge label="H1 Tags" value={page.headings.filter(h => h.tag === "h1").length} />
+                            <MetricBadge label="H2 Tags" value={page.headings.filter(h => h.tag === "h2").length} />
+                            <MetricBadge label="H3 Tags" value={page.headings.filter(h => h.tag === "h3").length} />
                             <MetricBadge label="Images" value={page.image_count} />
                             <MetricBadge label="Int. Links" value={page.internal_links} />
                             <MetricBadge label="Ext. Links" value={page.external_links} />

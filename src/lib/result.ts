@@ -7,18 +7,19 @@ export class Result<T, E = string> {
 		private readonly _error?: E
 	) { }
 
-	/* constructors */
 	static Ok<T>(value: T): Result<T, never> { return new Result<T, never>('Ok', value); }
 	static Err<E>(error: E): Result<never, E> { return new Result<never, E>('Err', undefined, error); }
 
-	/* predicates */
 	isOk(): this is Ok<T> { return this._tag === 'Ok'; }
 	isErr(): this is Err<E> { return this._tag === 'Err'; }
 
-	/* extractors */
 	unwrap(): T {
 		if (this.isOk()) return this._value as T;
 		throw new Error(`unwrap on Err: ${this._error}`);
+	}
+	unwrapErr(): E {
+		if (this.isErr()) return this._error as E;
+		throw new Error(`unwrapErr on Ok: ${this._value}`);
 	}
 	expect(msg: string): T {
 		if (this.isOk()) return this._value as T;
@@ -26,7 +27,6 @@ export class Result<T, E = string> {
 	}
 	unwrapOr(fb: T): T { return this.isOk() ? (this._value as T) : fb; }
 
-	/* combinators */
 	map<U>(fn: (v: T) => U): Result<U, E> {
 		return this.isOk() ? Result.Ok(fn(this._value as T)) : (this as unknown as Result<U, E>);
 	}

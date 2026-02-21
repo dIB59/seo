@@ -1,6 +1,7 @@
-use crate::service::http::{create_client, ClientType};
+use crate::service::spider::SpiderAgent;
 use anyhow::{Context, Error, Result};
 use quick_xml::events::Event;
+use std::sync::Arc;
 use url::Url;
 
 pub const SITE_MAP_PATH: &str = "sitemap.xml";
@@ -62,16 +63,17 @@ impl SitemapFormat {
     }
 }
 
-pub async fn extract_sitemap_urls(start_url: Url) -> Result<Vec<String>, Error> {
-    let client = create_client(ClientType::HeavyEmulation).map_err(|e| anyhow::anyhow!(e))?;
+pub async fn extract_sitemap_urls(
+    start_url: Url,
+    spider: Arc<dyn SpiderAgent>,
+) -> Result<Vec<String>, Error> {
     let site_map = start_url.join(SITE_MAP_PATH).expect("Unable join URL");
-    let result = client
-        .get(site_map)
-        .send()
+    let response = spider
+        .get(site_map.as_str())
         .await
         .context("Unable to send request for sitemap")?;
 
-    let text = result.text().await.context("Unable to get site map text")?;
+    let text = response.body;
 
     extract_url_from_sitemap(&text)
 }

@@ -13,8 +13,6 @@ export const metadata: Metadata = {
   description: "Analyze websites for SEO issues and get actionable recommendations",
 }
 
-import { SettingsDialog } from "@/src/components/settings/settings-dialog"
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -33,7 +31,6 @@ export default function RootLayout({
       <body className={`font-sans antialiased`}>
         {children}
         <Toaster />
-        <SettingsDialog />
       </body>
     </html>
   )

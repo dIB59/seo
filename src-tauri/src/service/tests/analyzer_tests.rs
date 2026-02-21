@@ -1,10 +1,10 @@
 use async_trait::async_trait;
 use std::sync::{Arc, Mutex};
 
+use crate::domain::{Issue, LighthouseData, NewHeading, NewImage, NewIssue, Page, PageInfo};
+use crate::repository::{IssueRepository, PageRepository};
+use crate::service::auditor::{AuditResult, AuditScores, Auditor, SeoAuditDetails};
 use crate::service::processor::AnalyzerService;
-use crate::service::auditor::{Auditor, AuditResult, AuditScores, SeoAuditDetails};
-use crate::domain::models::{NewIssue, Page, LighthouseData, NewHeading, NewImage};
-use crate::repository::{PageRepository, IssueRepository};
 use anyhow::Result;
 
 struct MockPageRepo {
@@ -13,39 +13,41 @@ struct MockPageRepo {
 
 impl MockPageRepo {
     fn new() -> Self {
-        Self { inserted_pages: Mutex::new(vec![]) }
+        Self {
+            inserted_pages: Mutex::new(vec![]),
+        }
     }
 }
 
 #[async_trait]
 impl PageRepository for MockPageRepo {
-    async fn insert(&self, page: &crate::domain::models::Page) -> Result<String> {
+    async fn insert(&self, page: &Page) -> Result<String> {
         let mut guard = self.inserted_pages.lock().unwrap();
         guard.push(page.clone());
         Ok(page.id.clone())
     }
 
-    async fn insert_batch(&self, _pages: &[crate::domain::models::Page]) -> Result<()> {
+    async fn insert_batch(&self, _pages: &[Page]) -> Result<()> {
         Ok(())
     }
 
-    async fn get_by_job_id(&self, _job_id: &str) -> Result<Vec<crate::domain::models::Page>> {
+    async fn get_by_job_id(&self, _job_id: &str) -> Result<Vec<Page>> {
         Ok(vec![])
     }
 
-    async fn get_info_by_job_id(&self, _job_id: &str) -> Result<Vec<crate::domain::models::PageInfo>> {
+    async fn get_info_by_job_id(&self, _job_id: &str) -> Result<Vec<PageInfo>> {
         Ok(vec![])
     }
 
-    async fn get_by_id(&self, _page_id: &str) -> Result<crate::domain::models::Page> {
+    async fn get_by_id(&self, _page_id: &str) -> Result<Page> {
         Err(anyhow::anyhow!("not implemented"))
     }
 
-    async fn replace_headings(&self, _page_id: &str, _headings: &[crate::domain::models::NewHeading]) -> Result<()> {
+    async fn replace_headings(&self, _page_id: &str, _headings: &[NewHeading]) -> Result<()> {
         Ok(())
     }
 
-    async fn replace_images(&self, _page_id: &str, _images: &[crate::domain::models::NewImage]) -> Result<()> {
+    async fn replace_images(&self, _page_id: &str, _images: &[NewImage]) -> Result<()> {
         Ok(())
     }
 
@@ -68,31 +70,37 @@ struct MockIssueRepo {
 
 impl MockIssueRepo {
     fn new() -> Self {
-        Self { inserted_issues: Mutex::new(vec![]) }
+        Self {
+            inserted_issues: Mutex::new(vec![]),
+        }
     }
 }
 
 #[async_trait]
 impl IssueRepository for MockIssueRepo {
-    async fn insert_batch(&self, issues: &[crate::domain::models::NewIssue]) -> Result<()> {
+    async fn insert_batch(&self, issues: &[NewIssue]) -> Result<()> {
         let mut guard = self.inserted_issues.lock().unwrap();
         guard.extend_from_slice(issues);
         Ok(())
     }
 
-    async fn get_by_job_id(&self, _job_id: &str) -> Result<Vec<crate::domain::models::Issue>> {
+    async fn get_by_job_id(&self, _job_id: &str) -> Result<Vec<Issue>> {
         Ok(vec![])
     }
 
-    async fn get_by_page_id(&self, _page_id: &str) -> Result<Vec<crate::domain::models::Issue>> {
+    async fn get_by_page_id(&self, _page_id: &str) -> Result<Vec<Issue>> {
         Ok(vec![])
     }
 
-    async fn get_by_job_and_severity(&self, _job_id: &str, _severity: crate::domain::models::IssueSeverity) -> Result<Vec<crate::domain::models::Issue>> {
+    async fn get_by_job_and_severity(
+        &self,
+        _job_id: &str,
+        _severity: crate::domain::IssueSeverity,
+    ) -> Result<Vec<Issue>> {
         Ok(vec![])
     }
 
-    async fn count_by_severity(&self, _job_id: &str) -> Result<crate::repository::sqlite::IssueCounts> {
+    async fn count_by_severity(&self, _job_id: &str) -> Result<crate::repository::IssueCounts> {
         Ok(Default::default())
     }
 
@@ -100,7 +108,10 @@ impl IssueRepository for MockIssueRepo {
         Ok(0)
     }
 
-    async fn get_grouped_by_type(&self, _job_id: &str) -> Result<Vec<crate::repository::sqlite::IssueGroup>> {
+    async fn get_grouped_by_type(
+        &self,
+        _job_id: &str,
+    ) -> Result<Vec<crate::repository::IssueGroup>> {
         Ok(vec![])
     }
 }
@@ -118,7 +129,10 @@ impl Auditor for MockAuditor {
             status_code: 200,
             load_time_ms: 100.0,
             content_size: 1000,
-            scores: AuditScores { seo_details: SeoAuditDetails::default(), ..Default::default() },
+            scores: AuditScores {
+                seo_details: SeoAuditDetails::default(),
+                ..Default::default()
+            },
         })
     }
 
@@ -150,5 +164,8 @@ async fn analyze_page_insert_and_issue_generation() {
 
     // Edge/url discovery should include the /page-2 link
     assert_eq!(new_urls, vec!["/page-2".to_string()]);
-    assert!(result.edges.iter().any(|e| e.to_url == "/page-2"));
+    assert!(result
+        .links
+        .iter()
+        .any(|l| l.target_url.contains("/page-2")));
 }

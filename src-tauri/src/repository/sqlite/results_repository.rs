@@ -1,13 +1,8 @@
-//! Unified results repository for the redesigned schema.
-//!
-//! This provides a high-level API to fetch complete job results with
-//! all related data in optimized queries.
-
 use anyhow::{Context, Result};
 use chrono::Utc;
 use sqlx::SqlitePool;
 
-use crate::domain::models::{
+use crate::domain::{
     AiInsight, CompleteJobResult, Heading, Image, Issue, Job, JobSettings, JobSummary,
     LighthouseData, Link, Page,
 };
@@ -23,18 +18,6 @@ impl ResultsRepository {
         Self { pool }
     }
 
-    /// Get complete job result with all related data.
-    /// This is the main query for displaying analysis results.
-    ///
-    /// Performance: With the new schema, this uses direct FK lookups:
-    /// - 1 query for job
-    /// - 1 query for pages (WHERE job_id = ?)
-    /// - 1 query for issues (WHERE job_id = ?)
-    /// - 1 query for links (WHERE job_id = ?)
-    /// - 1 query for lighthouse (JOIN on pages)
-    /// - 1 query for AI insights
-    ///
-    /// Total: 6 simple queries vs the old 5+ queries with expensive JOINs.
     pub async fn get_complete_result(&self, job_id: &str) -> Result<CompleteJobResult> {
         let query_start = std::time::Instant::now();
 
@@ -61,7 +44,15 @@ impl ResultsRepository {
         let lighthouse = self.get_lighthouse(job_id).await?;
         tracing::debug!("Fetched {} lighthouse records", lighthouse.len());
 
-        // 6. Get AI insights (optional)
+        // 6. Get headings
+        let headings = self.get_headings(job_id).await?;
+        tracing::debug!("Fetched {} headings", headings.len());
+
+        // 7. Get images
+        let images = self.get_images(job_id).await?;
+        tracing::debug!("Fetched {} images", images.len());
+
+        // 8. Get AI insights (optional)
         let ai_insights = self.get_ai_insights(job_id).await.ok();
 
         let total_time = query_start.elapsed();
@@ -80,6 +71,8 @@ impl ResultsRepository {
             issues,
             links,
             lighthouse,
+            headings,
+            images,
             ai_insights,
         })
     }
@@ -93,7 +86,7 @@ impl ResultsRepository {
                 rate_limit_ms, user_agent, lighthouse_analysis,
                 total_pages, pages_crawled, total_issues, 
                 critical_issues, warning_issues, info_issues,
-                progress, current_stage, error_message
+                progress, error_message
             FROM jobs
             WHERE id = ?
             "#,
@@ -127,7 +120,6 @@ impl ResultsRepository {
                 info_issues: row.info_issues,
             },
             progress: row.progress,
-            current_stage: row.current_stage,
             error_message: row.error_message,
         })
     }
@@ -138,7 +130,8 @@ impl ResultsRepository {
             SELECT 
                 id, job_id, url, depth, status_code, content_type,
                 title, meta_description, canonical_url, robots_meta,
-                word_count, load_time_ms, response_size_bytes, crawled_at
+                word_count, load_time_ms, response_size_bytes,
+                has_viewport, has_structured_data, crawled_at
             FROM pages
             WHERE job_id = ?
             ORDER BY depth ASC, url ASC
@@ -165,6 +158,8 @@ impl ResultsRepository {
                 word_count: row.word_count,
                 load_time_ms: row.load_time_ms,
                 response_size_bytes: row.response_size_bytes,
+                has_viewport: row.has_viewport != 0,
+                has_structured_data: row.has_structured_data != 0,
                 crawled_at: parse_datetime(row.crawled_at.as_str()),
             })
             .collect())
@@ -362,7 +357,6 @@ impl ResultsRepository {
         })
     }
 
-    /// Save AI insights for a job.
     pub async fn save_ai_insights(
         &self,
         job_id: &str,
@@ -405,45 +399,39 @@ use async_trait::async_trait;
 
 #[async_trait]
 impl ResultsRepositoryTrait for ResultsRepository {
-    async fn get_complete_result(
-        &self,
-        job_id: &str,
-    ) -> Result<crate::domain::models::CompleteJobResult> {
+    async fn get_complete_result(&self, job_id: &str) -> Result<crate::domain::CompleteJobResult> {
         ResultsRepository::get_complete_result(self, job_id).await
     }
 
-    async fn get_job(&self, job_id: &str) -> Result<crate::domain::models::Job> {
+    async fn get_job(&self, job_id: &str) -> Result<crate::domain::Job> {
         ResultsRepository::get_job(self, job_id).await
     }
 
-    async fn get_pages(&self, job_id: &str) -> Result<Vec<crate::domain::models::Page>> {
+    async fn get_pages(&self, job_id: &str) -> Result<Vec<crate::domain::Page>> {
         ResultsRepository::get_pages(self, job_id).await
     }
 
-    async fn get_issues(&self, job_id: &str) -> Result<Vec<crate::domain::models::Issue>> {
+    async fn get_issues(&self, job_id: &str) -> Result<Vec<crate::domain::Issue>> {
         ResultsRepository::get_issues(self, job_id).await
     }
 
-    async fn get_links(&self, job_id: &str) -> Result<Vec<crate::domain::models::Link>> {
+    async fn get_links(&self, job_id: &str) -> Result<Vec<crate::domain::Link>> {
         ResultsRepository::get_links(self, job_id).await
     }
 
-    async fn get_lighthouse(
-        &self,
-        job_id: &str,
-    ) -> Result<Vec<crate::domain::models::LighthouseData>> {
+    async fn get_lighthouse(&self, job_id: &str) -> Result<Vec<crate::domain::LighthouseData>> {
         ResultsRepository::get_lighthouse(self, job_id).await
     }
 
-    async fn get_headings(&self, job_id: &str) -> Result<Vec<crate::domain::models::Heading>> {
+    async fn get_headings(&self, job_id: &str) -> Result<Vec<crate::domain::Heading>> {
         ResultsRepository::get_headings(self, job_id).await
     }
 
-    async fn get_images(&self, job_id: &str) -> Result<Vec<crate::domain::models::Image>> {
+    async fn get_images(&self, job_id: &str) -> Result<Vec<crate::domain::Image>> {
         ResultsRepository::get_images(self, job_id).await
     }
 
-    async fn get_ai_insights(&self, job_id: &str) -> Result<crate::domain::models::AiInsight> {
+    async fn get_ai_insights(&self, job_id: &str) -> Result<crate::domain::AiInsight> {
         ResultsRepository::get_ai_insights(self, job_id).await
     }
 
@@ -467,7 +455,6 @@ impl ResultsRepositoryTrait for ResultsRepository {
     }
 }
 
-/// Parse datetime string to UTC DateTime.
 fn parse_datetime(s: &str) -> chrono::DateTime<Utc> {
     chrono::DateTime::parse_from_rfc3339(s)
         .map(|dt| dt.with_timezone(&Utc))

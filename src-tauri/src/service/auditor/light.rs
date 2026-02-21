@@ -1,38 +1,21 @@
-//! Light Auditor - Fast HTTP-based SEO analysis with custom scoring.
-//!
-//! Performs quick SEO analysis using direct HTTP fetching and HTML parsing.
-//! Much faster than Lighthouse (~1-2s vs ~5-10s) but less comprehensive.
-
 use super::{AuditResult, AuditScores, Auditor, CheckResult, Score, SeoAuditDetails};
-use crate::service::http::{create_client, ClientType};
+use crate::service::spider::SpiderAgent;
+
 use anyhow::Result;
 use async_trait::async_trait;
-use rquest::Client;
 use scraper::{Html, Selector};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use url::Url;
 
-/// Light auditor using direct HTTP fetching.
-///
-/// Provides fast SEO analysis by:
-/// - Direct HTTP request (no Chrome overhead)
-/// - HTML parsing for SEO elements
-/// - Custom scoring based on best practices
-///
-/// Trade-off: ~1-2 seconds per page, no JS rendering.
 pub struct LightAuditor {
-    client: Client,
+    spider: Arc<dyn SpiderAgent>,
 }
 
 impl LightAuditor {
-    pub fn new() -> Self {
-        Self {
-            client: create_client(ClientType::HeavyEmulation)
-                .expect("Failed to create HTTP client"),
-        }
+    pub fn new(spider: Arc<dyn SpiderAgent>) -> Self {
+        Self { spider }
     }
 
-    /// Analyze HTML and compute SEO scores.
     fn analyze_html(&self, html: &str, url: &Url) -> (AuditScores, SeoAuditDetails) {
         let document = Html::parse_document(html);
         let details = self.extract_seo_details(&document, url);
@@ -479,12 +462,6 @@ impl LightAuditor {
     }
 }
 
-impl Default for LightAuditor {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[async_trait]
 impl Auditor for LightAuditor {
     async fn analyze(&self, url: &str) -> Result<AuditResult> {
@@ -494,14 +471,13 @@ impl Auditor for LightAuditor {
         let parsed_url = Url::parse(url)?;
 
         // Fetch the page
-        let response = self.client.get(url).send().await?;
+        let response = self.spider.get(url).await?;
 
-        let status_code = response.status().as_u16();
-        let content_length = response.content_length();
-        let html = response.text().await?;
+        let status_code = response.status;
+        let html = response.body;
 
         let load_time_ms = start_time.elapsed().as_secs_f64() * 1000.0;
-        let content_size = content_length.unwrap_or(html.len() as u64) as usize;
+        let content_size = html.len();
 
         tracing::debug!(
             "[LIGHT] Fetched {} bytes in {:.2}ms",
@@ -550,10 +526,12 @@ impl Auditor for LightAuditor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::service::spider::{ClientType, Spider};
 
     #[test]
     fn test_check_title() {
-        let auditor = LightAuditor::new();
+        let spider = Spider::new_agent(ClientType::Standard).unwrap();
+        let auditor = LightAuditor::new(spider);
 
         // Good title (30-60 chars)
         let html = "<html><head><title>This Is a Good Title for SEO Testing Purposes</title></head></html>";
@@ -579,7 +557,8 @@ mod tests {
 
     #[test]
     fn test_check_image_alt() {
-        let auditor = LightAuditor::new();
+        let spider = Spider::new_agent(ClientType::Standard).unwrap();
+        let auditor = LightAuditor::new(spider);
 
         // All images have alt
         let html = r#"<html><body><img src="a.jpg" alt="desc"><img src="b.jpg" alt="other"></body></html>"#;
@@ -663,7 +642,8 @@ mod tests {
 
     #[test]
     fn test_check_link_text_various() {
-        let auditor = LightAuditor::new();
+        let spider = Spider::new_agent(ClientType::Standard).unwrap();
+        let auditor = LightAuditor::new(spider);
 
         // Good text
         let html = r#"<html><body><a href=\"/a\">Read this article</a></body></html>"#;

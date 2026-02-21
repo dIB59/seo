@@ -1,0 +1,68 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT \n                id, url, status, progress, \n                total_pages, total_issues, created_at,\n                max_pages, lighthouse_analysis\n            FROM jobs\n            ORDER BY created_at DESC\n            LIMIT ?1 OFFSET ?2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "url",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "status",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "progress",
+        "ordinal": 3,
+        "type_info": "Float"
+      },
+      {
+        "name": "total_pages",
+        "ordinal": 4,
+        "type_info": "Int64"
+      },
+      {
+        "name": "total_issues",
+        "ordinal": 5,
+        "type_info": "Int64"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "max_pages",
+        "ordinal": 7,
+        "type_info": "Int64"
+      },
+      {
+        "name": "lighthouse_analysis",
+        "ordinal": 8,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "96149eaa895063538260d9306f361fa7fa65b9e565c56efb19ed5150975b33a4"
+}

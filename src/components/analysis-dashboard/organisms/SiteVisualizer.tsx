@@ -2,11 +2,11 @@ import { Network, Maximize2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import GraphView from "../../graph-view/GraphView";
-import { CompleteAnalysisResponse, PageAnalysisDataResponse } from "@/src/lib/types";
+import { CompleteAnalysisResponse, PageAnalysisData } from "@/src/lib/types";
 
 interface SiteVisualizerProps {
     data: CompleteAnalysisResponse;
-    onNodeClick: (page: PageAnalysisDataResponse) => void;
+    onNodeClick: (page: PageAnalysisData) => void;
 }
 
 export function SiteVisualizer({ data, onNodeClick }: SiteVisualizerProps) {
@@ -36,7 +36,6 @@ export function SiteVisualizer({ data, onNodeClick }: SiteVisualizerProps) {
                         }}
                     />
 
-                    {/* Legend Overlay */}
                     <div className="absolute bottom-4 left-4 p-2 bg-background/80 backdrop-blur border rounded-md text-[10px] space-y-1">
                         <div className="flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-success" /> Healthy Page

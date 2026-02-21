@@ -1,17 +1,34 @@
-// Import generated bindings for internal type references and re-export commonly used types
-import type { AnalysisResultsResponse, PageAnalysisDataResponse, CompleteAnalysisResponse, SeoIssueResponse, IssueSeverity, ImageElement, JsonValue, AnalysisProgress, AnalysisSettingsRequest, AnalysisJobResponse, LinkDetail } from "../bindings"
+import type {
+  AnalysisResults,
+  PageAnalysisData,
+  CompleteAnalysisResponse,
+  SeoIssue,
+  IssueSeverity,
+  ImageElement,
+  JsonValue,
+  AnalysisProgress,
+  AnalysisSettingsRequest,
+  AnalysisJobResponse,
+  LinkDetail
+} from "../bindings"
 
-// Re-export selected generated types as a single canonical surface for the app
-export type { AnalysisResultsResponse, PageAnalysisDataResponse, CompleteAnalysisResponse, SeoIssueResponse, IssueSeverity, ImageElement, JsonValue, AnalysisProgress, AnalysisSettingsRequest, AnalysisJobResponse, LinkDetail }
+export type {
+  AnalysisResults,
+  PageAnalysisData,
+  CompleteAnalysisResponse,
+  SeoIssue,
+  IssueSeverity,
+  ImageElement,
+  JsonValue,
+  AnalysisProgress,
+  AnalysisSettingsRequest,
+  AnalysisJobResponse,
+  LinkDetail
+}
 
-// Backwards-compatible aliases for older names used across the app
-export type AnalysisResults = AnalysisResultsResponse
-export type PageAnalysisData = PageAnalysisDataResponse
 export type CompleteAnalysisResult = CompleteAnalysisResponse
-export type SeoIssue = SeoIssueResponse
 
 
-// Detailed Lighthouse audit result for a single check
 export interface LighthouseAuditResult {
   passed: boolean
   value: string | null
@@ -19,7 +36,6 @@ export interface LighthouseAuditResult {
   description?: string
 }
 
-// SEO-specific Lighthouse audits
 export interface LighthouseSeoAudits {
   document_title: LighthouseAuditResult
   meta_description: LighthouseAuditResult
@@ -34,7 +50,6 @@ export interface LighthouseSeoAudits {
   is_crawlable: LighthouseAuditResult
 }
 
-// Core Web Vitals and performance metrics
 export interface LighthousePerformanceMetrics {
   first_contentful_paint: number | null
   largest_contentful_paint: number | null
@@ -46,18 +61,16 @@ export interface LighthousePerformanceMetrics {
 
 
 
-// Use generated type for issues
 export type IssueType = IssueSeverity
 
 
 // Re-exported as alias at the top: CompleteAnalysisResult = CompleteAnalysisResponse
 
-// ============================================================================
-// Extended types for detailed page view (backend will populate these)
-// ============================================================================
+
+export type HeadingTag = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'
 
 export interface HeadingElement {
-  tag: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'
+  tag: HeadingTag | string
   text: string
 }
 
@@ -71,8 +84,4 @@ export interface LinkElement {
 }
 
 // Extended page data with detailed elements
-export type PageDetailData = Omit<PageAnalysisData, 'images' | 'detailed_links' | 'headings'> & {
-  headings?: HeadingElement[]
-  images?: ImageElement[]
-  detailed_links?: LinkElement[]
-}
+export type PageDetailData = PageAnalysisData

@@ -37,77 +37,74 @@ Site Health:
 ${"=".repeat(60)}
 CRITICAL ISSUES (${criticalIssues.length})
 ${"=".repeat(60)}
-${
-    criticalIssues.length === 0
-        ? "\nNo critical issues found.\n"
-        : criticalIssues
-              .map(
-                  (issue, i) => `
+${criticalIssues.length === 0
+            ? "\nNo critical issues found.\n"
+            : criticalIssues
+                .map(
+                    (issue, i) => `
 ${i + 1}. ${issue.title}
    Page: ${issue.page_url}
    Description: ${issue.description}
    Recommendation: ${issue.recommendation}
 `,
-              )
-              .join("")
-}
+                )
+                .join("")
+        }
 
 ${"=".repeat(60)}
 WARNINGS (${warningIssues.length})
 ${"=".repeat(60)}
-${
-    warningIssues.length === 0
-        ? "\nNo warnings found.\n"
-        : warningIssues
-              .map(
-                  (issue, i) => `
+${warningIssues.length === 0
+            ? "\nNo warnings found.\n"
+            : warningIssues
+                .map(
+                    (issue, i) => `
 ${i + 1}. ${issue.title}
    Page: ${issue.page_url}
    Description: ${issue.description}
    Recommendation: ${issue.recommendation}
 `,
-              )
-              .join("")
-}
+                )
+                .join("")
+        }
 
 ${"=".repeat(60)}
 SUGGESTIONS (${suggestionIssues.length})
 ${"=".repeat(60)}
-${
-    suggestionIssues.length === 0
-        ? "\nNo suggestions.\n"
-        : suggestionIssues
-              .map(
-                  (issue, i) => `
+${suggestionIssues.length === 0
+            ? "\nNo suggestions.\n"
+            : suggestionIssues
+                .map(
+                    (issue, i) => `
 ${i + 1}. ${issue.title}
    Page: ${issue.page_url}
    Description: ${issue.description}
    Recommendation: ${issue.recommendation}
 `,
-              )
-              .join("")
-}
+                )
+                .join("")
+        }
 
 ${"=".repeat(60)}
 PAGE-BY-PAGE ANALYSIS
 ${"=".repeat(60)}
 ${pages
-    .map(
-        (page, i) => `
+            .map(
+                (page, i) => `
 ${i + 1}. ${page.url}
    Title: ${page.title || "Missing"}
    Meta Description: ${page.meta_description ? "Present" : "Missing"}
    Load Time: ${page.load_time.toFixed(2)}s
    Word Count: ${page.word_count}
-   Headings: H1(${page.h1_count}) H2(${page.h2_count}) H3(${page.h3_count})
+   Headings: H1(${page.headings.filter(h => h.tag === "h1").length}) H2(${page.headings.filter(h => h.tag === "h2").length}) H3(${page.headings.filter(h => h.tag === "h3").length})
    Images: ${page.image_count} (${page.images_without_alt} missing alt)
    Links: ${page.internal_links} internal, ${page.external_links} external
    Mobile Friendly: ${page.mobile_friendly ? "Yes" : "No"}
    Structured Data: ${page.has_structured_data ? "Yes" : "No"}
    ${page.lighthouse_seo ? `Lighthouse SEO: ${page.lighthouse_seo}/100` : ""}
 `,
-    )
-    .join("")}
+            )
+            .join("")}
 
 ${"=".repeat(60)}
 END OF REPORT
@@ -134,7 +131,6 @@ export function generateCSV(result: CompleteAnalysisResponse): string {
     ].join(",");
 
     const rows = pages.map((p) => {
-        // Count issues for this page - usually matched by page_url
         const issueCount = issues.filter((i) => i.page_url === p.url).length;
 
         // Escape URL to prevent CSV injection or formatting errors
@@ -145,9 +141,9 @@ export function generateCSV(result: CompleteAnalysisResponse): string {
             p.status_code || "N/A",
             p.load_time.toFixed(2),
             p.word_count,
-            p.h1_count,
-            p.h2_count,
-            p.h3_count,
+            p.headings.filter(h => h.tag === "h1").length,
+            p.headings.filter(h => h.tag === "h2").length,
+            p.headings.filter(h => h.tag === "h3").length,
             p.image_count,
             p.images_without_alt,
             p.internal_links,
