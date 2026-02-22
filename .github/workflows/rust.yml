@@ -103,4 +103,4 @@ jobs:
           workspaces: src-tauri
 
       - name: Run tests
-        run: cargo test --offline
+        run: cargo test --locked
