@@ -5,7 +5,7 @@ use specta::Type;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobSettings {
     pub max_pages: i64,
-    pub include_external_links: bool,
+    pub include_subdomains: bool,
     pub check_images: bool,
     pub mobile_analysis: bool,
     pub lighthouse_analysis: bool,
@@ -16,7 +16,7 @@ impl Default for JobSettings {
     fn default() -> Self {
         Self {
             max_pages: 100,
-            include_external_links: false,
+            include_subdomains: true,
             check_images: true,
             mobile_analysis: false,
             lighthouse_analysis: false,
@@ -40,36 +40,40 @@ pub struct Job {
     pub id: String,
     pub url: String,
     pub status: JobStatus,
+    pub settings: JobSettings,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub completed_at: Option<DateTime<Utc>>,
-    pub settings: JobSettings,
     pub summary: JobSummary,
     pub progress: f64,
     pub error_message: Option<String>,
+    pub sitemap_found: bool,
+    pub robots_txt_found: bool,
 }
 
 impl Job {
     /// Create a new job with default settings.
-    pub fn new(url: String) -> Self {
+    pub fn new(url: String, settings: JobSettings) -> Self {
         let now = Utc::now();
         Self {
             id: uuid::Uuid::new_v4().to_string(),
             url,
             status: JobStatus::Pending,
+            settings,
             created_at: now,
             updated_at: now,
             completed_at: None,
-            settings: JobSettings::default(),
             summary: JobSummary::default(),
             progress: 0.0,
             error_message: None,
+            sitemap_found: false,
+            robots_txt_found: false,
         }
     }
 
     /// Create a new job with custom settings.
     pub fn with_settings(url: String, settings: JobSettings) -> Self {
-        let mut job = Self::new(url);
+        let mut job = Self::new(url, settings.clone());
         job.settings = settings;
         job
     }

@@ -44,19 +44,17 @@ impl LinkRepository {
             let mut qb = sqlx::QueryBuilder::new(
                 r#"
                 INSERT OR IGNORE INTO links (
-                    job_id, source_page_id, target_page_id, target_url,
-                    link_text, link_type, is_followed, status_code
+                    job_id, source_page_id, target_url,
+                    link_text, link_type, status_code
                 ) "#,
             );
 
             qb.push_values(chunk, |mut b, link| {
                 b.push_bind(&link.job_id)
                     .push_bind(&link.source_page_id)
-                    .push_bind(&link.target_page_id)
                     .push_bind(&link.target_url)
                     .push_bind(&link.link_text)
                     .push_bind(link.link_type.as_str())
-                    .push_bind(link.is_followed)
                     .push_bind(link.status_code);
             });
 
@@ -72,8 +70,8 @@ impl LinkRepository {
         let rows = sqlx::query!(
             r#"
             SELECT 
-                id as "id!", job_id, source_page_id, target_page_id, target_url,
-                link_text, link_type, is_followed, status_code
+                id as "id!", job_id, source_page_id, target_url,
+                link_text, link_type, status_code
             FROM links
             WHERE job_id = ?
             "#,
@@ -86,14 +84,12 @@ impl LinkRepository {
         Ok(rows
             .into_iter()
             .map(|row| Link {
-                id: row.id,
+                id: row.id.to_string(),
                 job_id: row.job_id,
                 source_page_id: row.source_page_id,
-                target_page_id: row.target_page_id,
                 target_url: row.target_url,
                 link_text: row.link_text,
                 link_type: map_link_type(row.link_type.as_str()),
-                is_followed: row.is_followed != 0,
                 status_code: row.status_code,
             })
             .collect())
@@ -103,8 +99,8 @@ impl LinkRepository {
         let rows = sqlx::query!(
             r#"
             SELECT 
-                id as "id!", job_id, source_page_id, target_page_id, target_url,
-                link_text, link_type, is_followed, status_code
+                id as "id!", job_id, source_page_id, target_url,
+                link_text, link_type, status_code
             FROM links
             WHERE source_page_id = ?
             "#,
@@ -117,14 +113,12 @@ impl LinkRepository {
         Ok(rows
             .into_iter()
             .map(|row| Link {
-                id: row.id,
+                id: row.id.to_string(),
                 job_id: row.job_id,
                 source_page_id: row.source_page_id,
-                target_page_id: row.target_page_id,
                 target_url: row.target_url,
                 link_text: row.link_text,
                 link_type: map_link_type(row.link_type.as_str()),
-                is_followed: row.is_followed != 0,
                 status_code: row.status_code,
             })
             .collect())
@@ -134,8 +128,8 @@ impl LinkRepository {
         let rows = sqlx::query!(
             r#"
             SELECT 
-                id as "id!", job_id, source_page_id, target_page_id, target_url,
-                link_text, link_type, is_followed, status_code
+                id as "id!", job_id, source_page_id, target_url,
+                link_text, link_type, status_code
             FROM links
             WHERE target_page_id = ?
             "#,
@@ -148,14 +142,12 @@ impl LinkRepository {
         Ok(rows
             .into_iter()
             .map(|row| Link {
-                id: row.id,
+                id: row.id.to_string(),
                 job_id: row.job_id,
                 source_page_id: row.source_page_id,
-                target_page_id: row.target_page_id,
                 target_url: row.target_url,
                 link_text: row.link_text,
                 link_type: map_link_type(row.link_type.as_str()),
-                is_followed: row.is_followed != 0,
                 status_code: row.status_code,
             })
             .collect())
@@ -165,8 +157,8 @@ impl LinkRepository {
         let rows = sqlx::query!(
             r#"
             SELECT 
-                id as "id!", job_id, source_page_id, target_page_id, target_url,
-                link_text, link_type, is_followed, status_code
+                id as "id!", job_id, source_page_id, target_url,
+                link_text, link_type, status_code
             FROM links
             WHERE job_id = ? AND (status_code >= 400 OR status_code IS NULL)
             "#,
@@ -179,14 +171,12 @@ impl LinkRepository {
         Ok(rows
             .into_iter()
             .map(|row| Link {
-                id: row.id,
+                id: row.id.to_string(),
                 job_id: row.job_id,
                 source_page_id: row.source_page_id,
-                target_page_id: row.target_page_id,
                 target_url: row.target_url,
                 link_text: row.link_text,
                 link_type: map_link_type(row.link_type.as_str()),
-                is_followed: row.is_followed != 0,
                 status_code: row.status_code,
             })
             .collect())

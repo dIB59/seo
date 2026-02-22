@@ -72,4 +72,15 @@ impl JobQueue {
     pub async fn update_progress(&self, job_id: &str, progress: f64) -> Result<()> {
         self.repo.update_progress(job_id, progress).await
     }
+
+    pub async fn update_resources(
+        &self,
+        job_id: &str,
+        sitemap_found: bool,
+        robots_txt_found: bool,
+    ) -> Result<()> {
+        self.repo
+            .update_resources(job_id, sitemap_found, robots_txt_found)
+            .await
+    }
 }

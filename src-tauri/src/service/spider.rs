@@ -27,7 +27,9 @@ pub struct Spider {
 
 impl Spider {
     pub fn new(client_type: ClientType) -> Result<Self> {
-        let builder = Client::builder().timeout(Duration::from_secs(30));
+        let builder = Client::builder()
+            .timeout(Duration::from_secs(30))
+            .redirect(rquest::redirect::Policy::limited(10));
 
         let client = match client_type {
             ClientType::HeavyEmulation => builder
@@ -58,11 +60,17 @@ impl SpiderAgent for Spider {
     async fn get(&self, url: &str) -> Result<SpiderResponse> {
         let response = self.client.get(url).send().await?;
         let status = response.status().as_u16();
+        let final_url = response.url().to_string();
+
+        if final_url != url {
+            tracing::info!("[SPIDER] Redirected: {} -> {}", url, final_url);
+        }
+
         let body = response.text().await?;
         Ok(SpiderResponse {
             status,
             body,
-            url: url.to_string(),
+            url: final_url,
         })
     }
 

@@ -35,6 +35,7 @@ impl PageDiscovery {
         start_url_str: &str,
         max_pages: i64,
         delay_ms: i64,
+        include_subdomains: bool,
         cancel_flag: &AtomicBool,
         on_discovered: impl Fn(usize) + Send + Sync,
     ) -> Result<Vec<String>> {
@@ -109,11 +110,16 @@ impl PageDiscovery {
 
             let mut new_links_count = 0;
             for link in links {
-                if link.host_str() == Some(base_host)
-                    && link.port() == base_port
-                    && !visited.contains(&link)
-                    && !to_visit.contains(&link)
-                {
+                let link_type =
+                    crate::domain::link::NewLink::classify(link.as_str(), start_url_str);
+
+                let should_follow = match link_type {
+                    crate::domain::LinkType::Internal => true,
+                    crate::domain::LinkType::Subdomain => include_subdomains,
+                    _ => false,
+                };
+
+                if should_follow && !visited.contains(&link) && !to_visit.contains(&link) {
                     to_visit.push(link);
                     new_links_count += 1;
                 }

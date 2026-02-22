@@ -9,7 +9,11 @@ use tauri_specta::Builder;
 fn main() {
     lifecycle::init_logging();
 
-    let builder = Builder::<tauri::Wry>::new().commands(commands::register_commands());
+    let builder = Builder::<tauri::Wry>::new()
+        .commands(commands::register_commands())
+        .events(tauri_specta::collect_events![
+            app::service::processor::reporter::ProgressEvent
+        ]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
     builder

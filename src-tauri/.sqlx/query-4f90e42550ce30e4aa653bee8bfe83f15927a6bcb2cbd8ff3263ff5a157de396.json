@@ -1,10 +1,10 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT \n                id, job_id, source_page_id, target_page_id, target_url,\n                link_text, link_type, is_followed, status_code\n            FROM links\n            WHERE job_id = ?\n            ",
+  "query": "\n            SELECT \n                id as \"id!\", job_id, source_page_id, target_url,\n                link_text, link_type, status_code\n            FROM links\n            WHERE source_page_id = ?\n            ",
   "describe": {
     "columns": [
       {
-        "name": "id",
+        "name": "id!",
         "ordinal": 0,
         "type_info": "Int64"
       },
@@ -19,33 +19,23 @@
         "type_info": "Text"
       },
       {
-        "name": "target_page_id",
+        "name": "target_url",
         "ordinal": 3,
         "type_info": "Text"
       },
       {
-        "name": "target_url",
+        "name": "link_text",
         "ordinal": 4,
         "type_info": "Text"
       },
       {
-        "name": "link_text",
+        "name": "link_type",
         "ordinal": 5,
         "type_info": "Text"
       },
       {
-        "name": "link_type",
-        "ordinal": 6,
-        "type_info": "Text"
-      },
-      {
-        "name": "is_followed",
-        "ordinal": 7,
-        "type_info": "Int64"
-      },
-      {
         "name": "status_code",
-        "ordinal": 8,
+        "ordinal": 6,
         "type_info": "Int64"
       }
     ],
@@ -56,13 +46,11 @@
       true,
       false,
       false,
-      true,
       false,
       true,
-      false,
       false,
       true
     ]
   },
-  "hash": "656975f71014d0b603babe0392764d781214f42c196773310859660207da29c5"
+  "hash": "4f90e42550ce30e4aa653bee8bfe83f15927a6bcb2cbd8ff3263ff5a157de396"
 }

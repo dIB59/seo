@@ -19,7 +19,7 @@ use addon_macros::addon_guard;
 #[derive(Debug, serde::Deserialize, serde::Serialize, specta::Type)]
 pub struct AnalysisSettingsRequest {
     pub max_pages: i64,
-    pub include_external_links: bool,
+    pub include_subdomains: bool,
     pub check_images: bool,
     pub mobile_analysis: bool,
     pub lighthouse_analysis: bool,
@@ -42,7 +42,7 @@ impl Default for AnalysisSettingsRequest {
     fn default() -> Self {
         Self {
             max_pages: 100,
-            include_external_links: false,
+            include_subdomains: false,
             check_images: true,
             mobile_analysis: false,
             lighthouse_analysis: false,
@@ -55,7 +55,7 @@ impl From<AnalysisSettingsRequest> for JobSettings {
     fn from(req: AnalysisSettingsRequest) -> Self {
         Self {
             max_pages: req.max_pages,
-            include_external_links: req.include_external_links,
+            include_subdomains: req.include_subdomains,
             check_images: req.check_images,
             mobile_analysis: req.mobile_analysis,
             lighthouse_analysis: req.lighthouse_analysis,
@@ -97,7 +97,7 @@ pub struct LinkDetail {
     #[serde(rename = "href", alias = "url")]
     pub url: String,
     pub text: String,
-    pub is_external: bool,
+    pub link_type: crate::domain::LinkType,
     pub is_broken: bool,
     pub status_code: Option<i64>,
 }
@@ -228,8 +228,14 @@ impl CompleteAnalysisResponse {
             lh_data.map(|lh| lh.interpret_raw()).unwrap_or((None, None));
 
         // Link stats
-        let internal_links = detailed_links.iter().filter(|l| !l.is_external).count() as i64;
-        let external_links = detailed_links.iter().filter(|l| l.is_external).count() as i64;
+        let internal_links = detailed_links
+            .iter()
+            .filter(|l| l.link_type == crate::domain::LinkType::Internal)
+            .count() as i64;
+        let external_links = detailed_links
+            .iter()
+            .filter(|l| l.link_type != crate::domain::LinkType::Internal)
+            .count() as i64;
 
         // Image stats
         let images_without_alt = images
@@ -285,16 +291,13 @@ impl From<crate::domain::CompleteJobResult> for CompleteAnalysisResponse {
         // Index auxiliary data by page_id to avoid O(N²) lookups
         let mut links_by_page: HashMap<String, Vec<LinkDetail>> = HashMap::new();
         for link in links {
-            let source_url = page_url_by_id.get(&link.source_page_id);
-            let is_external = link.is_external_for_url(source_url);
-
             links_by_page
                 .entry(link.source_page_id)
                 .or_default()
                 .push(LinkDetail {
                     url: link.target_url,
                     text: link.link_text.unwrap_or_default(),
-                    is_external,
+                    link_type: link.link_type,
                     is_broken: link.status_code.is_some_and(|c| c >= 400),
                     status_code: link.status_code,
                 });
@@ -370,8 +373,8 @@ impl From<crate::domain::CompleteJobResult> for CompleteAnalysisResponse {
             analyzed_pages: job.summary.pages_crawled,
             started_at: Some(job.created_at.to_rfc3339()),
             completed_at: job.completed_at.map(|d| d.to_rfc3339()),
-            sitemap_found: false,
-            robots_txt_found: false,
+            sitemap_found: job.sitemap_found,
+            robots_txt_found: job.robots_txt_found,
             ssl_certificate: job.url.starts_with("https"),
             created_at: job.created_at.to_rfc3339(),
         };
@@ -443,7 +446,7 @@ pub async fn get_free_tier_defaults() -> Result<AnalysisSettingsRequest, Command
     let policy = crate::domain::permissions::Policy::default();
     let defaults = AnalysisSettingsRequest {
         max_pages: policy.max_pages as i64,
-        include_external_links: policy.check(
+        include_subdomains: policy.check(
             crate::domain::permissions::PermissionRequest::UseFeature(
                 crate::domain::permissions::Feature::LinkAnalysis,
             ),
@@ -750,23 +753,19 @@ mod tests {
             NewLink {
                 job_id: job_id.clone(),
                 source_page_id: page_id.clone(),
-                target_page_id: None,
                 // Empty string is not a valid/parsable URL -> will trigger fallback to link_type
                 target_url: "".to_string(),
                 link_text: Some("void link".to_string()),
                 link_type: LinkType::Internal,
-                is_followed: true,
                 status_code: None,
             },
             NewLink {
                 job_id: job_id.clone(),
                 source_page_id: page_id.clone(),
-                target_page_id: None,
                 // `javascript:` is parseable by Url::parse -> treated as external if hosts differ
                 target_url: "javascript:external:void(0)".to_string(),
                 link_text: Some("void link external".to_string()),
                 link_type: LinkType::External,
-                is_followed: true,
                 status_code: None,
             },
         ];
@@ -800,14 +799,16 @@ mod tests {
 
         // First link: internal link_type and unparsable target (empty string) -> fallback to link_type -> is_external = false
         assert_eq!(void_link.url, "", "expected empty target url");
-        assert!(
-            !void_link.is_external,
+        assert_eq!(
+            void_link.link_type,
+            LinkType::Internal,
             "empty target should be treated as internal when link_type is Internal"
         );
 
         // Second link: external link_type and unparsable target -> is_external = true
-        assert!(
-            void_link_external.is_external,
+        assert_eq!(
+            void_link_external.link_type,
+            LinkType::External,
             "javascript:external:void(0) should be treated as external when link_type is External"
         );
     }

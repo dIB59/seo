@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT \n                id, url, status, created_at, updated_at, completed_at,\n                max_pages, max_depth, respect_robots_txt, include_subdomains, \n                rate_limit_ms, user_agent, lighthouse_analysis,\n                total_pages, pages_crawled, total_issues, \n                critical_issues, warning_issues, info_issues,\n                progress, error_message\n            FROM jobs\n            WHERE id = ?\n            ",
+  "query": "\n            SELECT \n                id, url, status, created_at, updated_at, completed_at,\n                max_pages, max_depth, respect_robots_txt, include_subdomains, \n                rate_limit_ms, user_agent, lighthouse_analysis,\n                total_pages, pages_crawled, total_issues, \n                critical_issues, warning_issues, info_issues,\n                progress, error_message, sitemap_found, robots_txt_found\n            FROM jobs\n            WHERE id = ?\n            ",
   "describe": {
     "columns": [
       {
@@ -107,6 +107,16 @@
         "name": "error_message",
         "ordinal": 20,
         "type_info": "Text"
+      },
+      {
+        "name": "sitemap_found",
+        "ordinal": 21,
+        "type_info": "Bool"
+      },
+      {
+        "name": "robots_txt_found",
+        "ordinal": 22,
+        "type_info": "Bool"
       }
     ],
     "parameters": {
@@ -133,8 +143,10 @@
       false,
       false,
       false,
-      true
+      true,
+      false,
+      false
     ]
   },
-  "hash": "60b6e86fbcf6ab9997758b51873389c258bfd1dded46d6bd84ddbc5004b6c86a"
+  "hash": "785e2a90f7b9eb5d2c8fd10d9635cf93f05fbf4941106c284d675fa006de1281"
 }

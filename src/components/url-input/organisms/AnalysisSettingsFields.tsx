@@ -119,11 +119,12 @@ export function AnalysisSettingsFields({ maxPages, isFreeUser }: AnalysisSetting
                             />
                             <FormField
                                 control={control}
-                                name="settings.include_external_links"
+                                name="settings.include_subdomains"
                                 render={({ field }) => (
                                     <SettingToggle
-                                        id="external-links"
-                                        label="External Links"
+                                        id="subdomains"
+                                        label="Subdomains"
+                                        tooltip="Include links to subdomains as internal links"
                                         checked={field.value}
                                         onCheckedChange={field.onChange}
                                     />

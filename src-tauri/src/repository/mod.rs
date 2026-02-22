@@ -53,6 +53,12 @@ pub trait JobRepository: Send + Sync {
     async fn get_running_jobs_id(&self) -> Result<Vec<String>>;
     async fn update_status(&self, job_id: &str, status: JobStatus) -> Result<()>;
     async fn update_progress(&self, id: &str, progress: f64) -> Result<()>;
+    async fn update_resources(
+        &self,
+        id: &str,
+        sitemap_found: bool,
+        robots_txt_found: bool,
+    ) -> Result<()>;
     async fn set_error(&self, job_id: &str, error: &str) -> Result<()>;
     async fn count(&self) -> Result<i64>;
     async fn delete(&self, job_id: &str) -> Result<()>;

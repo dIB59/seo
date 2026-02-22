@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react"
 import type { AnalysisProgress } from "@/src/lib/types"
 import { getStatusIcon } from "../atoms/JobStatusIcon"
 import { CancelButton } from "../atoms/CancelButton"
@@ -15,12 +14,7 @@ interface JobItemProps {
 
 export function JobItem({ job, onViewResult, onCancel }: JobItemProps) {
     const { count: pagesDiscovered, total: discoveryTotal } = useDiscoveryProgress(job.job_id, job.job_status)
-    const pagesAnalyzed = useAnalysisProgress(job.job_id, job.job_status)
-
-    // Sticky counts to prevent UI flickering/reset to 0 when hook returns null
-    let stickyDiscovered = 0;
-
-    if (pagesDiscovered !== null) stickyDiscovered = pagesDiscovered;
+    const { current: pagesAnalyzed, total: analysisTotal } = useAnalysisProgress(job.job_id, job.job_status)
 
     const isDiscovering = job.job_status === "discovery"
     const isAnalyzing = job.job_status === "processing"
@@ -52,8 +46,8 @@ export function JobItem({ job, onViewResult, onCancel }: JobItemProps) {
                         {isAnalyzing && pagesAnalyzed !== null && (
                             <JobProgressBar
                                 current={pagesAnalyzed}
-                                total={stickyDiscovered}
-                                label={`Analyzed ${pagesAnalyzed} / ${pagesDiscovered}`}
+                                total={analysisTotal ?? pagesDiscovered ?? 0}
+                                label={`Analyzed ${pagesAnalyzed} / ${analysisTotal ?? pagesDiscovered ?? '?'}`}
                             />
                         )}
                         {isDiscovering && (
