@@ -97,7 +97,10 @@ impl JobProcessor {
         self.job_queue.mark_discovery(&job.id).await?;
 
         // Check site resources (robots.txt, sitemap, SSL)
-        let _resources = self.crawler.check_resources(&job.url).await?;
+        let resources = self.crawler.check_resources(&job.url).await?;
+        self.job_queue
+            .update_resources(&job.id, resources.sitemap, resources.robots_txt)
+            .await?;
 
         // Early exit if cancelled
         if self.canceler.is_cancelled(&job.id) {

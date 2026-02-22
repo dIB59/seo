@@ -234,7 +234,7 @@ export type AnalysisProgress = { job_id: string; url: string; job_status: JobSta
  * Analysis results with date/time mapped to strings for Specta.
  */
 export type AnalysisResults = { id: string; url: string; status: JobStatus; progress: number; total_pages: number; analyzed_pages: number; started_at: string | null; completed_at: string | null; sitemap_found: boolean; robots_txt_found: boolean; ssl_certificate: boolean; created_at: string }
-export type AnalysisSettingsRequest = { max_pages: number; include_external_links: boolean; check_images: boolean; mobile_analysis: boolean; lighthouse_analysis: boolean; delay_between_requests: number }
+export type AnalysisSettingsRequest = { max_pages: number; include_subdomains: boolean; check_images: boolean; mobile_analysis: boolean; lighthouse_analysis: boolean; delay_between_requests: number }
 /**
  * Summary of analysis results.
  */
@@ -268,7 +268,8 @@ export type LicenseTier = "Free" | "Premium"
 /**
  * Link details (frontend-compatible).
  */
-export type LinkDetail = { href: string; text: string; is_external: boolean; is_broken: boolean; status_code: number | null }
+export type LinkDetail = { href: string; text: string; link_type: LinkType; is_broken: boolean; status_code: number | null }
+export type LinkType = "internal" | "subdomain" | "external" | "resource"
 /**
  * Page analysis data (frontend-compatible format).
  */

@@ -10,7 +10,6 @@ export default function SeoAuditBreakdown({ audits }: { audits: LighthouseSeoAud
         { key: "viewport", label: "Viewport Meta Tag", audit: audits.viewport },
         { key: "canonical", label: "Canonical URL", audit: audits.canonical },
         { key: "hreflang", label: "Hreflang Tags", audit: audits.hreflang },
-        { key: "robots_txt", label: "Robots.txt Valid", audit: audits.robots_txt },
         { key: "crawlable_anchors", label: "Crawlable Anchors", audit: audits.crawlable_anchors },
         { key: "link_text", label: "Descriptive Link Text", audit: audits.link_text },
         { key: "image_alt", label: "Image Alt Attributes", audit: audits.image_alt },

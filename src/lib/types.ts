@@ -42,7 +42,6 @@ export interface LighthouseSeoAudits {
   viewport: LighthouseAuditResult
   canonical: LighthouseAuditResult
   hreflang: LighthouseAuditResult
-  robots_txt: LighthouseAuditResult
   crawlable_anchors: LighthouseAuditResult
   link_text: LighthouseAuditResult
   image_alt: LighthouseAuditResult
@@ -79,8 +78,9 @@ export interface HeadingElement {
 export interface LinkElement {
   href: string
   text: string
-  is_external: boolean
+  link_type: string
   status_code: number | null
+  is_broken: boolean
 }
 
 // Extended page data with detailed elements
