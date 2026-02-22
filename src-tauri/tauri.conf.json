@@ -26,10 +26,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "deb",
-      "rpm"
-    ],
+    "targets": "all",
     "linux": {
       "deb": {
         "files": {}
