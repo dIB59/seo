@@ -8,6 +8,7 @@ on:
 
 jobs:
   publish-tauri:
+    needs: publish-tauri-internal
     permissions:
       contents: write
     strategy:
