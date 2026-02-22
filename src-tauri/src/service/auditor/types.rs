@@ -85,7 +85,6 @@ pub struct SeoAuditDetails {
     pub viewport: CheckResult,
     pub canonical: CheckResult,
     pub hreflang: CheckResult,
-    pub robots_txt: CheckResult,
     pub crawlable_anchors: CheckResult,
     pub link_text: CheckResult,
     pub image_alt: CheckResult,
@@ -162,14 +161,6 @@ impl SeoAuditDetails {
                 score: self.hreflang.score.percent(),
                 value: self.hreflang.value.clone(),
                 description: self.hreflang.description.clone(),
-            },
-            AuditCheck {
-                key: "robots_txt",
-                label: "Robots.txt Valid",
-                passed: self.robots_txt.passed,
-                score: self.robots_txt.score.percent(),
-                value: self.robots_txt.value.clone(),
-                description: self.robots_txt.description.clone(),
             },
             AuditCheck {
                 key: "crawlable_anchors",

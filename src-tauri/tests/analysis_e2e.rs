@@ -71,7 +71,7 @@ async fn test_job_creation_with_custom_settings() {
 
     let settings = JobSettings {
         max_pages: 10,
-        include_external_links: false,
+        include_subdomains: false,
         check_images: true,
         mobile_analysis: false,
         lighthouse_analysis: false,

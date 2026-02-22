@@ -41,7 +41,6 @@ impl LightAuditor {
             viewport: self.check_viewport(document),
             canonical: self.check_canonical(document, url),
             hreflang: self.check_hreflang(document),
-            robots_txt: CheckResult::default(), // Checked separately
             crawlable_anchors: self.check_crawlable_anchors(document),
             link_text: self.check_link_text(document),
             image_alt: self.check_image_alt(document),
@@ -468,10 +467,11 @@ impl Auditor for LightAuditor {
         tracing::info!("[LIGHT] Starting analysis: {}", url);
         let start_time = std::time::Instant::now();
 
-        let parsed_url = Url::parse(url)?;
-
         // Fetch the page
         let response = self.spider.get(url).await?;
+
+        let final_url_str = response.url.clone();
+        let final_url = Url::parse(&final_url_str).unwrap_or_else(|_| Url::parse(url).unwrap());
 
         let status_code = response.status;
         let html = response.body;
@@ -486,7 +486,7 @@ impl Auditor for LightAuditor {
         );
 
         // Analyze HTML
-        let (mut scores, _details) = self.analyze_html(&html, &parsed_url);
+        let (mut scores, _details) = self.analyze_html(&html, &final_url);
 
         // Update HTTP status check based on actual status
         if status_code >= 400 {
@@ -509,7 +509,7 @@ impl Auditor for LightAuditor {
         );
 
         Ok(AuditResult {
-            url: url.to_string(),
+            url: final_url_str,
             html,
             status_code,
             load_time_ms,
@@ -599,11 +599,6 @@ mod tests {
                 ..Default::default()
             },
             hreflang: CheckResult {
-                passed: true,
-                score: crate::service::auditor::Score::from(1.0),
-                ..Default::default()
-            },
-            robots_txt: CheckResult {
                 passed: true,
                 score: crate::service::auditor::Score::from(1.0),
                 ..Default::default()

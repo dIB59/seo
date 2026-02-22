@@ -22,7 +22,7 @@ pub struct ExtractedImage {
 #[derive(Debug, Clone)]
 pub struct ExtractedLink {
     pub href: String,
-    pub is_internal: bool,
+    pub link_type: crate::domain::LinkType,
     pub text: Option<String>,
 }
 
@@ -145,11 +145,6 @@ impl PageExtractor {
         let img_selector = IMG_SELECTOR.get_or_init(|| Selector::parse("img").unwrap());
 
         let base = Url::parse(base_url).ok();
-        let base_host = base
-            .as_ref()
-            .and_then(|u| u.host_str())
-            .map(|s| s.to_string());
-        let base_port = base.as_ref().and_then(|u| u.port());
 
         let mut internal = Vec::new();
         let mut external = Vec::new();
@@ -200,23 +195,17 @@ impl PageExtractor {
                     href.to_string()
                 };
 
-                let is_internal = if let Ok(link_url) = Url::parse(&resolved) {
-                    link_url.host_str().map(|h| h.to_string()) == base_host
-                        && link_url.port() == base_port
-                } else {
-                    false
-                };
+                let link_type = crate::domain::link::NewLink::classify(&resolved, base_url);
 
                 all.push(ExtractedLink {
                     href: resolved.clone(),
-                    is_internal,
+                    link_type: link_type.clone(),
                     text: link_text,
                 });
 
-                if is_internal {
-                    internal.push(resolved);
-                } else {
-                    external.push(resolved);
+                match link_type {
+                    crate::domain::LinkType::Internal => internal.push(resolved),
+                    _ => external.push(resolved),
                 }
             }
         }

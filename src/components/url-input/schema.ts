@@ -15,7 +15,7 @@ export const createSchema = (maxPages: number) => z.object({
     url: urlSchema,
     settings: z.object({
         max_pages: z.number().min(1).max(maxPages, `Max pages limited to ${maxPages} on your current tier`),
-        include_external_links: z.boolean(),
+        include_subdomains: z.boolean(),
         check_images: z.boolean(),
         mobile_analysis: z.boolean(),
         lighthouse_analysis: z.boolean(),
@@ -27,6 +27,13 @@ export const baseSchema = createSchema(10000)
 
 export type FormValues = z.infer<typeof baseSchema>
 
+
+export interface LinkElement {
+    href: string
+    text: string
+    link_type: string
+    status_code: number | null
+}
 
 export const normalizeUrl = (input: string) => {
     const trimmed = input.trim()

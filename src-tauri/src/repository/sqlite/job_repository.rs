@@ -4,6 +4,7 @@ use sqlx::SqlitePool;
 
 use super::map_job_status;
 use crate::domain::{Job, JobInfo, JobSettings, JobStatus, JobSummary};
+use std::str::FromStr;
 
 pub struct JobRepository {
     pool: SqlitePool,
@@ -17,10 +18,6 @@ impl JobRepository {
     pub async fn create(&self, url: &str, settings: &JobSettings) -> Result<String> {
         let id = uuid::Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
-        let respect_robots = 1i32;
-        let include_subs = 0i32;
-        let max_depth = 3i64;
-        let user_agent: Option<String> = None;
 
         let lighthouse_analysis = if settings.lighthouse_analysis {
             1i32
@@ -33,25 +30,26 @@ impl JobRepository {
             INSERT INTO jobs (
                 id, url, status, created_at, updated_at,
                 max_pages, max_depth, respect_robots_txt, include_subdomains, 
-                rate_limit_ms, user_agent, lighthouse_analysis
+                rate_limit_ms, user_agent, lighthouse_analysis,
+                sitemap_found, robots_txt_found
             )
-            VALUES (?1, ?2, 'pending', ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+            VALUES (?1, ?2, 'pending', ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 0, 0)
             "#,
             id,
             url,
             now,
             now,
             settings.max_pages,
-            max_depth,
-            respect_robots,
-            include_subs,
+            5, // max_depth
+            1, // respect_robots_txt
+            settings.include_subdomains,
             settings.delay_between_requests,
-            user_agent,
+            "SEO-Insikt-Crawler/0.1", // user_agent
             lighthouse_analysis,
         )
         .execute(&self.pool)
         .await
-        .context("Failed to create job")?;
+        .context("Failed to insert job")?;
 
         tracing::info!("Created job {} for URL: {}", id, url);
         Ok(id)
@@ -66,7 +64,7 @@ impl JobRepository {
                 rate_limit_ms, user_agent, lighthouse_analysis,
                 total_pages, pages_crawled, total_issues, 
                 critical_issues, warning_issues, info_issues,
-                progress, error_message
+                progress, error_message, sitemap_found, robots_txt_found
             FROM jobs
             WHERE id = ?
             "#,
@@ -76,16 +74,18 @@ impl JobRepository {
         .await
         .context("Failed to fetch job")?;
 
+        let status = JobStatus::from_str(&row.status).unwrap_or(JobStatus::Failed);
+
         Ok(Job {
             id: row.id,
             url: row.url,
-            status: map_job_status(&row.status),
+            status,
             created_at: parse_datetime(&row.created_at),
             updated_at: parse_datetime(&row.updated_at),
             completed_at: row.completed_at.as_deref().map(parse_datetime),
             settings: JobSettings {
                 max_pages: row.max_pages,
-                include_external_links: false,
+                include_subdomains: row.include_subdomains != 0,
                 check_images: true,
                 mobile_analysis: false,
                 lighthouse_analysis: row.lighthouse_analysis != 0,
@@ -101,6 +101,8 @@ impl JobRepository {
             },
             progress: row.progress,
             error_message: row.error_message,
+            sitemap_found: row.sitemap_found,
+            robots_txt_found: row.robots_txt_found,
         })
     }
 
@@ -231,7 +233,7 @@ impl JobRepository {
         Ok(row.count as i64)
     }
 
-    pub async fn get_pending(&self) -> Result<Vec<Job>> {
+    pub async fn get_active(&self) -> Result<Vec<Job>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -240,7 +242,7 @@ impl JobRepository {
                 rate_limit_ms, user_agent, lighthouse_analysis,
                 total_pages, pages_crawled, total_issues, 
                 critical_issues, warning_issues, info_issues,
-                progress, error_message
+                progress, error_message, sitemap_found, robots_txt_found
             FROM jobs
             WHERE status IN ('pending', 'discovery', 'processing')
             ORDER BY created_at ASC
@@ -248,37 +250,68 @@ impl JobRepository {
         )
         .fetch_all(&self.pool)
         .await
-        .context("Failed to fetch pending jobs")?;
+        .context("Failed to fetch active jobs")?;
 
         Ok(rows
             .into_iter()
-            .map(|row| Job {
-                id: row.id,
-                url: row.url,
-                status: map_job_status(&row.status),
-                created_at: parse_datetime(&row.created_at),
-                updated_at: parse_datetime(&row.updated_at),
-                completed_at: row.completed_at.as_deref().map(parse_datetime),
-                settings: JobSettings {
-                    max_pages: row.max_pages,
-                    include_external_links: false,
-                    check_images: true,
-                    mobile_analysis: false,
-                    lighthouse_analysis: row.lighthouse_analysis != 0,
-                    delay_between_requests: row.rate_limit_ms,
-                },
-                summary: JobSummary {
-                    total_pages: row.total_pages,
-                    pages_crawled: row.pages_crawled,
-                    total_issues: row.total_issues,
-                    critical_issues: row.critical_issues,
-                    warning_issues: row.warning_issues,
-                    info_issues: row.info_issues,
-                },
-                progress: row.progress,
-                error_message: row.error_message,
+            .map(|row| {
+                let status = JobStatus::from_str(&row.status).unwrap_or(JobStatus::Failed);
+                Job {
+                    id: row.id,
+                    url: row.url,
+                    status,
+                    created_at: parse_datetime(&row.created_at),
+                    updated_at: parse_datetime(&row.updated_at),
+                    completed_at: row.completed_at.as_deref().map(parse_datetime),
+                    settings: JobSettings {
+                        max_pages: row.max_pages,
+                        include_subdomains: row.include_subdomains != 0,
+                        check_images: true,
+                        mobile_analysis: false,
+                        lighthouse_analysis: row.lighthouse_analysis != 0,
+                        delay_between_requests: row.rate_limit_ms,
+                    },
+                    summary: JobSummary {
+                        total_pages: row.total_pages,
+                        pages_crawled: row.pages_crawled,
+                        total_issues: row.total_issues,
+                        critical_issues: row.critical_issues,
+                        warning_issues: row.warning_issues,
+                        info_issues: row.info_issues,
+                    },
+                    progress: row.progress,
+                    error_message: row.error_message,
+                    sitemap_found: row.sitemap_found,
+                    robots_txt_found: row.robots_txt_found,
+                }
             })
             .collect())
+    }
+
+    pub async fn update_resources(
+        &self,
+        job_id: &str,
+        sitemap_found: bool,
+        robots_txt_found: bool,
+    ) -> Result<()> {
+        let sitemap = if sitemap_found { 1 } else { 0 };
+        let robots = if robots_txt_found { 1 } else { 0 };
+
+        sqlx::query!(
+            r#"
+            UPDATE jobs 
+            SET sitemap_found = ?1, robots_txt_found = ?2
+            WHERE id = ?3
+            "#,
+            sitemap,
+            robots,
+            job_id,
+        )
+        .execute(&self.pool)
+        .await
+        .context("Failed to update job resources")?;
+
+        Ok(())
     }
 
     pub async fn update_status(&self, job_id: &str, status: JobStatus) -> Result<()> {
@@ -408,7 +441,7 @@ impl JobRepositoryTrait for JobRepository {
     }
 
     async fn get_pending(&self) -> Result<Vec<Job>> {
-        JobRepository::get_pending(self).await
+        JobRepository::get_active(self).await
     }
 
     async fn get_running_jobs_id(&self) -> Result<Vec<String>> {
@@ -421,6 +454,15 @@ impl JobRepositoryTrait for JobRepository {
 
     async fn update_progress(&self, id: &str, progress: f64) -> Result<()> {
         JobRepository::update_progress(self, id, progress).await
+    }
+
+    async fn update_resources(
+        &self,
+        id: &str,
+        sitemap_found: bool,
+        robots_txt_found: bool,
+    ) -> Result<()> {
+        JobRepository::update_resources(self, id, sitemap_found, robots_txt_found).await
     }
 
     async fn set_error(&self, job_id: &str, error: &str) -> Result<()> {

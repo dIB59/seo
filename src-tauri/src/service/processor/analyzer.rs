@@ -66,6 +66,15 @@ impl AnalyzerService {
     ) -> Result<(PageResult, Vec<String>)> {
         // Fetch and analyze page using the auditor
         let audit_result = auditor.analyze(url).await?;
+        let final_url = audit_result.url.clone();
+
+        if final_url != url {
+            tracing::info!(
+                "[ANALYZER] Target redirected during analysis: {} -> {}",
+                url,
+                final_url
+            );
+        }
 
         // Parse HTML and extract all data BEFORE any awaits
         let (page, new_urls, edges, headings, images) = {
@@ -81,9 +90,9 @@ impl AnalyzerService {
             let has_viewport = PageExtractor::extract_has_viewport(&html);
             let has_structured_data = PageExtractor::extract_has_structured_data(&html);
 
-            // Extract links
+            // Extract links using final url as base
             let (internal_links, _external_links, all_links) =
-                PageExtractor::extract_links(&html, url);
+                PageExtractor::extract_links(&html, &final_url);
 
             // Extract headings and images
             let headings: Vec<ExtractedHeading> = PageExtractor::extract_headings(&html);
@@ -115,7 +124,14 @@ impl AnalyzerService {
                 .map(|link| {
                     (
                         link.href,
-                        if link.is_internal { 200i32 } else { 0i32 },
+                        if matches!(
+                            link.link_type,
+                            crate::domain::LinkType::Internal | crate::domain::LinkType::Subdomain
+                        ) {
+                            200i32
+                        } else {
+                            0i32
+                        },
                         link.text,
                     )
                 })
@@ -177,7 +193,14 @@ impl AnalyzerService {
         let analysis_links: Vec<NewLink> = edges
             .into_iter()
             .map(|(href, status_code, text)| {
-                NewLink::create(job_id, &page_id, &href, text, Some(status_code as i64), url)
+                NewLink::create(
+                    job_id,
+                    &page_id,
+                    &href,
+                    text,
+                    Some(status_code as i64),
+                    &final_url,
+                )
             })
             .collect();
 

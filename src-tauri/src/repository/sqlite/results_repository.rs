@@ -86,7 +86,7 @@ impl ResultsRepository {
                 rate_limit_ms, user_agent, lighthouse_analysis,
                 total_pages, pages_crawled, total_issues, 
                 critical_issues, warning_issues, info_issues,
-                progress, error_message
+                progress, error_message, sitemap_found, robots_txt_found
             FROM jobs
             WHERE id = ?
             "#,
@@ -105,7 +105,7 @@ impl ResultsRepository {
             completed_at: row.completed_at.as_deref().map(parse_datetime),
             settings: JobSettings {
                 max_pages: row.max_pages,
-                include_external_links: false,
+                include_subdomains: row.include_subdomains != 0,
                 check_images: true,
                 mobile_analysis: false,
                 lighthouse_analysis: row.lighthouse_analysis != 0,
@@ -121,6 +121,8 @@ impl ResultsRepository {
             },
             progress: row.progress,
             error_message: row.error_message,
+            sitemap_found: row.sitemap_found,
+            robots_txt_found: row.robots_txt_found,
         })
     }
 
@@ -205,8 +207,8 @@ impl ResultsRepository {
         let rows = sqlx::query!(
             r#"
             SELECT 
-                id, job_id, source_page_id, target_page_id, target_url,
-                link_text, link_type, is_followed, status_code
+                id as "id!", job_id, source_page_id, target_url,
+                link_text, link_type, status_code
             FROM links
             WHERE job_id = ?
             "#,
@@ -219,14 +221,12 @@ impl ResultsRepository {
         Ok(rows
             .into_iter()
             .map(|row| Link {
-                id: row.id.expect("Must exist"),
+                id: row.id.to_string(),
                 job_id: row.job_id,
                 source_page_id: row.source_page_id,
-                target_page_id: row.target_page_id,
                 target_url: row.target_url,
                 link_text: row.link_text,
                 link_type: map_link_type(row.link_type.as_str()),
-                is_followed: row.is_followed != 0,
                 status_code: row.status_code,
             })
             .collect())

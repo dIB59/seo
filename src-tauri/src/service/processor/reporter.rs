@@ -3,7 +3,7 @@ use tauri::Emitter;
 // src/service/progress.rs
 use serde::Serialize;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type, tauri_specta::Event)]
 #[serde(tag = "event", rename_all = "snake_case")]
 pub enum ProgressEvent {
     Analysis {

@@ -33,12 +33,14 @@ impl Crawler {
             .resource_checker
             .check_robots_txt(url.as_str())
             .await
-            .is_ok();
+            .map(|s| s.exists())
+            .unwrap_or(false);
         let sitemap = self
             .resource_checker
             .check_sitemap_xml(url.as_str())
             .await
-            .is_ok();
+            .map(|s| s.exists())
+            .unwrap_or(false);
 
         Ok(SiteResources {
             robots_txt,
@@ -65,6 +67,7 @@ impl Crawler {
                 &context.start_url,
                 context.settings.max_pages,
                 context.settings.delay_between_requests,
+                context.settings.include_subdomains,
                 &context.cancel_flag,
                 move |count| {
                     tracing::trace!("Discovery progress: {}", count);
