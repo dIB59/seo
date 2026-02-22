@@ -5,6 +5,10 @@ on:
     types: [closed]
     branches: [release]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   bump-and-sync:
     if: github.event.pull_request.merged == true

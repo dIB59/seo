@@ -11,6 +11,10 @@ on:
       - "src-tauri/**"
       - ".github/workflows/rust.yml"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   SQLX_OFFLINE: "true"
 
