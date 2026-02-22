@@ -1,4 +1,6 @@
 import React from "react"
+import type { ProgressEvent } from "@/src/bindings"
+import { listen } from "@tauri-apps/api/event"
 
 // Listens only to discovery events. Returns { count, total } where each can be null
 // if not available. The frontend expects discovery events to include both values.
@@ -10,11 +12,10 @@ export function useDiscoveryProgress(jobId: string, jobStatus: string) {
         let unlisten: (() => void) | undefined;
 
         const setupDiscovery = async () => {
-            const { listen } = await import("@tauri-apps/api/event")
-            unlisten = await listen<{ job_id: string; count: number; total_pages?: number }>(
+            unlisten = await listen<ProgressEvent>(
                 "discovery:progress",
                 (event) => {
-                    if (event.payload.job_id === jobId) {
+                    if (event.payload.job_id === jobId && event.payload.event === "discovery") {
                         setCount(event.payload.count ?? null)
                         setTotal(event.payload.total_pages ?? null)
                     }

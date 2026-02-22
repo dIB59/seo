@@ -1,4 +1,6 @@
 import React from "react"
+import type { ProgressEvent } from "@/src/bindings"
+import { listen } from "@tauri-apps/api/event"
 
 export function useAnalysisProgress(jobId: string, jobStatus: string) {
     const [pagesAnalyzed, setPagesAnalyzed] = React.useState<number | null>(null)
@@ -8,11 +10,10 @@ export function useAnalysisProgress(jobId: string, jobStatus: string) {
         let unlisten: (() => void) | undefined;
 
         const setupListener = async () => {
-            const { listen } = await import("@tauri-apps/api/event")
-            unlisten = await listen<{ job_id: string; progress: number; pages_analyzed: number; total_pages: number }>(
+            unlisten = await listen<ProgressEvent>(
                 "analysis:progress",
                 (event) => {
-                    if (event.payload.job_id === jobId) {
+                    if (event.payload.job_id === jobId && event.payload.event === "analysis") {
                         setPagesAnalyzed(event.payload.pages_analyzed ?? null)
                         setTotalPages(event.payload.total_pages ?? null)
                     }
