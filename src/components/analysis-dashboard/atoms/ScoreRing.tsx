@@ -1,5 +1,5 @@
 // src/components/analysis/atoms/ScoreRing.tsx
-import { getScoreBgColor, getScoreColor } from "@/src/lib/seo-metrics";
+import { getScoreColor } from "@/src/lib/seo-metrics";
 import { cn } from "@/src/lib/utils";
 
 interface ScoreRingProps {
@@ -18,12 +18,12 @@ export function ScoreRing({ score, size = "lg", label }: ScoreRingProps) {
     return (
         <div className="relative inline-flex items-center justify-center shrink-0">
             <svg className="transform -rotate-90" width={dim} height={dim}>
-                <circle cx={dim / 2} cy={dim / 2} r={radius} strokeWidth={strokeWidth[size]} stroke="currentColor" fill="none" className="text-muted/30" />
+                <circle cx={dim / 2} cy={dim / 2} r={radius} strokeWidth={strokeWidth[size]} stroke="currentColor" fill="none" className="text-muted-foreground/20" />
                 <circle
                     cx={dim / 2} cy={dim / 2} r={radius} strokeWidth={strokeWidth[size]} stroke="currentColor" fill="none"
                     strokeDasharray={circumference}
                     strokeDashoffset={circumference - (circumference * score) / 100}
-                    className={getScoreBgColor(score)}
+                    className={getScoreColor(score)}
                 />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">

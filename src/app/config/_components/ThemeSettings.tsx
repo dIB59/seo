@@ -34,10 +34,10 @@ const THEMES = [
         id: "business",
         label: "Business",
         icon: Briefcase,
-        description: "Brand colors on dark",
+        description: "Brand colors on light",
         colors: {
-            bg: "#1a1a1a",
-            card: "#262626",
+            bg: "#faf9f8",
+            card: "#ffffff",
             primary: "#E84D00",
             accent: "#E98C00",
         },
@@ -87,8 +87,8 @@ export function ThemeSettings() {
                             key={t.id}
                             onClick={() => setTheme(t.id)}
                             className={`relative group rounded-lg border-2 p-4 text-left transition-all duration-200 hover:scale-[1.02] ${isActive
-                                    ? "border-primary ring-2 ring-primary/20 shadow-lg"
-                                    : "border-border/50 hover:border-border"
+                                ? "border-primary ring-2 ring-primary/20 shadow-lg"
+                                : "border-border/50 hover:border-border"
                                 }`}
                         >
                             {/* Check badge */}
