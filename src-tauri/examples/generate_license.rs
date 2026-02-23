@@ -21,7 +21,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 1. Get Machine ID
 
-    let machine_id = get_machine_id();
+    let current_machine_id = get_machine_id();
+    println!("\nMachine ID Selection:");
+    println!("1. Use Current Machine ID ({})", current_machine_id);
+    println!("2. Enter Custom Machine ID");
+    print!("Choice [1]: ");
+    io::stdout().flush()?;
+    let mut mach_choice = String::new();
+    io::stdin().read_line(&mut mach_choice)?;
+
+    let machine_id = match mach_choice.trim() {
+        "2" => {
+            print!("Enter Custom Machine ID: ");
+            io::stdout().flush()?;
+            let mut custom_id = String::new();
+            io::stdin().read_line(&mut custom_id)?;
+            let id = custom_id.trim().to_string();
+            if id.is_empty() {
+                current_machine_id
+            } else {
+                id
+            }
+        }
+        _ => current_machine_id,
+    };
 
     // 2. Select Tier
     println!("\nSelect License Tier:");
@@ -65,7 +88,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 4. Generate License Data
     let data = LicenseData {
         key: "MOCK-KEY-".to_string() + &uuid::Uuid::new_v4().to_string().to_uppercase()[..8],
-        machine_id,
+        machine_id: machine_id.clone(),
         tier,
         tier_version: TierVersion::new(1, 0, 0),
         tier_meta: None,
@@ -103,18 +126,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         LicenseTier::Premium => "P",
         LicenseTier::Free => "F",
     };
-    let mach_id = get_machine_id();
-    let mach_part = if mach_id.len() > 6 {
-        &mach_id[..6]
+    let mach_part = if machine_id.len() > 6 {
+        &machine_id[..6]
     } else {
-        &mach_id
+        &machine_id
     };
 
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
     let mut hasher = DefaultHasher::new();
     tier.hash(&mut hasher);
-    mach_id.hash(&mut hasher);
+    machine_id.hash(&mut hasher);
     MOCK_PRIVATE_KEY.hash(&mut hasher);
     let hash = format!("{:x}", hasher.finish());
     let short_key = format!("{}-{}-{}", tier_code, mach_part, &hash[..6]).to_uppercase();

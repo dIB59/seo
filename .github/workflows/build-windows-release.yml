@@ -1,0 +1,85 @@
+name: build-windows
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Bump version on merge to release"]
+    types:
+      - completed
+      
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_INCREMENTAL: 0
+  SQLX_OFFLINE: true  # Skip compile-time DB checks
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - internal: false
+            name: "Release"
+          - internal: true
+            name: "Internal"
+
+    runs-on: windows-latest
+    
+    permissions:
+      contents: write
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      # NO sqlx setup! Just build.
+      
+      - name: install frontend dependencies
+        run: npm ci
+      
+      - name: build
+        shell: pwsh
+        run: |
+          $ARGS = if ("${{ matrix.internal }}" -eq "true") { "--features mock-licensing" } else { "" }
+          npm run tauri build -- --target x86_64-pc-windows-msvc $ARGS
+      
+      - name: upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.internal && 'internal' || 'release' }}
+          path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: get version
+        id: get_version
+        run: echo "version=$(jq -r .version src-tauri/tauri.conf.json)" >> $GITHUB_OUTPUT
+      
+      - name: download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: false
+
+      - name: copy versionless installer (release only)
+        run: |
+          cp artifacts/release/*.msi "artifacts/release/SEO.Insikt.crawler-setup.msi" 2>/dev/null || true
+
+      - name: create releases
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: app-v${{ steps.get_version.outputs.version }}
+          name: "App v${{ steps.get_version.outputs.version }}"
+          prerelease: false
+          files: |
+            artifacts/release/*.msi
+            artifacts/internal/*.msi
