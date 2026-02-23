@@ -52,7 +52,7 @@ jobs:
 
   release:
     needs: build
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
@@ -69,11 +69,17 @@ jobs:
         with:
           path: artifacts
           merge-multiple: false
-      
+
+      - name: copy versionless installer (release only)
+        run: |
+          cp artifacts/release/*.msi "artifacts/release/SEO.Insikt.crawler-setup.msi" 2>/dev/null || true
+
       - name: create releases
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: app-v${{ steps.get_version.outputs.version }}${{ matrix.internal && '-internal' || '' }}
-          name: "App v${{ steps.get_version.outputs.version }}${{ matrix.internal && ' (Internal)' || '' }}"
-          prerelease: ${{ matrix.internal }}
-          files: artifacts/**/*.msi
+          tag_name: app-v${{ steps.get_version.outputs.version }}
+          name: "App v${{ steps.get_version.outputs.version }}"
+          prerelease: false
+          files: |
+            artifacts/release/*.msi
+            artifacts/internal/*.msi
