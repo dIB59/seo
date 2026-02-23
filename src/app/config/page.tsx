@@ -22,6 +22,7 @@ import { GeneralSettings } from "./_components/GeneralSettings";
 import { PersonaSettings } from "./_components/PersonaSettings";
 import { PromptBuilder, PromptBlock } from "./_components/PromptBuilder";
 import { LicensingSection } from "./_components/LicensingSection";
+import { ThemeSettings } from "./_components/ThemeSettings";
 
 function ContentSkeleton() {
     return (
@@ -201,6 +202,7 @@ function ConfigContent({ settings, mutate, activeSection }: {
                     <PromptBuilder blocks={blocks} setBlocks={setBlocks} />
                 )}
                 {activeSection === "licensing" && <LicensingSection />}
+                {activeSection === "appearance" && <ThemeSettings />}
             </div>
         </>
     );
