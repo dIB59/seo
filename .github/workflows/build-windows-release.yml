@@ -32,7 +32,10 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
-      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
       # NO sqlx setup! Just build.
       
       - name: install frontend dependencies
@@ -74,8 +77,16 @@ jobs:
         run: |
           cp artifacts/release/*.msi "artifacts/release/SEO.Insikt.crawler-setup.msi" 2>/dev/null || true
 
+      - name: rename internal assets
+        run: |
+          for f in artifacts/internal/*.msi; do
+            if [ -f "$f" ]; then
+              mv "$f" "${f%.msi}-internal.msi"
+            fi
+          done
+
       - name: create releases
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: app-v${{ steps.get_version.outputs.version }}
           name: "App v${{ steps.get_version.outputs.version }}"
