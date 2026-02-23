@@ -44,8 +44,8 @@ jobs:
       - name: build
         shell: pwsh
         run: |
-          $ARGS = if ("${{ matrix.internal }}" -eq "true") { "--features mock-licensing" } else { "" }
-          npm run tauri build -- --target x86_64-pc-windows-msvc $ARGS
+          $extra_args = if ("${{ matrix.internal }}" -eq "true") { @("--features", "mock-licensing") } else { @() }
+          npm run tauri build -- --target x86_64-pc-windows-msvc @extra_args
       
       - name: upload artifacts
         uses: actions/upload-artifact@v4
