@@ -2,7 +2,7 @@
 import pkg from "@/package.json";
 
 import { useRouter } from "next/navigation";
-import { LayoutDashboard, Bot, Key, CreditCard, ChevronLeft } from "lucide-react";
+import { LayoutDashboard, Bot, Key, CreditCard, Palette, ChevronLeft } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 
 export const SIDEBAR_ITEMS = [
@@ -10,6 +10,7 @@ export const SIDEBAR_ITEMS = [
     { id: "persona", label: "AI Persona", icon: Bot },
     { id: "prompt", label: "Prompt Builder", icon: LayoutDashboard },
     { id: "licensing", label: "Licensing", icon: CreditCard },
+    { id: "appearance", label: "Appearance", icon: Palette },
 ];
 
 interface ConfigSidebarProps {
@@ -41,11 +42,10 @@ export function ConfigSidebar({ activeSection, setActiveSection }: ConfigSidebar
                     <button
                         key={item.id}
                         onClick={() => setActiveSection(item.id)}
-                        className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 group relative overflow-hidden ${
-                            activeSection === item.id
+                        className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 group relative overflow-hidden ${activeSection === item.id
                                 ? "bg-muted/80 text-foreground font-semibold shadow-sm border border-border/50"
                                 : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                        }`}
+                            }`}
                     >
                         <item.icon
                             className={`h-4 w-4 transition-transform duration-300 ${activeSection === item.id ? "text-primary" : "group-hover:text-primary"}`}
