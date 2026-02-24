@@ -9,8 +9,11 @@ import type {
   AnalysisProgress,
   AnalysisSettingsRequest,
   AnalysisJobResponse,
-  LinkDetail
-} from "../bindings"
+  LinkDetail,
+  JobStatus,
+  Feature,
+  Policy,
+} from "../bindings";
 
 export type {
   AnalysisResults,
@@ -23,65 +26,70 @@ export type {
   AnalysisProgress,
   AnalysisSettingsRequest,
   AnalysisJobResponse,
-  LinkDetail
-}
+  LinkDetail,
+  JobStatus,
+  Feature,
+  Policy,
+};
 
-export type CompleteAnalysisResult = CompleteAnalysisResponse
-
+export type CompleteAnalysisResult = CompleteAnalysisResponse;
 
 export interface LighthouseAuditResult {
-  passed: boolean
-  value: string | null
-  score: number
-  description?: string
+  passed: boolean;
+  value: string | null;
+  score: number;
+  description?: string;
 }
 
 export interface LighthouseSeoAudits {
-  document_title: LighthouseAuditResult
-  meta_description: LighthouseAuditResult
-  viewport: LighthouseAuditResult
-  canonical: LighthouseAuditResult
-  hreflang: LighthouseAuditResult
-  crawlable_anchors: LighthouseAuditResult
-  link_text: LighthouseAuditResult
-  image_alt: LighthouseAuditResult
-  http_status_code: LighthouseAuditResult
-  is_crawlable: LighthouseAuditResult
+  document_title: LighthouseAuditResult;
+  meta_description: LighthouseAuditResult;
+  viewport: LighthouseAuditResult;
+  canonical: LighthouseAuditResult;
+  hreflang: LighthouseAuditResult;
+  crawlable_anchors: LighthouseAuditResult;
+  link_text: LighthouseAuditResult;
+  image_alt: LighthouseAuditResult;
+  http_status_code: LighthouseAuditResult;
+  is_crawlable: LighthouseAuditResult;
 }
 
 export interface LighthousePerformanceMetrics {
-  first_contentful_paint: number | null
-  largest_contentful_paint: number | null
-  speed_index: number | null
-  time_to_interactive: number | null
-  total_blocking_time: number | null
-  cumulative_layout_shift: number | null
+  first_contentful_paint: number | null;
+  largest_contentful_paint: number | null;
+  speed_index: number | null;
+  time_to_interactive: number | null;
+  total_blocking_time: number | null;
+  cumulative_layout_shift: number | null;
 }
 
-
-
-export type IssueType = IssueSeverity
-
+export type IssueType = IssueSeverity;
 
 // Re-exported as alias at the top: CompleteAnalysisResult = CompleteAnalysisResponse
 
-
-export type HeadingTag = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'
+export type HeadingTag = "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
 
 export interface HeadingElement {
-  tag: HeadingTag | string
-  text: string
+  tag: HeadingTag | string;
+  text: string;
 }
 
 // ImageElement is provided by generated bindings; don't duplicate it here.
 
 export interface LinkElement {
-  href: string
-  text: string
-  link_type: string
-  status_code: number | null
-  is_broken: boolean
+  href: string;
+  text: string;
+  link_type: string;
+  status_code: number | null;
+  is_broken: boolean;
 }
 
 // Extended page data with detailed elements
-export type PageDetailData = PageAnalysisData
+export type PageDetailData = PageAnalysisData;
+
+// AI / Prompt builder types
+export interface PromptBlock {
+  id: string;
+  type: "text" | "variable";
+  content: string;
+}

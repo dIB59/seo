@@ -1,47 +1,39 @@
-"use client"
+"use client";
 
-import { useSearchParams, useRouter } from "next/navigation"
-import { useAnalysis } from "@/src/hooks/use-analysis"
-import { Button } from "@/src/components/ui/button"
-import { ArrowLeft, Loader2 } from "lucide-react"
-import { AnalysisDashboard } from "@/src/components/analysis-dashboard/AnalysisDashboard"
+import { useSearchParams, useRouter } from "next/navigation";
+import { useAnalysis } from "@/src/hooks/use-analysis";
+import { LoadingState, ErrorState } from "@/src/components/ui/page-states";
+import { AnalysisDashboard } from "@/src/app/analysis/_components/AnalysisDashboard";
 
 export default function AnalysisPage() {
-    const searchParams = useSearchParams()
-    const router = useRouter()
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
-    const id = searchParams.get("id") ?? ""
-    const { result, isLoading, isError } = useAnalysis(id)
+  const id = searchParams.get("id") ?? "";
+  const { result, isLoading, isError } = useAnalysis(id);
 
-    if (isLoading) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-screen">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="mt-4 text-muted-foreground">Loading analysis...</p>
-            </div>
-        )
-    }
+  if (isLoading) {
+    return <LoadingState message="Loading analysis..." />;
+  }
 
-    if (isError || !result) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
-                <h1 className="text-2xl font-bold text-destructive mb-2">Error Loading Analysis</h1>
-                <p className="text-muted-foreground mb-4">Could not retrieve analysis data.</p>
-                <Button onClick={() => router.push("/")}>
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back to Home
-                </Button>
-            </div>
-        )
-    }
-
+  if (isError || !result) {
     return (
-        <main className="min-h-screen p-6 max-w-7xl mx-auto">
-            <AnalysisDashboard
-                data={result}
-                onBack={() => router.push('/')}
-                onSelectPage={(index: number) => router.push(`/analysis/details?id=${id}&index=${index}`)}
-            />
-        </main>
-    )
+      <ErrorState
+        title="Error Loading Analysis"
+        description="Could not retrieve analysis data."
+        backLabel="Back to Home"
+        onBack={() => router.push("/")}
+      />
+    );
+  }
+
+  return (
+    <main className="min-h-screen p-6 max-w-7xl mx-auto">
+      <AnalysisDashboard
+        data={result}
+        onBack={() => router.push("/")}
+        onSelectPage={(index: number) => router.push(`/analysis/details?id=${id}&index=${index}`)}
+      />
+    </main>
+  );
 }
