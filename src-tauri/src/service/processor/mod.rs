@@ -1,5 +1,6 @@
 mod analyzer;
 mod canceler;
+mod channel;
 mod crawler;
 mod queue;
 pub mod reporter;
@@ -7,8 +8,9 @@ pub mod reporter;
 pub use crate::service::discovery::SiteResources;
 pub use analyzer::{AnalyzerService, PageResult};
 pub use canceler::JobCanceler;
+pub use channel::{JobChannel, JobChannelConfig, JobDispatcher, JobNotifier};
 pub use crawler::{CrawlContext, Crawler};
-pub use queue::JobQueue;
+pub use queue::{JobQueue, JobQueueConfig};
 pub use reporter::ProgressReporter;
 
 use crate::domain::{Job, JobStatus, NewLink};
@@ -17,19 +19,40 @@ use anyhow::Result;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
+/// Configuration for the worker pool.
+#[derive(Debug, Clone)]
+pub struct WorkerPoolConfig {
+    /// Maximum number of concurrent workers.
+    pub max_workers: usize,
+}
+
+impl Default for WorkerPoolConfig {
+    fn default() -> Self {
+        // Default to number of CPU cores, capped at 8
+        let cpu_count = num_cpus::get();
+        Self {
+            max_workers: cpu_count.min(8),
+        }
+    }
+}
+
 pub struct JobProcessor {
     // Components
-    job_queue: JobQueue,
-    crawler: Crawler,
-    analyzer: AnalyzerService,
-    progress_emitter: Arc<dyn ProgressEmitter>, // ← No generics!
-    canceler: JobCanceler,
+    job_queue: Arc<JobQueue>,
+    crawler: Arc<Crawler>,
+    analyzer: Arc<AnalyzerService>,
+    progress_emitter: Arc<dyn ProgressEmitter>,
+    canceler: Arc<JobCanceler>,
 
-    // Repositories (some still used directly for orchestration)
+    // Repositories
     link_db: Arc<dyn crate::repository::LinkRepository>,
+
+    // Configuration
+    worker_config: WorkerPoolConfig,
 }
 
 impl JobProcessor {
+    /// Create a new job processor with default configuration.
     pub fn new(
         job_repo: Arc<dyn crate::repository::JobRepository>,
         link_repo: Arc<dyn crate::repository::LinkRepository>,
@@ -37,20 +60,47 @@ impl JobProcessor {
         crawler: Crawler,
         progress_emitter: Arc<dyn ProgressEmitter>,
     ) -> Self {
-        Self {
-            job_queue: JobQueue::new(job_repo),
-            crawler,
+        Self::with_config(
+            job_repo,
+            link_repo,
             analyzer,
+            crawler,
             progress_emitter,
-            canceler: JobCanceler::new(),
+            WorkerPoolConfig::default(),
+        )
+    }
+
+    /// Create a new job processor with the specified configuration.
+    pub fn with_config(
+        job_repo: Arc<dyn crate::repository::JobRepository>,
+        link_repo: Arc<dyn crate::repository::LinkRepository>,
+        analyzer: AnalyzerService,
+        crawler: Crawler,
+        progress_emitter: Arc<dyn ProgressEmitter>,
+        worker_config: WorkerPoolConfig,
+    ) -> Self {
+        Self {
+            job_queue: Arc::new(JobQueue::new(job_repo)),
+            crawler: Arc::new(crawler),
+            analyzer: Arc::new(analyzer),
+            progress_emitter,
+            canceler: Arc::new(JobCanceler::new()),
             link_db: link_repo,
+            worker_config,
         }
     }
 
+    /// Get the job queue notifier for signaling new jobs.
+    pub fn notifier(&self) -> &JobNotifier {
+        self.job_queue.notifier()
+    }
+
+    /// Get the analyzer service.
     pub fn analyzer(&self) -> &AnalyzerService {
         &self.analyzer
     }
 
+    /// Shutdown the job processor gracefully.
     pub async fn shutdown(&self) -> Result<()> {
         self.canceler.cancel_all();
         match self.job_queue.cancel_all_running_jobs().await {
@@ -68,27 +118,117 @@ impl JobProcessor {
         }
     }
 
+    /// Run the job processor with a worker pool.
+    /// This is the new event-driven mode that spawns multiple workers.
     pub async fn run(&self) -> Result<()> {
-        tracing::info!("JobProcessor: Starting job polling loop");
+        tracing::info!(
+            "JobProcessor: Starting worker pool with {} workers",
+            self.worker_config.max_workers
+        );
 
-        loop {
-            // Fetch next job from queue
-            if let Some(job) = self.job_queue.fetch_next_job().await {
-                tracing::info!("Processing job: {} ({})", job.id, job.url);
-                if let Err(e) = self.process_job(job).await {
-                    tracing::error!("Job failed: {}", e);
-                }
-            }
+        // Dispatch any pending jobs from previous sessions
+        let dispatched = self.job_queue.dispatch_pending_jobs().await?;
+        if dispatched > 0 {
+            tracing::info!("Dispatched {} pending jobs from previous session", dispatched);
         }
+
+        // Spawn worker tasks
+        let mut worker_handles = Vec::new();
+        for worker_id in 0..self.worker_config.max_workers {
+            let handle = self.spawn_worker(worker_id);
+            worker_handles.push(handle);
+        }
+
+        tracing::info!("Spawned {} workers", worker_handles.len());
+
+        // Wait for all workers (they run indefinitely until channel closes)
+        futures::future::join_all(worker_handles).await;
+
+        tracing::info!("All workers have shut down");
+        Ok(())
     }
 
+    /// Spawn a single worker task.
+    fn spawn_worker(&self, worker_id: usize) -> tokio::task::JoinHandle<()> {
+        let job_queue = self.job_queue.clone();
+        let crawler = self.crawler.clone();
+        let analyzer = self.analyzer.clone();
+        let progress_emitter = self.progress_emitter.clone();
+        let canceler = self.canceler.clone();
+        let link_db = self.link_db.clone();
+
+        tokio::spawn(async move {
+            tracing::info!("Worker {} started", worker_id);
+
+            loop {
+                // Receive next job from the queue
+                match job_queue.receive_job().await {
+                    Some(job) => {
+                        tracing::info!(
+                            "Worker {}: Processing job {} ({})",
+                            worker_id,
+                            job.id,
+                            job.url
+                        );
+
+                        let processor = WorkerProcessor {
+                            job_queue: &job_queue,
+                            crawler: &crawler,
+                            analyzer: &analyzer,
+                            progress_emitter: &progress_emitter,
+                            canceler: &canceler,
+                            link_db: &link_db,
+                        };
+
+                        if let Err(e) = processor.process_job(job).await {
+                            tracing::error!("Worker {}: Job failed: {}", worker_id, e);
+                        }
+                    }
+                    None => {
+                        tracing::info!("Worker {}: Channel closed, shutting down", worker_id);
+                        break;
+                    }
+                }
+            }
+
+            tracing::info!("Worker {} stopped", worker_id);
+        })
+    }
+
+    /// Cancel a specific job.
     pub async fn cancel(&self, job_id: &str) -> Result<()> {
         tracing::info!("Cancelling job {}", job_id);
         self.canceler.set_cancelled(job_id);
         self.job_queue.mark_cancelled(job_id).await
     }
 
-    pub(crate) async fn process_job(&self, mut job: Job) -> Result<String> {
+    /// Process a single job (for backward compatibility and direct invocation).
+    pub async fn process_job(&self, job: Job) -> Result<String> {
+        let processor = WorkerProcessor {
+            job_queue: &self.job_queue,
+            crawler: &self.crawler,
+            analyzer: &self.analyzer,
+            progress_emitter: &self.progress_emitter,
+            canceler: &self.canceler,
+            link_db: &self.link_db,
+        };
+        processor.process_job(job).await
+    }
+}
+
+/// Processor for a single worker to handle jobs.
+/// This is separated to allow clean borrowing within async tasks.
+struct WorkerProcessor<'a> {
+    job_queue: &'a JobQueue,
+    crawler: &'a Crawler,
+    analyzer: &'a AnalyzerService,
+    progress_emitter: &'a Arc<dyn ProgressEmitter>,
+    canceler: &'a JobCanceler,
+    link_db: &'a Arc<dyn crate::repository::LinkRepository>,
+}
+
+impl<'a> WorkerProcessor<'a> {
+    async fn process_job(&self, mut job: Job) -> Result<String> {
         let timer = JobTimer::start(&job.id);
         let cancel_flag = self.canceler.get_cancel_flag(&job.id);
 
@@ -221,4 +361,16 @@ struct CrawlResult {
     pages: usize,
     issues: usize,
     links: Vec<NewLink>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_worker_pool_config_default() {
+        let config = WorkerPoolConfig::default();
+        assert!(config.max_workers >= 1);
+        assert!(config.max_workers <= 8);
+    }
 }

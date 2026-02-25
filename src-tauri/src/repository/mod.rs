@@ -1,4 +1,6 @@
-use crate::domain::{Job, JobInfo, JobSettings, JobStatus};
+use crate::domain::{
+    Job, JobInfo, JobSettings, JobStatus, NewPageQueueItem, PageQueueItem, PageQueueStatus,
+};
 use anyhow::Result;
 use async_trait::async_trait;
 use std::sync::Arc;
@@ -32,6 +34,10 @@ pub fn sqlite_settings_repo(pool: sqlx::SqlitePool) -> Arc<dyn SettingsRepositor
 
 pub fn sqlite_ai_repo(pool: sqlx::SqlitePool) -> Arc<dyn AiRepository> {
     Arc::new(sqlite::AiRepository::new(pool))
+}
+
+pub fn sqlite_page_queue_repo(pool: sqlx::SqlitePool) -> Arc<dyn PageQueueRepository> {
+    Arc::new(sqlite::PageQueueRepository::new(pool))
 }
 
 pub use sqlite::{ExternalDomain, IssueCounts, IssueGroup, LinkCounts};
@@ -144,4 +150,57 @@ pub trait ResultsRepository: Send + Sync {
 pub trait AiRepository: Send + Sync {
     async fn get_ai_insights(&self, job_id: &str) -> Result<Option<String>>;
     async fn save_ai_insights(&self, job_id: &str, insights: &str) -> Result<()>;
+}
+
+/// Repository for managing the page analysis queue.
+/// Enables resumability, concurrent page analysis, and individual page status tracking.
+#[async_trait]
+pub trait PageQueueRepository: Send + Sync {
+    /// Insert a single page into the queue.
+    async fn insert(&self, item: &NewPageQueueItem) -> Result<String>;
+
+    /// Insert multiple pages into the queue in a single transaction.
+    async fn insert_batch(&self, items: &[NewPageQueueItem]) -> Result<()>;
+
+    /// Claim the next pending page for a specific job (atomic status update).
+    /// Returns None if no pending pages are available.
+    async fn claim_next_pending(&self, job_id: &str) -> Result<Option<PageQueueItem>>;
+
+    /// Claim the next pending page across all jobs (atomic status update).
+    /// Returns None if no pending pages are available.
+    async fn claim_any_pending(&self) -> Result<Option<PageQueueItem>>;
+
+    /// Update the status of a page queue item.
+    async fn update_status(&self, id: &str, status: PageQueueStatus) -> Result<()>;
+
+    /// Mark a page as failed with an error message.
+    async fn mark_failed(&self, id: &str, error: &str) -> Result<()>;
+
+    /// Get all queue items for a job.
+    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<PageQueueItem>>;
+
+    /// Get queue items by status for a job.
+    async fn get_by_job_and_status(
+        &self,
+        job_id: &str,
+        status: PageQueueStatus,
+    ) -> Result<Vec<PageQueueItem>>;
+
+    /// Count pending pages for a job.
+    async fn count_pending(&self, job_id: &str) -> Result<i64>;
+
+    /// Count completed pages for a job.
+    async fn count_completed(&self, job_id: &str) -> Result<i64>;
+
+    /// Count total pages for a job.
+    async fn count_total(&self, job_id: &str) -> Result<i64>;
+
+    /// Delete all queue items for a job.
+    async fn delete_by_job_id(&self, job_id: &str) -> Result<()>;
+
+    /// Reset processing pages back to pending (for recovery after crash).
+    async fn reset_processing_to_pending(&self, job_id: &str) -> Result<i64>;
+
+    /// Check if all pages for a job are complete (no pending or processing).
+    async fn is_job_complete(&self, job_id: &str) -> Result<bool>;
 }

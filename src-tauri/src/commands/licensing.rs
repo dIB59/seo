@@ -124,6 +124,7 @@ mod tests {
             ai_repo: crate::repository::sqlite_ai_repo(pool.clone()),
             job_repo: crate::repository::sqlite_job_repo(pool.clone()),
             results_repo: crate::repository::sqlite_results_repo(pool.clone()),
+            page_queue_repo: crate::repository::sqlite_page_queue_repo(pool.clone()),
             standard_spider: Arc::new(MockSpider),
             heavy_spider: Arc::new(MockSpider),
             job_processor: Arc::new(crate::service::JobProcessor::new(

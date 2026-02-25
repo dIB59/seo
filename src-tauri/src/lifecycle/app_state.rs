@@ -1,8 +1,8 @@
 use crate::{
     domain::permissions::{LicenseTier, Policy},
     repository::{
-        sqlite_ai_repo, sqlite_issue_repo, sqlite_job_repo, sqlite_link_repo, sqlite_page_repo,
-        sqlite_results_repo, sqlite_settings_repo,
+        sqlite_ai_repo, sqlite_issue_repo, sqlite_job_repo, sqlite_link_repo, sqlite_page_queue_repo,
+        sqlite_page_repo, sqlite_results_repo, sqlite_settings_repo,
     },
     service::{
         licensing,
@@ -21,6 +21,7 @@ pub struct AppState {
     pub ai_repo: Arc<dyn crate::repository::AiRepository>,
     pub job_repo: Arc<dyn crate::repository::JobRepository>,
     pub results_repo: Arc<dyn crate::repository::ResultsRepository>,
+    pub page_queue_repo: Arc<dyn crate::repository::PageQueueRepository>,
 
     pub standard_spider: Arc<dyn SpiderAgent>,
     pub heavy_spider: Arc<dyn SpiderAgent>,
@@ -51,6 +52,7 @@ impl AppState {
         let results_repo = sqlite_results_repo(pool.clone());
         let settings_repo = sqlite_settings_repo(pool.clone());
         let ai_repo = sqlite_ai_repo(pool.clone());
+        let page_queue_repo = sqlite_page_queue_repo(pool.clone());
         let progress_reporter: Arc<dyn ProgressEmitter> =
             Arc::new(ProgressReporter::new(app_handle.clone()));
 
@@ -106,6 +108,7 @@ impl AppState {
             ai_repo,
             job_repo,
             results_repo,
+            page_queue_repo,
             standard_spider,
             heavy_spider,
             job_processor,

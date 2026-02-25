@@ -427,6 +427,10 @@ pub async fn start_analysis(
         .await
         .map_err(CommandError::from)?;
 
+    // Notify the job processor that a new job is available
+    app_state.job_processor.notifier().notify().await;
+    tracing::debug!("Notified job processor of new job: {}", job_id);
+
     Ok(AnalysisJobResponse {
         job_id,
         url,

@@ -18,7 +18,7 @@ serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "2.10.2", features = [] }
 tauri-plugin-dialog = "2.6.0"
 tauri-plugin-fs = "2.4.5"
-tokio = { version = "1.29.1", features = ["macros", "rt-multi-thread", "process"] }
+tokio = { version = "1.29.1", features = ["macros", "rt-multi-thread", "process", "sync"] }
 uuid = { version = "1.11.0", features = ["v4"] }
 
 rand = "0.8.5"
@@ -44,6 +44,7 @@ addon-macros = { path = "addon-macros" }
 ed25519-dalek = { version = "2.2.0", features = ["rand_core", "serde"] }
 machine-uid = "0.5.4"
 hex = "0.4.3"
+num_cpus = "1.16"
 
 [features]
 custom-protocol = [ "tauri/custom-protocol" ]
