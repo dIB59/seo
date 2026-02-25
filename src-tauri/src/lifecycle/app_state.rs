@@ -1,14 +1,13 @@
 use crate::{
-    domain::permissions::{LicenseTier, Policy},
+    contexts::{
+        ai::{AiService, AiServiceFactory}, analysis::{AnalysisService, AnalysisServiceFactory}, licensing::{LicenseTier, LicensingAgent, PermissionRequest, Policy}
+    },
     repository::{
         sqlite_ai_repo, sqlite_issue_repo, sqlite_job_repo, sqlite_link_repo, sqlite_page_queue_repo,
         sqlite_page_repo, sqlite_results_repo, sqlite_settings_repo,
     },
     service::{
-        licensing,
-        processor::{reporter::ProgressEmitter, AnalyzerService, Crawler},
-        spider::{ClientType, Spider, SpiderAgent},
-        JobProcessor, ProgressReporter,
+        JobProcessor, ProgressReporter, licensing::{LicensingService, MockLicensingService}, processor::{AnalyzerService, Crawler, reporter::ProgressEmitter}, spider::{ClientType, Spider, SpiderAgent}
     },
 };
 use std::sync::{Arc, RwLock};
@@ -16,13 +15,7 @@ use tauri::AppHandle;
 
 /// Complete dependency graph for the application
 pub struct AppState {
-    // Repositories exposed to commands
-    pub settings_repo: Arc<dyn crate::repository::SettingsRepository>,
-    pub ai_repo: Arc<dyn crate::repository::AiRepository>,
-    pub job_repo: Arc<dyn crate::repository::JobRepository>,
-    pub results_repo: Arc<dyn crate::repository::ResultsRepository>,
-    pub page_queue_repo: Arc<dyn crate::repository::PageQueueRepository>,
-
+    // Spiders for web crawling
     pub standard_spider: Arc<dyn SpiderAgent>,
     pub heavy_spider: Arc<dyn SpiderAgent>,
 
@@ -31,7 +24,12 @@ pub struct AppState {
 
     // Licensing and Permissions
     pub permissions: RwLock<Policy>,
-    pub licensing_service: Arc<dyn crate::domain::licensing::LicensingAgent>,
+    /// Context-based licensing service
+    pub licensing_context: Arc<dyn LicensingAgent>,
+    /// Context-based analysis service
+    pub analysis_context: AnalysisService,
+    /// Context-based AI service
+    pub ai_context: AiService,
 }
 
 impl AppState {
@@ -88,33 +86,44 @@ impl AppState {
             }
         });
 
+
         // 5. Licensing Init
         // Use MockLicensingService in development mode or if a specific flag is set
-        let licensing_service: Arc<dyn crate::domain::licensing::LicensingAgent> =
+        let licensing_context: Arc<dyn LicensingAgent> =
             match cfg!(debug_assertions) || cfg!(feature = "mock-licensing") {
-                true => Arc::new(licensing::MockLicensingService::new(settings_repo.clone())),
-                false => Arc::new(licensing::LicensingService::new(
+                true => Arc::new(MockLicensingService::new(settings_repo.clone())),
+                false => Arc::new(LicensingService::new(
                     settings_repo.clone(),
                     standard_spider.clone(),
                 )?),
             };
-        let initial_tier = licensing_service.load_license().await.unwrap_or_default();
+        let initial_tier = licensing_context.load_license().await?;
         if initial_tier != LicenseTier::Free {
             tracing::info!("License verified: {:?}", initial_tier);
         }
 
+        // Create the new context-based analysis service (Strangler Fig pattern)
+        let analysis_context = AnalysisServiceFactory::with_processor(
+            job_repo.clone(),
+            results_repo.clone(),
+            job_processor.clone(),
+        );
+
+        // Create the new context-based AI service (Strangler Fig pattern)
+        let ai_context = AiServiceFactory::from_repositories(
+            ai_repo.clone(),
+            settings_repo.clone(),
+        );
+
         // 6. Return composed state
         Ok(AppState {
-            settings_repo,
-            ai_repo,
-            job_repo,
-            results_repo,
-            page_queue_repo,
             standard_spider,
             heavy_spider,
             job_processor,
             permissions: RwLock::new(Policy::new(initial_tier)),
-            licensing_service,
+            licensing_context,
+            analysis_context,
+            ai_context,
         })
     }
 
@@ -125,8 +134,8 @@ impl AppState {
     }
 }
 
-impl addon_macros::AddonCheck<crate::domain::permissions::PermissionRequest> for AppState {
-    fn check(&self, requirement: crate::domain::permissions::PermissionRequest) -> bool {
+impl addon_macros::AddonCheck<PermissionRequest> for AppState {
+    fn check(&self, requirement: PermissionRequest) -> bool {
         self.permissions
             .read()
             .map(|p| p.check(requirement))

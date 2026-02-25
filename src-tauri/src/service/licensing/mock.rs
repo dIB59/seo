@@ -1,7 +1,8 @@
+
 use crate::domain::licensing::{
-    AddonError, LicenseData, LicenseVerifier, LicensingAgent, SignedLicense,
+    AddonError, LicenseData, LicenseTier, LicenseVerifier, LicensingAgent, SignedLicense,
+    TierVersion,
 };
-use crate::domain::permissions::LicenseTier;
 use crate::service::hardware::HardwareService;
 use async_trait::async_trait;
 use chrono::Timelike;

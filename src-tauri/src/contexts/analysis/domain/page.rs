@@ -1,4 +1,4 @@
-use crate::domain::{IssueSeverity, NewIssue};
+use super::{IssueSeverity, NewIssue};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 
@@ -215,7 +215,6 @@ impl NewPageQueueItem {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::IssueSeverity;
 
     fn make_page(overrides: impl FnOnce(&mut Page)) -> Page {
         let mut page = Page {

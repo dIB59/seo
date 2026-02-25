@@ -6,7 +6,7 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use crate::domain::{Job, JobInfo, JobStatus};
+use super::{Job, JobInfo, JobStatus};
 
 /// Analysis progress for frontend updates
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

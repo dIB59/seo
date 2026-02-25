@@ -1,5 +1,5 @@
-use crate::domain::permissions::{LicenseTier, PermissionRequest};
-use crate::domain::TierVersion;
+use super::entitlement::{LicenseTier, PermissionRequest};
+use super::tier::TierVersion;
 use serde::{Deserialize, Serialize};
 
 /// Core license payload that is signed by the licensing server. `tier_version`
@@ -85,6 +85,7 @@ impl LicenseVerifier {
         Ok(signed_license.data.tier)
     }
 }
+
 #[async_trait::async_trait]
 pub trait LicensingAgent: Send + Sync {
     async fn load_license(&self) -> Result<LicenseTier, AddonError>;

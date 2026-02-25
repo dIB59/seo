@@ -163,11 +163,11 @@ impl std::fmt::Display for JobStatus {
 #[derive(Debug, Clone, Serialize)]
 pub struct CompleteJobResult {
     pub job: Job,
-    pub pages: Vec<crate::domain::page::Page>,
-    pub issues: Vec<crate::domain::issue::Issue>,
-    pub links: Vec<crate::domain::link::Link>,
-    pub lighthouse: Vec<crate::domain::lighthouse::LighthouseData>,
-    pub headings: Vec<crate::domain::Heading>,
-    pub images: Vec<crate::domain::Image>,
-    pub ai_insights: Option<crate::domain::ai::AiInsight>,
+    pub pages: Vec<super::Page>,
+    pub issues: Vec<super::Issue>,
+    pub links: Vec<super::Link>,
+    pub lighthouse: Vec<super::LighthouseData>,
+    pub headings: Vec<super::Heading>,
+    pub images: Vec<super::Image>,
+    pub ai_insights: Option<crate::contexts::ai::AiInsight>,
 }

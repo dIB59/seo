@@ -421,15 +421,16 @@ pub async fn start_analysis(
 
     let analysis_settings: JobSettings = settings.unwrap_or_default().into();
 
-    let repository = app_state.job_repo.clone();
-    let job_id = repository
-        .create(parsed_url.as_str(), &analysis_settings)
+    // Use the context service (Strangler Fig pattern)
+    let job_id = app_state
+        .analysis_context
+        .create_job(parsed_url.as_str(), &analysis_settings)
         .await
         .map_err(CommandError::from)?;
 
     // Notify the job processor that a new job is available
     // This dispatches the job to the channel and wakes up workers
-    app_state.job_processor.notify_new_job().await;
+    app_state.analysis_context.notify_new_job().await;
     tracing::debug!("Notified job processor of new job: {}", job_id);
 
     Ok(AnalysisJobResponse {
@@ -472,14 +473,14 @@ pub async fn get_analysis_progress(
 ) -> Result<AnalysisProgress, CommandError> {
     tracing::info!("Getting analysis progress for job: {}", job_id);
 
-    let repository = app_state.job_repo.clone();
-
-    let job = repository
-        .get_by_id(&job_id)
+    // Use the context service (Strangler Fig pattern)
+    let progress = app_state
+        .analysis_context
+        .get_progress(&job_id)
         .await
         .map_err(CommandError::from)?;
 
-    Ok(job.into())
+    Ok(progress)
 }
 
 #[tauri::command]
@@ -491,12 +492,11 @@ pub async fn get_all_jobs(
 ) -> Result<Vec<AnalysisProgress>, CommandError> {
     tracing::info!("Fetching jobs (limit={:?}, offset={:?})", limit, offset);
 
-    let repository = app_state.job_repo.clone();
-
+    // Use the context service (Strangler Fig pattern)
     let jobs = if let (Some(l), Some(o)) = (limit, offset) {
-        repository.get_paginated(l, o).await
+        app_state.analysis_context.get_paginated_jobs(l, o).await
     } else {
-        repository.get_all().await
+        app_state.analysis_context.get_all_jobs().await
     }
     .map_err(CommandError::from)?;
 
@@ -522,10 +522,10 @@ pub async fn get_paginated_jobs(
         status_filter
     );
 
-    let repository = app_state.job_repo.clone();
-
-    let (jobs, total) = repository
-        .get_paginated_with_total(limit, offset, url_filter, status_filter)
+    // Use the context service (Strangler Fig pattern)
+    let (jobs, total) = app_state
+        .analysis_context
+        .get_paginated_jobs_with_total(limit, offset, url_filter, status_filter)
         .await
         .map_err(CommandError::from)?;
 
@@ -542,9 +542,10 @@ pub async fn cancel_analysis(
     #[provider] state: State<'_, AppState>,
 ) -> Result<(), CommandError> {
     tracing::trace!("Cancelling analysis job: {}", job_id);
+    // Use the context service (Strangler Fig pattern)
     state
-        .job_processor
-        .cancel(&job_id)
+        .analysis_context
+        .cancel_job(&job_id)
         .await
         .map_err(CommandError::from)
 }
@@ -557,8 +558,9 @@ pub async fn get_result(
 ) -> Result<CompleteAnalysisResponse, CommandError> {
     tracing::trace!("Getting result for job: {}", job_id);
 
+    // Use the context service (Strangler Fig pattern)
     let result: CompleteAnalysisResponse = app_state
-        .results_repo
+        .analysis_context
         .get_complete_result(&job_id)
         .await
         .map_err(CommandError::from)?

@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod contexts;
 pub mod db;
 pub mod domain;
 pub mod error;

@@ -83,7 +83,7 @@ impl LighthouseData {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::service::auditor::{PerformanceMetrics, Score, SeoAuditDetails};
+    use crate::service::auditor::{PerformanceMetrics, SeoAuditDetails};
 
     #[test]
     fn from_audit_scores_normalizes_percentages() {
