@@ -148,19 +148,6 @@ impl JobStatus {
     pub fn is_active(&self) -> bool {
         matches!(self, Self::Discovery | Self::Processing)
     }
-
-    pub fn valid_transitions(&self) -> &'static [JobStatus] {
-        match self {
-            Self::Pending => &[Self::Discovery, Self::Cancelled],
-            Self::Discovery => &[Self::Processing, Self::Failed, Self::Cancelled],
-            Self::Processing => &[Self::Completed, Self::Failed, Self::Cancelled],
-            Self::Completed | Self::Failed | Self::Cancelled => &[],
-        }
-    }
-
-    pub fn can_transition_to(&self, next: &Self) -> bool {
-        self.valid_transitions().contains(next)
-    }
 }
 
 impl std::str::FromStr for JobStatus {
