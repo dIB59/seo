@@ -104,7 +104,8 @@ pub struct JobDispatcher {
     channel: JobChannel,
     /// Notifier for waking workers.
     notifier: JobNotifier,
-    /// Notification receiver (kept for the dispatcher to wait on).
+    /// Notification receiver (kept for future use, e.g., graceful shutdown).
+    #[allow(dead_code)]
     notification_rx: Option<mpsc::Receiver<()>>,
 }
 
@@ -133,9 +134,8 @@ impl JobDispatcher {
     }
 
     /// Try to dispatch a job without blocking.
-    pub fn try_dispatch(&self, job: Job) -> Result<(), mpsc::error::TrySendError<Job>> {
-        self.channel.sender().try_send(job)?;
-        // Best-effort notification
+    pub fn try_dispatch(&self, job: Job) -> Result<(), Box<mpsc::error::TrySendError<Job>>> {
+        self.channel.sender().try_send(job).map_err(Box::new)?;
         let _ = self.notifier.sender.try_send(());
         Ok(())
     }

@@ -37,7 +37,7 @@ impl Page {
     pub fn audit(&self) -> Vec<NewIssue> {
         let mut issues = Vec::new();
 
-        if self.title.as_ref().map_or(true, |t| t.is_empty()) {
+        if self.title.as_ref().is_none_or(|t| t.is_empty()) {
             issues.push(NewIssue {
                 job_id: self.job_id.clone(),
                 page_id: Some(self.id.clone()),
@@ -51,7 +51,7 @@ impl Page {
         if self
             .meta_description
             .as_ref()
-            .map_or(true, |d| d.is_empty())
+            .is_none_or(|d| d.is_empty())
         {
             issues.push(NewIssue {
                 job_id: self.job_id.clone(),

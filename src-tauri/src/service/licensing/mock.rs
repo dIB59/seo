@@ -1,7 +1,6 @@
 
 use crate::domain::licensing::{
-    AddonError, LicenseData, LicenseTier, LicenseVerifier, LicensingAgent, SignedLicense,
-    TierVersion,
+    AddonError, LicenseData, LicenseTier, LicenseVerifier, LicensingAgent, SignedLicense
 };
 use crate::service::hardware::HardwareService;
 use async_trait::async_trait;

@@ -16,7 +16,7 @@ pub use page_repository::PageRepository;
 pub use results_repository::ResultsRepository;
 pub use settings_repository::SettingsRepository;
 
-use crate::domain::{IssueSeverity, JobStatus, LinkType, PageQueueStatus};
+use crate::domain::{IssueSeverity, JobStatus, LinkType};
 
 pub fn map_job_status(s: &str) -> JobStatus {
     s.parse().unwrap_or(JobStatus::Pending)
@@ -28,8 +28,4 @@ pub fn map_severity(s: &str) -> IssueSeverity {
 
 pub fn map_link_type(s: &str) -> LinkType {
     s.parse().unwrap_or(LinkType::Internal)
-}
-
-pub fn map_page_queue_status(s: &str) -> PageQueueStatus {
-    s.parse().unwrap_or(PageQueueStatus::Pending)
 }

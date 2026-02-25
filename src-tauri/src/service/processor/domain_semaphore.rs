@@ -109,6 +109,7 @@ impl Default for DomainSemaphore {
 /// A permit that holds the domain lock.
 /// When dropped, the lock is released.
 pub struct DomainPermit {
+    #[allow(dead_code)]
     permit: tokio::sync::OwnedSemaphorePermit,
     domain: String,
 }
