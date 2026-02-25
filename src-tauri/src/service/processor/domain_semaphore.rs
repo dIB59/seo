@@ -1,0 +1,126 @@
+use crate::domain::extract_root_domain;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::{Mutex, Semaphore};
+
+/// Manages per-domain semaphores to ensure jobs for the same domain
+/// (including subdomains) don't run concurrently due to rate limiting.
+pub struct DomainSemaphore {
+    /// Map of root domain -> semaphore (max 1 permit per domain)
+    domains: Mutex<HashMap<String, Arc<Semaphore>>>,
+}
+
+impl DomainSemaphore {
+    /// Create a new domain semaphore.
+    pub fn new() -> Self {
+        Self {
+            domains: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Acquire a permit for the given domain.
+    /// This will block if another job for the same domain is running.
+    pub async fn acquire(&self, url_str: &str) -> Option<DomainPermit> {
+        let root_domain = extract_root_domain(url_str)?;
+        
+        // Get or create the semaphore for this domain
+        let semaphore = {
+            let mut domains = self.domains.lock().await;
+            domains
+                .entry(root_domain.clone())
+                .or_insert_with(|| Arc::new(Semaphore::new(1)))
+                .clone()
+        };
+        
+        tracing::debug!(
+            "Waiting for domain lock: {} (from {})",
+            root_domain,
+            url_str
+        );
+        
+        // Acquire the permit (owned version to avoid lifetime issues)
+        let permit = Arc::clone(&semaphore).acquire_owned().await.ok()?;
+        
+        tracing::info!("Acquired domain lock: {}", root_domain);
+        
+        Some(DomainPermit {
+            permit,
+            domain: root_domain,
+        })
+    }
+}
+
+impl Default for DomainSemaphore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// A permit that holds the domain lock.
+/// When dropped, the lock is released.
+pub struct DomainPermit {
+    permit: tokio::sync::OwnedSemaphorePermit,
+    domain: String,
+}
+
+impl DomainPermit {
+    /// Get the domain this permit is for.
+    pub fn domain(&self) -> &str {
+        &self.domain
+    }
+}
+
+impl Drop for DomainPermit {
+    fn drop(&mut self) {
+        tracing::info!("Released domain lock: {}", self.domain);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn test_domain_semaphore_blocks_same_domain() {
+        let semaphore = Arc::new(DomainSemaphore::new());
+        let semaphore_clone = semaphore.clone();
+        
+        // Acquire lock for example.com
+        let permit1 = semaphore.acquire("https://example.com").await;
+        assert!(permit1.is_some());
+        
+        // Try to acquire again - this should block, so we use a timeout
+        let result = tokio::time::timeout(
+            std::time::Duration::from_millis(50),
+            semaphore_clone.acquire("https://blog.example.com")
+        ).await;
+        
+        // Should timeout because the domain is locked
+        assert!(result.is_err(), "Should have timed out waiting for domain lock");
+        
+        // Drop the permit
+        drop(permit1);
+        
+        // Now we should be able to acquire
+        let permit2 = semaphore.acquire("https://blog.example.com").await;
+        assert!(permit2.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_domain_semaphore_allows_different_domains() {
+        let semaphore = Arc::new(DomainSemaphore::new());
+        
+        // Acquire lock for example.com
+        let permit1 = semaphore.acquire("https://example.com").await;
+        assert!(permit1.is_some());
+        
+        // Should be able to acquire lock for different domain immediately
+        let permit2 = semaphore.acquire("https://different.com").await;
+        assert!(permit2.is_some());
+        
+        // Both permits should be held
+        drop(permit1);
+        drop(permit2);
+    }
+}

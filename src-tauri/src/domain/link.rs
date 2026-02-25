@@ -1,3 +1,4 @@
+use super::url_utils::extract_host;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -54,18 +55,15 @@ impl Link {
             return false;
         };
 
-        if let (Ok(source), Ok(target)) = (Url::parse(source_url), Url::parse(&self.target_url)) {
-            let source_host = source
-                .host_str()
-                .unwrap_or("")
-                .strip_prefix("www.")
-                .unwrap_or(source.host_str().unwrap_or(""));
-            let target_host = target
-                .host_str()
-                .unwrap_or("")
-                .strip_prefix("www.")
-                .unwrap_or(target.host_str().unwrap_or(""));
-            return source_host != target_host || source.port() != target.port();
+        // Use centralized host extraction
+        let source_host = extract_host(source_url);
+        let target_host = extract_host(&self.target_url);
+        
+        if let (Some(source), Some(target)) = (source_host, target_host) {
+            // Also check port for complete comparison
+            let source_port = Url::parse(source_url).ok().and_then(|u| u.port());
+            let target_port = Url::parse(&self.target_url).ok().and_then(|u| u.port());
+            return source != target || source_port != target_port;
         }
 
         !matches!(self.link_type, LinkType::Internal)
@@ -113,13 +111,13 @@ impl NewLink {
             return LinkType::Resource;
         }
 
-        let target_host_raw = target.host_str().unwrap_or("");
-        let base_host_raw = base.host_str().unwrap_or("");
-
-        let target_host = target_host_raw
-            .strip_prefix("www.")
-            .unwrap_or(target_host_raw);
-        let base_host = base_host_raw.strip_prefix("www.").unwrap_or(base_host_raw);
+        // Use centralized host extraction
+        let target_host = extract_host(target_url);
+        let base_host = extract_host(base_url);
+        
+        let (Some(target_host), Some(base_host)) = (target_host, base_host) else {
+            return LinkType::External;
+        };
 
         if target_host == base_host && target.port() == base.port() {
             return LinkType::Internal;

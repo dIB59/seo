@@ -2,6 +2,7 @@ mod analyzer;
 mod canceler;
 mod channel;
 mod crawler;
+mod domain_semaphore;
 mod queue;
 pub mod reporter;
 
@@ -10,6 +11,7 @@ pub use analyzer::{AnalyzerService, PageResult};
 pub use canceler::JobCanceler;
 pub use channel::{JobChannel, JobChannelConfig, JobDispatcher, JobNotifier};
 pub use crawler::{CrawlContext, Crawler};
+pub use domain_semaphore::DomainSemaphore;
 pub use queue::{JobQueue, JobQueueConfig};
 pub use reporter::ProgressReporter;
 
@@ -43,6 +45,7 @@ pub struct JobProcessor {
     analyzer: Arc<AnalyzerService>,
     progress_emitter: Arc<dyn ProgressEmitter>,
     canceler: Arc<JobCanceler>,
+    domain_semaphore: Arc<DomainSemaphore>,
 
     // Repositories
     link_db: Arc<dyn crate::repository::LinkRepository>,
@@ -85,6 +88,7 @@ impl JobProcessor {
             analyzer: Arc::new(analyzer),
             progress_emitter,
             canceler: Arc::new(JobCanceler::new()),
+            domain_semaphore: Arc::new(DomainSemaphore::new()),
             link_db: link_repo,
             worker_config,
         }
@@ -93,6 +97,18 @@ impl JobProcessor {
     /// Get the job queue notifier for signaling new jobs.
     pub fn notifier(&self) -> &JobNotifier {
         self.job_queue.notifier()
+    }
+
+    /// Notify the job processor that a new job is available.
+    /// This dispatches pending jobs to the channel and wakes up workers.
+    pub async fn notify_new_job(&self) {
+        self.job_queue.notify_new_job().await;
+    }
+
+    /// Get the job queue (for testing purposes).
+    #[cfg(test)]
+    pub fn job_queue(&self) -> &Arc<JobQueue> {
+        &self.job_queue
     }
 
     /// Get the analyzer service.
@@ -156,6 +172,7 @@ impl JobProcessor {
         let progress_emitter = self.progress_emitter.clone();
         let canceler = self.canceler.clone();
         let link_db = self.link_db.clone();
+        let domain_semaphore = self.domain_semaphore.clone();
 
         tokio::spawn(async move {
             tracing::info!("Worker {} started", worker_id);
@@ -171,6 +188,19 @@ impl JobProcessor {
                             job.url
                         );
 
+                        // Acquire domain lock before processing
+                        // This ensures jobs for the same domain don't run concurrently
+                        let domain_permit = domain_semaphore.acquire(&job.url).await;
+                        
+                        if domain_permit.is_none() {
+                            tracing::error!(
+                                "Worker {}: Failed to acquire domain lock for {}",
+                                worker_id,
+                                job.url
+                            );
+                            continue;
+                        }
+
                         let processor = WorkerProcessor {
                             job_queue: &job_queue,
                             crawler: &crawler,
@@ -183,6 +213,8 @@ impl JobProcessor {
                         if let Err(e) = processor.process_job(job).await {
                             tracing::error!("Worker {}: Job failed: {}", worker_id, e);
                         }
+                        
+                        // Domain lock is released when domain_permit is dropped
                     }
                     None => {
                         tracing::info!("Worker {}: Channel closed, shutting down", worker_id);
@@ -203,7 +235,12 @@ impl JobProcessor {
     }
 
     /// Process a single job (for backward compatibility and direct invocation).
+    /// Note: This method acquires the domain lock to respect rate limiting.
     pub async fn process_job(&self, job: Job) -> Result<String> {
+        // Acquire domain lock before processing
+        let _domain_permit = self.domain_semaphore.acquire(&job.url).await
+            .ok_or_else(|| anyhow::anyhow!("Failed to acquire domain lock for {}", job.url))?;
+        
         let processor = WorkerProcessor {
             job_queue: &self.job_queue,
             crawler: &self.crawler,

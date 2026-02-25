@@ -10,6 +10,7 @@ pub mod tier_version;
 pub mod progress;
 pub mod resource;
 pub mod settings;
+pub mod url_utils;
 
 // Re-export everything for compatibility with existing imports
 pub use ai::*;
@@ -24,3 +25,4 @@ pub use tier_version::*;
 pub use progress::*;
 pub use resource::*;
 pub use settings::*;
+pub use url_utils::*;
