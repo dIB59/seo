@@ -1,7 +1,7 @@
 use crate::domain::{JobSettings, LighthouseData, NewHeading, NewImage, NewIssue, NewLink, Page};
 use crate::extractor::page_extractor::{ExtractedHeading, ExtractedImage, PageExtractor};
 use crate::repository::{IssueRepository as IssueRepoTrait, PageRepository as PageRepoTrait};
-use crate::service::auditor::{Auditor, DeepAuditor, LightAuditor};
+use crate::service::auditor::{Auditor, AuditResult, DeepAuditor, LightAuditor};
 use crate::service::spider::SpiderAgent;
 use anyhow::Result;
 use scraper::Html;
@@ -14,10 +14,127 @@ pub struct AnalyzerService {
     deep_auditor: Arc<DeepAuditor>,
 }
 
-// No longer leaking PageEdge, we use NewLink from domain models
 pub struct PageResult {
     pub issues: Vec<NewIssue>,
     pub links: Vec<NewLink>,
+}
+
+struct ExtractedLinkEdge {
+    href: String,
+    initial_status: i32,
+    anchor_text: Option<String>,
+}
+
+struct ExtractedPageData {
+    page: Page,
+    internal_urls: Vec<String>,
+    link_edges: Vec<ExtractedLinkEdge>,
+    headings: Vec<ExtractedHeading>,
+    images: Vec<ExtractedImage>,
+    final_url: String,
+}
+
+/// Data to persist for a page after extraction.
+struct PagePersistData<'a> {
+    page_id: &'a str,
+    url: &'a str,
+    issues: &'a [NewIssue],
+    lighthouse: &'a LighthouseData,
+    headings: &'a [NewHeading],
+    images: &'a [NewImage],
+}
+
+fn extract_page_data(
+    html: &str,
+    url: &str,
+    job_id: &str,
+    depth: i64,
+    audit_result: &AuditResult,
+) -> ExtractedPageData {
+    let parsed_html = Html::parse_document(html);
+    let final_url = audit_result.url.clone();
+
+    let title = PageExtractor::extract_title(&parsed_html);
+    let meta_description = PageExtractor::extract_meta_description(&parsed_html);
+    let canonical_url = PageExtractor::extract_canonical(&parsed_html);
+    let word_count = PageExtractor::extract_word_count(&parsed_html);
+    let has_viewport = PageExtractor::extract_has_viewport(&parsed_html);
+    let has_structured_data = PageExtractor::extract_has_structured_data(&parsed_html);
+
+    let (internal_urls, _external_urls, all_links) =
+        PageExtractor::extract_links(&parsed_html, &final_url);
+
+    let headings = PageExtractor::extract_headings(&parsed_html);
+    let images = PageExtractor::extract_images(&parsed_html, url);
+
+    let page = Page {
+        id: uuid::Uuid::new_v4().to_string(),
+        job_id: job_id.to_string(),
+        url: url.to_string(),
+        depth,
+        status_code: Some(audit_result.status_code as i64),
+        content_type: None,
+        title,
+        meta_description,
+        canonical_url,
+        robots_meta: None,
+        word_count: Some(word_count),
+        load_time_ms: Some(audit_result.load_time_ms as i64),
+        response_size_bytes: Some(audit_result.content_size as i64),
+        has_viewport,
+        has_structured_data,
+        crawled_at: chrono::Utc::now(),
+    };
+
+    let link_edges: Vec<ExtractedLinkEdge> = all_links
+        .into_iter()
+        .map(|link| {
+            use crate::domain::LinkType;
+            ExtractedLinkEdge {
+                href: link.href,
+                initial_status: if matches!(link.link_type, LinkType::Internal | LinkType::Subdomain)
+                {
+                    200i32
+                } else {
+                    0i32
+                },
+                anchor_text: link.text,
+            }
+        })
+        .collect();
+
+    ExtractedPageData {
+        page,
+        internal_urls,
+        link_edges,
+        headings,
+        images,
+        final_url,
+    }
+}
+
+async fn persist_page_data(
+    page_db: &dyn PageRepoTrait,
+    issue_db: &dyn IssueRepoTrait,
+    data: &PagePersistData<'_>,
+) -> Result<()> {
+    if !data.issues.is_empty() {
+        issue_db.insert_batch(data.issues).await?;
+    }
+
+    if let Err(e) = page_db.insert_lighthouse(data.lighthouse).await {
+        tracing::warn!("Failed to store Lighthouse data for {}: {}", data.url, e);
+    }
+
+    if let Err(e) = page_db.replace_headings(data.page_id, data.headings).await {
+        tracing::warn!("Failed to store headings for {}: {}", data.url, e);
+    }
+
+    if let Err(e) = page_db.replace_images(data.page_id, data.images).await {
+        tracing::warn!("Failed to store images for {}: {}", data.url, e);
+    }
+
+    Ok(())
 }
 
 impl AnalyzerService {
@@ -64,100 +181,25 @@ impl AnalyzerService {
         depth: i64,
         auditor: &Arc<dyn Auditor + Send + Sync>,
     ) -> Result<(PageResult, Vec<String>)> {
-        // Fetch and analyze page using the auditor
         let audit_result = auditor.analyze(url).await?;
-        let final_url = audit_result.url.clone();
 
-        if final_url != url {
+        if audit_result.url != url {
             tracing::info!(
                 "[ANALYZER] Target redirected during analysis: {} -> {}",
                 url,
-                final_url
+                audit_result.url
             );
         }
 
-        // Parse HTML and extract all data BEFORE any awaits
-        let (page, new_urls, edges, headings, images) = {
-            let html = Html::parse_document(&audit_result.html);
+        let extracted = extract_page_data(&audit_result.html, url, job_id, depth, &audit_result);
 
-            // Extract basic page data
-            let title = PageExtractor::extract_title(&html);
-            let meta_description = PageExtractor::extract_meta_description(&html);
-            let canonical_url = PageExtractor::extract_canonical(&html);
-            let word_count = PageExtractor::extract_word_count(&html);
+        let page_id = self.page_db.insert(&extracted.page).await?;
 
-            // Extract SEO flags
-            let has_viewport = PageExtractor::extract_has_viewport(&html);
-            let has_structured_data = PageExtractor::extract_has_structured_data(&html);
-
-            // Extract links using final url as base
-            let (internal_links, _external_links, all_links) =
-                PageExtractor::extract_links(&html, &final_url);
-
-            // Extract headings and images
-            let headings: Vec<ExtractedHeading> = PageExtractor::extract_headings(&html);
-            let images: Vec<ExtractedImage> = PageExtractor::extract_images(&html, url);
-
-            // Create Page
-            let page = Page {
-                id: uuid::Uuid::new_v4().to_string(),
-                job_id: job_id.to_string(),
-                url: url.to_string(),
-                depth,
-                status_code: Some(audit_result.status_code as i64),
-                content_type: None,
-                title: title.clone(),
-                meta_description: meta_description.clone(),
-                canonical_url,
-                robots_meta: None,
-                word_count: Some(word_count),
-                load_time_ms: Some(audit_result.load_time_ms as i64),
-                response_size_bytes: Some(audit_result.content_size as i64),
-                has_viewport,
-                has_structured_data,
-                crawled_at: chrono::Utc::now(),
-            };
-
-            // Build edges for link tracking (include link text as tuple - page_id is not available yet)
-            let edges: Vec<(String, i32, Option<String>)> = all_links
-                .into_iter()
-                .map(|link| {
-                    (
-                        link.href,
-                        if matches!(
-                            link.link_type,
-                            crate::domain::LinkType::Internal | crate::domain::LinkType::Subdomain
-                        ) {
-                            200i32
-                        } else {
-                            0i32
-                        },
-                        link.text,
-                    )
-                })
-                .collect();
-
-            (page, internal_links, edges, headings, images)
-        };
-
-        // Insert page
-        let page_id = self.page_db.insert(&page).await?;
-
-        // Generate and insert issues using the rich domain model
-        let issues = page.audit();
-        if !issues.is_empty() {
-            self.issue_db.insert_batch(&issues).await?;
-        }
-
-        // Build Lighthouse data using the domain factory
+        let issues = extracted.page.audit();
         let lighthouse = LighthouseData::from_audit_scores(&page_id, &audit_result.scores);
 
-        if let Err(e) = self.page_db.insert_lighthouse(&lighthouse).await {
-            tracing::warn!("Failed to store Lighthouse data for {}: {}", url, e);
-        }
-
-        // Store headings and images
-        let heading_rows: Vec<NewHeading> = headings
+        let heading_rows: Vec<NewHeading> = extracted
+            .headings
             .into_iter()
             .map(|h| NewHeading {
                 page_id: page_id.clone(),
@@ -167,11 +209,8 @@ impl AnalyzerService {
             })
             .collect();
 
-        if let Err(e) = self.page_db.replace_headings(&page_id, &heading_rows).await {
-            tracing::warn!("Failed to store headings for {}: {}", url, e);
-        }
-
-        let image_rows: Vec<NewImage> = images
+        let image_rows: Vec<NewImage> = extracted
+            .images
             .into_iter()
             .map(|img| NewImage {
                 page_id: page_id.clone(),
@@ -184,22 +223,31 @@ impl AnalyzerService {
             })
             .collect();
 
-        if let Err(e) = self.page_db.replace_images(&page_id, &image_rows).await {
-            tracing::warn!("Failed to store images for {}: {}", url, e);
-        }
+        persist_page_data(
+            &*self.page_db,
+            &*self.issue_db,
+            &PagePersistData {
+                page_id: &page_id,
+                url,
+                issues: &issues,
+                lighthouse: &lighthouse,
+                headings: &heading_rows,
+                images: &image_rows,
+            },
+        )
+        .await?;
 
-        // Build final links with page_id and job_id
-        // We Use NewLink::create to handle internal/external logic
-        let analysis_links: Vec<NewLink> = edges
+        let analysis_links: Vec<NewLink> = extracted
+            .link_edges
             .into_iter()
-            .map(|(href, status_code, text)| {
+            .map(|edge| {
                 NewLink::create(
                     job_id,
                     &page_id,
-                    &href,
-                    text,
-                    Some(status_code as i64),
-                    &final_url,
+                    &edge.href,
+                    edge.anchor_text,
+                    Some(edge.initial_status as i64),
+                    &extracted.final_url,
                 )
             })
             .collect();
@@ -209,7 +257,7 @@ impl AnalyzerService {
                 issues,
                 links: analysis_links,
             },
-            new_urls,
+            extracted.internal_urls,
         ))
     }
 }

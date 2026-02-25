@@ -118,6 +118,17 @@ pub enum JobStatus {
     Cancelled,
 }
 
+#[derive(Debug, Clone)]
+pub struct ParseJobStatusError(String);
+
+impl std::fmt::Display for ParseJobStatusError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Invalid job status: '{}'", self.0)
+    }
+}
+
+impl std::error::Error for ParseJobStatusError {}
+
 impl JobStatus {
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -137,19 +148,32 @@ impl JobStatus {
     pub fn is_active(&self) -> bool {
         matches!(self, Self::Discovery | Self::Processing)
     }
+
+    pub fn valid_transitions(&self) -> &'static [JobStatus] {
+        match self {
+            Self::Pending => &[Self::Discovery, Self::Cancelled],
+            Self::Discovery => &[Self::Processing, Self::Failed, Self::Cancelled],
+            Self::Processing => &[Self::Completed, Self::Failed, Self::Cancelled],
+            Self::Completed | Self::Failed | Self::Cancelled => &[],
+        }
+    }
+
+    pub fn can_transition_to(&self, next: &Self) -> bool {
+        self.valid_transitions().contains(next)
+    }
 }
 
 impl std::str::FromStr for JobStatus {
-    type Err = ();
+    type Err = ParseJobStatusError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
+        match s.to_lowercase().as_str() {
             "pending" | "queued" => Ok(Self::Pending),
             "discovery" | "discovering" => Ok(Self::Discovery),
-            "processing" | "analyzing" | "running" => Ok(Self::Processing), // Map legacy "running" to Processing
+            "processing" | "analyzing" | "running" => Ok(Self::Processing),
             "completed" => Ok(Self::Completed),
             "failed" | "error" => Ok(Self::Failed),
             "cancelled" => Ok(Self::Cancelled),
-            _ => Err(()),
+            other => Err(ParseJobStatusError(other.to_string())),
         }
     }
 }

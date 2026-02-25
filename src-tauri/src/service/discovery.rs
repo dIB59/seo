@@ -113,11 +113,7 @@ impl PageDiscovery {
                 let link_type =
                     crate::domain::link::NewLink::classify(link.as_str(), start_url_str);
 
-                let should_follow = match link_type {
-                    crate::domain::LinkType::Internal => true,
-                    crate::domain::LinkType::Subdomain => include_subdomains,
-                    _ => false,
-                };
+                let should_follow = link_type.should_follow(include_subdomains);
 
                 if should_follow && !visited.contains(&link) && !to_visit.contains(&link) {
                     to_visit.push(link);

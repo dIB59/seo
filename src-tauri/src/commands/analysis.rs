@@ -193,16 +193,33 @@ pub struct CompleteAnalysisResponse {
     pub summary: AnalysisSummary,
 }
 
-trait PushToMap<K, V> {
-    fn push_to(&mut self, key: K, value: V);
+impl From<crate::domain::Link> for LinkDetail {
+    fn from(link: crate::domain::Link) -> Self {
+        Self {
+            url: link.target_url,
+            text: link.link_text.unwrap_or_default(),
+            link_type: link.link_type,
+            is_broken: link.status_code.is_some_and(|c| c >= 400),
+            status_code: link.status_code,
+        }
+    }
 }
 
-impl<K, V> PushToMap<K, V> for HashMap<K, Vec<V>>
-where
-    K: std::hash::Hash + Eq,
-{
-    fn push_to(&mut self, key: K, value: V) {
-        self.entry(key).or_default().push(value);
+impl From<crate::domain::Heading> for HeadingElement {
+    fn from(h: crate::domain::Heading) -> Self {
+        Self {
+            tag: format!("h{}", h.level),
+            text: h.text,
+        }
+    }
+}
+
+impl From<crate::domain::Image> for ImageElement {
+    fn from(img: crate::domain::Image) -> Self {
+        Self {
+            src: img.src,
+            alt: img.alt,
+        }
     }
 }
 
@@ -290,36 +307,27 @@ impl From<crate::domain::CompleteJobResult> for CompleteAnalysisResponse {
         let mut images_by_page: HashMap<String, Vec<ImageElement>> = HashMap::new();
 
         for link in links {
-            links_by_page.push_to(
-                link.source_page_id,
-                LinkDetail {
-                    url: link.target_url,
-                    text: link.link_text.unwrap_or_default(),
-                    link_type: link.link_type,
-                    is_broken: link.status_code.is_some_and(|c| c >= 400),
-                    status_code: link.status_code,
-                },
-            );
+            let page_id = link.source_page_id.clone();
+            links_by_page
+                .entry(page_id)
+                .or_default()
+                .push(link.into());
         }
 
         for heading in headings {
-            headings_by_page.push_to(
-                heading.page_id,
-                HeadingElement {
-                    tag: format!("h{}", heading.level),
-                    text: heading.text,
-                },
-            );
+            let page_id = heading.page_id.clone();
+            headings_by_page
+                .entry(page_id)
+                .or_default()
+                .push(heading.into());
         }
 
         for image in images {
-            images_by_page.push_to(
-                image.page_id,
-                ImageElement {
-                    src: image.src,
-                    alt: image.alt,
-                },
-            );
+            let page_id = image.page_id.clone();
+            images_by_page
+                .entry(page_id)
+                .or_default()
+                .push(image.into());
         }
 
         let lighthouse_by_page: HashMap<String, LighthouseData> = lighthouse
@@ -343,18 +351,18 @@ impl From<crate::domain::CompleteJobResult> for CompleteAnalysisResponse {
 
         let assembled_issues: Vec<SeoIssue> = issues
             .into_iter()
-            .map(|issue| SeoIssue {
-                page_id: issue.page_id.clone().unwrap_or_default(),
-                severity: issue.severity,
-                title: issue.issue_type,
-                description: issue.message,
-                page_url: page_url_by_id
-                    .get(&issue.page_id.clone().unwrap_or_default())
-                    .cloned()
-                    .unwrap_or_default(),
-                element: issue.details.clone(),
-                recommendation: issue.details.unwrap_or_default(),
-                line_number: None,
+            .map(|issue| {
+                let page_id = issue.page_id.clone().unwrap_or_default();
+                SeoIssue {
+                    page_id: page_id.clone(),
+                    severity: issue.severity,
+                    title: issue.issue_type,
+                    description: issue.message,
+                    page_url: page_url_by_id.get(&page_id).cloned().unwrap_or_default(),
+                    element: issue.details.clone(),
+                    recommendation: issue.details.unwrap_or_default(),
+                    line_number: None,
+                }
             })
             .collect();
 

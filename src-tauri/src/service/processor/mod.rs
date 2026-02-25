@@ -148,8 +148,8 @@ impl JobProcessor {
         Ok(())
     }
 
-    fn spawn_worker(&self, worker_id: usize) -> tokio::task::JoinHandle<()> {
-        let ctx = WorkerContext {
+    fn worker_context(&self) -> WorkerContext {
+        WorkerContext {
             job_queue: self.job_queue.clone(),
             crawler: self.crawler.clone(),
             analyzer: self.analyzer.clone(),
@@ -158,7 +158,11 @@ impl JobProcessor {
             link_db: self.link_db.clone(),
             domain_semaphore: self.domain_semaphore.clone(),
             page_queue_manager: self.page_queue_manager.clone(),
-        };
+        }
+    }
+
+    fn spawn_worker(&self, worker_id: usize) -> tokio::task::JoinHandle<()> {
+        let ctx = self.worker_context();
 
         tokio::spawn(async move {
             tracing::info!("Worker {} started", worker_id);
@@ -219,16 +223,7 @@ impl JobProcessor {
             .await
             .ok_or_else(|| anyhow::anyhow!("Failed to acquire domain lock for {}", job.url))?;
 
-        let ctx = WorkerContext {
-            job_queue: self.job_queue.clone(),
-            crawler: self.crawler.clone(),
-            analyzer: self.analyzer.clone(),
-            progress_emitter: self.progress_emitter.clone(),
-            canceler: self.canceler.clone(),
-            link_db: self.link_db.clone(),
-            domain_semaphore: self.domain_semaphore.clone(),
-            page_queue_manager: self.page_queue_manager.clone(),
-        };
+        let ctx = self.worker_context();
         ctx.process_job(job).await
     }
 }

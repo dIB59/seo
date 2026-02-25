@@ -20,6 +20,15 @@ impl LinkType {
             Self::Resource => "resource",
         }
     }
+
+    pub fn should_follow(&self, include_subdomains: bool) -> bool {
+        match self {
+            Self::Internal => true,
+            Self::Subdomain => include_subdomains,
+            Self::External => false,
+            Self::Resource => false,
+        }
+    }
 }
 
 impl std::str::FromStr for LinkType {
@@ -58,7 +67,7 @@ impl Link {
         // Use centralized host extraction
         let source_host = extract_host(source_url);
         let target_host = extract_host(&self.target_url);
-        
+
         if let (Some(source), Some(target)) = (source_host, target_host) {
             // Also check port for complete comparison
             let source_port = Url::parse(source_url).ok().and_then(|u| u.port());
@@ -114,7 +123,7 @@ impl NewLink {
         // Use centralized host extraction
         let target_host = extract_host(target_url);
         let base_host = extract_host(base_url);
-        
+
         let (Some(target_host), Some(base_host)) = (target_host, base_host) else {
             return LinkType::External;
         };
