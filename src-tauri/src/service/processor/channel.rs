@@ -104,20 +104,16 @@ pub struct JobDispatcher {
     channel: JobChannel,
     /// Notifier for waking workers.
     notifier: JobNotifier,
-    /// Notification receiver (kept for future use, e.g., graceful shutdown).
-    #[allow(dead_code)]
-    notification_rx: Option<mpsc::Receiver<()>>,
 }
 
 impl JobDispatcher {
     /// Create a new job dispatcher with the specified configuration.
     pub fn new(config: JobChannelConfig) -> Self {
         let channel = JobChannel::new(config);
-        let (notifier, notification_rx) = JobNotifier::new();
+        let notifier = JobNotifier::new().0;
         Self {
             channel,
             notifier,
-            notification_rx: Some(notification_rx),
         }
     }
 

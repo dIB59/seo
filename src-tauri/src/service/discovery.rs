@@ -1,10 +1,10 @@
 use anyhow::Result;
 use scraper::{Html, Selector};
 use std::collections::HashSet;
-use std::sync::atomic::AtomicBool;
 use std::sync::OnceLock;
 use std::time::Duration;
 use tokio::time::sleep;
+use tokio_util::sync::CancellationToken;
 use url::Url;
 
 use crate::domain::ResourceStatus;
@@ -36,7 +36,7 @@ impl PageDiscovery {
         max_pages: i64,
         delay_ms: i64,
         include_subdomains: bool,
-        cancel_flag: &AtomicBool,
+        cancel_token: &CancellationToken,
         on_discovered: impl Fn(usize) + Send + Sync,
     ) -> Result<Vec<String>> {
         let start_url = Url::parse(start_url_str)?;
@@ -61,7 +61,7 @@ impl PageDiscovery {
         );
 
         while let Some(url) = to_visit.pop() {
-            if cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
+            if cancel_token.is_cancelled() {
                 tracing::warn!(
                     "[DISCOVERY] Discovery cancelled by user at {} pages",
                     visited.len()
@@ -131,7 +131,7 @@ impl PageDiscovery {
             "[DISCOVERY] Discovery complete - found {} pages",
             visited.len()
         );
-        Ok(visited.into_iter().map(|u| u.to_string()).collect())
+        Ok(visited.into_iter().map(|u: Url| u.to_string()).collect())
     }
 
     pub fn extract_links(html: &str, base_url: &Url) -> Vec<String> {
@@ -171,7 +171,7 @@ impl ResourceChecker {
     }
 
     pub fn check_ssl_certificate(&self, url_str: &str) -> bool {
-        let has_ssl = url_str.starts_with("https"); // Simple check or parse
+        let has_ssl = url_str.starts_with("https");
         tracing::debug!("[RESOURCE] SSL check for {}: {}", url_str, has_ssl);
         has_ssl
     }

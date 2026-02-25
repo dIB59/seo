@@ -1,8 +1,8 @@
 use crate::domain::extract_root_domain;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::{Mutex, Semaphore};
+use tokio_util::sync::CancellationToken;
 
 /// Manages per-domain semaphores to ensure jobs for the same domain
 /// (including subdomains) don't run concurrently due to rate limiting.
@@ -27,19 +27,16 @@ impl DomainSemaphore {
         self.acquire_with_cancel(url_str, None).await
     }
 
-    /// Acquire a permit for the given domain with a cancel flag.
-    /// The cancel flag will be checked periodically to allow early exit
-    /// if the job is cancelled while waiting for the domain lock.
-    /// This is useful when a job might be cancelled while waiting for
-    /// the domain semaphore (e.g., when multiple jobs target the same domain).
+    /// Acquire a permit for the given domain with a cancel token.
+    /// The cancel token allows immediate cancellation while waiting for
+    /// the domain semaphore using tokio::select!.
     pub async fn acquire_with_cancel(
         &self,
         url_str: &str,
-        cancel_flag: Option<&Arc<AtomicBool>>,
+        cancel_token: Option<&CancellationToken>,
     ) -> Option<DomainPermit> {
         let root_domain = extract_root_domain(url_str)?;
         
-        // Get or create the semaphore for this domain
         let semaphore = {
             let mut domains = self.domains.lock().await;
             domains
@@ -54,49 +51,33 @@ impl DomainSemaphore {
             url_str
         );
         
-        // Check cancel flag before acquiring (fast path)
-        if let Some(flag) = cancel_flag {
-            if flag.load(Ordering::Relaxed) {
+        if let Some(token) = cancel_token {
+            if token.is_cancelled() {
                 tracing::debug!("Job cancelled before acquiring domain lock");
                 return None;
             }
         }
         
-        // If we have a cancel flag, use a loop to periodically check it
-        // Otherwise, just acquire directly
-        if let Some(flag) = cancel_flag {
-            loop {
-                match Arc::clone(&semaphore).try_acquire_owned() {
-                    Ok(permit) => {
-                        tracing::info!("Acquired domain lock: {}", root_domain);
-                        return Some(DomainPermit {
-                            permit,
-                            domain: root_domain,
-                        });
-                    }
-                    Err(_) => {
-                        // Semaphore is full, wait a bit and check cancel flag
-                        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-                        
-                        // Check cancel flag
-                        if flag.load(Ordering::Relaxed) {
-                            tracing::debug!("Job cancelled while waiting for domain lock");
-                            return None;
-                        }
-                    }
+        let permit = if let Some(token) = cancel_token {
+            tokio::select! {
+                permit = Arc::clone(&semaphore).acquire_owned() => {
+                    permit.ok()?
+                }
+                _ = token.cancelled() => {
+                    tracing::debug!("Job cancelled while waiting for domain lock");
+                    return None;
                 }
             }
         } else {
-            // No cancel flag, acquire directly
-            let permit = Arc::clone(&semaphore).acquire_owned().await.ok()?;
-            
-            tracing::info!("Acquired domain lock: {}", root_domain);
-            
-            Some(DomainPermit {
-                permit,
-                domain: root_domain,
-            })
-        }
+            Arc::clone(&semaphore).acquire_owned().await.ok()?
+        };
+        
+        tracing::info!("Acquired domain lock: {}", root_domain);
+        
+        Some(DomainPermit {
+            permit,
+            domain: root_domain,
+        })
     }
 }
 
@@ -183,38 +164,33 @@ mod tests {
     /// 3. Job B is cancelled while waiting
     /// 4. Job B should detect the cancellation and exit immediately
     ///
-    /// The fix ensures we check the cancel flag BEFORE acquiring the domain semaphore,
-    /// so cancelled jobs don't wait unnecessarily.
+    /// The fix ensures we use tokio::select! with CancellationToken for immediate cancellation.
     #[tokio::test]
     async fn test_cancel_while_waiting_for_domain_semaphore() {
-        use std::sync::atomic::{AtomicBool, Ordering};
-        use std::sync::Arc;
-
         let semaphore = Arc::new(DomainSemaphore::new());
-        let cancel_flag = Arc::new(AtomicBool::new(false));
+        let cancel_token = CancellationToken::new();
         
         // Acquire lock for example.com (simulates Job A running)
         let permit1 = semaphore.acquire("https://example.com").await;
         assert!(permit1.is_some(), "First job should acquire domain lock");
         
-        let cancel_flag_clone = cancel_flag.clone();
+        let cancel_token_clone = cancel_token.clone();
         let semaphore_clone = semaphore.clone();
         
         // Spawn a task that tries to acquire the same domain (simulates Job B waiting)
-        // Use acquire_with_cancel to enable cancellation checking
         let acquire_task = tokio::spawn(async move {
-            semaphore_clone.acquire_with_cancel("https://example.com", Some(&cancel_flag_clone)).await
+            semaphore_clone.acquire_with_cancel("https://example.com", Some(&cancel_token_clone)).await
         });
         
         // Give the task time to start waiting
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
         
-        // Cancel the second job (set the flag)
-        cancel_flag.store(true, Ordering::Relaxed);
+        // Cancel the second job
+        cancel_token.cancel();
         
-        // The task should exit immediately after seeing the cancel flag
+        // The task should exit immediately after seeing the cancel token
         let result = tokio::time::timeout(
-            std::time::Duration::from_millis(200),
+            std::time::Duration::from_millis(100),
             acquire_task
         ).await;
         

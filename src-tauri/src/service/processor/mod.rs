@@ -20,7 +20,6 @@ pub use reporter::ProgressReporter;
 use crate::domain::{Job, JobStatus, NewLink};
 use crate::service::processor::reporter::{ProgressEmitter, ProgressEvent};
 use anyhow::Result;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -177,11 +176,11 @@ impl JobProcessor {
                             job.url
                         );
 
-                        let cancel_flag = ctx.canceler.get_cancel_flag(&job.id);
+                        let cancel_token = ctx.canceler.get_token(&job.id);
 
                         let domain_permit = ctx
                             .domain_semaphore
-                            .acquire_with_cancel(&job.url, Some(&cancel_flag))
+                            .acquire_with_cancel(&job.url, Some(&cancel_token))
                             .await;
 
                         if domain_permit.is_none() {
@@ -210,16 +209,16 @@ impl JobProcessor {
 
     pub async fn cancel(&self, job_id: &str) -> Result<()> {
         tracing::info!("Cancelling job {}", job_id);
-        self.canceler.set_cancelled(job_id);
+        self.canceler.cancel(job_id);
         self.job_queue.mark_cancelled(job_id).await
     }
 
     pub async fn process_job(&self, job: Job) -> Result<String> {
-        let cancel_flag = self.canceler.get_cancel_flag(&job.id);
+        let cancel_token = self.canceler.get_token(&job.id);
 
         let _domain_permit = self
             .domain_semaphore
-            .acquire_with_cancel(&job.url, Some(&cancel_flag))
+            .acquire_with_cancel(&job.url, Some(&cancel_token))
             .await
             .ok_or_else(|| anyhow::anyhow!("Failed to acquire domain lock for {}", job.url))?;
 
@@ -242,7 +241,7 @@ struct WorkerContext {
 impl WorkerContext {
     async fn process_job(&self, mut job: Job) -> Result<String> {
         let timer = JobTimer::start(&job.id);
-        let cancel_flag = self.canceler.get_cancel_flag(&job.id);
+        let cancel_token = self.canceler.get_token(&job.id);
 
         if self.canceler.is_cancelled(&job.id) {
             tracing::warn!("Job {} cancelled before crawl", job.id);
@@ -262,7 +261,7 @@ impl WorkerContext {
             job_id: job.id.clone(),
             settings: job.settings.clone(),
             start_url: job.url.clone(),
-            cancel_flag: cancel_flag.clone(),
+            cancel_token: cancel_token.clone(),
         };
 
         let discovered_urls = self
@@ -299,7 +298,7 @@ impl WorkerContext {
         let mut was_cancelled = false;
 
         while let Some(page_item) = self.page_queue_manager.claim_next_page(&job.id).await? {
-            if cancel_flag.load(Ordering::Relaxed) {
+            if cancel_token.is_cancelled() {
                 tracing::info!("Job {} cancelled during analysis", job.id);
                 self.page_queue_manager
                     .mark_failed(&page_item.id, "Job cancelled")
