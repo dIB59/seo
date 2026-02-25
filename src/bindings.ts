@@ -218,6 +218,11 @@ async getMachineId() : Promise<Result<string, CommandError>> {
 /** user-defined events **/
 
 
+export const events = __makeEvents__<{
+progressEvent: ProgressEvent
+}>({
+progressEvent: "progress-event"
+})
 
 /** user-defined constants **/
 
@@ -276,6 +281,7 @@ export type LinkType = "internal" | "subdomain" | "external" | "resource"
 export type PageAnalysisData = { analysis_id: string; url: string; title: string | null; meta_description: string | null; meta_keywords: string | null; canonical_url: string | null; word_count: number; image_count: number; images_without_alt: number; internal_links: number; external_links: number; load_time: number; status_code: number | null; content_size: number; mobile_friendly: boolean; has_structured_data: boolean; lighthouse_performance: number | null; lighthouse_accessibility: number | null; lighthouse_best_practices: number | null; lighthouse_seo: number | null; lighthouse_seo_audits: JsonValue | null; lighthouse_performance_metrics: JsonValue | null; images: ImageElement[]; detailed_links: LinkDetail[]; headings: HeadingElement[] }
 export type PaginatedJobsResponse = { items: AnalysisProgress[]; total: number }
 export type Policy = { tier: LicenseTier; max_pages: number; enabled_features: Feature[] }
+export type ProgressEvent = { event: "analysis"; job_id: string; progress: number; pages_analyzed: number; total_pages: number } | { event: "discovery"; job_id: string; count: number; total_pages: number }
 /**
  * SEO issue (frontend-compatible format).
  */

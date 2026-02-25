@@ -196,9 +196,16 @@ impl JobProcessor {
                             job.url
                         );
 
+                        // Get the cancel flag early so we can check cancellation
+                        // while waiting for the domain lock
+                        let cancel_flag = canceler.get_cancel_flag(&job.id);
+
                         // Acquire domain lock before processing
                         // This ensures jobs for the same domain don't run concurrently
-                        let domain_permit = domain_semaphore.acquire(&job.url).await;
+                        // Pass the cancel flag so we can detect cancellation while waiting
+                        let domain_permit = domain_semaphore
+                            .acquire_with_cancel(&job.url, Some(&cancel_flag))
+                            .await;
                         
                         if domain_permit.is_none() {
                             tracing::error!(
@@ -246,8 +253,15 @@ impl JobProcessor {
     /// Process a single job (for backward compatibility and direct invocation).
     /// Note: This method acquires the domain lock to respect rate limiting.
     pub async fn process_job(&self, job: Job) -> Result<String> {
+        // Get the cancel flag early so we can check cancellation
+        // while waiting for the domain lock
+        let cancel_flag = self.canceler.get_cancel_flag(&job.id);
+        
         // Acquire domain lock before processing
-        let _domain_permit = self.domain_semaphore.acquire(&job.url).await
+        // Pass the cancel flag so we can detect cancellation while waiting
+        let _domain_permit = self.domain_semaphore
+            .acquire_with_cancel(&job.url, Some(&cancel_flag))
+            .await
             .ok_or_else(|| anyhow::anyhow!("Failed to acquire domain lock for {}", job.url))?;
         
         let processor = WorkerProcessor {

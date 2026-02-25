@@ -135,6 +135,29 @@ mod tests {
     }
 
     #[test]
+    fn test_cancel_flag_before_domain_semaphore_acquire() {
+        // Regression test: cancellation should work when job is waiting for domain semaphore
+        // This simulates the scenario where:
+        // 1. Job A with url example.com is running
+        // 2. Job B with url example.com is waiting for domain semaphore
+        // 3. Job B gets cancelled while waiting
+        // 4. Job B should exit immediately without acquiring the semaphore
+        let canceler = JobCanceler::new();
+        let job_id = "test-job-domain-wait";
+
+        // Get the cancel flag (simulates job starting and getting flag)
+        let cancel_flag = canceler.get_cancel_flag(job_id);
+        assert!(!cancel_flag.load(Ordering::Relaxed), "Flag should be false initially");
+
+        // Cancel the job (simulates user cancelling while waiting for domain lock)
+        canceler.set_cancelled(job_id);
+
+        // Now check if cancelled - should be true even without acquiring any semaphore
+        assert!(canceler.is_cancelled(job_id), "is_cancelled should return true immediately");
+        assert!(cancel_flag.load(Ordering::Relaxed), "Flag should be true after cancellation");
+    }
+
+    #[test]
     fn test_flag_shared_reference() {
         // Test that the Arc<AtomicBool> is shared correctly
         let canceler = JobCanceler::new();
