@@ -13,36 +13,27 @@ use crate::{
 use std::sync::{Arc, RwLock};
 use tauri::AppHandle;
 
-/// Complete dependency graph for the application
+/// Complete dependency graph for the application.
 pub struct AppState {
-    // Spiders for web crawling
     pub standard_spider: Arc<dyn SpiderAgent>,
     pub heavy_spider: Arc<dyn SpiderAgent>,
 
-    // Background services (not exposed to commands, but kept alive via AppState)
+    /// Kept alive via AppState; not exposed to commands directly.
     pub job_processor: Arc<JobProcessor>,
 
-    // Licensing and Permissions
     pub permissions: RwLock<Policy>,
-    /// Context-based licensing service
     pub licensing_context: Arc<dyn LicensingAgent>,
-    /// Context-based analysis service
     pub analysis_context: AnalysisService,
-    /// Context-based AI service
     pub ai_context: AiService,
 }
 
 impl AppState {
-    /// Build entire dependency graph explicitly
     pub(crate) async fn new(app_handle: AppHandle) -> Result<Self, Box<dyn std::error::Error>> {
-        // 1. Initialize database
         let pool = crate::db::init_db(&app_handle).await?;
 
-        // 2. Build spiders (foundation for services)
         let standard_spider = Spider::new_agent(ClientType::Standard)?;
         let heavy_spider = Spider::new_agent(ClientType::HeavyEmulation)?;
 
-        // 3. Build repositories
         let job_repo = sqlite_job_repo(pool.clone());
         let link_repo = sqlite_link_repo(pool.clone());
         let pages_repo = sqlite_page_repo(pool.clone());
@@ -54,7 +45,6 @@ impl AppState {
         let progress_reporter: Arc<dyn ProgressEmitter> =
             Arc::new(ProgressReporter::new(app_handle.clone()));
 
-        // 4. Build services
         let analyzer = AnalyzerService::new(pages_repo, issues_repo, heavy_spider.clone());
         let crawler = Crawler::new(heavy_spider.clone());
 
@@ -74,7 +64,6 @@ impl AppState {
             }
         });
 
-        // Pre-warm DeepAuditor
         let da_clone = job_processor.analyzer().deep_auditor();
         tauri::async_runtime::spawn(async move {
             match da_clone.start_persistent().await {
@@ -86,9 +75,6 @@ impl AppState {
             }
         });
 
-
-        // 5. Licensing Init
-        // Use MockLicensingService in development mode or if a specific flag is set
         let licensing_context: Arc<dyn LicensingAgent> =
             match cfg!(debug_assertions) || cfg!(feature = "mock-licensing") {
                 true => Arc::new(MockLicensingService::new(settings_repo.clone())),
@@ -102,20 +88,17 @@ impl AppState {
             tracing::info!("License verified: {:?}", initial_tier);
         }
 
-        // Create the new context-based analysis service (Strangler Fig pattern)
         let analysis_context = AnalysisServiceFactory::with_processor(
             job_repo.clone(),
             results_repo.clone(),
             job_processor.clone(),
         );
 
-        // Create the new context-based AI service (Strangler Fig pattern)
         let ai_context = AiServiceFactory::from_repositories(
             ai_repo.clone(),
             settings_repo.clone(),
         );
 
-        // 6. Return composed state
         Ok(AppState {
             standard_spider,
             heavy_spider,

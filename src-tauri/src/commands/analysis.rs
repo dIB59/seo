@@ -77,21 +77,18 @@ pub struct PaginatedJobsResponse {
     pub total: i64,
 }
 
-/// Heading element for frontend display.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct HeadingElement {
     pub tag: String,
     pub text: String,
 }
 
-/// Image element for frontend display.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct ImageElement {
     pub src: String,
     pub alt: Option<String>,
 }
 
-/// Link details (frontend-compatible).
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct LinkDetail {
     #[serde(rename = "href", alias = "url")]
@@ -102,7 +99,6 @@ pub struct LinkDetail {
     pub status_code: Option<i64>,
 }
 
-/// Page analysis data (frontend-compatible format).
 #[derive(Debug, Clone, Serialize, Type)]
 pub struct PageAnalysisData {
     pub analysis_id: String,
@@ -132,7 +128,6 @@ pub struct PageAnalysisData {
     pub headings: Vec<HeadingElement>,
 }
 
-/// SEO issue (frontend-compatible format).
 #[derive(Debug, Clone, Serialize, Type)]
 pub struct SeoIssue {
     pub page_id: String,
@@ -145,7 +140,6 @@ pub struct SeoIssue {
     pub line_number: Option<i32>,
 }
 
-/// Summary of analysis results.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct AnalysisSummary {
     pub analysis_id: String,
@@ -156,7 +150,6 @@ pub struct AnalysisSummary {
 }
 
 impl AnalysisSummary {
-    /// Compute summary statistics from a Job and its assembled pages.
     fn compute(job: &Job, pages: &[PageAnalysisData]) -> Self {
         let (total_load, load_count) = pages.iter().fold((0.0f64, 0usize), |(sum, cnt), p| {
             if p.load_time > 0.0 {
@@ -166,23 +159,16 @@ impl AnalysisSummary {
             }
         });
 
-        let avg_load_time = if load_count > 0 {
-            total_load / load_count as f64
-        } else {
-            0.0
-        };
-
         Self {
             analysis_id: job.id.clone(),
             seo_score: job.calculate_seo_score(),
-            avg_load_time,
+            avg_load_time: total_load / load_count.max(1) as f64,
             total_words: pages.iter().map(|p| p.word_count).sum(),
             total_issues: job.summary.total_issues,
         }
     }
 }
 
-/// Analysis results with date/time mapped to strings for Specta.
 #[derive(Debug, Serialize, Type)]
 pub struct AnalysisResults {
     pub id: String,
@@ -199,7 +185,6 @@ pub struct AnalysisResults {
     pub created_at: String,
 }
 
-/// Complete analysis response returned by `get_result`.
 #[derive(Debug, Serialize, Type)]
 pub struct CompleteAnalysisResponse {
     pub analysis: AnalysisResults,
@@ -208,8 +193,37 @@ pub struct CompleteAnalysisResponse {
     pub summary: AnalysisSummary,
 }
 
+trait PushToMap<K, V> {
+    fn push_to(&mut self, key: K, value: V);
+}
+
+impl<K, V> PushToMap<K, V> for HashMap<K, Vec<V>>
+where
+    K: std::hash::Hash + Eq,
+{
+    fn push_to(&mut self, key: K, value: V) {
+        self.entry(key).or_default().push(value);
+    }
+}
+
+fn count_links_by_type(links: &[LinkDetail]) -> (i64, i64) {
+    links.iter().fold((0, 0), |(internal, external), link| {
+        if link.link_type == crate::domain::LinkType::Internal {
+            (internal + 1, external)
+        } else {
+            (internal, external + 1)
+        }
+    })
+}
+
+fn count_images_without_alt(images: &[ImageElement]) -> i64 {
+    images
+        .iter()
+        .filter(|img| img.alt.as_deref().unwrap_or("").is_empty())
+        .count() as i64
+}
+
 impl CompleteAnalysisResponse {
-    /// Assemble a single page's DTO from domain entities.
     fn assemble_page(
         page: Page,
         lh_data: Option<&LighthouseData>,
@@ -218,30 +232,13 @@ impl CompleteAnalysisResponse {
         images: Vec<ImageElement>,
     ) -> PageAnalysisData {
         let load_time = page.load_time_ms.unwrap_or(0) as f64 / 1000.0;
-
-        // Lighthouse-derived fields
         let mobile_friendly = lh_data.is_some_and(|lh| lh.is_mobile_friendly())
             || page.is_mobile_friendly_heuristic();
         let has_structured_data =
             page.has_structured_data || lh_data.is_some_and(|lh| lh.has_structured_data());
         let (lighthouse_seo_audits, lighthouse_performance_metrics) =
             lh_data.map(|lh| lh.interpret_raw()).unwrap_or((None, None));
-
-        // Link stats
-        let internal_links = detailed_links
-            .iter()
-            .filter(|l| l.link_type == crate::domain::LinkType::Internal)
-            .count() as i64;
-        let external_links = detailed_links
-            .iter()
-            .filter(|l| l.link_type != crate::domain::LinkType::Internal)
-            .count() as i64;
-
-        // Image stats
-        let images_without_alt = images
-            .iter()
-            .filter(|img| img.alt.as_deref().unwrap_or("").is_empty())
-            .count() as i64;
+        let (internal_links, external_links) = count_links_by_type(&detailed_links);
 
         PageAnalysisData {
             analysis_id: page.job_id,
@@ -252,7 +249,7 @@ impl CompleteAnalysisResponse {
             canonical_url: page.canonical_url,
             word_count: page.word_count.unwrap_or(0),
             image_count: images.len() as i64,
-            images_without_alt,
+            images_without_alt: count_images_without_alt(&images),
             internal_links,
             external_links,
             load_time,
@@ -288,41 +285,41 @@ impl From<crate::domain::CompleteJobResult> for CompleteAnalysisResponse {
             .map(|p| (p.id.clone(), p.url.clone()))
             .collect();
 
-        // Index auxiliary data by page_id to avoid O(N²) lookups
         let mut links_by_page: HashMap<String, Vec<LinkDetail>> = HashMap::new();
+        let mut headings_by_page: HashMap<String, Vec<HeadingElement>> = HashMap::new();
+        let mut images_by_page: HashMap<String, Vec<ImageElement>> = HashMap::new();
+
         for link in links {
-            links_by_page
-                .entry(link.source_page_id)
-                .or_default()
-                .push(LinkDetail {
+            links_by_page.push_to(
+                link.source_page_id,
+                LinkDetail {
                     url: link.target_url,
                     text: link.link_text.unwrap_or_default(),
                     link_type: link.link_type,
                     is_broken: link.status_code.is_some_and(|c| c >= 400),
                     status_code: link.status_code,
-                });
+                },
+            );
         }
 
-        let mut headings_by_page: HashMap<String, Vec<HeadingElement>> = HashMap::new();
         for heading in headings {
-            headings_by_page
-                .entry(heading.page_id)
-                .or_default()
-                .push(HeadingElement {
+            headings_by_page.push_to(
+                heading.page_id,
+                HeadingElement {
                     tag: format!("h{}", heading.level),
                     text: heading.text,
-                });
+                },
+            );
         }
 
-        let mut images_by_page: HashMap<String, Vec<ImageElement>> = HashMap::new();
         for image in images {
-            images_by_page
-                .entry(image.page_id)
-                .or_default()
-                .push(ImageElement {
+            images_by_page.push_to(
+                image.page_id,
+                ImageElement {
                     src: image.src,
                     alt: image.alt,
-                });
+                },
+            );
         }
 
         let lighthouse_by_page: HashMap<String, LighthouseData> = lighthouse
@@ -330,37 +327,34 @@ impl From<crate::domain::CompleteJobResult> for CompleteAnalysisResponse {
             .map(|l| (l.page_id.clone(), l))
             .collect();
 
-        // Assemble pages
         let assembled_pages: Vec<PageAnalysisData> = pages
             .into_iter()
             .map(|p| {
                 let page_id = p.id.clone();
-                let lh_data = lighthouse_by_page.get(&page_id);
-                let page_links = links_by_page.remove(&page_id).unwrap_or_default();
-                let page_headings = headings_by_page.remove(&page_id).unwrap_or_default();
-                let page_images = images_by_page.remove(&page_id).unwrap_or_default();
-
-                Self::assemble_page(p, lh_data, page_links, page_headings, page_images)
+                Self::assemble_page(
+                    p,
+                    lighthouse_by_page.get(&page_id),
+                    links_by_page.remove(&page_id).unwrap_or_default(),
+                    headings_by_page.remove(&page_id).unwrap_or_default(),
+                    images_by_page.remove(&page_id).unwrap_or_default(),
+                )
             })
             .collect();
 
-        // Assemble issues
         let assembled_issues: Vec<SeoIssue> = issues
             .into_iter()
-            .map(|issue| {
-                let page_id = issue.page_id.clone().unwrap_or_default();
-                let page_url = page_url_by_id.get(&page_id).cloned().unwrap_or_default();
-
-                SeoIssue {
-                    page_id,
-                    severity: issue.severity,
-                    title: issue.issue_type,
-                    description: issue.message,
-                    page_url,
-                    element: issue.details.clone(),
-                    recommendation: issue.details.unwrap_or_default(),
-                    line_number: None,
-                }
+            .map(|issue| SeoIssue {
+                page_id: issue.page_id.clone().unwrap_or_default(),
+                severity: issue.severity,
+                title: issue.issue_type,
+                description: issue.message,
+                page_url: page_url_by_id
+                    .get(&issue.page_id.clone().unwrap_or_default())
+                    .cloned()
+                    .unwrap_or_default(),
+                element: issue.details.clone(),
+                recommendation: issue.details.unwrap_or_default(),
+                line_number: None,
             })
             .collect();
 
@@ -379,28 +373,25 @@ impl From<crate::domain::CompleteJobResult> for CompleteAnalysisResponse {
             created_at: job.created_at.to_rfc3339(),
         };
 
-        let summary = AnalysisSummary::compute(&job, &assembled_pages);
-
         CompleteAnalysisResponse {
+            summary: AnalysisSummary::compute(&job, &assembled_pages),
             analysis,
             pages: assembled_pages,
             issues: assembled_issues,
-            summary,
         }
     }
 }
 
+const DANGEROUS_URL_CHARS: &[char] = &['&', ';', '|', '$', '>', '<', '`', '\\', '"', '\''];
+
 fn validate_url(url: &str) -> Result<Url> {
     let parsed = Url::parse(url).with_context(|| format!("Invalid URL format: {}", url))?;
 
-    // Hardened validation: reject shell-injection characters in case
-    // this URL is ever passed to a shell-based sidecar.
-    let dangerous_chars = ['&', ';', '|', '$', '>', '<', '`', '\\', '"', '\''];
-    if url.chars().any(|c| dangerous_chars.contains(&c)) {
+    if url.chars().any(|c| DANGEROUS_URL_CHARS.contains(&c)) {
         anyhow::bail!("URL contains potentially dangerous characters");
     }
 
-    if parsed.scheme() != "http" && parsed.scheme() != "https" {
+    if !matches!(parsed.scheme(), "http" | "https") {
         anyhow::bail!("Only http and https protocols are supported");
     }
 
@@ -421,15 +412,12 @@ pub async fn start_analysis(
 
     let analysis_settings: JobSettings = settings.unwrap_or_default().into();
 
-    // Use the context service (Strangler Fig pattern)
     let job_id = app_state
         .analysis_context
         .create_job(parsed_url.as_str(), &analysis_settings)
         .await
         .map_err(CommandError::from)?;
 
-    // Notify the job processor that a new job is available
-    // This dispatches the job to the channel and wakes up workers
     app_state.analysis_context.notify_new_job().await;
     tracing::debug!("Notified job processor of new job: {}", job_id);
 
@@ -452,15 +440,11 @@ pub async fn get_free_tier_defaults() -> Result<AnalysisSettingsRequest, Command
     let policy = crate::domain::permissions::Policy::default();
     let defaults = AnalysisSettingsRequest {
         max_pages: policy.max_pages as i64,
-        include_subdomains: policy.check(
-            crate::domain::permissions::PermissionRequest::UseFeature(
-                crate::domain::permissions::Feature::LinkAnalysis,
-            ),
-        ),
+        include_subdomains: policy.check(crate::domain::permissions::PermissionRequest::UseFeature(
+            crate::domain::permissions::Feature::LinkAnalysis,
+        )),
         ..Default::default()
     };
-    // Mobile and Lighthouse are not yet in Feature enum, but their default in AnalysisSettingsRequest is false.
-    // If we want to strictly enforce them as disabled for free tier, we keep them false (which they are by default).
 
     Ok(defaults)
 }
@@ -473,14 +457,11 @@ pub async fn get_analysis_progress(
 ) -> Result<AnalysisProgress, CommandError> {
     tracing::info!("Getting analysis progress for job: {}", job_id);
 
-    // Use the context service (Strangler Fig pattern)
-    let progress = app_state
+    app_state
         .analysis_context
         .get_progress(&job_id)
         .await
-        .map_err(CommandError::from)?;
-
-    Ok(progress)
+        .map_err(CommandError::from)
 }
 
 #[tauri::command]
@@ -492,7 +473,6 @@ pub async fn get_all_jobs(
 ) -> Result<Vec<AnalysisProgress>, CommandError> {
     tracing::info!("Fetching jobs (limit={:?}, offset={:?})", limit, offset);
 
-    // Use the context service (Strangler Fig pattern)
     let jobs = if let (Some(l), Some(o)) = (limit, offset) {
         app_state.analysis_context.get_paginated_jobs(l, o).await
     } else {
@@ -500,9 +480,7 @@ pub async fn get_all_jobs(
     }
     .map_err(CommandError::from)?;
 
-    let progress: Vec<AnalysisProgress> = jobs.into_iter().map(|j| j.into()).collect();
-
-    Ok(progress)
+    Ok(jobs.into_iter().map(|j| j.into()).collect())
 }
 
 #[tauri::command]
@@ -522,16 +500,16 @@ pub async fn get_paginated_jobs(
         status_filter
     );
 
-    // Use the context service (Strangler Fig pattern)
     let (jobs, total) = app_state
         .analysis_context
         .get_paginated_jobs_with_total(limit, offset, url_filter, status_filter)
         .await
         .map_err(CommandError::from)?;
 
-    let items: Vec<AnalysisProgress> = jobs.into_iter().map(|j| j.into()).collect();
-
-    Ok(PaginatedJobsResponse { items, total })
+    Ok(PaginatedJobsResponse {
+        items: jobs.into_iter().map(|j| j.into()).collect(),
+        total,
+    })
 }
 
 #[tauri::command]
@@ -542,7 +520,6 @@ pub async fn cancel_analysis(
     #[provider] state: State<'_, AppState>,
 ) -> Result<(), CommandError> {
     tracing::trace!("Cancelling analysis job: {}", job_id);
-    // Use the context service (Strangler Fig pattern)
     state
         .analysis_context
         .cancel_job(&job_id)
@@ -558,15 +535,12 @@ pub async fn get_result(
 ) -> Result<CompleteAnalysisResponse, CommandError> {
     tracing::trace!("Getting result for job: {}", job_id);
 
-    // Use the context service (Strangler Fig pattern)
-    let result: CompleteAnalysisResponse = app_state
+    app_state
         .analysis_context
         .get_complete_result(&job_id)
         .await
-        .map_err(CommandError::from)?
-        .into();
-
-    Ok(result)
+        .map_err(CommandError::from)
+        .map(|r| r.into())
 }
 
 #[cfg(test)]
@@ -600,13 +574,11 @@ mod tests {
         let job_repo = sqlite_job_repo(pool.clone());
         let page_repo = sqlite_page_repo(pool.clone());
 
-        // Create job
         let job_id = job_repo
             .create("https://example.com", &JobSettings::default())
             .await
             .unwrap();
 
-        // Insert a page with large load time (4s) so fallback would be false
         let page = Page {
             id: "".to_string(),
             job_id: job_id.clone(),
@@ -628,7 +600,6 @@ mod tests {
 
         let page_id = page_repo.insert(&page).await.unwrap();
 
-        // Insert lighthouse raw json that indicates viewport passed and structured data present
         let raw = r#"{"seo_audits":{"viewport":{"passed":true}},"structured_data":{}}"#.to_string();
 
         let lh = LighthouseData {
@@ -658,7 +629,6 @@ mod tests {
         assert_eq!(result.pages.len(), 1);
         let page = &result.pages[0];
 
-        // Lighthouse viewport passed should override slow load time
         assert!(
             page.mobile_friendly,
             "expected mobile_friendly=true from Lighthouse viewport"
@@ -681,7 +651,6 @@ mod tests {
             .await
             .unwrap();
 
-        // Insert a page with short load time (1s), viewport present, and no lighthouse data
         let page = Page {
             id: "".to_string(),
             job_id: job_id.clone(),
@@ -713,7 +682,6 @@ mod tests {
         assert_eq!(result.pages.len(), 1);
         let page = &result.pages[0];
 
-        // No Lighthouse viewport present; fallback to load_time <= 2s
         assert!(
             page.mobile_friendly,
             "expected mobile_friendly=true from load time heuristic"
@@ -733,7 +701,6 @@ mod tests {
             .await
             .unwrap();
 
-        // Insert source page
         let page = Page {
             id: "".to_string(),
             job_id: job_id.clone(),
@@ -755,12 +722,10 @@ mod tests {
 
         let page_id = page_repo.insert(&page).await.unwrap();
 
-        // Insert links with unparsable / special target URLs
         let links = vec![
             NewLink {
                 job_id: job_id.clone(),
                 source_page_id: page_id.clone(),
-                // Empty string is not a valid/parsable URL -> will trigger fallback to link_type
                 target_url: "".to_string(),
                 link_text: Some("void link".to_string()),
                 link_type: LinkType::Internal,
@@ -769,7 +734,6 @@ mod tests {
             NewLink {
                 job_id: job_id.clone(),
                 source_page_id: page_id.clone(),
-                // `javascript:` is parseable by Url::parse -> treated as external if hosts differ
                 target_url: "javascript:external:void(0)".to_string(),
                 link_text: Some("void link external".to_string()),
                 link_type: LinkType::External,
@@ -789,10 +753,8 @@ mod tests {
         assert_eq!(result.pages.len(), 1);
         let page = &result.pages[0];
 
-        // Should have two detailed links
         assert_eq!(page.detailed_links.len(), 2);
 
-        // Find links by link text so we don't depend on insertion order
         let void_link = page
             .detailed_links
             .iter()
@@ -804,7 +766,6 @@ mod tests {
             .find(|l| l.text == "void link external")
             .expect("expected void link external");
 
-        // First link: internal link_type and unparsable target (empty string) -> fallback to link_type -> is_external = false
         assert_eq!(void_link.url, "", "expected empty target url");
         assert_eq!(
             void_link.link_type,
@@ -812,7 +773,6 @@ mod tests {
             "empty target should be treated as internal when link_type is Internal"
         );
 
-        // Second link: external link_type and unparsable target -> is_external = true
         assert_eq!(
             void_link_external.link_type,
             LinkType::External,

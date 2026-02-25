@@ -218,11 +218,6 @@ async getMachineId() : Promise<Result<string, CommandError>> {
 /** user-defined events **/
 
 
-export const events = __makeEvents__<{
-progressEvent: ProgressEvent
-}>({
-progressEvent: "progress-event"
-})
 
 /** user-defined constants **/
 
@@ -235,33 +230,18 @@ export type AnalysisJobResponse = { job_id: string; url: string; status: JobStat
  * Analysis progress for frontend updates
  */
 export type AnalysisProgress = { job_id: string; url: string; job_status: JobStatus; result_id: string | null; progress: number | null; max_pages: number | null; is_deep_audit: boolean | null; total_issues: number | null }
-/**
- * Analysis results with date/time mapped to strings for Specta.
- */
 export type AnalysisResults = { id: string; url: string; status: JobStatus; progress: number; total_pages: number; analyzed_pages: number; started_at: string | null; completed_at: string | null; sitemap_found: boolean; robots_txt_found: boolean; ssl_certificate: boolean; created_at: string }
 export type AnalysisSettingsRequest = { max_pages: number; include_subdomains: boolean; check_images: boolean; mobile_analysis: boolean; lighthouse_analysis: boolean; delay_between_requests: number }
-/**
- * Summary of analysis results.
- */
 export type AnalysisSummary = { analysis_id: string; seo_score: number; avg_load_time: number; total_words: number; total_issues: number }
 /**
  * Wrapper for errors returned from Tauri commands.
  * This type is serializable and can be sent to the frontend.
  */
 export type CommandError = string
-/**
- * Complete analysis response returned by `get_result`.
- */
 export type CompleteAnalysisResponse = { analysis: AnalysisResults; pages: PageAnalysisData[]; issues: SeoIssue[]; summary: AnalysisSummary }
 export type Feature = "LinkAnalysis" | "GraphView" | "ExportReports"
 export type GeminiRequest = { analysis_id: string; url: string; seo_score: number; pages_count: number; total_issues: number; critical_issues: number; warning_issues: number; suggestion_issues: number; top_issues: string[]; avg_load_time: number; total_words: number; ssl_certificate: boolean; sitemap_found: boolean; robots_txt_found: boolean }
-/**
- * Heading element for frontend display.
- */
 export type HeadingElement = { tag: string; text: string }
-/**
- * Image element for frontend display.
- */
 export type ImageElement = { src: string; alt: string | null }
 export type IssueSeverity = "critical" | "warning" | "info"
 /**
@@ -270,21 +250,11 @@ export type IssueSeverity = "critical" | "warning" | "info"
 export type JobStatus = "pending" | "discovery" | "processing" | "completed" | "failed" | "cancelled"
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 export type LicenseTier = "Free" | "Premium"
-/**
- * Link details (frontend-compatible).
- */
 export type LinkDetail = { href: string; text: string; link_type: LinkType; is_broken: boolean; status_code: number | null }
 export type LinkType = "internal" | "subdomain" | "external" | "resource"
-/**
- * Page analysis data (frontend-compatible format).
- */
 export type PageAnalysisData = { analysis_id: string; url: string; title: string | null; meta_description: string | null; meta_keywords: string | null; canonical_url: string | null; word_count: number; image_count: number; images_without_alt: number; internal_links: number; external_links: number; load_time: number; status_code: number | null; content_size: number; mobile_friendly: boolean; has_structured_data: boolean; lighthouse_performance: number | null; lighthouse_accessibility: number | null; lighthouse_best_practices: number | null; lighthouse_seo: number | null; lighthouse_seo_audits: JsonValue | null; lighthouse_performance_metrics: JsonValue | null; images: ImageElement[]; detailed_links: LinkDetail[]; headings: HeadingElement[] }
 export type PaginatedJobsResponse = { items: AnalysisProgress[]; total: number }
 export type Policy = { tier: LicenseTier; max_pages: number; enabled_features: Feature[] }
-export type ProgressEvent = { event: "analysis"; job_id: string; progress: number; pages_analyzed: number; total_pages: number } | { event: "discovery"; job_id: string; count: number; total_pages: number }
-/**
- * SEO issue (frontend-compatible format).
- */
 export type SeoIssue = { page_id: string; severity: IssueSeverity; title: string; description: string; page_url: string; element: string | null; recommendation: string; line_number: number | null }
 
 /** tauri-specta globals **/

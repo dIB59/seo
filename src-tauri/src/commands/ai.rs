@@ -5,6 +5,16 @@ use crate::{
     service::GeminiRequest,
 };
 
+trait ResultExt<T> {
+    fn context(self, msg: &str) -> Result<T, String>;
+}
+
+impl<T, E: std::fmt::Display> ResultExt<T> for Result<T, E> {
+    fn context(self, msg: &str) -> Result<T, String> {
+        self.map_err(|e| format!("{}: {}", msg, e))
+    }
+}
+
 #[command]
 #[specta::specta]
 pub async fn get_gemini_insights(
@@ -12,24 +22,13 @@ pub async fn get_gemini_insights(
     app_state: State<'_, AppState>,
 ) -> Result<String, String> {
     tracing::info!("Analysis Id for AI insight: {:?}", request.analysis_id);
-    
-    // Use the context service (Strangler Fig pattern)
-    app_state
-        .ai_context
-        .generate_insights(request)
-        .await
-        .map_err(|e| format!("Failed to generate AI insights: {}", e))
+    app_state.ai_context.generate_insights(request).await.context("Failed to generate AI insights")
 }
 
 #[command]
 #[specta::specta]
 pub async fn get_gemini_enabled(app_state: State<'_, AppState>) -> Result<bool, String> {
-    // Use the context service (Strangler Fig pattern)
-    app_state
-        .ai_context
-        .is_enabled()
-        .await
-        .map_err(|e| format!("Failed to check AI settings: {}", e))
+    app_state.ai_context.is_enabled().await.context("Failed to check AI settings")
 }
 
 #[command]
@@ -38,23 +37,13 @@ pub async fn set_gemini_enabled(
     enabled: bool,
     app_state: State<'_, AppState>,
 ) -> Result<(), String> {
-    // Use the context service (Strangler Fig pattern)
-    app_state
-        .ai_context
-        .set_enabled(enabled)
-        .await
-        .map_err(|e| format!("Failed to update AI settings: {}", e))
+    app_state.ai_context.set_enabled(enabled).await.context("Failed to update AI settings")
 }
 
 #[command]
 #[specta::specta]
 pub async fn get_gemini_api_key(app_state: State<'_, AppState>) -> Result<Option<String>, String> {
-    // Use the context service (Strangler Fig pattern)
-    app_state
-        .ai_context
-        .get_api_key()
-        .await
-        .map_err(|e| format!("Failed to get API key: {}", e))
+    app_state.ai_context.get_api_key().await.context("Failed to get API key")
 }
 
 #[command]
@@ -63,23 +52,13 @@ pub async fn set_gemini_api_key(
     api_key: String,
     app_state: State<'_, AppState>,
 ) -> Result<(), String> {
-    // Use the context service (Strangler Fig pattern)
-    app_state
-        .ai_context
-        .set_api_key(&api_key)
-        .await
-        .map_err(|e| format!("Failed to set API key: {}", e))
+    app_state.ai_context.set_api_key(&api_key).await.context("Failed to set API key")
 }
 
 #[command]
 #[specta::specta]
 pub async fn get_gemini_persona(app_state: State<'_, AppState>) -> Result<Option<String>, String> {
-    // Use the context service (Strangler Fig pattern)
-    app_state
-        .ai_context
-        .get_persona()
-        .await
-        .map_err(|e| format!("Failed to get persona: {}", e))
+    app_state.ai_context.get_persona().await.context("Failed to get persona")
 }
 
 #[command]
@@ -88,12 +67,7 @@ pub async fn set_gemini_persona(
     persona: String,
     app_state: State<'_, AppState>,
 ) -> Result<(), String> {
-    // Use the context service (Strangler Fig pattern)
-    app_state
-        .ai_context
-        .set_persona(&persona)
-        .await
-        .map_err(|e| format!("Failed to set persona: {}", e))
+    app_state.ai_context.set_persona(&persona).await.context("Failed to set persona")
 }
 
 #[command]
@@ -101,12 +75,7 @@ pub async fn set_gemini_persona(
 pub async fn get_gemini_requirements(
     app_state: State<'_, AppState>,
 ) -> Result<Option<String>, String> {
-    // Use the context service (Strangler Fig pattern)
-    app_state
-        .ai_context
-        .get_requirements()
-        .await
-        .map_err(|e| format!("Failed to get requirements: {}", e))
+    app_state.ai_context.get_requirements().await.context("Failed to get requirements")
 }
 
 #[command]
@@ -115,12 +84,7 @@ pub async fn set_gemini_requirements(
     requirements: String,
     app_state: State<'_, AppState>,
 ) -> Result<(), String> {
-    // Use the context service (Strangler Fig pattern)
-    app_state
-        .ai_context
-        .set_requirements(&requirements)
-        .await
-        .map_err(|e| format!("Failed to set requirements: {}", e))
+    app_state.ai_context.set_requirements(&requirements).await.context("Failed to set requirements")
 }
 
 #[command]
@@ -128,12 +92,7 @@ pub async fn set_gemini_requirements(
 pub async fn get_gemini_context_options(
     app_state: State<'_, AppState>,
 ) -> Result<Option<String>, String> {
-    // Use the context service (Strangler Fig pattern)
-    app_state
-        .ai_context
-        .get_context_options()
-        .await
-        .map_err(|e| format!("Failed to get context options: {}", e))
+    app_state.ai_context.get_context_options().await.context("Failed to get context options")
 }
 
 #[command]
@@ -142,12 +101,7 @@ pub async fn set_gemini_context_options(
     options: String,
     app_state: State<'_, AppState>,
 ) -> Result<(), String> {
-    // Use the context service (Strangler Fig pattern)
-    app_state
-        .ai_context
-        .set_context_options(&options)
-        .await
-        .map_err(|e| format!("Failed to set context options: {}", e))
+    app_state.ai_context.set_context_options(&options).await.context("Failed to set context options")
 }
 
 #[command]
@@ -155,12 +109,7 @@ pub async fn set_gemini_context_options(
 pub async fn get_gemini_prompt_blocks(
     app_state: State<'_, AppState>,
 ) -> Result<Option<String>, String> {
-    // Use the context service (Strangler Fig pattern)
-    app_state
-        .ai_context
-        .get_prompt_blocks()
-        .await
-        .map_err(|e| format!("Failed to get prompt blocks: {}", e))
+    app_state.ai_context.get_prompt_blocks().await.context("Failed to get prompt blocks")
 }
 
 #[command]
@@ -169,12 +118,7 @@ pub async fn set_gemini_prompt_blocks(
     blocks: String,
     app_state: State<'_, AppState>,
 ) -> Result<(), String> {
-    // Use the context service (Strangler Fig pattern)
-    app_state
-        .ai_context
-        .set_prompt_blocks(&blocks)
-        .await
-        .map_err(|e| format!("Failed to set prompt blocks: {}", e))
+    app_state.ai_context.set_prompt_blocks(&blocks).await.context("Failed to set prompt blocks")
 }
 
 #[cfg(test)]
@@ -229,13 +173,11 @@ mod tests {
             settings_repo.clone(),
         ));
 
-        // Create the new context-based analysis service
         let analysis_context = crate::contexts::analysis::AnalysisServiceFactory::with_repositories(
             job_repo.clone(),
             results_repo.clone(),
         );
 
-        // Create the new context-based AI service
         let ai_context = crate::contexts::ai::AiServiceFactory::from_repositories(
             ai_repo.clone(),
             settings_repo.clone(),
@@ -286,7 +228,6 @@ mod tests {
             .build()
             .unwrap();
 
-        // Test set/get enabled
         tauri::test::get_ipc_response(
             &webview,
             tauri::webview::InvokeRequest {
@@ -318,7 +259,6 @@ mod tests {
 
         assert!(!enabled);
 
-        // Test set/get API key
         tauri::test::get_ipc_response(
             &webview,
             tauri::webview::InvokeRequest {
@@ -358,7 +298,6 @@ mod tests {
             .build()
             .unwrap();
 
-        // Disable Gemini using the context service
         webview
             .state::<AppState>()
             .ai_context

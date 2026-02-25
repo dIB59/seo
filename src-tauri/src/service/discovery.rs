@@ -145,10 +145,10 @@ impl PageDiscovery {
         Html::parse_document(html)
             .select(selector)
             .filter_map(|a| a.value().attr("href"))
-            .filter(|raw| !raw.starts_with('#')) // Skip fragment-only links
+            .filter(|raw| !raw.starts_with('#'))
             .filter_map(|raw| base_url.join(raw).ok())
             .map(|mut u| {
-                u.set_fragment(None); // Strip fragments from all links
+                u.set_fragment(None);
                 u.to_string()
             })
             .collect()
