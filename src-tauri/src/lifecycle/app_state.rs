@@ -63,6 +63,7 @@ impl AppState {
         let job_processor = Arc::new(JobProcessor::new(
             job_repo.clone(),
             link_repo,
+            page_queue_repo.clone(),
             analyzer,
             crawler,
             progress_reporter.clone(),

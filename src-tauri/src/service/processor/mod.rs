@@ -3,6 +3,7 @@ mod canceler;
 mod channel;
 mod crawler;
 mod domain_semaphore;
+mod page_queue;
 mod queue;
 pub mod reporter;
 
@@ -12,6 +13,7 @@ pub use canceler::JobCanceler;
 pub use channel::{JobChannel, JobChannelConfig, JobDispatcher, JobNotifier};
 pub use crawler::{CrawlContext, Crawler};
 pub use domain_semaphore::DomainSemaphore;
+pub use page_queue::PageQueueManager;
 pub use queue::{JobQueue, JobQueueConfig};
 pub use reporter::ProgressReporter;
 
@@ -46,6 +48,7 @@ pub struct JobProcessor {
     progress_emitter: Arc<dyn ProgressEmitter>,
     canceler: Arc<JobCanceler>,
     domain_semaphore: Arc<DomainSemaphore>,
+    page_queue_manager: Arc<PageQueueManager>,
 
     // Repositories
     link_db: Arc<dyn crate::repository::LinkRepository>,
@@ -59,6 +62,7 @@ impl JobProcessor {
     pub fn new(
         job_repo: Arc<dyn crate::repository::JobRepository>,
         link_repo: Arc<dyn crate::repository::LinkRepository>,
+        page_queue_repo: Arc<dyn crate::repository::PageQueueRepository>,
         analyzer: AnalyzerService,
         crawler: Crawler,
         progress_emitter: Arc<dyn ProgressEmitter>,
@@ -66,6 +70,7 @@ impl JobProcessor {
         Self::with_config(
             job_repo,
             link_repo,
+            page_queue_repo,
             analyzer,
             crawler,
             progress_emitter,
@@ -77,6 +82,7 @@ impl JobProcessor {
     pub fn with_config(
         job_repo: Arc<dyn crate::repository::JobRepository>,
         link_repo: Arc<dyn crate::repository::LinkRepository>,
+        page_queue_repo: Arc<dyn crate::repository::PageQueueRepository>,
         analyzer: AnalyzerService,
         crawler: Crawler,
         progress_emitter: Arc<dyn ProgressEmitter>,
@@ -89,6 +95,7 @@ impl JobProcessor {
             progress_emitter,
             canceler: Arc::new(JobCanceler::new()),
             domain_semaphore: Arc::new(DomainSemaphore::new()),
+            page_queue_manager: Arc::new(PageQueueManager::new(page_queue_repo)),
             link_db: link_repo,
             worker_config,
         }
@@ -173,6 +180,7 @@ impl JobProcessor {
         let canceler = self.canceler.clone();
         let link_db = self.link_db.clone();
         let domain_semaphore = self.domain_semaphore.clone();
+        let page_queue_manager = self.page_queue_manager.clone();
 
         tokio::spawn(async move {
             tracing::info!("Worker {} started", worker_id);
@@ -208,6 +216,7 @@ impl JobProcessor {
                             progress_emitter: &progress_emitter,
                             canceler: &canceler,
                             link_db: &link_db,
+                            page_queue_manager: &page_queue_manager,
                         };
 
                         if let Err(e) = processor.process_job(job).await {
@@ -248,6 +257,7 @@ impl JobProcessor {
             progress_emitter: &self.progress_emitter,
             canceler: &self.canceler,
             link_db: &self.link_db,
+            page_queue_manager: &self.page_queue_manager,
         };
         processor.process_job(job).await
     }
@@ -262,12 +272,20 @@ struct WorkerProcessor<'a> {
     progress_emitter: &'a Arc<dyn ProgressEmitter>,
     canceler: &'a JobCanceler,
     link_db: &'a Arc<dyn crate::repository::LinkRepository>,
+    page_queue_manager: &'a Arc<PageQueueManager>,
 }
 
 impl<'a> WorkerProcessor<'a> {
     async fn process_job(&self, mut job: Job) -> Result<String> {
         let timer = JobTimer::start(&job.id);
         let cancel_flag = self.canceler.get_cancel_flag(&job.id);
+
+        // Early exit if cancelled
+        if self.canceler.is_cancelled(&job.id) {
+            tracing::warn!("Job {} cancelled before crawl", job.id);
+            self.canceler.cleanup(&job.id);
+            return Ok(job.id.clone());
+        }
 
         // Initialize job
         job.status = JobStatus::Discovery;
@@ -279,11 +297,7 @@ impl<'a> WorkerProcessor<'a> {
             .update_resources(&job.id, resources.sitemap, resources.robots_txt)
             .await?;
 
-        // Early exit if cancelled
-        if self.canceler.is_cancelled(&job.id) {
-            tracing::warn!("Job {} cancelled before crawl", job.id);
-            return Ok(job.id.clone());
-        }
+        
 
         // Run discovery
         let crawl_context = CrawlContext {
@@ -302,50 +316,78 @@ impl<'a> WorkerProcessor<'a> {
         // Early exit if cancelled
         if self.canceler.is_cancelled(&job.id) {
             tracing::warn!("Job {} cancelled before analysis", job.id);
+            self.canceler.cleanup(&job.id);
             return Ok(job.id.clone());
         }
+
+        // Insert discovered URLs into page_queue for resumable processing
+        let max_pages = job.settings.max_pages as usize;
+        let urls_to_queue: Vec<String> = discovered_urls.iter().take(max_pages).cloned().collect();
+        self.page_queue_manager
+            .insert_discovered_urls(&job.id, &urls_to_queue, 0)
+            .await?;
+
+        tracing::info!(
+            "Job {}: Inserted {} URLs into page queue",
+            job.id,
+            urls_to_queue.len()
+        );
 
         // Update status to Processing
         job.status = JobStatus::Processing;
         self.job_queue.mark_processing(&job.id).await?;
 
-        let max_pages = job.settings.max_pages as usize;
         let auditor = self.analyzer.select_auditor(&job.settings);
+        let total_pages = urls_to_queue.len();
 
         let mut crawl_result = CrawlResult::default();
+        let mut pages_analyzed = 0;
+        let mut was_cancelled = false;
 
-        for (idx, url) in discovered_urls.iter().enumerate() {
+        // Process pages from the page queue
+        while let Some(page_item) = self.page_queue_manager.claim_next_page(&job.id).await? {
             if cancel_flag.load(Ordering::Relaxed) {
                 tracing::info!("Job {} cancelled during analysis", job.id);
-                break;
-            }
-
-            if idx >= max_pages {
+                // Mark the page as failed due to cancellation
+                self.page_queue_manager
+                    .mark_failed(&page_item.id, "Job cancelled")
+                    .await?;
+                was_cancelled = true;
                 break;
             }
 
             // Analyze page
-            let analysis = self.analyzer.analyze_page(url, &job.id, 0, &auditor).await;
+            let analysis = self.analyzer.analyze_page(&page_item.url, &job.id, page_item.depth, &auditor).await;
 
             match analysis {
                 Ok((page_result, _new_urls)) => {
                     crawl_result.pages += 1;
                     crawl_result.issues += page_result.issues.len();
                     crawl_result.links.extend(page_result.links);
+
+                    // Mark page as completed
+                    self.page_queue_manager.mark_completed(&page_item.id).await?;
                 }
-                Err(e) => tracing::warn!("Failed to analyze {}: {:#}", url, e),
+                Err(e) => {
+                    tracing::warn!("Failed to analyze {}: {:#}", page_item.url, e);
+                    // Mark page as failed with error message
+                    self.page_queue_manager
+                        .mark_failed(&page_item.id, &e.to_string())
+                        .await?;
+                }
             }
 
+            pages_analyzed += 1;
+
             // Report progress via unified event emission
-            let pages_analyzed = (idx + 1).min(max_pages);
-            let progress = (pages_analyzed as f64 / max_pages as f64) * 100.0;
+            let progress = (pages_analyzed as f64 / total_pages as f64) * 100.0;
 
             self.job_queue.update_progress(&job.id, progress).await?;
             self.progress_emitter.emit(ProgressEvent::Analysis {
                 job_id: job.id.clone(),
                 progress,
                 pages_analyzed,
-                total_pages: discovered_urls.len(),
+                total_pages,
             });
 
             // Apply rate limiting
@@ -360,10 +402,17 @@ impl<'a> WorkerProcessor<'a> {
         // Persist links
         self.persist_links(&crawl_result.links).await?;
 
-        // Finalize job
-        self.job_queue.mark_completed(&job.id).await?;
+        // Finalize job - mark as cancelled or completed based on cancellation status
+        if was_cancelled {
+            self.job_queue.mark_cancelled(&job.id).await?;
+            tracing::info!("Job {} cancelled after {}ms", job.id, timer.elapsed_ms());
+        } else {
+            self.job_queue.mark_completed(&job.id).await?;
+            tracing::info!("Job {} completed in {}ms", job.id, timer.elapsed_ms());
+        }
 
-        tracing::info!("Job {} completed in {}ms", job.id, timer.elapsed_ms());
+        // Clean up cancel flag to prevent memory leaks
+        self.canceler.cleanup(&job.id);
 
         Ok(job.id.clone())
     }

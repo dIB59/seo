@@ -233,6 +233,7 @@ mod tests {
             job_processor: Arc::new(crate::service::JobProcessor::new(
                 crate::repository::sqlite_job_repo(pool.clone()),
                 crate::repository::sqlite_link_repo(pool.clone()),
+                crate::repository::sqlite_page_queue_repo(pool.clone()),
                 crate::service::processor::AnalyzerService::new(
                     crate::repository::sqlite_page_repo(pool.clone()),
                     crate::repository::sqlite_issue_repo(pool.clone()),
