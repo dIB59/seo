@@ -133,6 +133,7 @@ dependencies = [
  "num_cpus",
  "quick-xml",
  "rand 0.8.5",
+ "regex",
  "rquest",
  "rquest-util",
  "scraper",

@@ -202,6 +202,8 @@ mod tests {
             licensing_context: licensing_service,
             analysis_context,
             ai_context,
+            extension_repository: crate::repository::sqlite_extension_repo(pool.clone()),
+            extension_registry: Arc::new(crate::extension::ExtensionRegistry::new()),
         };
 
         mock_builder()
@@ -321,3 +323,4 @@ mod tests {
         assert_eq!(res, "");
     }
 }
+

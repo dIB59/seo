@@ -3,7 +3,11 @@
 
 pub mod analysis;
 pub mod licensing;
+pub mod extension;
 pub mod ai;
+
+
+pub use crate::contexts::extension::domain::issue_rule::{IssueRuleInfo}; 
 
 // Re-exports for backwards compatibility - types from analysis context
 pub use crate::contexts::analysis::{
@@ -34,3 +38,5 @@ pub mod permissions {
 pub mod link {
     pub use crate::contexts::analysis::NewLink;
 }
+
+

@@ -1,11 +1,14 @@
 use crate::contexts::{
-    Job, JobInfo, JobSettings, JobStatus, NewPageQueueItem, PageQueueItem, PageQueueStatus,
+    Job, JobInfo, JobSettings, JobStatus, NewPageQueueItem, PageQueueItem, PageQueueStatus, IssueRuleInfo,
 };
 use anyhow::Result;
 use async_trait::async_trait;
 use std::sync::Arc;
-
 mod sqlite;
+
+pub fn sqlite_extension_repo(pool: sqlx::SqlitePool) -> Arc<dyn ExtensionRepositoryTrait> {
+    Arc::new(sqlite::ExtensionRepository::new(pool))
+}
 
 // Factory functions for SQLite repositories
 pub fn sqlite_job_repo(pool: sqlx::SqlitePool) -> Arc<dyn JobRepository> {
@@ -41,6 +44,18 @@ pub fn sqlite_page_queue_repo(pool: sqlx::SqlitePool) -> Arc<dyn PageQueueReposi
 }
 
 pub use sqlite::{ExternalDomain, IssueCounts, IssueGroup, LinkCounts};
+
+
+#[async_trait]
+pub trait ExtensionRepositoryTrait: Send + Sync {
+    async fn get_all_rules(&self) -> Result<Vec<IssueRuleInfo>>;
+    async fn get_rule_by_id(&self, id: &str) -> Result<IssueRuleInfo>;
+    async fn insert_rule(&self, rule: &IssueRuleInfo) -> Result<()>;
+    async fn update_rule(&self, id: &str, name: Option<&str>, severity: Option<&str>, is_enabled: Option<bool>, recommendation: Option<&str>) -> Result<()>;
+    async fn delete_rule(&self, id: &str) -> Result<()>;
+    async fn set_rule_enabled(&self, id: &str, enabled: bool) -> Result<()>;
+    async fn count_custom_rules(&self) -> Result<usize>;
+}
 
 #[async_trait]
 pub trait JobRepository: Send + Sync {

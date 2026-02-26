@@ -1,14 +1,11 @@
 use crate::{
-    contexts::{
+    commands::extension, contexts::{
         ai::{AiService, AiServiceFactory}, analysis::{AnalysisService, AnalysisServiceFactory}, licensing::{LicenseTier, LicensingAgent, PermissionRequest, Policy}
-    },
-    repository::{
-        sqlite_ai_repo, sqlite_issue_repo, sqlite_job_repo, sqlite_link_repo, sqlite_page_queue_repo,
-        sqlite_page_repo, sqlite_results_repo, sqlite_settings_repo,
-    },
-    service::{
+    }, extension::ExtensionRegistry, repository::{
+        ExtensionRepositoryTrait, sqlite_ai_repo, sqlite_issue_repo, sqlite_job_repo, sqlite_link_repo, sqlite_page_queue_repo, sqlite_page_repo, sqlite_results_repo, sqlite_settings_repo
+    }, service::{
         JobProcessor, ProgressReporter, licensing::{LicensingService, MockLicensingService}, processor::{AnalyzerService, Crawler, reporter::ProgressEmitter}, spider::{ClientType, Spider, SpiderAgent}
-    },
+    }
 };
 use std::sync::{Arc, RwLock};
 use tauri::AppHandle;
@@ -25,6 +22,10 @@ pub struct AppState {
     pub licensing_context: Arc<dyn LicensingAgent>,
     pub analysis_context: AnalysisService,
     pub ai_context: AiService,
+
+    /// Extension registry for dynamic SEO rules and data extractors
+    pub extension_repository: Arc<dyn ExtensionRepositoryTrait>,
+    pub extension_registry: Arc<ExtensionRegistry>,
 }
 
 impl AppState {
@@ -45,7 +46,22 @@ impl AppState {
         let progress_reporter: Arc<dyn ProgressEmitter> =
             Arc::new(ProgressReporter::new(app_handle.clone()));
 
-        let analyzer = AnalyzerService::new(pages_repo, issues_repo, heavy_spider.clone());
+        // Load extension registry from database before creating analyzer
+        let extension_registry = Arc::new(
+            ExtensionRegistry::load_from_database(&pool)
+                .await
+                .unwrap_or_else(|e| {
+                    tracing::warn!("Failed to load extensions, using empty registry: {}", e);
+                    ExtensionRegistry::new()
+                }),
+        );
+
+        let analyzer = AnalyzerService::with_extensions(
+            pages_repo,
+            issues_repo,
+            heavy_spider.clone(),
+            extension_registry.clone(),
+        );
         let crawler = Crawler::new(heavy_spider.clone());
 
         let job_processor = Arc::new(JobProcessor::new(
@@ -99,6 +115,8 @@ impl AppState {
             settings_repo.clone(),
         );
 
+        let extension_repository = crate::repository::sqlite_extension_repo(pool.clone());
+
         Ok(AppState {
             standard_spider,
             heavy_spider,
@@ -107,6 +125,8 @@ impl AppState {
             licensing_context,
             analysis_context,
             ai_context,
+            extension_repository,
+            extension_registry
         })
     }
 

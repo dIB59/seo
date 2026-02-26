@@ -46,6 +46,7 @@ ed25519-dalek = { version = "2.2.0", features = ["rand_core", "serde"] }
 machine-uid = "0.5.4"
 hex = "0.4.3"
 num_cpus = "1.16"
+regex = "1.10"
 
 [features]
 custom-protocol = [ "tauri/custom-protocol" ]

@@ -1,4 +1,5 @@
 use crate::contexts::{JobSettings, LighthouseData, NewHeading, NewImage, NewIssue, NewLink, Page};
+use crate::extension::{EvaluationContext, ExtensionRegistry};
 use crate::extractor::page_extractor::{ExtractedHeading, ExtractedImage, PageExtractor};
 use crate::repository::{IssueRepository as IssueRepoTrait, PageRepository as PageRepoTrait};
 use crate::service::auditor::{Auditor, AuditResult, DeepAuditor, LightAuditor};
@@ -12,6 +13,7 @@ pub struct AnalyzerService {
     issue_db: Arc<dyn IssueRepoTrait>,
     light_auditor: Arc<LightAuditor>,
     deep_auditor: Arc<DeepAuditor>,
+    extension_registry: Option<Arc<ExtensionRegistry>>,
 }
 
 pub struct PageResult {
@@ -148,7 +150,29 @@ impl AnalyzerService {
             issue_db,
             light_auditor: Arc::new(LightAuditor::new(deep_spider.clone())),
             deep_auditor: Arc::new(DeepAuditor::new(deep_spider.clone())),
+            extension_registry: None,
         }
+    }
+
+    /// Create an AnalyzerService with an extension registry for dynamic rules
+    pub fn with_extensions(
+        page_db: Arc<dyn PageRepoTrait>,
+        issue_db: Arc<dyn IssueRepoTrait>,
+        deep_spider: Arc<dyn SpiderAgent>,
+        extension_registry: Arc<ExtensionRegistry>,
+    ) -> Self {
+        Self {
+            page_db,
+            issue_db,
+            light_auditor: Arc::new(LightAuditor::new(deep_spider.clone())),
+            deep_auditor: Arc::new(DeepAuditor::new(deep_spider.clone())),
+            extension_registry: Some(extension_registry),
+        }
+    }
+
+    /// Set or update the extension registry
+    pub fn set_extension_registry(&mut self, registry: Arc<ExtensionRegistry>) {
+        self.extension_registry = Some(registry);
     }
 
     pub fn select_auditor(&self, settings: &JobSettings) -> Arc<dyn Auditor + Send + Sync> {
@@ -195,7 +219,15 @@ impl AnalyzerService {
 
         let page_id = self.page_db.insert(&extracted.page).await?;
 
-        let issues = extracted.page.audit();
+        // Generate issues using extension registry if available, otherwise fall back to built-in audit
+        let issues = if let Some(registry) = &self.extension_registry {
+            let context = EvaluationContext::new()
+                .with_html(audit_result.html.clone());
+            registry.evaluate_rules(&extracted.page, &context)
+        } else {
+            // Fallback to built-in audit for backward compatibility
+            extracted.page.audit()
+        };
         let lighthouse = LighthouseData::from_audit_scores(&page_id, &audit_result.scores);
 
         let heading_rows: Vec<NewHeading> = extracted

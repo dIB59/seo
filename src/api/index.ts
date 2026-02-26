@@ -3,3 +3,4 @@ export * from "./analysis";
 export * from "./ai";
 export * from "./licensing";
 export * from "./permissions";
+export * from "./extensions";

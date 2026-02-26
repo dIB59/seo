@@ -6,6 +6,7 @@ mod page_queue_repository;
 mod page_repository;
 mod results_repository;
 mod settings_repository;
+mod extension_repository;
 
 pub use ai_repository::AiRepository;
 pub use issue_repository::{IssueCounts, IssueGroup, IssueRepository};
@@ -15,6 +16,7 @@ pub use page_queue_repository::PageQueueRepository;
 pub use page_repository::PageRepository;
 pub use results_repository::ResultsRepository;
 pub use settings_repository::SettingsRepository;
+pub use extension_repository::ExtensionRepository;
 
 use crate::contexts::{IssueSeverity, JobStatus, LinkType};
 
