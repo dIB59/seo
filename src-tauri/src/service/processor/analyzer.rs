@@ -1,4 +1,4 @@
-use crate::domain::{JobSettings, LighthouseData, NewHeading, NewImage, NewIssue, NewLink, Page};
+use crate::contexts::{JobSettings, LighthouseData, NewHeading, NewImage, NewIssue, NewLink, Page};
 use crate::extractor::page_extractor::{ExtractedHeading, ExtractedImage, PageExtractor};
 use crate::repository::{IssueRepository as IssueRepoTrait, PageRepository as PageRepoTrait};
 use crate::service::auditor::{Auditor, AuditResult, DeepAuditor, LightAuditor};
@@ -89,7 +89,7 @@ fn extract_page_data(
     let link_edges: Vec<ExtractedLinkEdge> = all_links
         .into_iter()
         .map(|link| {
-            use crate::domain::LinkType;
+            use crate::contexts::LinkType;
             ExtractedLinkEdge {
                 href: link.href,
                 initial_status: if matches!(link.link_type, LinkType::Internal | LinkType::Subdomain)

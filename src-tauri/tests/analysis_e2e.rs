@@ -2,7 +2,7 @@
 //!
 //! These tests verify the full analysis pipeline against real URLs.
 
-use app::{domain::JobSettings, repository::sqlite_job_repo};
+use app::{contexts::{IssueSeverity, JobSettings, JobStatus, LinkType, NewIssue, NewLink, NewPageQueueItem, Page, PageQueueStatus}, repository::sqlite_job_repo};
 use sqlx::SqlitePool;
 
 /// Creates an in-memory SQLite database with migrations applied for testing.
@@ -156,7 +156,7 @@ async fn test_update_job_status() {
     assert_eq!(job.status.as_str(), "pending");
 
     // Update status to Discovery
-    repo.update_status(&job_id, app::domain::JobStatus::Discovery)
+    repo.update_status(&job_id, JobStatus::Discovery)
         .await
         .expect("Failed to update status");
 
@@ -164,7 +164,7 @@ async fn test_update_job_status() {
     assert_eq!(job.status.as_str(), "discovery");
 
     // Update status to Processing
-    repo.update_status(&job_id, app::domain::JobStatus::Processing)
+    repo.update_status(&job_id, JobStatus::Processing)
         .await
         .expect("Failed to update status");
 
@@ -172,7 +172,7 @@ async fn test_update_job_status() {
     assert_eq!(job.status.as_str(), "processing");
 
     // Update status to Completed
-    repo.update_status(&job_id, app::domain::JobStatus::Completed)
+    repo.update_status(&job_id, JobStatus::Completed)
         .await
         .expect("Failed to update status");
 
@@ -302,7 +302,7 @@ async fn test_get_paginated_with_filters() {
     let _job_id3 = create_job(&pool, "https://other.com/").await;
 
     // Mark first job as completed
-    repo.update_status(&_job_id1, app::domain::JobStatus::Completed)
+    repo.update_status(&_job_id1, JobStatus::Completed)
         .await
         .expect("Failed to update status");
 
@@ -467,7 +467,6 @@ async fn test_ai_repository() {
 
 #[tokio::test]
 async fn test_page_queue_repository() {
-    use app::domain::{NewPageQueueItem, PageQueueStatus};
     use app::repository::sqlite_page_queue_repo;
 
     let pool = setup_test_db().await;
@@ -529,7 +528,6 @@ async fn test_page_queue_repository() {
 
 #[tokio::test]
 async fn test_page_queue_mark_failed() {
-    use app::domain::{NewPageQueueItem, PageQueueStatus};
     use app::repository::sqlite_page_queue_repo;
 
     let pool = setup_test_db().await;
@@ -559,7 +557,6 @@ async fn test_page_queue_mark_failed() {
 
 #[tokio::test]
 async fn test_issue_repository() {
-    use app::domain::{IssueSeverity, NewIssue};
     use app::repository::sqlite_issue_repo;
 
     let pool = setup_test_db().await;
@@ -623,7 +620,6 @@ async fn test_issue_repository() {
 
 #[tokio::test]
 async fn test_link_repository() {
-    use app::domain::{LinkType, NewLink, Page};
     use app::repository::{sqlite_link_repo, sqlite_page_repo};
     use chrono::Utc;
 

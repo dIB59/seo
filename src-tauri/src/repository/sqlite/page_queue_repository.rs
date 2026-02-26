@@ -1,4 +1,4 @@
-use crate::domain::{NewPageQueueItem, PageQueueItem, PageQueueStatus};
+use crate::contexts::{NewPageQueueItem, PageQueueItem, PageQueueStatus};
 use crate::repository::PageQueueRepository as PageQueueRepositoryTrait;
 use anyhow::Result;
 use async_trait::async_trait;

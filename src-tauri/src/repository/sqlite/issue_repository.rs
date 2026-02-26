@@ -3,7 +3,7 @@ use chrono::Utc;
 use sqlx::SqlitePool;
 
 use super::map_severity;
-use crate::domain::{Issue, IssueSeverity, NewIssue};
+use crate::contexts::{Issue, IssueSeverity, NewIssue};
 
 #[derive(Debug, Clone, Default)]
 pub struct IssueCounts {
@@ -262,23 +262,23 @@ use async_trait::async_trait;
 
 #[async_trait]
 impl IssueRepositoryTrait for IssueRepository {
-    async fn insert_batch(&self, issues: &[crate::domain::NewIssue]) -> Result<()> {
+    async fn insert_batch(&self, issues: &[crate::contexts::NewIssue]) -> Result<()> {
         IssueRepository::insert_batch(self, issues).await
     }
 
-    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::Issue>> {
+    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::contexts::Issue>> {
         IssueRepository::get_by_job_id(self, job_id).await
     }
 
-    async fn get_by_page_id(&self, page_id: &str) -> Result<Vec<crate::domain::Issue>> {
+    async fn get_by_page_id(&self, page_id: &str) -> Result<Vec<crate::contexts::Issue>> {
         IssueRepository::get_by_page_id(self, page_id).await
     }
 
     async fn get_by_job_and_severity(
         &self,
         job_id: &str,
-        severity: crate::domain::IssueSeverity,
-    ) -> Result<Vec<crate::domain::Issue>> {
+        severity: crate::contexts::IssueSeverity,
+    ) -> Result<Vec<crate::contexts::Issue>> {
         IssueRepository::get_by_job_and_severity(self, job_id, severity).await
     }
 

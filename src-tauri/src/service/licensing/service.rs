@@ -1,5 +1,5 @@
-use crate::domain::licensing::{AddonError, LicenseVerifier, LicensingAgent, SignedLicense};
-use crate::domain::permissions::LicenseTier;
+use crate::contexts::licensing::{AddonError, LicenseVerifier, LicensingAgent, SignedLicense};
+use crate::contexts::licensing::LicenseTier;
 use crate::service::hardware::HardwareService;
 use crate::service::spider::SpiderAgent;
 use async_trait::async_trait;
@@ -57,7 +57,7 @@ impl LicensingAgent for LicensingService {
     async fn activate_with_key(&self, key: &str) -> Result<LicenseTier, AddonError> {
         let machine_id = HardwareService::get_machine_id();
 
-        let payload = serde_json::to_value(&crate::domain::licensing::LicenseActivationRequest {
+        let payload = serde_json::to_value(&crate::contexts::licensing::LicenseActivationRequest {
             key: key.to_string(),
             machine_id: machine_id.clone(),
         })
@@ -95,7 +95,7 @@ impl LicensingAgent for LicensingService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::TierVersion;
+    use crate::contexts::licensing::TierVersion;
     use crate::repository::sqlite_settings_repo;
     use crate::service::spider::{MockSpider, SpiderResponse};
     use crate::test_utils::fixtures::setup_test_db;
@@ -139,7 +139,7 @@ mod tests {
         let (service, _, priv_key_bytes) = setup().await;
         let signing_key = ed25519_dalek::SigningKey::from_bytes(&priv_key_bytes);
 
-        let data = crate::domain::licensing::LicenseData {
+        let data = crate::contexts::licensing::LicenseData {
             key: "TEST-KEY".to_string(),
             machine_id: HardwareService::get_machine_id(),
             tier: LicenseTier::Premium,
@@ -172,7 +172,7 @@ mod tests {
         let (service, _, priv_key_bytes) = setup().await;
         let signing_key = ed25519_dalek::SigningKey::from_bytes(&priv_key_bytes);
 
-        let data = crate::domain::licensing::LicenseData {
+        let data = crate::contexts::licensing::LicenseData {
             key: "ACTIVATE-KEY".to_string(),
             machine_id: HardwareService::get_machine_id(),
             tier: LicenseTier::Premium,

@@ -124,7 +124,7 @@ pub async fn set_gemini_prompt_blocks(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::permissions::Policy;
+    use crate::contexts::permissions::Policy;
     use crate::lifecycle::app_state::AppState;
     use crate::repository::{sqlite_ai_repo, sqlite_settings_repo};
     use crate::test_utils::fixtures::setup_test_db;

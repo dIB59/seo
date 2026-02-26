@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use std::sync::Arc;
 
-use crate::domain::{Job, JobInfo, JobSettings, JobStatus};
+use crate::contexts::{Job, JobInfo, JobSettings, JobStatus};
 use crate::repository::JobRepository;
 use crate::service::processor::JobQueue;
 use anyhow::Result;

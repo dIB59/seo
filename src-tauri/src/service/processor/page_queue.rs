@@ -1,4 +1,4 @@
-use crate::domain::{NewPageQueueItem, PageQueueItem, PageQueueStatus};
+use crate::contexts::{NewPageQueueItem, PageQueueItem, PageQueueStatus};
 use crate::repository::PageQueueRepository;
 use anyhow::Result;
 use std::sync::Arc;

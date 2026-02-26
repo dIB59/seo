@@ -157,7 +157,7 @@ impl AnalysisService {
     }
 
     /// Get the complete job result with all related data
-    pub async fn get_complete_result(&self, job_id: &str) -> Result<crate::domain::CompleteJobResult> {
+    pub async fn get_complete_result(&self, job_id: &str) -> Result<crate::contexts::CompleteJobResult> {
         let results_repo = self.results_repo.as_ref()
             .ok_or_else(|| anyhow::anyhow!("ResultsRepository not configured"))?;
         results_repo.get_complete_result(job_id).await
@@ -166,7 +166,7 @@ impl AnalysisService {
     // === Page Access ===
 
     /// Get all pages for a job
-    pub async fn get_pages(&self, job_id: &str) -> Result<Vec<crate::domain::Page>> {
+    pub async fn get_pages(&self, job_id: &str) -> Result<Vec<crate::contexts::Page>> {
         let results_repo = self.results_repo.as_ref()
             .ok_or_else(|| anyhow::anyhow!("ResultsRepository not configured"))?;
         results_repo.get_pages(job_id).await
@@ -182,7 +182,7 @@ impl AnalysisService {
     // === Issue Access ===
 
     /// Get all issues for a job
-    pub async fn get_issues(&self, job_id: &str) -> Result<Vec<crate::domain::Issue>> {
+    pub async fn get_issues(&self, job_id: &str) -> Result<Vec<crate::contexts::Issue>> {
         let results_repo = self.results_repo.as_ref()
             .ok_or_else(|| anyhow::anyhow!("ResultsRepository not configured"))?;
         results_repo.get_issues(job_id).await

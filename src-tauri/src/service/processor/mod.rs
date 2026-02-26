@@ -17,7 +17,7 @@ pub use page_queue::PageQueueManager;
 pub use queue::{JobQueue, JobQueueConfig};
 pub use reporter::ProgressReporter;
 
-use crate::domain::{Job, JobStatus, NewLink};
+use crate::contexts::{Job, JobStatus, NewLink};
 use crate::service::processor::reporter::{ProgressEmitter, ProgressEvent};
 use anyhow::Result;
 use std::sync::Arc;

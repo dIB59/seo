@@ -1,4 +1,4 @@
-use crate::domain::{
+use crate::contexts::{
     Job, JobInfo, JobSettings, JobStatus, NewPageQueueItem, PageQueueItem, PageQueueStatus,
 };
 use anyhow::Result;
@@ -72,24 +72,24 @@ pub trait JobRepository: Send + Sync {
 
 #[async_trait]
 pub trait PageRepository: Send + Sync {
-    async fn insert(&self, page: &crate::domain::Page) -> Result<String>;
-    async fn insert_batch(&self, pages: &[crate::domain::Page]) -> Result<()>;
-    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::Page>>;
-    async fn get_info_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::PageInfo>>;
-    async fn get_by_id(&self, page_id: &str) -> Result<crate::domain::Page>;
+    async fn insert(&self, page: &crate::contexts::Page) -> Result<String>;
+    async fn insert_batch(&self, pages: &[crate::contexts::Page]) -> Result<()>;
+    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::contexts::Page>>;
+    async fn get_info_by_job_id(&self, job_id: &str) -> Result<Vec<crate::contexts::PageInfo>>;
+    async fn get_by_id(&self, page_id: &str) -> Result<crate::contexts::Page>;
     async fn replace_headings(
         &self,
         page_id: &str,
-        headings: &[crate::domain::NewHeading],
+        headings: &[crate::contexts::NewHeading],
     ) -> Result<()>;
-    async fn replace_images(&self, page_id: &str, images: &[crate::domain::NewImage])
+    async fn replace_images(&self, page_id: &str, images: &[crate::contexts::NewImage])
         -> Result<()>;
     async fn count_by_job_id(&self, job_id: &str) -> Result<i64>;
-    async fn insert_lighthouse(&self, data: &crate::domain::LighthouseData) -> Result<()>;
+    async fn insert_lighthouse(&self, data: &crate::contexts::LighthouseData) -> Result<()>;
     async fn get_lighthouse_by_job_id(
         &self,
         job_id: &str,
-    ) -> Result<Vec<crate::domain::LighthouseData>>;
+    ) -> Result<Vec<crate::contexts::LighthouseData>>;
 }
 
 #[async_trait]
@@ -100,11 +100,11 @@ pub trait SettingsRepository: Send + Sync {
 
 #[async_trait]
 pub trait LinkRepository: Send + Sync {
-    async fn insert_batch(&self, links: &[crate::domain::NewLink]) -> Result<()>;
-    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::Link>>;
-    async fn get_outgoing(&self, source_page_id: &str) -> Result<Vec<crate::domain::Link>>;
-    async fn get_incoming(&self, target_page_id: &str) -> Result<Vec<crate::domain::Link>>;
-    async fn get_broken(&self, job_id: &str) -> Result<Vec<crate::domain::Link>>;
+    async fn insert_batch(&self, links: &[crate::contexts::NewLink]) -> Result<()>;
+    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::contexts::Link>>;
+    async fn get_outgoing(&self, source_page_id: &str) -> Result<Vec<crate::contexts::Link>>;
+    async fn get_incoming(&self, target_page_id: &str) -> Result<Vec<crate::contexts::Link>>;
+    async fn get_broken(&self, job_id: &str) -> Result<Vec<crate::contexts::Link>>;
     async fn count_by_type(&self, job_id: &str) -> Result<LinkCounts>;
     async fn get_external_domains(&self, job_id: &str) -> Result<Vec<ExternalDomain>>;
     async fn update_status_codes(&self, updates: &[(i64, i64)]) -> Result<()>;
@@ -112,14 +112,14 @@ pub trait LinkRepository: Send + Sync {
 
 #[async_trait]
 pub trait IssueRepository: Send + Sync {
-    async fn insert_batch(&self, issues: &[crate::domain::NewIssue]) -> Result<()>;
-    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::Issue>>;
-    async fn get_by_page_id(&self, page_id: &str) -> Result<Vec<crate::domain::Issue>>;
+    async fn insert_batch(&self, issues: &[crate::contexts::NewIssue]) -> Result<()>;
+    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::contexts::Issue>>;
+    async fn get_by_page_id(&self, page_id: &str) -> Result<Vec<crate::contexts::Issue>>;
     async fn get_by_job_and_severity(
         &self,
         job_id: &str,
-        severity: crate::domain::IssueSeverity,
-    ) -> Result<Vec<crate::domain::Issue>>;
+        severity: crate::contexts::IssueSeverity,
+    ) -> Result<Vec<crate::contexts::Issue>>;
     async fn count_by_severity(&self, job_id: &str) -> Result<IssueCounts>;
     async fn count_by_job_id(&self, job_id: &str) -> Result<i64>;
     async fn get_grouped_by_type(&self, job_id: &str) -> Result<Vec<IssueGroup>>;
@@ -127,15 +127,15 @@ pub trait IssueRepository: Send + Sync {
 
 #[async_trait]
 pub trait ResultsRepository: Send + Sync {
-    async fn get_complete_result(&self, job_id: &str) -> Result<crate::domain::CompleteJobResult>;
-    async fn get_job(&self, job_id: &str) -> Result<crate::domain::Job>;
-    async fn get_pages(&self, job_id: &str) -> Result<Vec<crate::domain::Page>>;
-    async fn get_issues(&self, job_id: &str) -> Result<Vec<crate::domain::Issue>>;
-    async fn get_links(&self, job_id: &str) -> Result<Vec<crate::domain::Link>>;
-    async fn get_lighthouse(&self, job_id: &str) -> Result<Vec<crate::domain::LighthouseData>>;
-    async fn get_headings(&self, job_id: &str) -> Result<Vec<crate::domain::Heading>>;
-    async fn get_images(&self, job_id: &str) -> Result<Vec<crate::domain::Image>>;
-    async fn get_ai_insights(&self, job_id: &str) -> Result<crate::domain::AiInsight>;
+    async fn get_complete_result(&self, job_id: &str) -> Result<crate::contexts::CompleteJobResult>;
+    async fn get_job(&self, job_id: &str) -> Result<crate::contexts::Job>;
+    async fn get_pages(&self, job_id: &str) -> Result<Vec<crate::contexts::Page>>;
+    async fn get_issues(&self, job_id: &str) -> Result<Vec<crate::contexts::Issue>>;
+    async fn get_links(&self, job_id: &str) -> Result<Vec<crate::contexts::Link>>;
+    async fn get_lighthouse(&self, job_id: &str) -> Result<Vec<crate::contexts::LighthouseData>>;
+    async fn get_headings(&self, job_id: &str) -> Result<Vec<crate::contexts::Heading>>;
+    async fn get_images(&self, job_id: &str) -> Result<Vec<crate::contexts::Image>>;
+    async fn get_ai_insights(&self, job_id: &str) -> Result<crate::contexts::AiInsight>;
     async fn save_ai_insights(
         &self,
         job_id: &str,

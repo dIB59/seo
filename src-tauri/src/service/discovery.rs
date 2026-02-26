@@ -7,7 +7,7 @@ use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 use url::Url;
 
-use crate::domain::ResourceStatus;
+use crate::contexts::ResourceStatus;
 use crate::service::spider::SpiderAgent;
 use std::sync::Arc;
 
@@ -111,7 +111,7 @@ impl PageDiscovery {
             let mut new_links_count = 0;
             for link in links {
                 let link_type =
-                    crate::domain::link::NewLink::classify(link.as_str(), start_url_str);
+                    crate::contexts::link::NewLink::classify(link.as_str(), start_url_str);
 
                 let should_follow = link_type.should_follow(include_subdomains);
 

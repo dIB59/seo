@@ -7,7 +7,7 @@ use tauri::State;
 use url::Url;
 
 use crate::{
-    domain::{
+    contexts::{
         permissions::PermissionRequest, AnalysisProgress, Job, JobSettings, JobStatus,
         LighthouseData, Page,
     },
@@ -94,7 +94,7 @@ pub struct LinkDetail {
     #[serde(rename = "href", alias = "url")]
     pub url: String,
     pub text: String,
-    pub link_type: crate::domain::LinkType,
+    pub link_type: crate::contexts::LinkType,
     pub is_broken: bool,
     pub status_code: Option<i64>,
 }
@@ -131,7 +131,7 @@ pub struct PageAnalysisData {
 #[derive(Debug, Clone, Serialize, Type)]
 pub struct SeoIssue {
     pub page_id: String,
-    pub severity: crate::domain::IssueSeverity,
+    pub severity: crate::contexts::IssueSeverity,
     pub title: String,
     pub description: String,
     pub page_url: String,
@@ -193,8 +193,8 @@ pub struct CompleteAnalysisResponse {
     pub summary: AnalysisSummary,
 }
 
-impl From<crate::domain::Link> for LinkDetail {
-    fn from(link: crate::domain::Link) -> Self {
+impl From<crate::contexts::Link> for LinkDetail {
+    fn from(link: crate::contexts::Link) -> Self {
         Self {
             url: link.target_url,
             text: link.link_text.unwrap_or_default(),
@@ -205,8 +205,8 @@ impl From<crate::domain::Link> for LinkDetail {
     }
 }
 
-impl From<crate::domain::Heading> for HeadingElement {
-    fn from(h: crate::domain::Heading) -> Self {
+impl From<crate::contexts::Heading> for HeadingElement {
+    fn from(h: crate::contexts::Heading) -> Self {
         Self {
             tag: format!("h{}", h.level),
             text: h.text,
@@ -214,8 +214,8 @@ impl From<crate::domain::Heading> for HeadingElement {
     }
 }
 
-impl From<crate::domain::Image> for ImageElement {
-    fn from(img: crate::domain::Image) -> Self {
+impl From<crate::contexts::Image> for ImageElement {
+    fn from(img: crate::contexts::Image) -> Self {
         Self {
             src: img.src,
             alt: img.alt,
@@ -225,7 +225,7 @@ impl From<crate::domain::Image> for ImageElement {
 
 fn count_links_by_type(links: &[LinkDetail]) -> (i64, i64) {
     links.iter().fold((0, 0), |(internal, external), link| {
-        if link.link_type == crate::domain::LinkType::Internal {
+        if link.link_type == crate::contexts::LinkType::Internal {
             (internal + 1, external)
         } else {
             (internal, external + 1)
@@ -287,8 +287,8 @@ impl CompleteAnalysisResponse {
     }
 }
 
-impl From<crate::domain::CompleteJobResult> for CompleteAnalysisResponse {
-    fn from(result: crate::domain::CompleteJobResult) -> Self {
+impl From<crate::contexts::CompleteJobResult> for CompleteAnalysisResponse {
+    fn from(result: crate::contexts::CompleteJobResult) -> Self {
         let job = result.job;
         let pages = result.pages;
         let issues = result.issues;
@@ -445,11 +445,11 @@ pub async fn get_analysis_defaults() -> Result<AnalysisSettingsRequest, CommandE
 #[tauri::command]
 #[specta::specta]
 pub async fn get_free_tier_defaults() -> Result<AnalysisSettingsRequest, CommandError> {
-    let policy = crate::domain::permissions::Policy::default();
+    let policy = crate::contexts::permissions::Policy::default();
     let defaults = AnalysisSettingsRequest {
         max_pages: policy.max_pages as i64,
-        include_subdomains: policy.check(crate::domain::permissions::PermissionRequest::UseFeature(
-            crate::domain::permissions::Feature::LinkAnalysis,
+        include_subdomains: policy.check(crate::contexts::permissions::PermissionRequest::UseFeature(
+            crate::contexts::permissions::Feature::LinkAnalysis,
         )),
         ..Default::default()
     };
@@ -522,7 +522,7 @@ pub async fn get_paginated_jobs(
 
 #[tauri::command]
 #[specta::specta]
-#[addon_guard(PermissionRequest::UseFeature(crate::domain::permissions::Feature::LinkAnalysis))]
+#[addon_guard(PermissionRequest::UseFeature(crate::contexts::permissions::Feature::LinkAnalysis))]
 pub async fn cancel_analysis(
     job_id: String,
     #[provider] state: State<'_, AppState>,
@@ -570,7 +570,7 @@ mod tests {
             .expect("Failed to export typescript bindings");
     }
 
-    use crate::domain::{JobSettings, LighthouseData, LinkType, NewLink, Page};
+    use crate::contexts::{JobSettings, LighthouseData, LinkType, NewLink, Page};
     use crate::repository::*;
     use crate::test_utils::fixtures;
     use chrono::Utc;

@@ -1,4 +1,4 @@
-use crate::domain::{Job, JobStatus};
+use crate::contexts::{Job, JobStatus};
 use crate::repository::JobRepository as JobRepositoryTrait;
 use crate::service::processor::channel::{JobChannel, JobChannelConfig, JobNotifier};
 use anyhow::Result;

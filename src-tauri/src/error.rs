@@ -104,8 +104,8 @@ impl From<AppError> for CommandError {
     }
 }
 
-impl From<crate::domain::licensing::AddonError> for CommandError {
-    fn from(error: crate::domain::licensing::AddonError) -> Self {
+impl From<crate::contexts::licensing::AddonError> for CommandError {
+    fn from(error: crate::contexts::licensing::AddonError) -> Self {
         Self(error.to_string())
     }
 }

@@ -1,5 +1,5 @@
 
-use crate::domain::licensing::{
+use crate::contexts::licensing::{
     AddonError, LicenseData, LicenseTier, LicenseVerifier, LicensingAgent, SignedLicense
 };
 use crate::service::hardware::HardwareService;
@@ -132,7 +132,7 @@ impl LicensingAgent for MockLicensingService {
             key: key.to_string(),
             machine_id: machine_id.clone(),
             tier,
-            tier_version: crate::domain::TierVersion::new(1, 0, 0),
+            tier_version: crate::contexts::licensing::TierVersion::new(1, 0, 0),
             tier_meta: None,
             expires_at: None,
             issued_at: chrono::Utc::now().with_nanosecond(0).unwrap(),

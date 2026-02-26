@@ -65,7 +65,7 @@ pub async fn set_up_benchmark_db() -> SqlitePool {
 /// Made public for use in benches/
 pub mod generators {
     use crate::commands::analysis::{ImageElement, LinkDetail, PageAnalysisData, SeoIssue};
-    use crate::domain::{IssueSeverity, LinkType};
+    use crate::contexts::{IssueSeverity, LinkType};
 
     /// Generate mock pages for benchmarking write operations
     pub fn generate_mock_pages(count: usize, analysis_id: &str) -> Vec<PageAnalysisData> {

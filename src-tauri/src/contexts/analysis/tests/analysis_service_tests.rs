@@ -17,7 +17,7 @@ use crate::repository::JobRepository;
 
 /// Mock JobRepository for testing
 struct MockJobRepository {
-    jobs: RwLock<HashMap<String, crate::domain::Job>>,
+    jobs: RwLock<HashMap<String, crate::contexts::Job>>,
 }
 
 impl MockJobRepository {
@@ -30,15 +30,15 @@ impl MockJobRepository {
 
 #[async_trait]
 impl JobRepository for MockJobRepository {
-    async fn create(&self, url: &str, settings: &crate::domain::JobSettings) -> anyhow::Result<String> {
+    async fn create(&self, url: &str, settings: &crate::contexts::JobSettings) -> anyhow::Result<String> {
         let now = chrono::Utc::now();
-        let job = crate::domain::Job {
+        let job = crate::contexts::Job {
             id: uuid::Uuid::new_v4().to_string(),
             url: url.to_string(),
-            status: crate::domain::JobStatus::Pending,
+            status: crate::contexts::JobStatus::Pending,
             progress: 0.0,
             settings: settings.clone(),
-            summary: crate::domain::JobSummary::default(),
+            summary: crate::contexts::JobSummary::default(),
             sitemap_found: false,
             robots_txt_found: false,
             created_at: now,
@@ -51,13 +51,13 @@ impl JobRepository for MockJobRepository {
         Ok(id)
     }
 
-    async fn get_by_id(&self, id: &str) -> anyhow::Result<crate::domain::Job> {
+    async fn get_by_id(&self, id: &str) -> anyhow::Result<crate::contexts::Job> {
         self.jobs.read().await.get(id).cloned()
             .ok_or_else(|| anyhow::anyhow!("Job not found"))
     }
 
-    async fn get_all(&self) -> anyhow::Result<Vec<crate::domain::JobInfo>> {
-        Ok(self.jobs.read().await.values().map(|j| crate::domain::JobInfo {
+    async fn get_all(&self) -> anyhow::Result<Vec<crate::contexts::JobInfo>> {
+        Ok(self.jobs.read().await.values().map(|j| crate::contexts::JobInfo {
             id: j.id.clone(),
             url: j.url.clone(),
             status: j.status.clone(),
@@ -70,7 +70,7 @@ impl JobRepository for MockJobRepository {
         }).collect())
     }
 
-    async fn get_paginated(&self, limit: i64, offset: i64) -> anyhow::Result<Vec<crate::domain::JobInfo>> {
+    async fn get_paginated(&self, limit: i64, offset: i64) -> anyhow::Result<Vec<crate::contexts::JobInfo>> {
         let all = self.get_all().await?;
         Ok(all.into_iter().skip(offset as usize).take(limit as usize).collect())
     }
@@ -81,24 +81,24 @@ impl JobRepository for MockJobRepository {
         offset: i64,
         _url_filter: Option<String>,
         _status_filter: Option<String>,
-    ) -> anyhow::Result<(Vec<crate::domain::JobInfo>, i64)> {
+    ) -> anyhow::Result<(Vec<crate::contexts::JobInfo>, i64)> {
         let all = self.get_all().await?;
         let total = all.len() as i64;
         Ok((all.into_iter().skip(offset as usize).take(limit as usize).collect(), total))
     }
 
-    async fn get_pending(&self) -> anyhow::Result<Vec<crate::domain::Job>> {
-        Ok(self.jobs.read().await.values().filter(|j| j.status == crate::domain::JobStatus::Pending).cloned().collect())
+    async fn get_pending(&self) -> anyhow::Result<Vec<crate::contexts::Job>> {
+        Ok(self.jobs.read().await.values().filter(|j| j.status == crate::contexts::JobStatus::Pending).cloned().collect())
     }
 
     async fn get_running_jobs_id(&self) -> anyhow::Result<Vec<String>> {
         Ok(self.jobs.read().await.values()
-            .filter(|j| j.status == crate::domain::JobStatus::Processing || j.status == crate::domain::JobStatus::Discovery)
+            .filter(|j| j.status == crate::contexts::JobStatus::Processing || j.status == crate::contexts::JobStatus::Discovery)
             .map(|j| j.id.clone())
             .collect())
     }
 
-    async fn update_status(&self, job_id: &str, status: crate::domain::JobStatus) -> anyhow::Result<()> {
+    async fn update_status(&self, job_id: &str, status: crate::contexts::JobStatus) -> anyhow::Result<()> {
         if let Some(job) = self.jobs.write().await.get_mut(job_id) {
             job.status = status;
         }
@@ -127,7 +127,7 @@ impl JobRepository for MockJobRepository {
 
     async fn set_error(&self, job_id: &str, error: &str) -> anyhow::Result<()> {
         if let Some(job) = self.jobs.write().await.get_mut(job_id) {
-            job.status = crate::domain::JobStatus::Failed;
+            job.status = crate::contexts::JobStatus::Failed;
             job.error_message = Some(error.to_string());
         }
         Ok(())
@@ -166,7 +166,7 @@ async fn test_analysis_service_create_job() {
     // Arrange
     let job_repo = Arc::new(MockJobRepository::new());
     let service = AnalysisService::new(job_repo.clone());
-    let settings = crate::domain::JobSettings::default();
+    let settings = crate::contexts::JobSettings::default();
     
     // Act
     let job_id = service.create_job("https://example.com", &settings).await
@@ -179,7 +179,7 @@ async fn test_analysis_service_create_job() {
     let job = job_repo.get_by_id(&job_id).await
         .expect("Job should exist in repository");
     assert_eq!(job.url, "https://example.com");
-    assert_eq!(job.status, crate::domain::JobStatus::Pending);
+    assert_eq!(job.status, crate::contexts::JobStatus::Pending);
 }
 
 /// Test: AnalysisService can get a job by ID
@@ -188,7 +188,7 @@ async fn test_analysis_service_get_job() {
     // Arrange
     let job_repo = Arc::new(MockJobRepository::new());
     let service = AnalysisService::new(job_repo.clone());
-    let settings = crate::domain::JobSettings::default();
+    let settings = crate::contexts::JobSettings::default();
     
     // Create a job first
     let job_id = service.create_job("https://example.com", &settings).await
@@ -209,7 +209,7 @@ async fn test_analysis_service_list_jobs() {
     // Arrange
     let job_repo = Arc::new(MockJobRepository::new());
     let service = AnalysisService::new(job_repo);
-    let settings = crate::domain::JobSettings::default();
+    let settings = crate::contexts::JobSettings::default();
     
     // Create multiple jobs
     service.create_job("https://example1.com", &settings).await
@@ -232,7 +232,7 @@ async fn test_analysis_service_cancel_job() {
     // Arrange
     let job_repo = Arc::new(MockJobRepository::new());
     let service = AnalysisService::new(job_repo.clone());
-    let settings = crate::domain::JobSettings::default();
+    let settings = crate::contexts::JobSettings::default();
     
     let job_id = service.create_job("https://example.com", &settings).await
         .expect("Failed to create job");
@@ -244,7 +244,7 @@ async fn test_analysis_service_cancel_job() {
     // Assert
     let job = job_repo.get_by_id(&job_id).await
         .expect("Job should exist");
-    assert_eq!(job.status, crate::domain::JobStatus::Cancelled);
+    assert_eq!(job.status, crate::contexts::JobStatus::Cancelled);
 }
 
 /// Test: AnalysisService returns error for non-existent job
@@ -267,7 +267,7 @@ async fn test_analysis_service_get_progress() {
     // Arrange
     let job_repo = Arc::new(MockJobRepository::new());
     let service = AnalysisService::new(job_repo.clone());
-    let settings = crate::domain::JobSettings::default();
+    let settings = crate::contexts::JobSettings::default();
     
     let job_id = service.create_job("https://example.com", &settings).await
         .expect("Failed to create job");
@@ -288,7 +288,7 @@ async fn test_analysis_service_get_progress() {
 /// Test: JobSettings default values are sensible
 #[test]
 fn test_job_settings_defaults() {
-    let settings = crate::domain::JobSettings::default();
+    let settings = crate::contexts::JobSettings::default();
     
     assert_eq!(settings.max_pages, 100);
     assert!(settings.include_subdomains);
@@ -301,7 +301,7 @@ fn test_job_settings_defaults() {
 /// Test: JobSettings can be customized
 #[test]
 fn test_job_settings_custom() {
-    let settings = crate::domain::JobSettings {
+    let settings = crate::contexts::JobSettings {
         max_pages: 50,
         include_subdomains: false,
         check_images: false,
