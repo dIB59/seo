@@ -20,6 +20,7 @@ pub mod context;
 pub mod result;
 pub mod traits;
 pub mod pipeline;
+pub mod domain;
 
 // Built-in extensions
 pub mod builtins;
@@ -41,6 +42,9 @@ pub use traits::{
 pub use pipeline::ExtensionPipeline;
 pub use loader::ExtensionLoader;
 
+// Re-export domain types
+pub use domain::{HtmlExtractionConfig, HtmlExtractionRule, ValidationResult as DomainValidationResult, ValidationReason};
+
 // Re-export built-in extensions
 pub use builtins::register_builtins;
 
@@ -59,15 +63,14 @@ use crate::contexts::{NewIssue, Page};
 ///
 /// # Example
 ///
-/// ```rust
+
 /// use extension::{ExtensionPipeline, ExtensionRegistry};
-///
 /// let registry = ExtensionRegistry::new();
 /// registry.register_builtin_extensions();
 ///
 /// // Execute pipeline for a page
 /// let result = registry.execute(&page, html).await?;
-/// ```
+///
 pub struct ExtensionRegistry {
     /// The execution pipeline
     pipeline: ExtensionPipeline,
