@@ -6,8 +6,22 @@ pub mod licensing;
 pub mod extension;
 pub mod ai;
 
+// IssueRuleInfo is now defined here for backward compatibility with the database layer
+use serde::{Deserialize, Serialize};
 
-pub use crate::contexts::extension::domain::issue_rule::{IssueRuleInfo}; 
+/// Information about an issue rule for the frontend and database
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct IssueRuleInfo {
+    pub id: String,
+    pub name: String,
+    pub category: String,
+    pub severity: String,
+    pub rule_type: String,
+    pub target_field: Option<String>,
+    pub recommendation: Option<String>,
+    pub is_builtin: bool,
+    pub is_enabled: bool,
+}
 
 // Re-exports for backwards compatibility - types from analysis context
 pub use crate::contexts::analysis::{

@@ -1,5 +1,5 @@
 use crate::contexts::{JobSettings, LighthouseData, NewHeading, NewImage, NewIssue, NewLink, Page};
-use crate::extension::{EvaluationContext, ExtensionRegistry};
+use crate::extension::{ExtensionRegistry, ValidationContext};
 use crate::extractor::page_extractor::{ExtractedHeading, ExtractedImage, PageExtractor};
 use crate::repository::{IssueRepository as IssueRepoTrait, PageRepository as PageRepoTrait};
 use crate::service::auditor::{Auditor, AuditResult, DeepAuditor, LightAuditor};
@@ -221,9 +221,11 @@ impl AnalyzerService {
 
         // Generate issues using extension registry if available, otherwise fall back to built-in audit
         let issues = if let Some(registry) = &self.extension_registry {
-            let context = EvaluationContext::new()
-                .with_html(audit_result.html.clone());
-            registry.evaluate_rules(&extracted.page, &context)
+            // Use the new pipeline-based extension system
+            let (_extracted_data, issues) = registry
+                .extract_and_validate(&extracted.page, &audit_result.html)
+                .await;
+            issues
         } else {
             // Fallback to built-in audit for backward compatibility
             extracted.page.audit()

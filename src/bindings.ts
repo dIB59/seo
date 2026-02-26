@@ -225,9 +225,9 @@ async getExtensionSummary() : Promise<Result<ExtensionSummary, CommandError>> {
 }
 },
 /**
- * Get all registered issue rules
+ * Get all registered issue rules (legacy compatibility)
  */
-async getAllIssueRules() : Promise<Result<IssueRuleInfo[], CommandError>> {
+async getAllIssueRules() : Promise<Result<IssueGeneratorInfo[], CommandError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_all_issue_rules") };
 } catch (e) {
@@ -247,7 +247,7 @@ async getAllExtractors() : Promise<Result<DataExtractorInfo[], CommandError>> {
 }
 },
 /**
- * Get all registered audit checks
+ * Get all registered audit checks (legacy compatibility)
  */
 async getAllAuditChecks() : Promise<Result<AuditCheckInfo[], CommandError>> {
     try {
@@ -258,9 +258,9 @@ async getAllAuditChecks() : Promise<Result<AuditCheckInfo[], CommandError>> {
 }
 },
 /**
- * Create a new custom issue rule
+ * Create a new custom issue generator
  */
-async createCustomRule(request: CreateRuleRequest) : Promise<Result<IssueRuleInfo, CommandError>> {
+async createCustomRule(request: CreateRuleRequest) : Promise<Result<IssueGeneratorInfo, CommandError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("create_custom_rule", { request }) };
 } catch (e) {
@@ -271,7 +271,7 @@ async createCustomRule(request: CreateRuleRequest) : Promise<Result<IssueRuleInf
 /**
  * Update an existing custom rule
  */
-async updateCustomRule(request: UpdateRuleRequest) : Promise<Result<IssueRuleInfo, CommandError>> {
+async updateCustomRule(request: UpdateRuleRequest) : Promise<Result<IssueGeneratorInfo, CommandError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("update_custom_rule", { request }) };
 } catch (e) {
@@ -293,7 +293,7 @@ async deleteCustomRule(ruleId: string) : Promise<Result<null, CommandError>> {
 /**
  * Toggle a rule's enabled status
  */
-async toggleRuleEnabled(ruleId: string, enabled: boolean) : Promise<Result<IssueRuleInfo, CommandError>> {
+async toggleRuleEnabled(ruleId: string, enabled: boolean) : Promise<Result<IssueGeneratorInfo, CommandError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("toggle_rule_enabled", { ruleId, enabled }) };
 } catch (e) {
@@ -338,7 +338,7 @@ export type AnalysisResults = { id: string; url: string; status: JobStatus; prog
 export type AnalysisSettingsRequest = { max_pages: number; include_subdomains: boolean; check_images: boolean; mobile_analysis: boolean; lighthouse_analysis: boolean; delay_between_requests: number }
 export type AnalysisSummary = { analysis_id: string; seo_score: number; avg_load_time: number; total_words: number; total_issues: number }
 /**
- * Information about an audit check for the frontend
+ * Information about an audit check for the frontend (legacy)
  */
 export type AuditCheckInfo = { key: string; label: string; category: string; weight: number; is_builtin: boolean; is_enabled: boolean }
 /**
@@ -358,15 +358,15 @@ export type DataExtractorInfo = { id: string; name: string; description: string 
 /**
  * Summary of extension system status
  */
-export type ExtensionSummary = { total_rules: number; total_extractors: number; total_checks: number; builtin_rules: number; custom_rules: number }
+export type ExtensionSummary = { total_extensions: number; total_validators: number; total_extractors: number; total_exporters: number; builtin_count: number; custom_count: number }
 export type Feature = "LinkAnalysis" | "GraphView" | "ExportReports"
 export type GeminiRequest = { analysis_id: string; url: string; seo_score: number; pages_count: number; total_issues: number; critical_issues: number; warning_issues: number; suggestion_issues: number; top_issues: string[]; avg_load_time: number; total_words: number; ssl_certificate: boolean; sitemap_found: boolean; robots_txt_found: boolean }
 export type HeadingElement = { tag: string; text: string }
 export type ImageElement = { src: string; alt: string | null }
 /**
- * Information about an issue rule for the frontend
+ * Information about an issue generator for the frontend
  */
-export type IssueRuleInfo = { id: string; name: string; category: string; severity: string; rule_type: string; target_field: string | null; recommendation: string | null; is_builtin: boolean; is_enabled: boolean }
+export type IssueGeneratorInfo = { id: string; name: string; category: string; severity: string; recommendation: string | null; is_builtin: boolean; is_enabled: boolean }
 export type IssueSeverity = "critical" | "warning" | "info"
 /**
  * Status of an SEO analysis job.

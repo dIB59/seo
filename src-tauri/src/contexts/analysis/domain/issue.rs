@@ -94,7 +94,7 @@ impl IssueBuilder {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct NewIssue {
     pub job_id: String,
     pub page_id: Option<String>,

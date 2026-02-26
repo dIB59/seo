@@ -106,28 +106,5 @@ async fn dump_schema(pool: &SqlitePool, output_path: &std::path::Path) -> Result
 
 use tokio::runtime::Runtime;
 
-pub fn create_in_memory_db() -> SqlitePool {
-    let rt = Runtime::new().unwrap();
-    let pool_future = SqlitePoolOptions::new()
-        .max_connections(10)
-        .min_connections(2)
-        .acquire_timeout(Duration::from_secs(5))
-        .idle_timeout(Duration::from_secs(600))
-        .after_connect(|conn, _meta| {
-            Box::pin(async move {
-                configure_sqlite_pragmas(conn).await?;
-                Ok(())
-            })
-        })
-        .connect("sqlite::memory:");
-    let pool = rt.block_on(pool_future).expect("msg");
-
-    sqlx::migrate!()
-        .run(&pool)
-        .context("failed to run migrations")?;
-
-    pool
-}
-
 #[cfg(test)]
 mod tests {}
