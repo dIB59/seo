@@ -4,7 +4,7 @@ use crate::contexts::{
 use anyhow::Result;
 use async_trait::async_trait;
 use std::sync::Arc;
-mod sqlite;
+pub mod sqlite;
 
 pub fn sqlite_extension_repo(pool: sqlx::SqlitePool) -> Arc<dyn ExtensionRepositoryTrait> {
     Arc::new(sqlite::ExtensionRepository::new(pool))
@@ -45,6 +45,9 @@ pub fn sqlite_page_queue_repo(pool: sqlx::SqlitePool) -> Arc<dyn PageQueueReposi
 
 pub use sqlite::{ExternalDomain, IssueCounts, IssueGroup, LinkCounts};
 
+// Re-export ExtractorConfigInfo for use in commands
+pub use sqlite::extension_repository::ExtractorConfigInfo;
+
 
 #[async_trait]
 pub trait ExtensionRepositoryTrait: Send + Sync {
@@ -55,6 +58,15 @@ pub trait ExtensionRepositoryTrait: Send + Sync {
     async fn delete_rule(&self, id: &str) -> Result<()>;
     async fn set_rule_enabled(&self, id: &str, enabled: bool) -> Result<()>;
     async fn count_custom_rules(&self) -> Result<usize>;
+    
+    // Extractor methods
+    async fn get_all_extractors(&self) -> Result<Vec<ExtractorConfigInfo>>;
+    async fn get_extractor_by_id(&self, id: &str) -> Result<ExtractorConfigInfo>;
+    async fn insert_extractor(&self, id: &str, name: &str, display_name: &str, description: Option<&str>, extractor_type: &str, selector: &str, attribute: Option<&str>) -> Result<()>;
+    async fn update_extractor(&self, id: &str, name: Option<&str>, display_name: Option<&str>, description: Option<&str>, selector: Option<&str>, attribute: Option<&str>) -> Result<()>;
+    async fn delete_extractor(&self, id: &str) -> Result<()>;
+    async fn set_extractor_enabled(&self, id: &str, enabled: bool) -> Result<()>;
+    async fn count_custom_extractors(&self) -> Result<usize>;
 }
 
 #[async_trait]

@@ -9,18 +9,29 @@
 import { commands } from "@/src/bindings";
 import type {
   ExtensionSummary as BindingsExtensionSummary,
-  IssueRuleInfo as BindingsIssueRuleInfo,
+  IssueGeneratorInfo,
   CreateRuleRequest as BindingsCreateRuleRequest,
   UpdateRuleRequest as BindingsUpdateRuleRequest,
   DataExtractorInfo as BindingsDataExtractorInfo,
   AuditCheckInfo as BindingsAuditCheckInfo,
+  ExtractorConfigInfo as BindingsExtractorConfigInfo,
+  CreateExtractorRequest as BindingsCreateExtractorRequest,
+  UpdateExtractorRequest as BindingsUpdateExtractorRequest,
   Result,
 } from "@/src/bindings";
 
-// ============================================================================
-// Type Definitions (frontend-compatible with undefined for optional fields)
-// ============================================================================
+// Re-export bindings types for use in components
+export type ExtensionSummary = BindingsExtensionSummary;
+export type IssueRuleInfo = IssueGeneratorInfo;
+export type DataExtractorInfo = BindingsDataExtractorInfo;
+export type AuditCheckInfo = BindingsAuditCheckInfo;
+export type CreateRuleRequest = BindingsCreateRuleRequest;
+export type UpdateRuleRequest = BindingsUpdateRuleRequest;
+export type CreateExtractorRequest = BindingsCreateExtractorRequest;
+export type UpdateExtractorRequest = BindingsUpdateExtractorRequest;
+export type ExtractorConfigInfo = BindingsExtractorConfigInfo;
 
+// Additional type exports for compatibility
 export type RuleType = "presence" | "threshold" | "regex" | "custom";
 export type RuleSeverity = "critical" | "warning" | "info";
 export type ExtensionCategory =
@@ -43,41 +54,6 @@ export const EXTENSION_CATEGORIES = [
   "ux",
   "mobile",
 ] as const;
-
-/**
- * CreateRuleRequest with undefined for optional fields (frontend compatibility)
- */
-export interface CreateRuleRequest {
-  name: string;
-  category: string;
-  severity: RuleSeverity;
-  rule_type: RuleType;
-  target_field: string;
-  threshold_min?: number;
-  threshold_max?: number;
-  regex_pattern?: string;
-  recommendation?: string;
-}
-
-/**
- * UpdateRuleRequest with undefined for optional fields (frontend compatibility)
- */
-export interface UpdateRuleRequest {
-  id: string;
-  name?: string;
-  severity?: RuleSeverity;
-  threshold_min?: number;
-  threshold_max?: number;
-  regex_pattern?: string;
-  recommendation?: string;
-  is_enabled?: boolean;
-}
-
-// Re-export bindings types for read-only use
-export type ExtensionSummary = BindingsExtensionSummary;
-export type IssueRuleInfo = BindingsIssueRuleInfo;
-export type DataExtractorInfo = BindingsDataExtractorInfo;
-export type AuditCheckInfo = BindingsAuditCheckInfo;
 
 // ============================================================================
 // Internal Helper Functions
@@ -112,39 +88,6 @@ function toResult<T>(result: Result<T, string>): {
   };
 }
 
-/**
- * Convert frontend CreateRuleRequest to bindings CreateRuleRequest
- */
-function toBindingsCreateRuleRequest(req: CreateRuleRequest): BindingsCreateRuleRequest {
-  return {
-    name: req.name,
-    category: req.category,
-    severity: req.severity,
-    rule_type: req.rule_type,
-    target_field: req.target_field,
-    threshold_min: req.threshold_min ?? null,
-    threshold_max: req.threshold_max ?? null,
-    regex_pattern: req.regex_pattern ?? null,
-    recommendation: req.recommendation ?? null,
-  };
-}
-
-/**
- * Convert frontend UpdateRuleRequest to bindings UpdateRuleRequest
- */
-function toBindingsUpdateRuleRequest(req: UpdateRuleRequest): BindingsUpdateRuleRequest {
-  return {
-    id: req.id,
-    name: req.name ?? null,
-    severity: req.severity ?? null,
-    threshold_min: req.threshold_min ?? null,
-    threshold_max: req.threshold_max ?? null,
-    regex_pattern: req.regex_pattern ?? null,
-    recommendation: req.recommendation ?? null,
-    is_enabled: req.is_enabled ?? null,
-  };
-}
-
 // ============================================================================
 // Extension Summary
 // ============================================================================
@@ -155,7 +98,7 @@ function toBindingsUpdateRuleRequest(req: UpdateRuleRequest): BindingsUpdateRule
 export async function getExtensionSummary(): Promise<{
   isOk(): boolean;
   isErr(): boolean;
-  unwrap(): ExtensionSummary;
+  unwrap(): BindingsExtensionSummary;
   unwrapErr(): string;
 }> {
   const result = await commands.getExtensionSummary();
@@ -168,7 +111,7 @@ export async function getExtensionSummary(): Promise<{
 export async function reloadExtensions(): Promise<{
   isOk(): boolean;
   isErr(): boolean;
-  unwrap(): ExtensionSummary;
+  unwrap(): BindingsExtensionSummary;
   unwrapErr(): string;
 }> {
   const result = await commands.reloadExtensions();
@@ -185,7 +128,7 @@ export async function reloadExtensions(): Promise<{
 export async function getAllIssueRules(): Promise<{
   isOk(): boolean;
   isErr(): boolean;
-  unwrap(): IssueRuleInfo[];
+  unwrap(): IssueGeneratorInfo[];
   unwrapErr(): string;
 }> {
   const result = await commands.getAllIssueRules();
@@ -195,28 +138,26 @@ export async function getAllIssueRules(): Promise<{
 /**
  * Create a new custom issue rule
  */
-export async function createCustomRule(request: CreateRuleRequest): Promise<{
+export async function createCustomRule(request: BindingsCreateRuleRequest): Promise<{
   isOk(): boolean;
   isErr(): boolean;
-  unwrap(): IssueRuleInfo;
+  unwrap(): IssueGeneratorInfo;
   unwrapErr(): string;
 }> {
-  const bindingsRequest = toBindingsCreateRuleRequest(request);
-  const result = await commands.createCustomRule(bindingsRequest);
+  const result = await commands.createCustomRule(request);
   return toResult(result);
 }
 
 /**
  * Update an existing custom rule
  */
-export async function updateCustomRule(request: UpdateRuleRequest): Promise<{
+export async function updateCustomRule(request: BindingsUpdateRuleRequest): Promise<{
   isOk(): boolean;
   isErr(): boolean;
-  unwrap(): IssueRuleInfo;
+  unwrap(): IssueGeneratorInfo;
   unwrapErr(): string;
 }> {
-  const bindingsRequest = toBindingsUpdateRuleRequest(request);
-  const result = await commands.updateCustomRule(bindingsRequest);
+  const result = await commands.updateCustomRule(request);
   return toResult(result);
 }
 
@@ -242,7 +183,7 @@ export async function toggleRuleEnabled(
 ): Promise<{
   isOk(): boolean;
   isErr(): boolean;
-  unwrap(): IssueRuleInfo;
+  unwrap(): IssueGeneratorInfo;
   unwrapErr(): string;
 }> {
   const result = await commands.toggleRuleEnabled(ruleId, enabled);
@@ -259,10 +200,78 @@ export async function toggleRuleEnabled(
 export async function getAllExtractors(): Promise<{
   isOk(): boolean;
   isErr(): boolean;
-  unwrap(): DataExtractorInfo[];
+  unwrap(): BindingsDataExtractorInfo[];
   unwrapErr(): string;
 }> {
   const result = await commands.getAllExtractors();
+  return toResult(result);
+}
+
+/**
+ * Get all extractor configs from database (including custom ones)
+ */
+export async function getExtractorConfigs(): Promise<{
+  isOk(): boolean;
+  isErr(): boolean;
+  unwrap(): BindingsExtractorConfigInfo[];
+  unwrapErr(): string;
+}> {
+  const result = await commands.getExtractorConfigs();
+  return toResult(result);
+}
+
+/**
+ * Create a new custom extractor
+ */
+export async function createCustomExtractor(request: BindingsCreateExtractorRequest): Promise<{
+  isOk(): boolean;
+  isErr(): boolean;
+  unwrap(): BindingsExtractorConfigInfo;
+  unwrapErr(): string;
+}> {
+  const result = await commands.createCustomExtractor(request);
+  return toResult(result);
+}
+
+/**
+ * Update an existing custom extractor
+ */
+export async function updateCustomExtractor(request: BindingsUpdateExtractorRequest): Promise<{
+  isOk(): boolean;
+  isErr(): boolean;
+  unwrap(): BindingsExtractorConfigInfo;
+  unwrapErr(): string;
+}> {
+  const result = await commands.updateCustomExtractor(request);
+  return toResult(result);
+}
+
+/**
+ * Delete a custom extractor
+ */
+export async function deleteCustomExtractor(extractorId: string): Promise<{
+  isOk(): boolean;
+  isErr(): boolean;
+  unwrap(): void;
+  unwrapErr(): string;
+}> {
+  const result = await commands.deleteCustomExtractor(extractorId);
+  return toResult(result);
+}
+
+/**
+ * Toggle an extractor's enabled status
+ */
+export async function toggleExtractorEnabled(
+  extractorId: string,
+  enabled: boolean,
+): Promise<{
+  isOk(): boolean;
+  isErr(): boolean;
+  unwrap(): BindingsExtractorConfigInfo;
+  unwrapErr(): string;
+}> {
+  const result = await commands.toggleExtractorEnabled(extractorId, enabled);
   return toResult(result);
 }
 
@@ -276,7 +285,7 @@ export async function getAllExtractors(): Promise<{
 export async function getAllAuditChecks(): Promise<{
   isOk(): boolean;
   isErr(): boolean;
-  unwrap(): AuditCheckInfo[];
+  unwrap(): BindingsAuditCheckInfo[];
   unwrapErr(): string;
 }> {
   const result = await commands.getAllAuditChecks();
@@ -291,7 +300,7 @@ export async function getAllAuditChecks(): Promise<{
  * Filter rules by various criteria
  */
 export function filterRules(
-  rules: IssueRuleInfo[],
+  rules: IssueGeneratorInfo[],
   filter: {
     category?: string;
     severity?: string;
@@ -299,7 +308,7 @@ export function filterRules(
     is_enabled?: boolean;
     search?: string;
   },
-): IssueRuleInfo[] {
+): IssueGeneratorInfo[] {
   return rules.filter((rule) => {
     if (filter.category && rule.category !== filter.category) return false;
     if (filter.severity && rule.severity !== filter.severity) return false;
@@ -321,10 +330,10 @@ export function filterRules(
  * Sort rules by various criteria
  */
 export function sortRules(
-  rules: IssueRuleInfo[],
+  rules: IssueGeneratorInfo[],
   sortBy: "name" | "category" | "severity" | "type",
   ascending: boolean = true,
-): IssueRuleInfo[] {
+): IssueGeneratorInfo[] {
   const sorted = [...rules].sort((a, b) => {
     let comparison = 0;
     switch (sortBy) {
@@ -338,9 +347,6 @@ export function sortRules(
         const severityOrder: Record<string, number> = { critical: 0, warning: 1, info: 2 };
         comparison = severityOrder[a.severity] - severityOrder[b.severity];
         break;
-      case "type":
-        comparison = a.rule_type.localeCompare(b.rule_type);
-        break;
     }
     return ascending ? comparison : -comparison;
   });
@@ -350,8 +356,10 @@ export function sortRules(
 /**
  * Group rules by category
  */
-export function groupRulesByCategory(rules: IssueRuleInfo[]): Map<string, IssueRuleInfo[]> {
-  const groups = new Map<string, IssueRuleInfo[]>();
+export function groupRulesByCategory(
+  rules: IssueGeneratorInfo[],
+): Map<string, IssueGeneratorInfo[]> {
+  const groups = new Map<string, IssueGeneratorInfo[]>();
   for (const rule of rules) {
     const category = rule.category || "other";
     const existing = groups.get(category) || [];
@@ -364,8 +372,10 @@ export function groupRulesByCategory(rules: IssueRuleInfo[]): Map<string, IssueR
 /**
  * Group rules by severity
  */
-export function groupRulesBySeverity(rules: IssueRuleInfo[]): Map<string, IssueRuleInfo[]> {
-  const groups = new Map<string, IssueRuleInfo[]>();
+export function groupRulesBySeverity(
+  rules: IssueGeneratorInfo[],
+): Map<string, IssueGeneratorInfo[]> {
+  const groups = new Map<string, IssueGeneratorInfo[]>();
   for (const rule of rules) {
     const existing = groups.get(rule.severity) || [];
     existing.push(rule);

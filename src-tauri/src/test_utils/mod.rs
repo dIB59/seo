@@ -120,6 +120,7 @@ pub mod generators {
                     tag: "h1".to_string(),
                     text: format!("Heading for page {}", i),
                 }],
+                extracted_data: std::collections::HashMap::new(),
             })
             .collect()
     }

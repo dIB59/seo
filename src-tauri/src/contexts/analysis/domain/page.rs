@@ -23,6 +23,9 @@ pub struct Page {
     pub has_viewport: bool,
     pub has_structured_data: bool,
     pub crawled_at: DateTime<Utc>,
+    /// Extracted data from custom extractors (key-value pairs)
+    #[serde(default)]
+    pub extracted_data: std::collections::HashMap<String, serde_json::Value>,
 }
 
 impl Page {
@@ -234,6 +237,7 @@ mod tests {
             has_viewport: true,
             has_structured_data: false,
             crawled_at: Utc::now(),
+            extracted_data: std::collections::HashMap::new(),
         };
         overrides(&mut page);
         page

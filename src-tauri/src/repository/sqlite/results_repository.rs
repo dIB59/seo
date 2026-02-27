@@ -74,6 +74,7 @@ impl ResultsRepository {
             headings,
             images,
             ai_insights,
+            extracted_data: std::collections::HashMap::new(),
         })
     }
 
@@ -133,7 +134,7 @@ impl ResultsRepository {
                 id, job_id, url, depth, status_code, content_type,
                 title, meta_description, canonical_url, robots_meta,
                 word_count, load_time_ms, response_size_bytes,
-                has_viewport, has_structured_data, crawled_at
+                has_viewport, has_structured_data, crawled_at, extracted_data
             FROM pages
             WHERE job_id = ?
             ORDER BY depth ASC, url ASC
@@ -146,23 +147,30 @@ impl ResultsRepository {
 
         Ok(rows
             .into_iter()
-            .map(|row| Page {
-                id: row.id,
-                job_id: row.job_id,
-                url: row.url,
-                depth: row.depth,
-                status_code: row.status_code,
-                content_type: row.content_type,
-                title: row.title,
-                meta_description: row.meta_description,
-                canonical_url: row.canonical_url,
-                robots_meta: row.robots_meta,
-                word_count: row.word_count,
-                load_time_ms: row.load_time_ms,
-                response_size_bytes: row.response_size_bytes,
-                has_viewport: row.has_viewport != 0,
-                has_structured_data: row.has_structured_data != 0,
-                crawled_at: parse_datetime(row.crawled_at.as_str()),
+            .map(|row| {
+                // Parse extracted_data JSON
+                let extracted_data: std::collections::HashMap<String, serde_json::Value> = 
+                    serde_json::from_str(&row.extracted_data).unwrap_or_default();
+                    
+                Page {
+                    id: row.id,
+                    job_id: row.job_id,
+                    url: row.url,
+                    depth: row.depth,
+                    status_code: row.status_code,
+                    content_type: row.content_type,
+                    title: row.title,
+                    meta_description: row.meta_description,
+                    canonical_url: row.canonical_url,
+                    robots_meta: row.robots_meta,
+                    word_count: row.word_count,
+                    load_time_ms: row.load_time_ms,
+                    response_size_bytes: row.response_size_bytes,
+                    has_viewport: row.has_viewport != 0,
+                    has_structured_data: row.has_structured_data != 0,
+                    crawled_at: parse_datetime(row.crawled_at.as_str()),
+                    extracted_data,
+                }
             })
             .collect())
     }

@@ -181,4 +181,6 @@ pub struct CompleteJobResult {
     pub headings: Vec<super::Heading>,
     pub images: Vec<super::Image>,
     pub ai_insights: Option<crate::contexts::ai::AiInsight>,
+    /// Extracted data from custom extractors (keyed by page_id)
+    pub extracted_data: std::collections::HashMap<String, std::collections::HashMap<String, serde_json::Value>>,
 }

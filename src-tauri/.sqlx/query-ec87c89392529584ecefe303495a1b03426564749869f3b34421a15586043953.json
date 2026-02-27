@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT \n                id, job_id, url, depth, status_code, content_type,\n                title, meta_description, canonical_url, robots_meta,\n                word_count, load_time_ms, response_size_bytes,\n                has_viewport, has_structured_data, crawled_at\n            FROM pages\n            WHERE id = ?\n            ",
+  "query": "\n            SELECT \n                id, job_id, url, depth, status_code, content_type,\n                title, meta_description, canonical_url, robots_meta,\n                word_count, load_time_ms, response_size_bytes,\n                has_viewport, has_structured_data, crawled_at, extracted_data\n            FROM pages\n            WHERE id = ?\n            ",
   "describe": {
     "columns": [
       {
@@ -82,6 +82,11 @@
         "name": "crawled_at",
         "ordinal": 15,
         "type_info": "Text"
+      },
+      {
+        "name": "extracted_data",
+        "ordinal": 16,
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -103,8 +108,9 @@
       true,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "d96b5a3ca8678adf98f1f92cfaac63f8fe705f7d44f4beb6b9a42d6d9a31c5bf"
+  "hash": "ec87c89392529584ecefe303495a1b03426564749869f3b34421a15586043953"
 }

@@ -65,15 +65,22 @@ import {
 import { Label } from "@/src/components/ui/label";
 import { Textarea } from "@/src/components/ui/textarea";
 import { toast } from "sonner";
+import { RuleDialog as EnhancedRuleDialog } from "./RuleDialog";
+import { ExtractorDialogContent } from "./ExtractorDialog";
 import {
   getExtensionSummary,
   getAllIssueRules,
   getAllExtractors,
+  getExtractorConfigs,
   getAllAuditChecks,
   createCustomRule,
   updateCustomRule,
   deleteCustomRule,
   toggleRuleEnabled,
+  createCustomExtractor,
+  updateCustomExtractor,
+  deleteCustomExtractor,
+  toggleExtractorEnabled,
   reloadExtensions,
   filterRules,
   sortRules,
@@ -86,10 +93,13 @@ import {
   type RuleSeverity,
   type ExtensionCategory,
   type RuleType,
+  type CreateExtractorRequest,
+  type UpdateExtractorRequest,
+  type ExtractorConfigInfo,
 } from "@/src/api/extensions";
 
 // ============================================================================
-// Summary Cards
+// Main Extensions Settings Component
 // ============================================================================
 
 interface SummaryCardsProps {
@@ -115,8 +125,8 @@ function SummaryCards({ summary, isLoading }: SummaryCardsProps) {
   const cards = [
     {
       title: "Issue Rules",
-      value: summary?.total_rules ?? 0,
-      description: `${summary?.builtin_rules ?? 0} built-in, ${summary?.custom_rules ?? 0} custom`,
+      value: summary?.total_validators ?? 0,
+      description: `${summary?.builtin_count ?? 0} built-in, ${summary?.custom_count ?? 0} custom`,
       icon: AlertTriangle,
       color: "text-orange-500",
     },
@@ -129,7 +139,7 @@ function SummaryCards({ summary, isLoading }: SummaryCardsProps) {
     },
     {
       title: "Audit Checks",
-      value: summary?.total_checks ?? 0,
+      value: summary?.total_exporters ?? 0,
       description: "Scoring checks",
       icon: CheckCircle2,
       color: "text-green-500",
@@ -170,12 +180,6 @@ interface RuleListItemProps {
 }
 
 function RuleListItem({ rule, onToggle, onEdit, onDelete }: RuleListItemProps) {
-  const severityColors: Record<RuleSeverity, string> = {
-    critical: "bg-red-500/10 text-red-500 border-red-500/20",
-    warning: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
-    info: "bg-blue-500/10 text-blue-500 border-blue-500/20",
-  };
-
   const severity = rule.severity as RuleSeverity;
   const ruleType = rule.rule_type as RuleType;
 
@@ -203,9 +207,9 @@ function RuleListItem({ rule, onToggle, onEdit, onDelete }: RuleListItemProps) {
             )}
           </div>
           <div className="flex items-center gap-2 mt-1">
-            <Badge variant="outline" className={severityColors[severity]}>
+            <span className="text-xs font-medium capitalize text-muted-foreground">
               {rule.severity}
-            </Badge>
+            </span>
             <span className="text-xs text-muted-foreground">{rule.category}</span>
             <span className="text-xs text-muted-foreground">•</span>
             <span className="text-xs text-muted-foreground">{ruleType}</span>
@@ -517,21 +521,29 @@ export function ExtensionsSettings() {
   const [editingRule, setEditingRule] = useState<IssueRuleInfo | null>(null);
   const [deletingRuleId, setDeletingRuleId] = useState<string | null>(null);
 
+  // Extractor dialog state
+  const [isExtractorDialogOpen, setIsExtractorDialogOpen] = useState(false);
+  const [editingExtractor, setEditingExtractor] = useState<ExtractorConfigInfo | null>(null);
+  const [deletingExtractorId, setDeletingExtractorId] = useState<string | null>(null);
+  const [extractorConfigs, setExtractorConfigs] = useState<ExtractorConfigInfo[]>([]);
+
   // Load data
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [summaryRes, rulesRes, extractorsRes, checksRes] = await Promise.all([
+      const [summaryRes, rulesRes, extractorsRes, checksRes, configsRes] = await Promise.all([
         getExtensionSummary(),
         getAllIssueRules(),
         getAllExtractors(),
         getAllAuditChecks(),
+        getExtractorConfigs(),
       ]);
 
       if (summaryRes.isOk()) setSummary(summaryRes.unwrap());
       if (rulesRes.isOk()) setRules(rulesRes.unwrap());
       if (extractorsRes.isOk()) setExtractors(extractorsRes.unwrap());
       if (checksRes.isOk()) setChecks(checksRes.unwrap());
+      if (configsRes.isOk()) setExtractorConfigs(configsRes.unwrap());
     } catch (error) {
       console.error("Failed to load extensions:", error);
       toast.error("Failed to load extension data");
@@ -590,6 +602,56 @@ export function ExtensionsSettings() {
       toast.error("Failed to delete rule");
     }
     setDeletingRuleId(null);
+  };
+
+  // Extractor handlers
+  const handleToggleExtractor = async (id: string, enabled: boolean) => {
+    const result = await toggleExtractorEnabled(id, enabled);
+    if (result.isOk()) {
+      setExtractorConfigs((prev) =>
+        prev.map((e) => (e.id === id ? { ...e, is_enabled: enabled } : e)),
+      );
+      toast.success(enabled ? "Extractor enabled" : "Extractor disabled");
+    } else {
+      toast.error("Failed to toggle extractor");
+    }
+  };
+
+  const handleCreateExtractor = async (data: CreateExtractorRequest) => {
+    const result = await createCustomExtractor(data);
+    if (result.isOk()) {
+      setExtractorConfigs((prev) => [...prev, result.unwrap()]);
+      toast.success("Extractor created successfully");
+    } else {
+      const error = result.isErr() ? result.unwrapErr() : "Failed to create extractor";
+      toast.error(error);
+      throw new Error(error);
+    }
+  };
+
+  const handleUpdateExtractor = async (data: UpdateExtractorRequest) => {
+    const result = await updateCustomExtractor(data);
+    if (result.isOk()) {
+      setExtractorConfigs((prev) => prev.map((e) => (e.id === data.id ? result.unwrap() : e)));
+      toast.success("Extractor updated successfully");
+    } else {
+      const error = result.isErr() ? result.unwrapErr() : "Failed to update extractor";
+      toast.error(error);
+      throw new Error(error);
+    }
+  };
+
+  const handleDeleteExtractor = async () => {
+    if (!deletingExtractorId) return;
+
+    const result = await deleteCustomExtractor(deletingExtractorId);
+    if (result.isOk()) {
+      setExtractorConfigs((prev) => prev.filter((e) => e.id !== deletingExtractorId));
+      toast.success("Extractor deleted successfully");
+    } else {
+      toast.error("Failed to delete extractor");
+    }
+    setDeletingExtractorId(null);
   };
 
   const handleReload = async () => {
@@ -769,30 +831,102 @@ export function ExtensionsSettings() {
 
       {/* Extractors Tab */}
       {activeTab === "extractors" && (
-        <div className="space-y-2">
-          {isLoading ? (
-            [...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)
-          ) : extractors.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Database className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>No data extractors configured</p>
-            </div>
-          ) : (
-            extractors.map((extractor) => (
-              <div
-                key={extractor.id}
-                className="flex items-center justify-between p-3 rounded-lg border bg-card/50"
-              >
-                <div>
-                  <p className="font-medium">{extractor.name}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Badge variant="outline">{extractor.extractor_type}</Badge>
-                    {extractor.is_builtin && <Badge variant="secondary">Built-in</Badge>}
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditingExtractor(null);
+                setIsExtractorDialogOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              New Extractor
+            </Button>
+          </div>
+          <div className="space-y-2">
+            {isLoading ? (
+              [...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)
+            ) : extractorConfigs.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Database className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p>No data extractors configured</p>
+              </div>
+            ) : (
+              extractorConfigs.map((extractor) => (
+                <div
+                  key={extractor.id}
+                  className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                    extractor.is_enabled ? "bg-card/50" : "bg-muted/30 opacity-60"
+                  }`}
+                >
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <button
+                      onClick={() => handleToggleExtractor(extractor.id, !extractor.is_enabled)}
+                      className="flex-shrink-0"
+                    >
+                      {extractor.is_enabled ? (
+                        <ToggleRight className="h-5 w-5 text-green-500" />
+                      ) : (
+                        <ToggleLeft className="h-5 w-5 text-muted-foreground" />
+                      )}
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium truncate">{extractor.display_name}</p>
+                        {extractor.is_builtin && (
+                          <Badge variant="outline" className="text-xs">
+                            Built-in
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="outline">{extractor.extractor_type}</Badge>
+                        <span className="text-xs text-muted-foreground font-mono">
+                          {extractor.selector}
+                        </span>
+                        {extractor.attribute && (
+                          <span className="text-xs text-muted-foreground">
+                            @{extractor.attribute}
+                          </span>
+                        )}
+                      </div>
+                      {extractor.description && (
+                        <p className="text-xs text-muted-foreground mt-1 truncate">
+                          {extractor.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {!extractor.is_builtin && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => {
+                            setEditingExtractor(extractor);
+                            setIsExtractorDialogOpen(true);
+                          }}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={() => setDeletingExtractorId(extractor.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
-              </div>
-            ))
-          )}
+              ))
+            )}
+          </div>
         </div>
       )}
 
@@ -827,7 +961,7 @@ export function ExtensionsSettings() {
       )}
 
       {/* Create/Edit Rule Dialog */}
-      <RuleDialog
+      <EnhancedRuleDialog
         open={isRuleDialogOpen}
         onOpenChange={setIsRuleDialogOpen}
         rule={editingRule}
@@ -848,6 +982,49 @@ export function ExtensionsSettings() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteRule}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Create/Edit Extractor Dialog */}
+      <Dialog open={isExtractorDialogOpen} onOpenChange={setIsExtractorDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>
+              {editingExtractor ? "Edit Extractor" : "Create Custom Extractor"}
+            </DialogTitle>
+            <DialogDescription>
+              {editingExtractor
+                ? "Modify the settings for this custom extractor."
+                : "Define a new custom data extractor to extract information from pages."}
+            </DialogDescription>
+          </DialogHeader>
+          <ExtractorDialogContent
+            extractor={editingExtractor}
+            onCreate={handleCreateExtractor}
+            onUpdate={handleUpdateExtractor}
+            onCancel={() => setIsExtractorDialogOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Extractor Confirmation Dialog */}
+      <AlertDialog open={!!deletingExtractorId} onOpenChange={() => setDeletingExtractorId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Extractor</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this custom extractor? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteExtractor}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete

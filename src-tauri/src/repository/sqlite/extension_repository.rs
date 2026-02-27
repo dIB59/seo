@@ -2,8 +2,28 @@
 
 use anyhow::{Context, Result};
 use sqlx::Row;
+use serde::{Deserialize, Serialize};
+use specta::Type;
 
 use crate::{contexts::IssueRuleInfo, repository::ExtensionRepositoryTrait};
+
+/// Information about an extractor config from the database
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ExtractorConfigInfo {
+    pub id: String,
+    pub name: String,
+    pub display_name: String,
+    pub description: Option<String>,
+    pub extractor_type: String,
+    pub selector: String,
+    pub attribute: Option<String>,
+    pub storage_type: String,
+    pub target_column: Option<String>,
+    pub target_table: Option<String>,
+    pub post_process: Option<String>,
+    pub is_builtin: bool,
+    pub is_enabled: bool,
+}
 
 
 pub struct ExtensionRepository {
@@ -212,6 +232,223 @@ impl ExtensionRepository {
         }
         Ok(())
     }
+
+    // ============================================================================
+    // Extractor Config Methods
+    // ============================================================================
+
+    pub async fn extractor_table_exists(&self) -> bool {
+        sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='extractor_configs')",
+        )
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or(false)
+    }
+
+    pub async fn get_all_extractors(&self) -> Result<Vec<ExtractorConfigInfo>> {
+        if !self.extractor_table_exists().await {
+            return Ok(Vec::new());
+        }
+
+        let rows = sqlx::query(
+            r#"
+            SELECT id, name, display_name, description, extractor_type, 
+                   selector, attribute, storage_type, target_column, target_table,
+                   post_process, is_builtin, is_enabled
+            FROM extractor_configs
+            ORDER BY display_name
+            "#,
+        )
+        .fetch_all(&self.pool)
+        .await
+        .context("Failed to fetch extractor configs")?;
+
+        let extractors = rows
+            .iter()
+            .map(|row| ExtractorConfigInfo {
+                id: row.try_get("id").unwrap_or_default(),
+                name: row.try_get("name").unwrap_or_default(),
+                display_name: row.try_get("display_name").unwrap_or_default(),
+                description: row.try_get("description").ok(),
+                extractor_type: row.try_get("extractor_type").unwrap_or_else(|_| "css_selector".to_string()),
+                selector: row.try_get("selector").unwrap_or_default(),
+                attribute: row.try_get("attribute").ok(),
+                storage_type: row.try_get("storage_type").unwrap_or_else(|_| "json".to_string()),
+                target_column: row.try_get("target_column").ok(),
+                target_table: row.try_get("target_table").ok(),
+                post_process: row.try_get("post_process").ok(),
+                is_builtin: row.try_get::<i64, _>("is_builtin").unwrap_or(0) == 1,
+                is_enabled: row.try_get::<i64, _>("is_enabled").unwrap_or(1) == 1,
+            })
+            .collect();
+
+        Ok(extractors)
+    }
+
+    pub async fn get_extractor_by_id(&self, id: &str) -> Result<ExtractorConfigInfo> {
+        let row = sqlx::query(
+            r#"
+            SELECT id, name, display_name, description, extractor_type, 
+                   selector, attribute, storage_type, target_column, target_table,
+                   post_process, is_builtin, is_enabled
+            FROM extractor_configs
+            WHERE id = ?
+            "#,
+        )
+        .bind(id)
+        .fetch_one(&self.pool)
+        .await
+        .context("Extractor not found")?;
+
+        Ok(ExtractorConfigInfo {
+            id: row.try_get("id")?,
+            name: row.try_get("name")?,
+            display_name: row.try_get("display_name")?,
+            description: row.try_get("description").ok(),
+            extractor_type: row.try_get("extractor_type").unwrap_or_else(|_| "css_selector".to_string()),
+            selector: row.try_get("selector")?,
+            attribute: row.try_get("attribute").ok(),
+            storage_type: row.try_get("storage_type").unwrap_or_else(|_| "json".to_string()),
+            target_column: row.try_get("target_column").ok(),
+            target_table: row.try_get("target_table").ok(),
+            post_process: row.try_get("post_process").ok(),
+            is_builtin: row.try_get::<i64, _>("is_builtin")? == 1,
+            is_enabled: row.try_get::<i64, _>("is_enabled")? == 1,
+        })
+    }
+
+    pub async fn insert_extractor(
+        &self,
+        id: &str,
+        name: &str,
+        display_name: &str,
+        description: Option<&str>,
+        extractor_type: &str,
+        selector: &str,
+        attribute: Option<&str>,
+    ) -> Result<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO extractor_configs (
+                id, name, display_name, description, extractor_type,
+                selector, attribute, storage_type, is_enabled, is_builtin, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'json', 1, 0, datetime('now'))
+            "#,
+        )
+        .bind(id)
+        .bind(name)
+        .bind(display_name)
+        .bind(description)
+        .bind(extractor_type)
+        .bind(selector)
+        .bind(attribute)
+        .execute(&self.pool)
+        .await
+        .context("Failed to insert extractor")?;
+
+        Ok(())
+    }
+
+    pub async fn update_extractor(
+        &self,
+        id: &str,
+        name: Option<&str>,
+        display_name: Option<&str>,
+        description: Option<&str>,
+        selector: Option<&str>,
+        attribute: Option<&str>,
+    ) -> Result<()> {
+        // Check if this is a custom extractor
+        let is_builtin: i64 = sqlx::query_scalar::<_, i64>(
+            "SELECT is_builtin FROM extractor_configs WHERE id = ?"
+        )
+        .bind(id)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or(1);
+
+        if is_builtin == 1 {
+            anyhow::bail!("Cannot modify built-in extractors");
+        }
+
+        // Build dynamic update query
+        let mut updates: Vec<&str> = Vec::new();
+        
+        if name.is_some() { updates.push("name"); }
+        if display_name.is_some() { updates.push("display_name"); }
+        if description.is_some() { updates.push("description"); }
+        if selector.is_some() { updates.push("selector"); }
+        if attribute.is_some() { updates.push("attribute"); }
+
+        if updates.is_empty() {
+            anyhow::bail!("No fields to update");
+        }
+
+        // Use a simpler approach - build query with string concatenation
+        let sql = format!(
+            "UPDATE extractor_configs SET name = COALESCE(?, name), display_name = COALESCE(?, display_name), description = COALESCE(?, description), selector = COALESCE(?, selector), attribute = COALESCE(?, attribute) WHERE id = ?",
+        );
+
+        sqlx::query(&sql)
+            .bind(name.unwrap_or(""))
+            .bind(display_name.unwrap_or(""))
+            .bind(description.unwrap_or(""))
+            .bind(selector.unwrap_or(""))
+            .bind(attribute.unwrap_or(""))
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .context("Failed to update extractor")?;
+
+        Ok(())
+    }
+
+    pub async fn delete_extractor(&self, id: &str) -> Result<()> {
+        // Check if this is a custom extractor
+        let is_builtin: i64 = sqlx::query_scalar(
+            "SELECT is_builtin FROM extractor_configs WHERE id = ?"
+        )
+        .bind(id)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or(1);
+
+        if is_builtin == 1 {
+            anyhow::bail!("Cannot delete built-in extractors");
+        }
+
+        sqlx::query("DELETE FROM extractor_configs WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .context("Failed to delete extractor")?;
+
+        Ok(())
+    }
+
+    pub async fn set_extractor_enabled(&self, id: &str, enabled: bool) -> Result<()> {
+        sqlx::query(
+            "UPDATE extractor_configs SET is_enabled = ? WHERE id = ?",
+        )
+        .bind(if enabled { 1i64 } else { 0i64 })
+        .bind(id)
+        .execute(&self.pool)
+        .await
+        .context("Failed to toggle extractor")?;
+
+        Ok(())
+    }
+
+    pub async fn count_custom_extractors(&self) -> Result<usize> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM extractor_configs WHERE is_builtin = 0"
+        )
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or(0);
+        Ok(count as usize)
+    }
 }
 
 use async_trait::async_trait;
@@ -282,5 +519,55 @@ impl ExtensionRepositoryTrait for ExtensionRepository {
         ExtensionRepository::count_custom_rules(self).await
     }
 
-    
+    // Extractor trait implementations
+    async fn get_all_extractors(&self) -> Result<Vec<ExtractorConfigInfo>> {
+        ExtensionRepository::get_all_extractors(self).await
+    }
+
+    async fn get_extractor_by_id(&self, id: &str) -> Result<ExtractorConfigInfo> {
+        ExtensionRepository::get_extractor_by_id(self, id).await
+    }
+
+    async fn insert_extractor(
+        &self,
+        id: &str,
+        name: &str,
+        display_name: &str,
+        description: Option<&str>,
+        extractor_type: &str,
+        selector: &str,
+        attribute: Option<&str>,
+    ) -> Result<()> {
+        ExtensionRepository::insert_extractor(
+            self, id, name, display_name, description, extractor_type, selector, attribute,
+        )
+        .await
+    }
+
+    async fn update_extractor(
+        &self,
+        id: &str,
+        name: Option<&str>,
+        display_name: Option<&str>,
+        description: Option<&str>,
+        selector: Option<&str>,
+        attribute: Option<&str>,
+    ) -> Result<()> {
+        ExtensionRepository::update_extractor(
+            self, id, name, display_name, description, selector, attribute,
+        )
+        .await
+    }
+
+    async fn delete_extractor(&self, id: &str) -> Result<()> {
+        ExtensionRepository::delete_extractor(self, id).await
+    }
+
+    async fn set_extractor_enabled(&self, id: &str, enabled: bool) -> Result<()> {
+        ExtensionRepository::set_extractor_enabled(self, id, enabled).await
+    }
+
+    async fn count_custom_extractors(&self) -> Result<usize> {
+        ExtensionRepository::count_custom_extractors(self).await
+    }
 }

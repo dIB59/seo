@@ -647,6 +647,7 @@ async fn test_link_repository() {
         has_viewport: true,
         has_structured_data: false,
         crawled_at: Utc::now(),
+        extracted_data: std::collections::HashMap::new(),
     };
     page_repo.insert(&page).await.expect("Failed to insert page");
 

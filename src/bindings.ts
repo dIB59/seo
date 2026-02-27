@@ -258,6 +258,61 @@ async getAllAuditChecks() : Promise<Result<AuditCheckInfo[], CommandError>> {
 }
 },
 /**
+ * Get all extractor configs from database (including custom ones)
+ */
+async getExtractorConfigs() : Promise<Result<ExtractorConfigInfo[], CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_extractor_configs") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Create a new custom extractor
+ */
+async createCustomExtractor(request: CreateExtractorRequest) : Promise<Result<ExtractorConfigInfo, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("create_custom_extractor", { request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Update an existing custom extractor
+ */
+async updateCustomExtractor(request: UpdateExtractorRequest) : Promise<Result<ExtractorConfigInfo, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_custom_extractor", { request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Delete a custom extractor
+ */
+async deleteCustomExtractor(extractorId: string) : Promise<Result<null, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_custom_extractor", { extractorId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Toggle an extractor's enabled status
+ */
+async toggleExtractorEnabled(extractorId: string, enabled: boolean) : Promise<Result<ExtractorConfigInfo, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("toggle_extractor_enabled", { extractorId, enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Create a new custom issue generator
  */
 async createCustomRule(request: CreateRuleRequest) : Promise<Result<IssueGeneratorInfo, CommandError>> {
@@ -348,9 +403,13 @@ export type AuditCheckInfo = { key: string; label: string; category: string; wei
 export type CommandError = string
 export type CompleteAnalysisResponse = { analysis: AnalysisResults; pages: PageAnalysisData[]; issues: SeoIssue[]; summary: AnalysisSummary }
 /**
+ * Request to create a custom data extractor
+ */
+export type CreateExtractorRequest = { name: string; display_name: string; description: string | null; selector: string; attribute: string | null }
+/**
  * Request to create a new custom rule
  */
-export type CreateRuleRequest = { name: string; category: string; severity: string; rule_type: string; target_field: string; threshold_min: number | null; threshold_max: number | null; regex_pattern: string | null; recommendation: string | null }
+export type CreateRuleRequest = { name: string; category: string; severity: string; rule_type: string; target_field: string; threshold_min: number | null; threshold_max: number | null; regex_pattern: string | null; recommendation: string | null; selector: string | null; attribute: string | null; multiple: boolean | null; min_count: number | null; max_count: number | null; min_length: number | null; max_length: number | null; expected_value: string | null; negate: boolean | null }
 /**
  * Information about a data extractor for the frontend
  */
@@ -359,6 +418,10 @@ export type DataExtractorInfo = { id: string; name: string; description: string 
  * Summary of extension system status
  */
 export type ExtensionSummary = { total_extensions: number; total_validators: number; total_extractors: number; total_exporters: number; builtin_count: number; custom_count: number }
+/**
+ * Information about an extractor config from the database
+ */
+export type ExtractorConfigInfo = { id: string; name: string; display_name: string; description: string | null; extractor_type: string; selector: string; attribute: string | null; storage_type: string; target_column: string | null; target_table: string | null; post_process: string | null; is_builtin: boolean; is_enabled: boolean }
 export type Feature = "LinkAnalysis" | "GraphView" | "ExportReports"
 export type GeminiRequest = { analysis_id: string; url: string; seo_score: number; pages_count: number; total_issues: number; critical_issues: number; warning_issues: number; suggestion_issues: number; top_issues: string[]; avg_load_time: number; total_words: number; ssl_certificate: boolean; sitemap_found: boolean; robots_txt_found: boolean }
 export type HeadingElement = { tag: string; text: string }
@@ -376,11 +439,19 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | Partial
 export type LicenseTier = "Free" | "Premium"
 export type LinkDetail = { href: string; text: string; link_type: LinkType; is_broken: boolean; status_code: number | null }
 export type LinkType = "internal" | "subdomain" | "external" | "resource"
-export type PageAnalysisData = { analysis_id: string; url: string; title: string | null; meta_description: string | null; meta_keywords: string | null; canonical_url: string | null; word_count: number; image_count: number; images_without_alt: number; internal_links: number; external_links: number; load_time: number; status_code: number | null; content_size: number; mobile_friendly: boolean; has_structured_data: boolean; lighthouse_performance: number | null; lighthouse_accessibility: number | null; lighthouse_best_practices: number | null; lighthouse_seo: number | null; lighthouse_seo_audits: JsonValue | null; lighthouse_performance_metrics: JsonValue | null; images: ImageElement[]; detailed_links: LinkDetail[]; headings: HeadingElement[] }
+export type PageAnalysisData = { analysis_id: string; url: string; title: string | null; meta_description: string | null; meta_keywords: string | null; canonical_url: string | null; word_count: number; image_count: number; images_without_alt: number; internal_links: number; external_links: number; load_time: number; status_code: number | null; content_size: number; mobile_friendly: boolean; has_structured_data: boolean; lighthouse_performance: number | null; lighthouse_accessibility: number | null; lighthouse_best_practices: number | null; lighthouse_seo: number | null; lighthouse_seo_audits: JsonValue | null; lighthouse_performance_metrics: JsonValue | null; images: ImageElement[]; detailed_links: LinkDetail[]; headings: HeadingElement[]; 
+/**
+ * Extracted data from custom extractors (key-value pairs)
+ */
+extracted_data: Partial<{ [key in string]: JsonValue }> }
 export type PaginatedJobsResponse = { items: AnalysisProgress[]; total: number }
 export type Policy = { tier: LicenseTier; max_pages: number; enabled_features: Feature[] }
 export type ProgressEvent = { event: "analysis"; job_id: string; progress: number; pages_analyzed: number; total_pages: number } | { event: "discovery"; job_id: string; count: number; total_pages: number }
 export type SeoIssue = { page_id: string; severity: IssueSeverity; title: string; description: string; page_url: string; element: string | null; recommendation: string; line_number: number | null }
+/**
+ * Request to update an existing extractor
+ */
+export type UpdateExtractorRequest = { id: string; name: string | null; display_name: string | null; description: string | null; selector: string | null; attribute: string | null }
 /**
  * Request to update an existing rule
  */

@@ -12,6 +12,7 @@ use app::extension::builtins::{
     HrefTagsExtractor, OpenGraphExtractor, StructuredDataExtractor, TwitterCardExtractor,
 };
 use app::extension::context::ExtractionContext;
+use app::extension::result::ExtractedValue;
 use app::extension::traits::DataExtractor;
 
 // ============================================================================
@@ -435,4 +436,73 @@ fn test_extraction_with_custom_headers() {
     
     // Extraction should still work
     assert!(!result.data.is_empty());
+}
+
+// ============================================================================
+// HREF Extraction Test - Custom CSS Selector Extraction
+// ============================================================================
+
+#[test]
+fn test_extract_all_hrefs_from_mockdiscord() {
+    let html = get_mockdiscord_html();
+    let document = Html::parse_document(&html);
+    
+    // Find all anchor tags with href attributes
+    static HREF_SELECTOR: OnceLock<Selector> = OnceLock::new();
+    let selector = HREF_SELECTOR.get_or_init(|| {
+        Selector::parse("a[href]").unwrap()
+    });
+    
+    let anchor_elements: Vec<_> = document.select(selector).collect();
+    
+    // Log the count of found anchors
+    println!("Found {} anchor tags with href", anchor_elements.len());
+    
+    // The mockdiscord.html should have many anchor tags
+    assert!(anchor_elements.len() > 10, "Should find multiple anchor tags");
+    
+    // Extract all href values
+    let hrefs: Vec<String> = anchor_elements
+        .iter()
+        .filter_map(|el| el.value().attr("href").map(|s| s.to_string()))
+        .collect();
+    
+    println!("Extracted {} unique hrefs", hrefs.len());
+    
+    // Verify we have hrefs
+    assert!(!hrefs.is_empty(), "Should have extracted some hrefs");
+    
+    // Log a few sample hrefs for debugging
+    for (i, href) in hrefs.iter().take(5).enumerate() {
+        println!("Sample href {}: {}", i, href);
+    }
+}
+
+#[test]
+fn test_extract_href_values_list() {
+    let html = get_mockdiscord_html();
+    let document = Html::parse_document(&html);
+    
+    // Find all anchor tags with href attributes
+    static HREF_SELECTOR: OnceLock<Selector> = OnceLock::new();
+    let selector = HREF_SELECTOR.get_or_init(|| {
+        Selector::parse("a[href]").unwrap()
+    });
+    
+    let anchor_elements: Vec<_> = document.select(selector).collect();
+    
+    // Extract all href values as a list
+    let hrefs: Vec<String> = anchor_elements
+        .iter()
+        .filter_map(|el| el.value().attr("href").map(|s| s.to_string()))
+        .collect();
+    
+    // Verify extraction works - this simulates what a custom extractor would do
+    let extracted_value = ExtractedValue::List(hrefs.clone());
+    
+    // Verify the value can be converted to JSON
+    let json = extracted_value.to_json();
+    assert!(json.is_array(), "Should be an array");
+    
+    println!("Successfully extracted {} hrefs as ExtractedValue", hrefs.len());
 }

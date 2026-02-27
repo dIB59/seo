@@ -85,7 +85,10 @@ export interface LinkElement {
 }
 
 // Extended page data with detailed elements
-export type PageDetailData = PageAnalysisData;
+export type PageDetailData = PageAnalysisData & {
+  /** Extracted data from custom extractors (key-value pairs) */
+  extracted_data?: Record<string, unknown>;
+};
 
 // AI / Prompt builder types
 export interface PromptBlock {

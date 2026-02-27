@@ -86,6 +86,7 @@ fn extract_page_data(
         has_viewport,
         has_structured_data,
         crawled_at: chrono::Utc::now(),
+        extracted_data: std::collections::HashMap::new(),
     };
 
     let link_edges: Vec<ExtractedLinkEdge> = all_links
@@ -215,20 +216,57 @@ impl AnalyzerService {
             );
         }
 
+        // First, extract data using the extension registry if available
+        // This must be done BEFORE creating the Page so we can include extracted_data
+        let extracted_data = if let Some(registry) = &self.extension_registry {
+            let (data, _) = registry
+                .extract_and_validate(&{
+                    // Create a temporary page for extraction
+                    crate::contexts::analysis::Page {
+                        id: String::new(),
+                        job_id: job_id.to_string(),
+                        url: url.to_string(),
+                        depth,
+                        status_code: Some(audit_result.status_code as i64),
+                        content_type: None,
+                        title: None,
+                        meta_description: None,
+                        canonical_url: None,
+                        robots_meta: None,
+                        word_count: None,
+                        load_time_ms: Some(audit_result.load_time_ms as i64),
+                        response_size_bytes: Some(audit_result.content_size as i64),
+                        has_viewport: false,
+                        has_structured_data: false,
+                        crawled_at: chrono::Utc::now(),
+                        extracted_data: std::collections::HashMap::new(),
+                    }
+                }, &audit_result.html)
+                .await;
+            data
+        } else {
+            std::collections::HashMap::new()
+        };
+
         let extracted = extract_page_data(&audit_result.html, url, job_id, depth, &audit_result);
 
-        let page_id = self.page_db.insert(&extracted.page).await?;
+        // Add extracted data from custom extractors to the page
+        let mut page_with_extracted_data = extracted.page;
+        page_with_extracted_data.extracted_data = extracted_data;
+
+        let page_id = self.page_db.insert(&page_with_extracted_data).await?;
 
         // Generate issues using extension registry if available, otherwise fall back to built-in audit
+        // Note: We already extracted data earlier in this function, so we just need to get issues now
         let issues = if let Some(registry) = &self.extension_registry {
-            // Use the new pipeline-based extension system
-            let (_extracted_data, issues) = registry
-                .extract_and_validate(&extracted.page, &audit_result.html)
+            // Use the extension registry to get issues (extracted_data was already obtained above)
+            let (_, issues) = registry
+                .extract_and_validate(&page_with_extracted_data, &audit_result.html)
                 .await;
             issues
         } else {
             // Fallback to built-in audit for backward compatibility
-            extracted.page.audit()
+            page_with_extracted_data.audit()
         };
         let lighthouse = LighthouseData::from_audit_scores(&page_id, &audit_result.scores);
 

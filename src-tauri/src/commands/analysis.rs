@@ -126,6 +126,8 @@ pub struct PageAnalysisData {
     pub images: Vec<ImageElement>,
     pub detailed_links: Vec<LinkDetail>,
     pub headings: Vec<HeadingElement>,
+    /// Extracted data from custom extractors (key-value pairs)
+    pub extracted_data: std::collections::HashMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Type)]
@@ -247,6 +249,7 @@ impl CompleteAnalysisResponse {
         detailed_links: Vec<LinkDetail>,
         headings: Vec<HeadingElement>,
         images: Vec<ImageElement>,
+        extracted_data: std::collections::HashMap<String, serde_json::Value>,
     ) -> PageAnalysisData {
         let load_time = page.load_time_ms.unwrap_or(0) as f64 / 1000.0;
         let mobile_friendly = lh_data.is_some_and(|lh| lh.is_mobile_friendly())
@@ -283,6 +286,7 @@ impl CompleteAnalysisResponse {
             images,
             detailed_links,
             headings,
+            extracted_data,
         }
     }
 }
@@ -339,12 +343,14 @@ impl From<crate::contexts::CompleteJobResult> for CompleteAnalysisResponse {
             .into_iter()
             .map(|p| {
                 let page_id = p.id.clone();
+                let page_extracted_data = p.extracted_data.clone();
                 Self::assemble_page(
                     p,
                     lighthouse_by_page.get(&page_id),
                     links_by_page.remove(&page_id).unwrap_or_default(),
                     headings_by_page.remove(&page_id).unwrap_or_default(),
                     images_by_page.remove(&page_id).unwrap_or_default(),
+                    page_extracted_data,
                 )
             })
             .collect();
@@ -604,6 +610,7 @@ mod tests {
             has_viewport: false,
             has_structured_data: false,
             crawled_at: Utc::now(),
+            extracted_data: std::collections::HashMap::new(),
         };
 
         let page_id = page_repo.insert(&page).await.unwrap();
@@ -676,6 +683,7 @@ mod tests {
             has_viewport: true,
             has_structured_data: false,
             crawled_at: Utc::now(),
+            extracted_data: std::collections::HashMap::new(),
         };
 
         page_repo.insert(&page).await.unwrap();
@@ -726,6 +734,7 @@ mod tests {
             has_viewport: false,
             has_structured_data: false,
             crawled_at: Utc::now(),
+            extracted_data: std::collections::HashMap::new(),
         };
 
         let page_id = page_repo.insert(&page).await.unwrap();

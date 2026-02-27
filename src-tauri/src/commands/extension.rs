@@ -9,9 +9,9 @@ use specta::Type;
 use tauri::State;
 use std::collections::HashMap;
 
-use crate::extension::{ExtensionCapability, ExtensionConfig};
 use crate::error::CommandError;
 use crate::lifecycle::app_state::AppState;
+use crate::repository::ExtractorConfigInfo;
 
 // ============================================================================
 // Response Types
@@ -76,6 +76,16 @@ pub struct CreateRuleRequest {
     pub threshold_max: Option<f64>,
     pub regex_pattern: Option<String>,
     pub recommendation: Option<String>,
+    // HTML extraction fields
+    pub selector: Option<String>,
+    pub attribute: Option<String>,
+    pub multiple: Option<bool>,
+    pub min_count: Option<i32>,
+    pub max_count: Option<i32>,
+    pub min_length: Option<i32>,
+    pub max_length: Option<i32>,
+    pub expected_value: Option<String>,
+    pub negate: Option<bool>,
 }
 
 /// Request to update an existing rule
@@ -95,10 +105,21 @@ pub struct UpdateRuleRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct CreateExtractorRequest {
     pub name: String,
+    pub display_name: String,
     pub description: Option<String>,
     pub selector: String,
     pub attribute: Option<String>,
-    pub multiple: bool,
+}
+
+/// Request to update an existing extractor
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct UpdateExtractorRequest {
+    pub id: String,
+    pub name: Option<String>,
+    pub display_name: Option<String>,
+    pub description: Option<String>,
+    pub selector: Option<String>,
+    pub attribute: Option<String>,
 }
 
 /// Summary of extension system status
@@ -229,6 +250,116 @@ pub async fn get_all_extractors(
         .collect();
     
     Ok(extractors)
+}
+
+/// Get all extractor configs from database (including custom ones)
+#[tauri::command]
+#[specta::specta]
+pub async fn get_extractor_configs(
+    app_state: State<'_, AppState>,
+) -> Result<Vec<ExtractorConfigInfo>, CommandError> {
+    let repo = &app_state.extension_repository;
+    
+    repo.get_all_extractors().await
+        .map_err(|e| CommandError::from(anyhow::anyhow!("Failed to get extractors: {}", e)))
+}
+
+/// Create a new custom extractor
+#[tauri::command]
+#[specta::specta]
+pub async fn create_custom_extractor(
+    request: CreateExtractorRequest,
+    app_state: State<'_, AppState>,
+) -> Result<ExtractorConfigInfo, CommandError> {
+    let repo = &app_state.extension_repository;
+    
+    let id = format!("custom-{}", uuid::Uuid::new_v4());
+    let name = request.name.to_lowercase().replace(' ', "_");
+    
+    repo.insert_extractor(
+        &id,
+        &name,
+        &request.display_name,
+        request.description.as_deref(),
+        "css_selector",
+        &request.selector,
+        request.attribute.as_deref(),
+    ).await
+    .map_err(|e| CommandError::from(anyhow::anyhow!("Failed to create extractor: {}", e)))?;
+    
+    // Return the created extractor
+    repo.get_extractor_by_id(&id).await
+        .map_err(|e| CommandError::from(anyhow::anyhow!("Failed to get created extractor: {}", e)))
+}
+
+/// Update an existing custom extractor
+#[tauri::command]
+#[specta::specta]
+pub async fn update_custom_extractor(
+    request: UpdateExtractorRequest,
+    app_state: State<'_, AppState>,
+) -> Result<ExtractorConfigInfo, CommandError> {
+    let repo = &app_state.extension_repository;
+    
+    // Check if this is a custom extractor
+    let existing = repo.get_extractor_by_id(&request.id).await
+        .map_err(|e| CommandError::from(anyhow::anyhow!("Extractor not found: {}", e)))?;
+    
+    if existing.is_builtin {
+        return Err(CommandError::from(anyhow::anyhow!("Cannot modify built-in extractors")));
+    }
+    
+    repo.update_extractor(
+        &request.id,
+        request.name.as_deref(),
+        request.display_name.as_deref(),
+        request.description.as_deref(),
+        request.selector.as_deref(),
+        request.attribute.as_deref(),
+    ).await
+    .map_err(|e| CommandError::from(anyhow::anyhow!("Failed to update extractor: {}", e)))?;
+    
+    // Return the updated extractor
+    repo.get_extractor_by_id(&request.id).await
+        .map_err(|e| CommandError::from(anyhow::anyhow!("Failed to get updated extractor: {}", e)))
+}
+
+/// Delete a custom extractor
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_custom_extractor(
+    extractor_id: String,
+    app_state: State<'_, AppState>,
+) -> Result<(), CommandError> {
+    let repo = &app_state.extension_repository;
+    
+    // Check if this is a custom extractor
+    let existing = repo.get_extractor_by_id(&extractor_id).await
+        .map_err(|e| CommandError::from(anyhow::anyhow!("Extractor not found: {}", e)))?;
+    
+    if existing.is_builtin {
+        return Err(CommandError::from(anyhow::anyhow!("Cannot delete built-in extractors")));
+    }
+    
+    repo.delete_extractor(&extractor_id).await
+        .map_err(|e| CommandError::from(anyhow::anyhow!("Failed to delete extractor: {}", e)))
+}
+
+/// Toggle an extractor's enabled status
+#[tauri::command]
+#[specta::specta]
+pub async fn toggle_extractor_enabled(
+    extractor_id: String,
+    enabled: bool,
+    app_state: State<'_, AppState>,
+) -> Result<ExtractorConfigInfo, CommandError> {
+    let repo = &app_state.extension_repository;
+    
+    repo.set_extractor_enabled(&extractor_id, enabled).await
+        .map_err(|e| CommandError::from(anyhow::anyhow!("Failed to toggle extractor: {}", e)))?;
+    
+    repo.get_extractor_by_id(&extractor_id).await
+        .map_err(|e| CommandError::from(anyhow::anyhow!("Failed to get extractor: {}", e)))
 }
 
 /// Get all registered data exporters

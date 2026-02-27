@@ -102,12 +102,27 @@ impl ExtensionRegistry {
         match loader.load_issue_rules().await {
             Ok(rules) => {
                 for rule in rules {
-                    // Convert legacy rules to new format
+                    // Register the custom rule with the pipeline
+                    registry.pipeline.register_validator(rule.clone());
                     tracing::debug!("Loaded custom rule: {}", rule.id());
                 }
             }
             Err(e) => {
                 tracing::warn!("Failed to load custom rules: {}", e);
+            }
+        }
+        
+        // Load custom extractors
+        match loader.load_custom_extractors().await {
+            Ok(extractors) => {
+                for extractor in extractors {
+                    // Register the custom extractor with the pipeline
+                    registry.pipeline.register_extractor(extractor.clone());
+                    tracing::debug!("Loaded custom extractor: {}", extractor.id());
+                }
+            }
+            Err(e) => {
+                tracing::warn!("Failed to load custom extractors: {}", e);
             }
         }
         

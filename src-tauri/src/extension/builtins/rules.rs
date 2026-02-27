@@ -599,6 +599,7 @@ mod tests {
             has_viewport: true,
             has_structured_data: false,
             crawled_at: Utc::now(),
+            extracted_data: std::collections::HashMap::new(),
         }
     }
     
