@@ -15,6 +15,8 @@ import type {
   DataExtractorInfo as BindingsDataExtractorInfo,
   AuditCheckInfo as BindingsAuditCheckInfo,
   ExtractorConfigInfo as BindingsExtractorConfigInfo,
+  RuleFieldInfo as BindingsRuleFieldInfo,
+  RuleTargetMigrationResult as BindingsRuleTargetMigrationResult,
   CreateExtractorRequest as BindingsCreateExtractorRequest,
   UpdateExtractorRequest as BindingsUpdateExtractorRequest,
   Result,
@@ -22,7 +24,13 @@ import type {
 
 // Re-export bindings types for use in components
 export type ExtensionSummary = BindingsExtensionSummary;
-export type IssueRuleInfo = IssueGeneratorInfo;
+export type IssueRuleInfo = IssueGeneratorInfo & {
+  rule_type: string | null;
+  target_field: string | null;
+  threshold_min: number | null;
+  threshold_max: number | null;
+  regex_pattern: string | null;
+};
 export type DataExtractorInfo = BindingsDataExtractorInfo;
 export type AuditCheckInfo = BindingsAuditCheckInfo;
 export type CreateRuleRequest = BindingsCreateRuleRequest;
@@ -30,19 +38,13 @@ export type UpdateRuleRequest = BindingsUpdateRuleRequest;
 export type CreateExtractorRequest = BindingsCreateExtractorRequest;
 export type UpdateExtractorRequest = BindingsUpdateExtractorRequest;
 export type ExtractorConfigInfo = BindingsExtractorConfigInfo;
+export type RuleFieldInfo = BindingsRuleFieldInfo;
+export type RuleTargetMigrationResult = BindingsRuleTargetMigrationResult;
 
 // Additional type exports for compatibility
 export type RuleType = "presence" | "threshold" | "regex" | "custom";
 export type RuleSeverity = "critical" | "warning" | "info";
-export type ExtensionCategory =
-  | "seo"
-  | "accessibility"
-  | "performance"
-  | "security"
-  | "content"
-  | "technical"
-  | "ux"
-  | "mobile";
+export type ExtensionCategory = string;
 
 export const EXTENSION_CATEGORIES = [
   "seo",
@@ -190,6 +192,19 @@ export async function toggleRuleEnabled(
   return toResult(result);
 }
 
+/**
+ * Normalize legacy rule target syntax to field:* format
+ */
+export async function normalizeRuleTargetFields(): Promise<{
+  isOk(): boolean;
+  isErr(): boolean;
+  unwrap(): BindingsRuleTargetMigrationResult;
+  unwrapErr(): string;
+}> {
+  const result = await commands.normalizeRuleTargetFields();
+  return toResult(result);
+}
+
 // ============================================================================
 // Data Extractors
 // ============================================================================
@@ -217,6 +232,19 @@ export async function getExtractorConfigs(): Promise<{
   unwrapErr(): string;
 }> {
   const result = await commands.getExtractorConfigs();
+  return toResult(result);
+}
+
+/**
+ * Get registry entries for rule-targetable fields
+ */
+export async function getRuleFieldRegistry(): Promise<{
+  isOk(): boolean;
+  isErr(): boolean;
+  unwrap(): BindingsRuleFieldInfo[];
+  unwrapErr(): string;
+}> {
+  const result = await commands.getRuleFieldRegistry();
   return toResult(result);
 }
 
@@ -344,8 +372,10 @@ export function sortRules(
         comparison = a.category.localeCompare(b.category);
         break;
       case "severity":
-        const severityOrder: Record<string, number> = { critical: 0, warning: 1, info: 2 };
-        comparison = severityOrder[a.severity] - severityOrder[b.severity];
+        {
+          const severityOrder: Record<string, number> = { critical: 0, warning: 1, info: 2 };
+          comparison = severityOrder[a.severity] - severityOrder[b.severity];
+        }
         break;
     }
     return ascending ? comparison : -comparison;

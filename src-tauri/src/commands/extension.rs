@@ -5,6 +5,7 @@
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use specta::Type;
 use tauri::State;
 use std::collections::HashMap;
@@ -36,6 +37,11 @@ pub struct IssueGeneratorInfo {
     pub name: String,
     pub category: String,
     pub severity: String,
+    pub rule_type: Option<String>,
+    pub target_field: Option<String>,
+    pub threshold_min: Option<f64>,
+    pub threshold_max: Option<f64>,
+    pub regex_pattern: Option<String>,
     pub recommendation: Option<String>,
     pub is_builtin: bool,
     pub is_enabled: bool,
@@ -62,6 +68,22 @@ pub struct DataExporterInfo {
     pub endpoint: Option<String>,
     pub is_builtin: bool,
     pub is_enabled: bool,
+}
+
+/// Registry entry describing a rule-targetable field independent of extractor internals
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct RuleFieldInfo {
+    pub id: String,
+    pub label: String,
+    pub description: Option<String>,
+    pub target_field: String,
+    pub kind: String,
+    pub category_id: Option<String>,
+    pub category_label: Option<String>,
+    pub default_rule_severity: Option<String>,
+    pub default_rule_recommendation: Option<String>,
+    pub default_rule_threshold_min: Option<f64>,
+    pub default_rule_threshold_max: Option<f64>,
 }
 
 /// Request to create a new custom rule
@@ -107,8 +129,15 @@ pub struct CreateExtractorRequest {
     pub name: String,
     pub display_name: String,
     pub description: Option<String>,
+    pub extractor_type: Option<String>,
     pub selector: String,
     pub attribute: Option<String>,
+    pub category_id: Option<String>,
+    pub category_label: Option<String>,
+    pub default_rule_severity: Option<String>,
+    pub default_rule_recommendation: Option<String>,
+    pub default_rule_threshold_min: Option<f64>,
+    pub default_rule_threshold_max: Option<f64>,
 }
 
 /// Request to update an existing extractor
@@ -118,8 +147,92 @@ pub struct UpdateExtractorRequest {
     pub name: Option<String>,
     pub display_name: Option<String>,
     pub description: Option<String>,
+    pub extractor_type: Option<String>,
     pub selector: Option<String>,
     pub attribute: Option<String>,
+    pub category_id: Option<String>,
+    pub category_label: Option<String>,
+    pub default_rule_severity: Option<String>,
+    pub default_rule_recommendation: Option<String>,
+    pub default_rule_threshold_min: Option<f64>,
+    pub default_rule_threshold_max: Option<f64>,
+}
+
+fn normalize_extractor_type(extractor_type: Option<&str>) -> &'static str {
+    match extractor_type.unwrap_or("css_selector") {
+        "css" | "css_selector" => "css_selector",
+        "xpath" => "xpath",
+        "json" | "json_path" => "json_path",
+        _ => "css_selector",
+    }
+}
+
+fn parse_extractor_post_process(post_process: Option<&str>) -> Option<Value> {
+    post_process.and_then(|value| serde_json::from_str::<Value>(value).ok())
+}
+
+fn get_post_process_string(post_process: &Value, key: &str) -> Option<String> {
+    post_process
+        .get(key)
+        .and_then(|value| value.as_str())
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string())
+}
+
+fn get_post_process_number(post_process: &Value, key: &str) -> Option<f64> {
+    post_process.get(key).and_then(|value| value.as_f64())
+}
+
+fn build_extractor_post_process(
+    category_id: Option<&str>,
+    category_label: Option<&str>,
+    default_rule_severity: Option<&str>,
+    default_rule_recommendation: Option<&str>,
+    default_rule_threshold_min: Option<f64>,
+    default_rule_threshold_max: Option<f64>,
+) -> Option<String> {
+    let category_id = category_id
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string());
+
+    let category_label = category_label
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string());
+
+    let default_rule_severity = default_rule_severity
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string());
+
+    let default_rule_recommendation = default_rule_recommendation
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string());
+
+    if category_id.is_none()
+        && category_label.is_none()
+        && default_rule_severity.is_none()
+        && default_rule_recommendation.is_none()
+        && default_rule_threshold_min.is_none()
+        && default_rule_threshold_max.is_none()
+    {
+        return None;
+    }
+
+    Some(
+        serde_json::json!({
+            "category_id": category_id,
+            "category_label": category_label,
+            "default_rule_severity": default_rule_severity,
+            "default_rule_recommendation": default_rule_recommendation,
+            "default_rule_threshold_min": default_rule_threshold_min,
+            "default_rule_threshold_max": default_rule_threshold_max,
+        })
+        .to_string(),
+    )
 }
 
 /// Summary of extension system status
@@ -216,6 +329,11 @@ pub async fn get_all_issue_generators(
             name: rule.name,
             category: rule.category,
             severity: rule.severity,
+            rule_type: Some(rule.rule_type),
+            target_field: rule.target_field,
+            threshold_min: None,
+            threshold_max: None,
+            regex_pattern: None,
             recommendation: rule.recommendation,
             is_builtin: rule.is_builtin,
             is_enabled: rule.is_enabled,
@@ -264,6 +382,82 @@ pub async fn get_extractor_configs(
         .map_err(|e| CommandError::from(anyhow::anyhow!("Failed to get extractors: {}", e)))
 }
 
+/// Get rule-targetable field registry entries
+#[tauri::command]
+#[specta::specta]
+pub async fn get_rule_field_registry(
+    app_state: State<'_, AppState>,
+) -> Result<Vec<RuleFieldInfo>, CommandError> {
+    let repo = &app_state.extension_repository;
+
+    let extractors = repo
+        .get_all_extractors()
+        .await
+        .map_err(|e| CommandError::from(anyhow::anyhow!("Failed to get extractors: {}", e)))?;
+
+    let mut fields: Vec<RuleFieldInfo> = Vec::new();
+    let mut category_index: HashMap<String, RuleFieldInfo> = HashMap::new();
+
+    for extractor in extractors.into_iter().filter(|value| value.is_enabled) {
+        let post_process = parse_extractor_post_process(extractor.post_process.as_deref());
+
+        let category_id = post_process
+            .as_ref()
+            .and_then(|value| get_post_process_string(value, "category_id"));
+        let category_label = post_process
+            .as_ref()
+            .and_then(|value| get_post_process_string(value, "category_label"));
+
+        let default_rule_severity = post_process
+            .as_ref()
+            .and_then(|value| get_post_process_string(value, "default_rule_severity"));
+        let default_rule_recommendation = post_process
+            .as_ref()
+            .and_then(|value| get_post_process_string(value, "default_rule_recommendation"));
+        let default_rule_threshold_min = post_process
+            .as_ref()
+            .and_then(|value| get_post_process_number(value, "default_rule_threshold_min"));
+        let default_rule_threshold_max = post_process
+            .as_ref()
+            .and_then(|value| get_post_process_number(value, "default_rule_threshold_max"));
+
+        fields.push(RuleFieldInfo {
+            id: format!("extractor:{}", extractor.name),
+            label: extractor.display_name.clone(),
+            description: extractor.description.clone(),
+            target_field: format!("field:extractor:{}", extractor.name),
+            kind: "extractor".to_string(),
+            category_id: category_id.clone(),
+            category_label: category_label.clone(),
+            default_rule_severity: default_rule_severity.clone(),
+            default_rule_recommendation: default_rule_recommendation.clone(),
+            default_rule_threshold_min,
+            default_rule_threshold_max,
+        });
+
+        if let Some(category_id) = category_id {
+            category_index.entry(category_id.clone()).or_insert(RuleFieldInfo {
+                id: format!("category:{}", category_id),
+                label: category_label.clone().unwrap_or_else(|| category_id.replace('_', " ")),
+                description: Some("Any extracted values in this category".to_string()),
+                target_field: format!("field:category:{}", category_id),
+                kind: "category".to_string(),
+                category_id: Some(category_id),
+                category_label,
+                default_rule_severity: None,
+                default_rule_recommendation: None,
+                default_rule_threshold_min: None,
+                default_rule_threshold_max: None,
+            });
+        }
+    }
+
+    fields.extend(category_index.into_values());
+    fields.sort_by(|left, right| left.label.to_lowercase().cmp(&right.label.to_lowercase()));
+
+    Ok(fields)
+}
+
 /// Create a new custom extractor
 #[tauri::command]
 #[specta::specta]
@@ -275,15 +469,25 @@ pub async fn create_custom_extractor(
     
     let id = format!("custom-{}", uuid::Uuid::new_v4());
     let name = request.name.to_lowercase().replace(' ', "_");
+    let extractor_type = normalize_extractor_type(request.extractor_type.as_deref());
+    let post_process = build_extractor_post_process(
+        request.category_id.as_deref(),
+        request.category_label.as_deref(),
+        request.default_rule_severity.as_deref(),
+        request.default_rule_recommendation.as_deref(),
+        request.default_rule_threshold_min,
+        request.default_rule_threshold_max,
+    );
     
     repo.insert_extractor(
         &id,
         &name,
         &request.display_name,
         request.description.as_deref(),
-        "css_selector",
+        extractor_type,
         &request.selector,
         request.attribute.as_deref(),
+        post_process.as_deref(),
     ).await
     .map_err(|e| CommandError::from(anyhow::anyhow!("Failed to create extractor: {}", e)))?;
     
@@ -308,14 +512,25 @@ pub async fn update_custom_extractor(
     if existing.is_builtin {
         return Err(CommandError::from(anyhow::anyhow!("Cannot modify built-in extractors")));
     }
+
+    let post_process = build_extractor_post_process(
+        request.category_id.as_deref(),
+        request.category_label.as_deref(),
+        request.default_rule_severity.as_deref(),
+        request.default_rule_recommendation.as_deref(),
+        request.default_rule_threshold_min,
+        request.default_rule_threshold_max,
+    );
     
     repo.update_extractor(
         &request.id,
         request.name.as_deref(),
         request.display_name.as_deref(),
         request.description.as_deref(),
+        request.extractor_type.as_deref().map(|value| normalize_extractor_type(Some(value))),
         request.selector.as_deref(),
         request.attribute.as_deref(),
+        post_process.as_deref(),
     ).await
     .map_err(|e| CommandError::from(anyhow::anyhow!("Failed to update extractor: {}", e)))?;
     
@@ -421,6 +636,11 @@ pub async fn create_custom_rule(
         name: request.name,
         category: request.category,
         severity: request.severity,
+        rule_type: Some(request.rule_type),
+        target_field: Some(request.target_field),
+        threshold_min: request.threshold_min,
+        threshold_max: request.threshold_max,
+        regex_pattern: request.regex_pattern,
         recommendation: request.recommendation,
         is_builtin: false,
         is_enabled: true,
@@ -463,6 +683,11 @@ pub async fn update_custom_rule(
         name: rule.name,
         category: rule.category,
         severity: rule.severity,
+        rule_type: Some(rule.rule_type),
+        target_field: rule.target_field,
+        threshold_min: None,
+        threshold_max: None,
+        regex_pattern: None,
         recommendation: rule.recommendation,
         is_builtin: rule.is_builtin,
         is_enabled: rule.is_enabled,
@@ -513,6 +738,11 @@ pub async fn toggle_rule_enabled(
         name: rule.name,
         category: rule.category,
         severity: rule.severity,
+        rule_type: Some(rule.rule_type),
+        target_field: rule.target_field,
+        threshold_min: None,
+        threshold_max: None,
+        regex_pattern: None,
         recommendation: rule.recommendation,
         is_builtin: rule.is_builtin,
         is_enabled: rule.is_enabled,
@@ -535,7 +765,7 @@ pub async fn reload_extensions(
 #[specta::specta]
 pub async fn get_extracted_data(
     page_id: String,
-    app_state: State<'_, AppState>,
+    _app_state: State<'_, AppState>,
 ) -> Result<ExtractedDataResponse, CommandError> {
     // This would query the database for stored extracted data
     // For now, return an empty response
@@ -605,6 +835,26 @@ pub struct CapabilityInfo {
     pub name: String,
     pub display_name: String,
     pub description: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct RuleTargetMigrationResult {
+    pub migrated_count: usize,
+}
+
+/// Normalize legacy rule target syntax to field:* format
+#[tauri::command]
+#[specta::specta]
+pub async fn normalize_rule_target_fields(
+    app_state: State<'_, AppState>,
+) -> Result<RuleTargetMigrationResult, CommandError> {
+    let repo = &app_state.extension_repository;
+    let migrated_count = repo
+        .migrate_rule_targets_to_field_format()
+        .await
+        .map_err(|e| CommandError::from(anyhow::anyhow!("Failed to normalize rule targets: {}", e)))?;
+
+    Ok(RuleTargetMigrationResult { migrated_count })
 }
 
 // Legacy compatibility - these types and functions are kept for backward compatibility

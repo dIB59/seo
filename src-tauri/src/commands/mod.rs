@@ -42,6 +42,7 @@ pub fn register_commands() -> Commands<tauri::Wry> {
         extension::get_all_extractors,
         extension::get_all_audit_checks,
         extension::get_extractor_configs,
+        extension::get_rule_field_registry,
         extension::create_custom_extractor,
         extension::update_custom_extractor,
         extension::delete_custom_extractor,
@@ -50,6 +51,7 @@ pub fn register_commands() -> Commands<tauri::Wry> {
         extension::update_custom_rule,
         extension::delete_custom_rule,
         extension::toggle_rule_enabled,
+        extension::normalize_rule_target_fields,
         extension::reload_extensions,
     ];
     s

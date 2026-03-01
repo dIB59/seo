@@ -1,6 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import type { ChangeEvent } from "react";
+import type {
+  CreateExtractorRequest,
+  ExtractorConfigInfo,
+  RuleSeverity,
+  UpdateExtractorRequest,
+} from "@/src/api/extensions";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
@@ -15,10 +22,19 @@ import {
 import { Badge } from "@/src/components/ui/badge";
 
 interface ExtractorDialogContentProps {
-  extractor?: any;
-  onCreate: (data: any) => Promise<void>;
-  onUpdate: (data: any) => Promise<void>;
+  extractor?: ExtractorConfigInfo | null;
+  onCreate: (data: CreateExtractorRequest) => Promise<void>;
+  onUpdate: (data: UpdateExtractorRequest) => Promise<void>;
   onCancel: () => void;
+}
+
+interface ExtractorMeta {
+  category_id?: string;
+  category_label?: string;
+  default_rule_severity?: RuleSeverity;
+  default_rule_recommendation?: string;
+  default_rule_threshold_min?: number;
+  default_rule_threshold_max?: number;
 }
 
 const EXTRACTOR_TYPES = [
@@ -33,12 +49,36 @@ export function ExtractorDialogContent({
   onUpdate,
   onCancel,
 }: ExtractorDialogContentProps) {
+  const extractorMeta: ExtractorMeta = (() => {
+    try {
+      return extractor?.post_process ? JSON.parse(extractor.post_process) : {};
+    } catch {
+      return {};
+    }
+  })();
+
   const [name, setName] = useState(extractor?.name || "");
   const [displayName, setDisplayName] = useState(extractor?.display_name || "");
   const [description, setDescription] = useState(extractor?.description || "");
-  const [extractorType, setExtractorType] = useState(extractor?.extractor_type || "css");
+  const [extractorType, setExtractorType] = useState(
+    extractor?.extractor_type === "css_selector" ? "css" : extractor?.extractor_type || "css",
+  );
   const [selector, setSelector] = useState(extractor?.selector || "");
   const [attribute, setAttribute] = useState(extractor?.attribute || "");
+  const [categoryId, setCategoryId] = useState(extractorMeta?.category_id || "");
+  const [categoryLabel, setCategoryLabel] = useState(extractorMeta?.category_label || "");
+  const [defaultRuleSeverity, setDefaultRuleSeverity] = useState<RuleSeverity | "none">(
+    extractorMeta?.default_rule_severity || "none",
+  );
+  const [defaultRuleRecommendation, setDefaultRuleRecommendation] = useState(
+    extractorMeta?.default_rule_recommendation || "",
+  );
+  const [defaultRuleThresholdMin, setDefaultRuleThresholdMin] = useState(
+    extractorMeta?.default_rule_threshold_min?.toString() || "",
+  );
+  const [defaultRuleThresholdMax, setDefaultRuleThresholdMax] = useState(
+    extractorMeta?.default_rule_threshold_max?.toString() || "",
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isEditing = !!extractor;
@@ -54,8 +94,19 @@ export function ExtractorDialogContent({
           name: extractor.name,
           display_name: displayName,
           description: description || null,
+          extractor_type: extractorType,
           selector,
           attribute: attribute || null,
+          category_id: categoryId || null,
+          category_label: categoryLabel || null,
+          default_rule_severity: defaultRuleSeverity === "none" ? null : defaultRuleSeverity,
+          default_rule_recommendation: defaultRuleRecommendation || null,
+          default_rule_threshold_min: defaultRuleThresholdMin
+            ? parseFloat(defaultRuleThresholdMin)
+            : null,
+          default_rule_threshold_max: defaultRuleThresholdMax
+            ? parseFloat(defaultRuleThresholdMax)
+            : null,
         });
       } else {
         await onCreate({
@@ -65,6 +116,16 @@ export function ExtractorDialogContent({
           extractor_type: extractorType,
           selector,
           attribute: attribute || null,
+          category_id: categoryId || null,
+          category_label: categoryLabel || null,
+          default_rule_severity: defaultRuleSeverity === "none" ? null : defaultRuleSeverity,
+          default_rule_recommendation: defaultRuleRecommendation || null,
+          default_rule_threshold_min: defaultRuleThresholdMin
+            ? parseFloat(defaultRuleThresholdMin)
+            : null,
+          default_rule_threshold_max: defaultRuleThresholdMax
+            ? parseFloat(defaultRuleThresholdMax)
+            : null,
         });
       }
       onCancel();
@@ -84,7 +145,7 @@ export function ExtractorDialogContent({
             <Input
               id="name"
               value={name}
-              onChange={(e: any) => setName(e.target.value)}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
               placeholder="my_custom_extractor"
               required
             />
@@ -115,7 +176,7 @@ export function ExtractorDialogContent({
         <Input
           id="displayName"
           value={displayName}
-          onChange={(e: any) => setDisplayName(e.target.value)}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => setDisplayName(e.target.value)}
           placeholder="Link Extractor"
           required
         />
@@ -127,7 +188,7 @@ export function ExtractorDialogContent({
         <Textarea
           id="description"
           value={description}
-          onChange={(e: any) => setDescription(e.target.value)}
+          onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
           placeholder="Extracts all links from the page..."
           rows={2}
         />
@@ -145,7 +206,7 @@ export function ExtractorDialogContent({
         <Input
           id="selector"
           value={selector}
-          onChange={(e: any) => setSelector(e.target.value)}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => setSelector(e.target.value)}
           placeholder={
             extractorType === "css"
               ? "a[href]"
@@ -168,7 +229,7 @@ export function ExtractorDialogContent({
           <Input
             id="attribute"
             value={attribute}
-            onChange={(e: any) => setAttribute(e.target.value)}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => setAttribute(e.target.value)}
             placeholder="href"
           />
           <p className="text-xs text-muted-foreground">
@@ -176,6 +237,88 @@ export function ExtractorDialogContent({
           </p>
         </div>
       )}
+
+      <div className="space-y-2">
+        <Label htmlFor="categoryId">Category ID (optional)</Label>
+        <Input
+          id="categoryId"
+          value={categoryId}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => setCategoryId(e.target.value)}
+          placeholder="open_graph"
+        />
+        <p className="text-xs text-muted-foreground">
+          Used to group extracted fields and target rules with{" "}
+          <span className="font-mono">category:&lt;id&gt;</span>
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="categoryLabel">Category Label (optional)</Label>
+        <Input
+          id="categoryLabel"
+          value={categoryLabel}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => setCategoryLabel(e.target.value)}
+          placeholder="Open Graph"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="defaultRuleSeverity">Default Rule Severity (optional)</Label>
+        <Select
+          value={defaultRuleSeverity}
+          onValueChange={(value) => setDefaultRuleSeverity(value as RuleSeverity | "none")}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="No default severity" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">No default</SelectItem>
+            <SelectItem value="critical">Critical</SelectItem>
+            <SelectItem value="warning">Warning</SelectItem>
+            <SelectItem value="info">Info</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="defaultRuleRecommendation">Default Rule Recommendation (optional)</Label>
+        <Textarea
+          id="defaultRuleRecommendation"
+          value={defaultRuleRecommendation}
+          onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
+            setDefaultRuleRecommendation(e.target.value)
+          }
+          placeholder="Guidance pre-filled when generating templates for this extractor"
+          rows={2}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-2">
+          <Label htmlFor="defaultRuleThresholdMin">Default Rule Min (optional)</Label>
+          <Input
+            id="defaultRuleThresholdMin"
+            type="number"
+            value={defaultRuleThresholdMin}
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+              setDefaultRuleThresholdMin(e.target.value)
+            }
+            placeholder="e.g. 1"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="defaultRuleThresholdMax">Default Rule Max (optional)</Label>
+          <Input
+            id="defaultRuleThresholdMax"
+            type="number"
+            value={defaultRuleThresholdMax}
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+              setDefaultRuleThresholdMax(e.target.value)
+            }
+            placeholder="e.g. 160"
+          />
+        </div>
+      </div>
 
       <div className="flex justify-end gap-2 pt-4">
         <Button type="button" variant="outline" onClick={onCancel}>

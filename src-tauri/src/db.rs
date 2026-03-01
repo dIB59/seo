@@ -7,7 +7,7 @@ use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::SqlitePool;
 use tauri::{AppHandle, Manager};
 
-const PRAGMA_STATEMENTS: &[&str] = &[
+const PRAGMA_STATEMENTS: [&str; 7] = [
     "PRAGMA journal_mode = WAL",
     "PRAGMA synchronous = NORMAL",
     "PRAGMA cache_size = -65536",
@@ -20,7 +20,7 @@ const PRAGMA_STATEMENTS: &[&str] = &[
 async fn configure_sqlite_pragmas(conn: &mut sqlx::SqliteConnection) -> Result<(), sqlx::Error> {
     use sqlx::Executor;
     for pragma in PRAGMA_STATEMENTS {
-        conn.execute(*pragma).await?;
+        conn.execute(pragma).await?;
     }
     Ok(())
 }

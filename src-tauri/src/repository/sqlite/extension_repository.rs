@@ -154,7 +154,6 @@ impl ExtensionRepository {
     ) -> Result<()> {
         self.assert_not_builtin(id).await?;
 
-        let mut updates: Vec<&str> = Vec::new();
         // We'll build the query with string fields only — bools get special handling below
         // Use a typed approach to avoid boxing
         let mut sql_parts: Vec<String> = Vec::new();
@@ -216,6 +215,38 @@ impl ExtensionRepository {
                 .await
                 .unwrap_or(0);
         Ok(count as usize)
+    }
+
+    pub async fn migrate_rule_targets_to_field_format(&self) -> Result<usize> {
+        if !self.table_exists().await {
+            return Ok(0);
+        }
+
+        let extracted_result = sqlx::query(
+            r#"
+            UPDATE audit_rules
+            SET target_field = 'field:extractor:' || substr(target_field, 11),
+                updated_at = datetime('now')
+            WHERE target_field LIKE 'extracted:%'
+            "#,
+        )
+        .execute(&self.pool)
+        .await
+        .context("Failed to migrate extracted:* rule targets")?;
+
+        let category_result = sqlx::query(
+            r#"
+            UPDATE audit_rules
+            SET target_field = 'field:category:' || substr(target_field, 10),
+                updated_at = datetime('now')
+            WHERE target_field LIKE 'category:%'
+            "#,
+        )
+        .execute(&self.pool)
+        .await
+        .context("Failed to migrate category:* rule targets")?;
+
+        Ok((extracted_result.rows_affected() + category_result.rows_affected()) as usize)
     }
 
     pub async fn is_builtin(&self, id: &str) -> bool {
@@ -327,13 +358,14 @@ impl ExtensionRepository {
         extractor_type: &str,
         selector: &str,
         attribute: Option<&str>,
+        post_process: Option<&str>,
     ) -> Result<()> {
         sqlx::query(
             r#"
             INSERT INTO extractor_configs (
                 id, name, display_name, description, extractor_type,
-                selector, attribute, storage_type, is_enabled, is_builtin, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'json', 1, 0, datetime('now'))
+                selector, attribute, post_process, storage_type, is_enabled, is_builtin, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'json', 1, 0, datetime('now'))
             "#,
         )
         .bind(id)
@@ -343,6 +375,7 @@ impl ExtensionRepository {
         .bind(extractor_type)
         .bind(selector)
         .bind(attribute)
+        .bind(post_process)
         .execute(&self.pool)
         .await
         .context("Failed to insert extractor")?;
@@ -356,8 +389,10 @@ impl ExtensionRepository {
         name: Option<&str>,
         display_name: Option<&str>,
         description: Option<&str>,
+        extractor_type: Option<&str>,
         selector: Option<&str>,
         attribute: Option<&str>,
+        post_process: Option<&str>,
     ) -> Result<()> {
         // Check if this is a custom extractor
         let is_builtin: i64 = sqlx::query_scalar::<_, i64>(
@@ -378,8 +413,10 @@ impl ExtensionRepository {
         if name.is_some() { updates.push("name"); }
         if display_name.is_some() { updates.push("display_name"); }
         if description.is_some() { updates.push("description"); }
+        if extractor_type.is_some() { updates.push("extractor_type"); }
         if selector.is_some() { updates.push("selector"); }
         if attribute.is_some() { updates.push("attribute"); }
+        if post_process.is_some() { updates.push("post_process"); }
 
         if updates.is_empty() {
             anyhow::bail!("No fields to update");
@@ -387,15 +424,17 @@ impl ExtensionRepository {
 
         // Use a simpler approach - build query with string concatenation
         let sql = format!(
-            "UPDATE extractor_configs SET name = COALESCE(?, name), display_name = COALESCE(?, display_name), description = COALESCE(?, description), selector = COALESCE(?, selector), attribute = COALESCE(?, attribute) WHERE id = ?",
+            "UPDATE extractor_configs SET name = COALESCE(?, name), display_name = COALESCE(?, display_name), description = COALESCE(?, description), extractor_type = COALESCE(?, extractor_type), selector = COALESCE(?, selector), attribute = COALESCE(?, attribute), post_process = COALESCE(?, post_process) WHERE id = ?",
         );
 
         sqlx::query(&sql)
             .bind(name.unwrap_or(""))
             .bind(display_name.unwrap_or(""))
             .bind(description.unwrap_or(""))
+            .bind(extractor_type.unwrap_or(""))
             .bind(selector.unwrap_or(""))
             .bind(attribute.unwrap_or(""))
+            .bind(post_process.unwrap_or(""))
             .bind(id)
             .execute(&self.pool)
             .await
@@ -519,6 +558,10 @@ impl ExtensionRepositoryTrait for ExtensionRepository {
         ExtensionRepository::count_custom_rules(self).await
     }
 
+    async fn migrate_rule_targets_to_field_format(&self) -> Result<usize> {
+        ExtensionRepository::migrate_rule_targets_to_field_format(self).await
+    }
+
     // Extractor trait implementations
     async fn get_all_extractors(&self) -> Result<Vec<ExtractorConfigInfo>> {
         ExtensionRepository::get_all_extractors(self).await
@@ -537,9 +580,10 @@ impl ExtensionRepositoryTrait for ExtensionRepository {
         extractor_type: &str,
         selector: &str,
         attribute: Option<&str>,
+        post_process: Option<&str>,
     ) -> Result<()> {
         ExtensionRepository::insert_extractor(
-            self, id, name, display_name, description, extractor_type, selector, attribute,
+            self, id, name, display_name, description, extractor_type, selector, attribute, post_process,
         )
         .await
     }
@@ -550,11 +594,13 @@ impl ExtensionRepositoryTrait for ExtensionRepository {
         name: Option<&str>,
         display_name: Option<&str>,
         description: Option<&str>,
+        extractor_type: Option<&str>,
         selector: Option<&str>,
         attribute: Option<&str>,
+        post_process: Option<&str>,
     ) -> Result<()> {
         ExtensionRepository::update_extractor(
-            self, id, name, display_name, description, selector, attribute,
+            self, id, name, display_name, description, extractor_type, selector, attribute, post_process,
         )
         .await
     }

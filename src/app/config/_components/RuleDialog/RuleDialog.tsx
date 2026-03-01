@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Plus,
   Edit,
@@ -42,23 +42,31 @@ import {
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
-  createCustomRule,
-  updateCustomRule,
   type CreateRuleRequest,
   type UpdateRuleRequest,
   type ExtensionCategory,
   type IssueRuleInfo,
+  type RuleFieldInfo,
+  getRuleFieldRegistry,
 } from "@/src/api/extensions";
 import {
-  RULE_TEMPLATES,
   RULE_TYPE_CONFIG,
-  TARGET_FIELDS,
-  CATEGORIES,
   SEVERITIES,
   RULE_TYPES,
   CUSTOM_FIELD_VALUE,
-} from "./rule-data";
+  CUSTOM_CATEGORY_VALUE,
+  type RuleTemplate,
+  type TargetField,
+} from "./rule-config";
 import { Step, TemplateCard, PreviewPanel, ChangesTracker } from "./components";
+
+function toTitleCase(value: string): string {
+  return value
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
 
 // ============================================================================
 // Main Dialog Component
@@ -82,6 +90,7 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
   );
   const [targetField, setTargetField] = useState("");
   const [customTargetField, setCustomTargetField] = useState("");
+  const [customCategory, setCustomCategory] = useState("");
   const [thresholdMin, setThresholdMin] = useState("");
   const [thresholdMax, setThresholdMax] = useState("");
   const [regexPattern, setRegexPattern] = useState("");
@@ -100,6 +109,120 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
     thresholdMax?: number;
     regexPattern?: string;
   }>({});
+  const [fieldRegistry, setFieldRegistry] = useState<RuleFieldInfo[]>([]);
+
+  const categoryOptionMap = useMemo(() => {
+    const entries = fieldRegistry
+      .filter((field) => field.category_id?.trim())
+      .map((field) => {
+        const categoryId = field.category_id!.trim();
+        return [categoryId, field.category_label?.trim() || toTitleCase(categoryId)] as const;
+      });
+
+    return new Map(entries);
+  }, [fieldRegistry]);
+
+  const categoryOptions = useMemo(() => {
+    const values = [...categoryOptionMap.keys()].sort((left, right) => left.localeCompare(right));
+    return [...values, CUSTOM_CATEGORY_VALUE] as ExtensionCategory[];
+  }, [categoryOptionMap]);
+
+  const targetFieldOptions = useMemo(() => {
+    const options: TargetField[] = [];
+    const seen = new Set<string>();
+
+    for (const field of fieldRegistry) {
+      if (!seen.has(field.target_field)) {
+        seen.add(field.target_field);
+        options.push({
+          value: field.target_field,
+          label: field.kind === "category" ? `Category: ${field.label}` : `Field: ${field.label}`,
+          description:
+            field.description ||
+            (field.kind === "category"
+              ? "Any extracted values in this category"
+              : `Rule-targetable field ${field.id}`),
+        });
+      }
+    }
+
+    if (rule?.target_field && !seen.has(rule.target_field)) {
+      seen.add(rule.target_field);
+      options.unshift({
+        value: rule.target_field,
+        label: `Current: ${rule.target_field}`,
+        description: "Target field used by this existing rule",
+      });
+    }
+
+    options.push({
+      value: CUSTOM_FIELD_VALUE,
+      label: "Custom Field",
+      description: "Enter any custom target field value",
+    });
+
+    return options;
+  }, [fieldRegistry, rule]);
+
+  const dynamicTemplates = useMemo(() => {
+    const templates: RuleTemplate[] = [];
+
+    for (const field of fieldRegistry.filter((value) => value.kind === "extractor").slice(0, 8)) {
+      const categoryId = field.category_id || "technical";
+      const target = field.target_field;
+      const defaultSeverity =
+        (field.default_rule_severity as "critical" | "warning" | "info") || "warning";
+      const defaultRecommendation =
+        field.default_rule_recommendation ||
+        `Ensure content targeted by field \"${field.label}\" exists on the page.`;
+      const defaultThresholdMin = field.default_rule_threshold_min;
+      const defaultThresholdMax = field.default_rule_threshold_max;
+
+      templates.push({
+        id: `presence-${field.id}`,
+        name: `${field.label} Presence`,
+        description: `Validate that field \"${field.label}\" returns at least one value`,
+        category: categoryId,
+        ruleType: "presence",
+        targetField: target,
+        recommendation: defaultRecommendation,
+        severity: defaultSeverity,
+        icon: RULE_TYPE_CONFIG.presence.icon,
+      });
+
+      if (/count|length|score|time|size|ms|kb|mb/i.test(field.id + field.label)) {
+        templates.push({
+          id: `threshold-${field.id}`,
+          name: `${field.label} Threshold`,
+          description: `Check whether \"${field.label}\" stays within acceptable bounds`,
+          category: categoryId,
+          ruleType: "threshold",
+          targetField: target,
+          thresholdMin: defaultThresholdMin?.toString() || "1",
+          thresholdMax: defaultThresholdMax?.toString(),
+          recommendation: defaultRecommendation,
+          severity: defaultSeverity,
+          icon: RULE_TYPE_CONFIG.threshold.icon,
+        });
+      }
+    }
+
+    if (templates.length === 0) {
+      templates.push({
+        id: "custom-template",
+        name: "Custom Extracted Field Rule",
+        description: "Start with a custom extracted field and define your own validation logic",
+        category: "technical",
+        ruleType: "presence",
+        targetField: CUSTOM_FIELD_VALUE,
+        recommendation: "Select a target field and define how this rule should validate it.",
+        severity: "warning",
+        icon: RULE_TYPE_CONFIG.custom.icon,
+      });
+    }
+
+    return templates;
+  }, [fieldRegistry]);
 
   const isEditing = rule !== null;
   const steps = isEditing
@@ -111,7 +234,11 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
     if (open) {
       if (rule) {
         setName(rule.name);
-        setCategory(rule.category as ExtensionCategory);
+        const predefinedCategory = categoryOptions.includes(rule.category)
+          ? rule.category
+          : CUSTOM_CATEGORY_VALUE;
+        setCategory(predefinedCategory as ExtensionCategory);
+        setCustomCategory(predefinedCategory === CUSTOM_CATEGORY_VALUE ? rule.category : "");
         setSeverity(rule.severity as "critical" | "warning" | "info");
         setRuleType(rule.rule_type as "presence" | "threshold" | "regex" | "custom");
         setTargetField(rule.target_field || "");
@@ -133,11 +260,12 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
         setCurrentStep(0);
       } else {
         setName("");
-        setCategory("seo");
+        setCategory(categoryOptions[0] ?? CUSTOM_CATEGORY_VALUE);
         setSeverity("warning");
         setRuleType("presence");
         setTargetField("");
         setCustomTargetField("");
+        setCustomCategory("");
         setThresholdMin("");
         setThresholdMax("");
         setRegexPattern("");
@@ -147,12 +275,38 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
       }
       setCompletedSteps(new Set());
     }
-  }, [open, rule]);
+  }, [categoryOptions, open, rule]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    let isDisposed = false;
+
+    const loadFieldRegistry = async () => {
+      const result = await getRuleFieldRegistry();
+      if (!isDisposed && result.isOk()) {
+        setFieldRegistry(result.unwrap());
+      }
+    };
+
+    void loadFieldRegistry();
+
+    return () => {
+      isDisposed = true;
+    };
+  }, [open]);
 
   // Handlers
-  const handleTemplateSelect = (template: (typeof RULE_TEMPLATES)[0]) => {
+  const handleTemplateSelect = (template: RuleTemplate) => {
+    const selectedCategory = categoryOptions.includes(template.category)
+      ? template.category
+      : CUSTOM_CATEGORY_VALUE;
+
     setName(template.name);
-    setCategory(template.category);
+    setCategory(selectedCategory);
+    setCustomCategory(selectedCategory === CUSTOM_CATEGORY_VALUE ? template.category : "");
     setRuleType(template.ruleType);
     setTargetField(template.targetField);
     setSeverity(template.severity);
@@ -197,6 +351,11 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
       return;
     }
 
+    if (category === CUSTOM_CATEGORY_VALUE && !customCategory.trim()) {
+      toast.error("Custom category is required");
+      return;
+    }
+
     setIsSaving(true);
     try {
       if (isEditing && rule) {
@@ -204,22 +363,32 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
           id: rule.id,
           name,
           severity,
-          threshold_min: thresholdMin ? parseFloat(thresholdMin) : undefined,
-          threshold_max: thresholdMax ? parseFloat(thresholdMax) : undefined,
-          regex_pattern: regexPattern || undefined,
-          recommendation: recommendation || undefined,
+          threshold_min: thresholdMin ? parseFloat(thresholdMin) : null,
+          threshold_max: thresholdMax ? parseFloat(thresholdMax) : null,
+          regex_pattern: regexPattern || null,
+          recommendation: recommendation || null,
+          is_enabled: null,
         });
       } else {
         await onCreate({
           name,
-          category,
+          category: category === CUSTOM_CATEGORY_VALUE ? customCategory : category,
           severity,
           rule_type: ruleType,
           target_field: targetField === CUSTOM_FIELD_VALUE ? customTargetField : targetField,
-          threshold_min: thresholdMin ? parseFloat(thresholdMin) : undefined,
-          threshold_max: thresholdMax ? parseFloat(thresholdMax) : undefined,
-          regex_pattern: regexPattern || undefined,
-          recommendation: recommendation || undefined,
+          threshold_min: thresholdMin ? parseFloat(thresholdMin) : null,
+          threshold_max: thresholdMax ? parseFloat(thresholdMax) : null,
+          regex_pattern: regexPattern || null,
+          recommendation: recommendation || null,
+          selector: null,
+          attribute: null,
+          multiple: null,
+          min_count: null,
+          max_count: null,
+          min_length: null,
+          max_length: null,
+          expected_value: null,
+          negate: null,
         });
       }
       onOpenChange(false);
@@ -232,21 +401,12 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
   };
 
   // Filter templates based on search
-  const filteredTemplates = RULE_TEMPLATES.filter(
+  const filteredTemplates = dynamicTemplates.filter(
     (t) =>
       t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       t.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       t.category.toLowerCase().includes(searchTerm.toLowerCase()),
   );
-
-  // Get the actual target field value for display
-  const getTargetFieldValue = () => {
-    if (targetField === CUSTOM_FIELD_VALUE) {
-      return customTargetField || "Custom field";
-    }
-    const field = TARGET_FIELDS.find((f) => f.value === targetField);
-    return field?.label || targetField;
-  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -404,24 +564,31 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
                   <div className="space-y-2">
                     <label className="text-sm font-semibold">Category</label>
                     <div className="grid grid-cols-4 gap-2">
-                      {CATEGORIES.map((cat) => {
-                        const config = RULE_TYPE_CONFIG[cat];
-                        return (
-                          <button
-                            key={cat}
-                            type="button"
-                            onClick={() => setCategory(cat)}
-                            className={`p-2.5 rounded-lg border text-center text-sm font-medium transition-all ${
-                              category === cat
-                                ? "border-foreground/20 bg-muted"
-                                : "border-border hover:border-foreground/10"
-                            }`}
-                          >
-                            {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                          </button>
-                        );
-                      })}
+                      {categoryOptions.map((cat) => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setCategory(cat)}
+                          className={`p-2.5 rounded-lg border text-center text-sm font-medium transition-all ${
+                            category === cat
+                              ? "border-foreground/20 bg-muted"
+                              : "border-border hover:border-foreground/10"
+                          }`}
+                        >
+                          {cat === CUSTOM_CATEGORY_VALUE
+                            ? "Custom"
+                            : categoryOptionMap.get(cat) || toTitleCase(cat)}
+                        </button>
+                      ))}
                     </div>
+                    {category === CUSTOM_CATEGORY_VALUE && (
+                      <Input
+                        value={customCategory}
+                        onChange={(e) => setCustomCategory(e.target.value)}
+                        placeholder="e.g., commerce"
+                        className="h-10 mt-2"
+                      />
+                    )}
                   </div>
 
                   {/* Rule Type */}
@@ -471,7 +638,7 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
                         <SelectValue placeholder="Select a field to check" />
                       </SelectTrigger>
                       <SelectContent>
-                        {TARGET_FIELDS.map((field) => (
+                        {targetFieldOptions.map((field) => (
                           <SelectItem key={field.value} value={field.value}>
                             <div>
                               <div className="font-medium">{field.label}</div>
@@ -491,7 +658,7 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
                         <Input
                           value={customTargetField}
                           onChange={(e) => setCustomTargetField(e.target.value)}
-                          placeholder="e.g., href, src, class, data-id"
+                          placeholder="e.g., field:extractor:open_graph_title or field:category:open_graph"
                           className="h-10 font-mono text-sm"
                         />
                       </div>

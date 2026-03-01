@@ -3,7 +3,7 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAnalysis } from "@/src/hooks/use-analysis";
 import { LoadingState, ErrorState } from "@/src/components/ui/page-states";
-import type { PageDetailData, PageAnalysisData } from "@/src/lib/types";
+import type { PageDetailData } from "@/src/lib/types";
 import { PageDetailView } from "@/src/app/analysis/details/_components/PageDetailView";
 
 export default function PageDetailPage() {
@@ -31,7 +31,8 @@ export default function PageDetailPage() {
     );
   }
 
-  const pages = (result.pages as PageAnalysisData[]).map((p) => ({ ...p }) as PageDetailData);
+  // Cast pages to PageDetailData[] - extracted_data will be handled by the component
+  const pages = result.pages as unknown as PageDetailData[];
   const page = pages[currentIndex];
 
   return (

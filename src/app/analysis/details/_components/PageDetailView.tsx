@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { Badge } from "@/src/components/ui/badge";
 import type { PageDetailData } from "@/src/lib/types";
+import { getExtractorConfigs, type ExtractorConfigInfo } from "@/src/api/extensions";
 import PageHeader from "./organisms/PageHeader";
 import PageInfoCard from "./molecules/PageInfoCard";
 import MetaTab from "./molecules/MetaTab";
@@ -12,7 +12,7 @@ import HeadingsTab from "./molecules/HeadingsTab";
 import ImagesTab from "./molecules/ImagesTab";
 import LinksTab from "./molecules/LinksTab";
 import ExtractedDataTab from "./molecules/ExtractedDataTab";
-import { cn } from "@/src/lib/utils";
+import { Database, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface PageDetailViewProps {
   page: PageDetailData;
@@ -20,6 +20,30 @@ interface PageDetailViewProps {
   currentIndex: number;
   onBack: () => void;
   onNavigate: (index: number) => void;
+}
+
+function parseExtractorMeta(postProcess: string | null | undefined): {
+  category_id?: string;
+  category_label?: string;
+} {
+  if (!postProcess) return {};
+
+  try {
+    const parsed = JSON.parse(postProcess);
+    if (!parsed || typeof parsed !== "object") return {};
+    return {
+      category_id:
+        typeof parsed.category_id === "string" && parsed.category_id.trim().length > 0
+          ? parsed.category_id.trim()
+          : undefined,
+      category_label:
+        typeof parsed.category_label === "string" && parsed.category_label.trim().length > 0
+          ? parsed.category_label.trim()
+          : undefined,
+    };
+  } catch {
+    return {};
+  }
 }
 
 export function PageDetailView({
@@ -30,6 +54,18 @@ export function PageDetailView({
   onNavigate,
 }: PageDetailViewProps) {
   const [, setSearchOpen] = useState(false);
+  const [extractorConfigs, setExtractorConfigs] = useState<ExtractorConfigInfo[]>([]);
+
+  useEffect(() => {
+    const loadExtractorConfigs = async () => {
+      const result = await getExtractorConfigs();
+      if (result.isOk()) {
+        setExtractorConfigs(result.unwrap());
+      }
+    };
+
+    loadExtractorConfigs();
+  }, []);
 
   const canGoPrev = currentIndex > 0;
   const canGoNext = currentIndex < pages.length - 1;
@@ -57,121 +93,199 @@ export function PageDetailView({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [goToPrev, goToNext, onBack]);
 
-  return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 ease-out pb-20">
-      {/* Header Section */}
-      <div className="sticky top-0 z-20 pb-4 bg-background/80 backdrop-blur-md border-b border-border/40 -mx-6 px-6 pt-4 transition-all duration-300">
-        <PageHeader
-          page={page}
-          pages={pages}
-          currentIndex={currentIndex}
-          onBack={onBack}
-          onNavigate={onNavigate}
-        />
-      </div>
+  const clientCategoryConfig = useMemo(() => {
+    const categories = new Map<string, { label: string; keys: string[] }>();
 
-      {/* Info Card with refined border/shadow */}
-      <div className="relative group transition-all duration-300 hover:shadow-sm">
-        <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/10 to-primary/0 rounded-xl opacity-0 group-hover:opacity-100 transition duration-500 blur" />
-        <div className="relative">
-          <PageInfoCard page={page} />
+    extractorConfigs.forEach((extractor) => {
+      const meta = parseExtractorMeta(extractor.post_process);
+      if (!meta.category_id) {
+        return;
+      }
+
+      const outputKey = `${meta.category_id}.${extractor.name}`;
+      const category = categories.get(meta.category_id) ?? {
+        label: meta.category_label || meta.category_id,
+        keys: [],
+      };
+
+      category.keys.push(outputKey, extractor.name);
+      categories.set(meta.category_id, category);
+    });
+
+    return Array.from(categories.entries()).map(([id, category]) => ({
+      id,
+      label: category.label,
+      icon: Database,
+      keys: category.keys,
+    }));
+  }, [extractorConfigs]);
+
+  // Dynamically generate tabs based on extracted_data
+  const extractedDataTabs = useMemo(() => {
+    const extractedData = page.extracted_data || {};
+    const keys = Object.keys(extractedData);
+    if (keys.length === 0) return [];
+
+    const tabs: {
+      id: string;
+      label: string;
+      icon: React.ElementType;
+      data: Record<string, unknown>;
+    }[] = [];
+
+    // Check each client-defined category
+    clientCategoryConfig.forEach((config) => {
+      const categoryId = config.id;
+      const categoryKeys = config.keys;
+      const matchingKeys = keys.filter((key) => categoryKeys.includes(key));
+
+      if (matchingKeys.length > 0) {
+        const categoryData: Record<string, unknown> = {};
+        matchingKeys.forEach((key) => {
+          if (extractedData[key] !== undefined) {
+            categoryData[key] = extractedData[key];
+          }
+        });
+
+        if (Object.keys(categoryData).length > 0) {
+          tabs.push({
+            id: categoryId,
+            label: config.label,
+            icon: config.icon,
+            data: categoryData,
+          });
+        }
+      }
+    });
+
+    // Check for uncategorized data
+    const categorizedKeys = new Set(tabs.flatMap((t) => Object.keys(t.data)));
+    const uncategorizedKeys = keys.filter((key) => !categorizedKeys.has(key));
+
+    if (uncategorizedKeys.length > 0) {
+      const otherData: Record<string, unknown> = {};
+      uncategorizedKeys.forEach((key) => {
+        otherData[key] = extractedData[key];
+      });
+      tabs.push({
+        id: "other",
+        label: "Other",
+        icon: Database,
+        data: otherData,
+      });
+    }
+
+    return tabs;
+  }, [clientCategoryConfig, page.extracted_data]);
+
+  // Base tabs
+  const baseTabs: { value: string; label: string; count?: number; icon?: React.ElementType }[] = [
+    { value: "meta", label: "Metadata" },
+    { value: "seo-audit", label: "SEO Audit" },
+    { value: "headings", label: "Headings", count: page.headings?.length || 0 },
+    { value: "images", label: "Images", count: page.image_count || 0 },
+    {
+      value: "links",
+      label: "Links",
+      count: (page.internal_links || 0) + (page.external_links || 0),
+    },
+  ];
+
+  // All tabs including dynamic extracted data tabs
+  const allTabs: { value: string; label: string; count?: number; icon?: React.ElementType }[] = [
+    ...baseTabs,
+    ...extractedDataTabs.map((tab) => ({
+      value: `extracted-${tab.id}`,
+      label: tab.label,
+      count: Object.keys(tab.data).length,
+      icon: tab.icon,
+    })),
+  ];
+
+  return (
+    <div className="space-y-6 -mx-4 md:-mx-0">
+      {/* Sticky Header Section */}
+      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border/50 -mx-4 md:-mx-0 px-4 md:px-0">
+        <div className="pb-3">
+          <PageHeader
+            page={page}
+            pages={pages}
+            currentIndex={currentIndex}
+            onBack={onBack}
+            onNavigate={onNavigate}
+          />
         </div>
       </div>
 
+      {/* Info Card */}
+      <div className="mb-6">
+        <PageInfoCard page={page} />
+      </div>
+
+      {/* Tabs - contains navigation and content */}
       <Tabs defaultValue="meta" className="space-y-6">
-        <div className="sticky top-[88px] z-10 py-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <TabsList className="w-full h-11 p-1 bg-muted/30 border border-border/40 rounded-lg backdrop-blur text-muted-foreground grid grid-cols-6 gap-1">
-            {[
-              { value: "meta", label: "Metadata" },
-              { value: "seo-audit", label: "SEO Audit" },
-              { value: "headings", label: "Headings", count: page.headings.length },
-              { value: "images", label: "Images", count: page.image_count },
-              { value: "links", label: "Links", count: page.internal_links + page.external_links },
-              {
-                value: "extracted",
-                label: "Extracted",
-                count: Object.keys(page.extracted_data || {}).length,
-              },
-            ].map((tab) => (
-              <TabsTrigger
-                key={tab.value}
-                value={tab.value}
-                className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:border-border/50 text-xs font-medium transition-all duration-200 rounded-md flex items-center justify-center gap-2"
-              >
-                {tab.label}
+        {/* Tab Navigation - inside Tabs */}
+        <div className="pb-3 overflow-x-auto scrollbar-thin -mx-4 md:-mx-0 px-4 md:px-0">
+          <TabsList>
+            {allTabs.map((tab) => (
+              <TabsTrigger key={tab.value} value={tab.value} className="px-3">
+                {tab.icon && <tab.icon className="h-3.5 w-3.5" />}
+                <span>{tab.label}</span>
                 {tab.count !== undefined && tab.count > 0 && (
-                  <Badge
-                    variant="secondary"
-                    className={cn(
-                      "px-1.5 py-0 text-[10px] h-4 min-w-4 flex items-center justify-center rounded-sm font-mono transition-colors",
-                      "bg-primary/5 text-primary/70 border-primary/10 group-data-[state=active]:bg-primary/10 group-data-[state=active]:text-primary",
-                    )}
-                  >
+                  <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 text-xs font-medium rounded-full bg-primary/15 text-primary">
                     {tab.count}
-                  </Badge>
+                  </span>
                 )}
               </TabsTrigger>
             ))}
           </TabsList>
         </div>
+        <TabsContent value="meta" className="mt-0 focus-visible:outline-none">
+          <MetaTab page={page} />
+        </TabsContent>
+        <TabsContent value="seo-audit" className="mt-0 focus-visible:outline-none">
+          <SeoAuditTab page={page} />
+        </TabsContent>
+        <TabsContent value="headings" className="mt-0 focus-visible:outline-none">
+          <HeadingsTab headings={page.headings || []} />
+        </TabsContent>
+        <TabsContent value="images" className="mt-0 focus-visible:outline-none">
+          <ImagesTab images={page.images || []} />
+        </TabsContent>
+        <TabsContent value="links" className="mt-0 focus-visible:outline-none">
+          <LinksTab links={page.detailed_links || []} />
+        </TabsContent>
 
-        <div className="min-h-[400px] animate-in fade-in slide-in-from-bottom-1 duration-300 delay-75">
+        {/* Dynamic extracted data tabs */}
+        {extractedDataTabs.map((tab) => (
           <TabsContent
-            value="meta"
-            className="mt-0 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            key={`extracted-${tab.id}`}
+            value={`extracted-${tab.id}`}
+            className="mt-0 focus-visible:outline-none"
           >
-            <MetaTab page={page} />
+            <ExtractedDataTab data={tab.data} />
           </TabsContent>
-          <TabsContent
-            value="seo-audit"
-            className="mt-0 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          >
-            <SeoAuditTab page={page} />
-          </TabsContent>
-          <TabsContent
-            value="headings"
-            className="mt-0 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          >
-            <HeadingsTab headings={page.headings || []} />
-          </TabsContent>
-          <TabsContent
-            value="images"
-            className="mt-0 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          >
-            <ImagesTab images={page.images || []} />
-          </TabsContent>
-          <TabsContent
-            value="links"
-            className="mt-0 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          >
-            <LinksTab links={page.detailed_links || []} />
-          </TabsContent>
-          <TabsContent
-            value="extracted"
-            className="mt-0 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          >
-            <ExtractedDataTab data={page.extracted_data || {}} />
-          </TabsContent>
-        </div>
+        ))}
       </Tabs>
 
-      <div className="fixed bottom-0 left-0 right-0 py-2 border-t border-border/40 bg-background/80 backdrop-blur-md flex items-center justify-center text-[11px] text-muted-foreground/70 pointer-events-none z-50">
-        <div className="flex items-center gap-4 px-4 py-1.5 rounded-full bg-background/50 border border-border/20 shadow-sm backdrop-blur-sm">
-          <div className="flex items-center gap-1.5">
-            <kbd className="inline-flex h-5 items-center justify-center rounded border border-border bg-muted/50 px-1.5 font-mono text-[10px] font-medium text-muted-foreground shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">
-              ←
-            </kbd>
-            <kbd className="inline-flex h-5 items-center justify-center rounded border border-border bg-muted/50 px-1.5 font-mono text-[10px] font-medium text-muted-foreground shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">
-              →
-            </kbd>
-            <span>Navigate</span>
-          </div>
-          <div className="w-px h-3 bg-border/50" />
-          <div className="flex items-center gap-1.5">
-            <kbd className="inline-flex h-5 items-center justify-center rounded border border-border bg-muted/50 px-1.5 font-mono text-[10px] font-medium text-muted-foreground shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">
-              Esc
-            </kbd>
-            <span>Back</span>
+      {/* Keyboard Shortcuts Footer */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border/50 bg-background/90 backdrop-blur -mx-4 md:-mx-0 px-4 md:px-0">
+        <div className="flex items-center justify-center py-2 max-w-5xl mx-auto">
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5">
+              <kbd className="inline-flex h-5 items-center justify-center rounded border border-border/60 bg-muted/60 px-1.5 font-mono text-[10px] font-medium shadow-sm">
+                <ChevronLeft className="h-3 w-3 mr-0.5" />
+                <ChevronRight className="h-3 w-3 ml-0.5" />
+              </kbd>
+              <span className="text-[11px]">Navigate</span>
+            </div>
+            <div className="w-px h-4 bg-border" />
+            <div className="flex items-center gap-1.5">
+              <kbd className="inline-flex h-5 items-center justify-center rounded border border-border/60 bg-muted/60 px-2 font-mono text-[10px] font-medium shadow-sm">
+                Esc
+              </kbd>
+              <span className="text-[11px]">Back</span>
+            </div>
           </div>
         </div>
       </div>

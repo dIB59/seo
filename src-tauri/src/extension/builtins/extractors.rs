@@ -141,19 +141,9 @@ impl TwitterCardExtractor {
         }
     }
     
-    fn get_twitter_property(html: &Html, name: &str) -> Option<String> {
+    fn selector() -> &'static Selector {
         static SELECTOR: OnceLock<Selector> = OnceLock::new();
-        let selector = SELECTOR.get_or_init(|| {
-            Selector::parse("meta[name^='twitter:']").unwrap()
-        });
-        
-        html.select(selector)
-            .find(|el| {
-                el.value()
-                    .attr("name")
-                    .is_some_and(|n| n == name)
-            })
-            .and_then(|el| el.value().attr("content").map(|s| s.to_string()))
+        SELECTOR.get_or_init(|| Selector::parse("meta[name^='twitter:']").unwrap())
     }
 }
 
@@ -185,20 +175,21 @@ impl DataExtractor for TwitterCardExtractor {
     fn extract(&self, context: &ExtractionContext) -> Result<ExtractionResult> {
         let document = Html::parse_document(&context.html);
         let mut data = HashMap::new();
-        
-        let properties = [
-            "twitter:card",
-            "twitter:site",
-            "twitter:creator",
-            "twitter:title",
-            "twitter:description",
-            "twitter:image",
-            "twitter:image:alt",
-        ];
-        
-        for prop in properties {
-            if let Some(value) = Self::get_twitter_property(&document, prop) {
-                data.insert(prop.to_string(), ExtractedValue::Text(value));
+
+        for element in document.select(Self::selector()) {
+            let name = element
+                .value()
+                .attr("name")
+                .map(|value| value.trim())
+                .filter(|value| !value.is_empty());
+            let content = element
+                .value()
+                .attr("content")
+                .map(|value| value.trim())
+                .filter(|value| !value.is_empty());
+
+            if let (Some(name), Some(content)) = (name, content) {
+                data.insert(name.to_string(), ExtractedValue::Text(content.to_string()));
             }
         }
         
@@ -211,14 +202,10 @@ impl DataExtractor for TwitterCardExtractor {
     
     fn schema(&self) -> ExtractionSchema {
         ExtractionSchema::new(vec![
-            SchemaField::new("twitter:card", SchemaFieldType::String)
-                .with_description("The card type (summary, summary_large_image, etc.)"),
-            SchemaField::new("twitter:site", SchemaFieldType::String)
-                .with_description("Twitter username of the site"),
-            SchemaField::new("twitter:image", SchemaFieldType::String)
-                .with_description("Image URL for the card"),
+            SchemaField::new("twitter:*", SchemaFieldType::String)
+                .with_description("Any twitter:* meta tag name/content pair discovered on the page"),
         ])
-        .with_description("Twitter Card meta tags extracted from the page")
+        .with_description("Dynamically extracts all Twitter meta tags from the page")
     }
     
     fn column_type(&self) -> &str {

@@ -269,6 +269,17 @@ async getExtractorConfigs() : Promise<Result<ExtractorConfigInfo[], CommandError
 }
 },
 /**
+ * Get rule-targetable field registry entries
+ */
+async getRuleFieldRegistry() : Promise<Result<RuleFieldInfo[], CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_rule_field_registry") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Create a new custom extractor
  */
 async createCustomExtractor(request: CreateExtractorRequest) : Promise<Result<ExtractorConfigInfo, CommandError>> {
@@ -357,6 +368,17 @@ async toggleRuleEnabled(ruleId: string, enabled: boolean) : Promise<Result<Issue
 }
 },
 /**
+ * Normalize legacy rule target syntax to field:* format
+ */
+async normalizeRuleTargetFields() : Promise<Result<RuleTargetMigrationResult, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("normalize_rule_target_fields") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Reload extensions from database
  */
 async reloadExtensions() : Promise<Result<ExtensionSummary, CommandError>> {
@@ -405,7 +427,7 @@ export type CompleteAnalysisResponse = { analysis: AnalysisResults; pages: PageA
 /**
  * Request to create a custom data extractor
  */
-export type CreateExtractorRequest = { name: string; display_name: string; description: string | null; selector: string; attribute: string | null }
+export type CreateExtractorRequest = { name: string; display_name: string; description: string | null; extractor_type: string | null; selector: string; attribute: string | null; category_id: string | null; category_label: string | null; default_rule_severity: string | null; default_rule_recommendation: string | null; default_rule_threshold_min: number | null; default_rule_threshold_max: number | null }
 /**
  * Request to create a new custom rule
  */
@@ -429,7 +451,7 @@ export type ImageElement = { src: string; alt: string | null }
 /**
  * Information about an issue generator for the frontend
  */
-export type IssueGeneratorInfo = { id: string; name: string; category: string; severity: string; recommendation: string | null; is_builtin: boolean; is_enabled: boolean }
+export type IssueGeneratorInfo = { id: string; name: string; category: string; severity: string; rule_type: string | null; target_field: string | null; threshold_min: number | null; threshold_max: number | null; regex_pattern: string | null; recommendation: string | null; is_builtin: boolean; is_enabled: boolean }
 export type IssueSeverity = "critical" | "warning" | "info"
 /**
  * Status of an SEO analysis job.
@@ -447,11 +469,16 @@ extracted_data: Partial<{ [key in string]: JsonValue }> }
 export type PaginatedJobsResponse = { items: AnalysisProgress[]; total: number }
 export type Policy = { tier: LicenseTier; max_pages: number; enabled_features: Feature[] }
 export type ProgressEvent = { event: "analysis"; job_id: string; progress: number; pages_analyzed: number; total_pages: number } | { event: "discovery"; job_id: string; count: number; total_pages: number }
+/**
+ * Registry entry describing a rule-targetable field independent of extractor internals
+ */
+export type RuleFieldInfo = { id: string; label: string; description: string | null; target_field: string; kind: string; category_id: string | null; category_label: string | null; default_rule_severity: string | null; default_rule_recommendation: string | null; default_rule_threshold_min: number | null; default_rule_threshold_max: number | null }
+export type RuleTargetMigrationResult = { migrated_count: number }
 export type SeoIssue = { page_id: string; severity: IssueSeverity; title: string; description: string; page_url: string; element: string | null; recommendation: string; line_number: number | null }
 /**
  * Request to update an existing extractor
  */
-export type UpdateExtractorRequest = { id: string; name: string | null; display_name: string | null; description: string | null; selector: string | null; attribute: string | null }
+export type UpdateExtractorRequest = { id: string; name: string | null; display_name: string | null; description: string | null; extractor_type: string | null; selector: string | null; attribute: string | null; category_id: string | null; category_label: string | null; default_rule_severity: string | null; default_rule_recommendation: string | null; default_rule_threshold_min: number | null; default_rule_threshold_max: number | null }
 /**
  * Request to update an existing rule
  */

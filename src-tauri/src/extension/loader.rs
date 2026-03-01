@@ -10,6 +10,7 @@
 use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use std::sync::Arc;
+use serde_json::Value;
 
 use super::traits::{DataExtractor, ExtensionConfig, IssueGenerator};
 use super::capabilities::ExtensionCapability;
@@ -135,6 +136,19 @@ impl<'a> ExtensionLoader<'a> {
                     recommendation,
                 })
             }
+            "regex" => {
+                let regex_pattern: Option<String> = row.try_get("regex_pattern")?;
+
+                Arc::new(DynamicRegexRule {
+                    config: ExtensionConfig::new(&id, &name)
+                        .with_capabilities(vec![ExtensionCapability::IssueGeneration])
+                        .with_description(recommendation.clone().unwrap_or_default()),
+                    target_field,
+                    pattern: regex_pattern,
+                    severity,
+                    recommendation,
+                })
+            }
             "length" => {
                 let threshold_value: Option<String> = row.try_get("threshold_value")?;
                 let (min, max) = parse_threshold(&threshold_value);
@@ -208,20 +222,28 @@ impl<'a> ExtensionLoader<'a> {
         use sqlx::Row;
 
         let id: String = row.try_get("id")?;
+        let name: String = row.try_get("name")?;
         let display_name: String = row.try_get("display_name")?;
         let description: Option<String> = row.try_get("description")?;
         let extractor_type: String = row.try_get("extractor_type")?;
         let selector: String = row.try_get("selector")?;
         let attribute: Option<String> = row.try_get("attribute")?;
+        let post_process: Option<String> = row.try_get("post_process")?;
+
+        let category_id = post_process
+            .as_deref()
+            .and_then(parse_extractor_category_id);
 
         match extractor_type.as_str() {
-            "css_selector" => {
+            "css_selector" | "css" => {
                 Ok(Arc::new(DynamicCssExtractor {
                     config: ExtensionConfig::new(&id, &display_name)
                         .with_capabilities(vec![ExtensionCapability::DataExtraction])
                         .with_description(description.unwrap_or_default()),
                     selector,
                     attribute,
+                    output_key: name,
+                    category_id,
                     multiple: false,
                 }))
             }
@@ -286,8 +308,8 @@ impl Extension for DynamicPresenceRule {
 
 impl IssueGenerator for DynamicPresenceRule {
     fn validate(&self, context: &ValidationContext) -> Result<ValidationResult> {
-        let value = get_page_field(&context.page, &self.target_field);
-        let exists = value.is_some() && !value.as_ref().is_some_and(|v| v.is_empty());
+        let values = get_string_values(context, &self.target_field);
+        let exists = values.iter().any(|value| !value.trim().is_empty());
         
         let result = if !exists {
             ValidationResult::new(self.id().to_string())
@@ -345,7 +367,7 @@ impl Extension for DynamicThresholdRule {
 
 impl IssueGenerator for DynamicThresholdRule {
     fn validate(&self, context: &ValidationContext) -> Result<ValidationResult> {
-        let value = match get_numeric_field(&context.page, &self.target_field) {
+        let value = match get_numeric_value(context, &self.target_field) {
             Some(v) => v,
             None => return Ok(ValidationResult::new(self.id().to_string())),
         };
@@ -372,6 +394,74 @@ impl IssueGenerator for DynamicThresholdRule {
     
     fn default_severity(&self) -> IssueSeverity {
         self.severity
+    }
+}
+
+/// Dynamic regex rule loaded from database
+struct DynamicRegexRule {
+    config: ExtensionConfig,
+    target_field: String,
+    pattern: Option<String>,
+    severity: IssueSeverity,
+    recommendation: Option<String>,
+}
+
+impl Extension for DynamicRegexRule {
+    fn id(&self) -> &str {
+        &self.config.id
+    }
+
+    fn name(&self) -> &str {
+        &self.config.name
+    }
+
+    fn description(&self) -> Option<&str> {
+        self.config.description.as_deref()
+    }
+
+    fn capabilities(&self) -> Vec<ExtensionCapability> {
+        vec![ExtensionCapability::IssueGeneration]
+    }
+}
+
+impl IssueGenerator for DynamicRegexRule {
+    fn validate(&self, context: &ValidationContext) -> Result<ValidationResult> {
+        let pattern = match self.pattern.as_deref() {
+            Some(pattern) if !pattern.trim().is_empty() => pattern,
+            _ => return Ok(ValidationResult::new(self.id().to_string())),
+        };
+
+        let regex = match regex::Regex::new(pattern) {
+            Ok(regex) => regex,
+            Err(_) => return Ok(ValidationResult::new(self.id().to_string())),
+        };
+
+        let values = get_string_values(context, &self.target_field);
+        let all_match = !values.is_empty() && values.iter().all(|value| regex.is_match(value));
+
+        let result = if !all_match {
+            ValidationResult::new(self.id().to_string())
+                .with_issue(NewIssue {
+                    job_id: context.page.job_id.clone(),
+                    page_id: Some(context.page.id.clone()),
+                    issue_type: self.name().to_string(),
+                    severity: self.severity,
+                    message: format!("{} does not match required pattern", self.target_field),
+                    details: self.recommendation.clone(),
+                })
+        } else {
+            ValidationResult::new(self.id().to_string())
+        };
+
+        Ok(result)
+    }
+
+    fn default_severity(&self) -> IssueSeverity {
+        self.severity
+    }
+
+    fn recommendation(&self) -> Option<&str> {
+        self.recommendation.as_deref()
     }
 }
 
@@ -405,7 +495,7 @@ impl Extension for DynamicLengthRule {
 
 impl IssueGenerator for DynamicLengthRule {
     fn validate(&self, context: &ValidationContext) -> Result<ValidationResult> {
-        let value = match get_page_field(&context.page, &self.target_field) {
+        let value = match get_string_values(context, &self.target_field).into_iter().next() {
             Some(v) => v,
             None => return Ok(ValidationResult::new(self.id().to_string())),
         };
@@ -450,6 +540,8 @@ struct DynamicCssExtractor {
     config: ExtensionConfig,
     selector: String,
     attribute: Option<String>,
+    output_key: String,
+    category_id: Option<String>,
     multiple: bool,
 }
 
@@ -479,6 +571,12 @@ impl DataExtractor for DynamicCssExtractor {
         
         let mut data = HashMap::new();
         
+        let key = if let Some(category_id) = &self.category_id {
+            format!("{}.{}", category_id, self.output_key)
+        } else {
+            self.output_key.clone()
+        };
+
         if self.multiple {
             let values: Vec<String> = document
                 .select(&selector)
@@ -492,7 +590,7 @@ impl DataExtractor for DynamicCssExtractor {
                     }
                 })
                 .collect();
-            data.insert("values".to_string(), ExtractedValue::List(values));
+            data.insert(key, ExtractedValue::List(values));
         } else {
             let value = document.select(&selector).next().and_then(|el| {
                 if let Some(attr) = &self.attribute {
@@ -504,7 +602,7 @@ impl DataExtractor for DynamicCssExtractor {
                 }
             });
             
-            data.insert("value".to_string(), ExtractedValue::Text(value.unwrap_or_default()));
+            data.insert(key, ExtractedValue::Text(value.unwrap_or_default()));
         }
         
         Ok(ExtractionResult {
@@ -523,6 +621,14 @@ impl DataExtractor for DynamicCssExtractor {
 // Helper Functions
 // ============================================================================
 
+fn parse_extractor_category_id(post_process: &str) -> Option<String> {
+    let parsed = serde_json::from_str::<serde_json::Value>(post_process).ok()?;
+    parsed
+        .get("category_id")
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string())
+}
+
 /// Get a string field from a page
 fn get_page_field(page: &Page, field: &str) -> Option<String> {
     match field {
@@ -536,14 +642,107 @@ fn get_page_field(page: &Page, field: &str) -> Option<String> {
     }
 }
 
-/// Get a numeric field from a page
-fn get_numeric_field(page: &Page, field: &str) -> Option<f64> {
+fn get_extracted_values_by_target(context: &ValidationContext, target: &str) -> Vec<Value> {
+    if let Some(field_target) = target.strip_prefix("field:") {
+        if let Some(category) = field_target.strip_prefix("category:") {
+            let prefix = format!("{}.", category);
+            return context
+                .extracted_data
+                .iter()
+                .filter(|(key, _)| key.starts_with(&prefix))
+                .map(|(_, value)| value.clone())
+                .collect();
+        }
+
+        if let Some(key) = field_target.strip_prefix("extractor:") {
+            return context
+                .extracted_data
+                .get(key)
+                .cloned()
+                .into_iter()
+                .collect();
+        }
+    }
+
+    if let Some(category) = target.strip_prefix("category:") {
+        let prefix = format!("{}.", category);
+        return context
+            .extracted_data
+            .iter()
+            .filter(|(key, _)| key.starts_with(&prefix))
+            .map(|(_, value)| value.clone())
+            .collect();
+    }
+
+    if let Some(key) = target.strip_prefix("extracted:") {
+        return context
+            .extracted_data
+            .get(key)
+            .cloned()
+            .into_iter()
+            .collect();
+    }
+
+    context
+        .extracted_data
+        .get(target)
+        .cloned()
+        .into_iter()
+        .collect()
+}
+
+fn value_to_string(value: &Value) -> Option<String> {
+    match value {
+        Value::Null => None,
+        Value::String(value) => Some(value.clone()),
+        Value::Number(number) => Some(number.to_string()),
+        Value::Bool(boolean) => Some(boolean.to_string()),
+        Value::Array(values) => {
+            let mapped: Vec<String> = values.iter().filter_map(value_to_string).collect();
+            if mapped.is_empty() {
+                None
+            } else {
+                Some(mapped.join(", "))
+            }
+        }
+        Value::Object(_) => serde_json::to_string(value).ok(),
+    }
+}
+
+fn value_to_f64(value: &Value) -> Option<f64> {
+    match value {
+        Value::Number(number) => number.as_f64(),
+        Value::String(value) => value.parse::<f64>().ok(),
+        Value::Array(values) => values.iter().find_map(value_to_f64),
+        _ => None,
+    }
+}
+
+fn get_string_values(context: &ValidationContext, target: &str) -> Vec<String> {
+    let extracted_values = get_extracted_values_by_target(context, target);
+    if !extracted_values.is_empty() {
+        return extracted_values
+            .iter()
+            .filter_map(value_to_string)
+            .collect();
+    }
+
+    get_page_field(&context.page, target).into_iter().collect()
+}
+
+/// Get a numeric field from context
+fn get_numeric_value(context: &ValidationContext, field: &str) -> Option<f64> {
+    let extracted_values = get_extracted_values_by_target(context, field);
+    if let Some(value) = extracted_values.iter().find_map(value_to_f64) {
+        return Some(value);
+    }
+
     match field {
-        "word_count" => page.word_count.map(|v| v as f64),
-        "load_time_ms" => page.load_time_ms.map(|v| v as f64),
-        "response_size_bytes" => page.response_size_bytes.map(|v| v as f64),
-        "status_code" => page.status_code.map(|v| v as f64),
-        "depth" => Some(page.depth as f64),
+        "word_count" => context.page.word_count.map(|v| v as f64),
+        "load_time_ms" => context.page.load_time_ms.map(|v| v as f64),
+        "response_size_bytes" => context.page.response_size_bytes.map(|v| v as f64),
+        "status_code" => context.page.status_code.map(|v| v as f64),
+        "depth" => Some(context.page.depth as f64),
         _ => None,
     }
 }
