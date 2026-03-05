@@ -31,7 +31,6 @@ pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-// No shutdown handling (as requested)
 pub fn handle_run_event(app_handle: &tauri::AppHandle, event: tauri::RunEvent) {
     if let RunEvent::ExitRequested { .. } | RunEvent::Exit = event {
         shutdown_services(app_handle);

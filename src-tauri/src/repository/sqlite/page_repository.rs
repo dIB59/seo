@@ -1,8 +1,9 @@
 use anyhow::{Context, Result};
 use chrono::Utc;
+use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
-use crate::domain::{LighthouseData, NewHeading, NewImage, Page, PageInfo};
+use crate::contexts::{LighthouseData, NewHeading, NewImage, Page, PageInfo};
 
 pub struct PageRepository {
     pool: SqlitePool,
@@ -21,15 +22,19 @@ impl PageRepository {
         };
 
         let crawled_at_str = page.crawled_at.to_rfc3339();
+        // Serialize extracted_data to JSON
+        let extracted_data_json = serde_json::to_string(&page.extracted_data)
+            .unwrap_or_else(|_| "{}".to_string());
+
         let row = sqlx::query!(
             r#"
             INSERT INTO pages (
                 id, job_id, url, depth, status_code, content_type,
                 title, meta_description, canonical_url, robots_meta,
                 word_count, load_time_ms, response_size_bytes,
-                has_viewport, has_structured_data, crawled_at
+                has_viewport, has_structured_data, crawled_at, extracted_data
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(job_id, url) DO UPDATE SET
                 depth = excluded.depth,
                 status_code = excluded.status_code,
@@ -43,7 +48,8 @@ impl PageRepository {
                 response_size_bytes = excluded.response_size_bytes,
                 has_viewport = excluded.has_viewport,
                 has_structured_data = excluded.has_structured_data,
-                crawled_at = excluded.crawled_at
+                crawled_at = excluded.crawled_at,
+                extracted_data = excluded.extracted_data
             RETURNING id
             "#,
             id,
@@ -61,7 +67,8 @@ impl PageRepository {
             page.response_size_bytes,
             page.has_viewport,
             page.has_structured_data,
-            crawled_at_str
+            crawled_at_str,
+            extracted_data_json
         )
         .fetch_one(&self.pool)
         .await
@@ -90,7 +97,7 @@ impl PageRepository {
                     id, job_id, url, depth, status_code, content_type,
                     title, meta_description, canonical_url, robots_meta,
                     word_count, load_time_ms, response_size_bytes,
-                    has_viewport, has_structured_data, crawled_at
+                    has_viewport, has_structured_data, crawled_at, extracted_data
                 ) "#,
             );
 
@@ -100,6 +107,10 @@ impl PageRepository {
                 } else {
                     page.id.clone()
                 };
+                // Serialize extracted_data to JSON
+                let extracted_data_json = serde_json::to_string(&page.extracted_data)
+                    .unwrap_or_else(|_| "{}".to_string());
+                
                 b.push_bind(id)
                     .push_bind(&page.job_id)
                     .push_bind(&page.url)
@@ -115,7 +126,8 @@ impl PageRepository {
                     .push_bind(page.response_size_bytes)
                     .push_bind(page.has_viewport)
                     .push_bind(page.has_structured_data)
-                    .push_bind(page.crawled_at.to_rfc3339());
+                    .push_bind(page.crawled_at.to_rfc3339())
+                    .push_bind(extracted_data_json);
             });
 
             qb.build()
@@ -136,7 +148,7 @@ impl PageRepository {
                 id, job_id, url, depth, status_code, content_type,
                 title, meta_description, canonical_url, robots_meta,
                 word_count, load_time_ms, response_size_bytes,
-                has_viewport, has_structured_data, crawled_at
+                has_viewport, has_structured_data, crawled_at, extracted_data
             FROM pages
             WHERE job_id = ?
             ORDER BY depth ASC, url ASC
@@ -149,23 +161,30 @@ impl PageRepository {
 
         Ok(rows
             .into_iter()
-            .map(|row| Page {
-                id: row.id,
-                job_id: row.job_id,
-                url: row.url,
-                depth: row.depth,
-                status_code: row.status_code,
-                content_type: row.content_type,
-                title: row.title,
-                meta_description: row.meta_description,
-                canonical_url: row.canonical_url,
-                robots_meta: row.robots_meta,
-                word_count: row.word_count,
-                load_time_ms: row.load_time_ms,
-                response_size_bytes: row.response_size_bytes,
-                has_viewport: row.has_viewport != 0,
-                has_structured_data: row.has_structured_data != 0,
-                crawled_at: parse_datetime(row.crawled_at.as_str()),
+            .map(|row| {
+                // Parse extracted_data JSON
+                let extracted_data: std::collections::HashMap<String, serde_json::Value> = 
+                    serde_json::from_str(&row.extracted_data).unwrap_or_default();
+                
+                Page {
+                    id: row.id,
+                    job_id: row.job_id,
+                    url: row.url,
+                    depth: row.depth,
+                    status_code: row.status_code,
+                    content_type: row.content_type,
+                    title: row.title,
+                    meta_description: row.meta_description,
+                    canonical_url: row.canonical_url,
+                    robots_meta: row.robots_meta,
+                    word_count: row.word_count,
+                    load_time_ms: row.load_time_ms,
+                    response_size_bytes: row.response_size_bytes,
+                    has_viewport: row.has_viewport != 0,
+                    has_structured_data: row.has_structured_data != 0,
+                    crawled_at: parse_datetime(row.crawled_at.as_str()),
+                    extracted_data,
+                }
             })
             .collect())
     }
@@ -208,7 +227,7 @@ impl PageRepository {
                 id, job_id, url, depth, status_code, content_type,
                 title, meta_description, canonical_url, robots_meta,
                 word_count, load_time_ms, response_size_bytes,
-                has_viewport, has_structured_data, crawled_at
+                has_viewport, has_structured_data, crawled_at, extracted_data
             FROM pages
             WHERE id = ?
             "#,
@@ -217,6 +236,10 @@ impl PageRepository {
         .fetch_one(&self.pool)
         .await
         .context("Failed to fetch page")?;
+
+        // Parse extracted_data JSON
+        let extracted_data: std::collections::HashMap<String, serde_json::Value> = 
+            serde_json::from_str(&row.extracted_data).unwrap_or_default();
 
         Ok(Page {
             id: row.id,
@@ -235,6 +258,7 @@ impl PageRepository {
             has_viewport: row.has_viewport != 0,
             has_structured_data: row.has_structured_data != 0,
             crawled_at: parse_datetime(row.crawled_at.as_str()),
+            extracted_data,
         })
     }
 
@@ -394,30 +418,30 @@ use async_trait::async_trait;
 
 #[async_trait]
 impl PageRepositoryTrait for PageRepository {
-    async fn insert(&self, page: &crate::domain::Page) -> Result<String> {
+    async fn insert(&self, page: &crate::contexts::Page) -> Result<String> {
         PageRepository::insert(self, page).await
     }
 
-    async fn insert_batch(&self, pages: &[crate::domain::Page]) -> Result<()> {
+    async fn insert_batch(&self, pages: &[crate::contexts::Page]) -> Result<()> {
         PageRepository::insert_batch(self, pages).await
     }
 
-    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::Page>> {
+    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::contexts::Page>> {
         PageRepository::get_by_job_id(self, job_id).await
     }
 
-    async fn get_info_by_job_id(&self, job_id: &str) -> Result<Vec<crate::domain::PageInfo>> {
+    async fn get_info_by_job_id(&self, job_id: &str) -> Result<Vec<crate::contexts::PageInfo>> {
         PageRepository::get_info_by_job_id(self, job_id).await
     }
 
-    async fn get_by_id(&self, page_id: &str) -> Result<crate::domain::Page> {
+    async fn get_by_id(&self, page_id: &str) -> Result<crate::contexts::Page> {
         PageRepository::get_by_id(self, page_id).await
     }
 
     async fn replace_headings(
         &self,
         page_id: &str,
-        headings: &[crate::domain::NewHeading],
+        headings: &[crate::contexts::NewHeading],
     ) -> Result<()> {
         PageRepository::replace_headings(self, page_id, headings).await
     }
@@ -425,7 +449,7 @@ impl PageRepositoryTrait for PageRepository {
     async fn replace_images(
         &self,
         page_id: &str,
-        images: &[crate::domain::NewImage],
+        images: &[crate::contexts::NewImage],
     ) -> Result<()> {
         PageRepository::replace_images(self, page_id, images).await
     }
@@ -434,14 +458,14 @@ impl PageRepositoryTrait for PageRepository {
         PageRepository::count_by_job_id(self, job_id).await
     }
 
-    async fn insert_lighthouse(&self, data: &crate::domain::LighthouseData) -> Result<()> {
+    async fn insert_lighthouse(&self, data: &crate::contexts::LighthouseData) -> Result<()> {
         PageRepository::insert_lighthouse(self, data).await
     }
 
     async fn get_lighthouse_by_job_id(
         &self,
         job_id: &str,
-    ) -> Result<Vec<crate::domain::LighthouseData>> {
+    ) -> Result<Vec<crate::contexts::LighthouseData>> {
         PageRepository::get_lighthouse_by_job_id(self, job_id).await
     }
 }

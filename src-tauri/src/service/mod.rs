@@ -6,6 +6,9 @@ pub mod licensing;
 pub mod processor;
 pub mod spider;
 
+#[cfg(test)]
+mod tests;
+
 pub use auditor::{AuditMode, Auditor, DeepAuditor, LightAuditor};
 pub use discovery::{PageDiscovery, ResourceChecker};
 pub use gemini::{generate_gemini_analysis, GeminiRequest};

@@ -22,7 +22,7 @@ pub struct ExtractedImage {
 #[derive(Debug, Clone)]
 pub struct ExtractedLink {
     pub href: String,
-    pub link_type: crate::domain::LinkType,
+    pub link_type: crate::contexts::LinkType,
     pub text: Option<String>,
 }
 
@@ -195,7 +195,7 @@ impl PageExtractor {
                     href.to_string()
                 };
 
-                let link_type = crate::domain::link::NewLink::classify(&resolved, base_url);
+                let link_type = crate::contexts::link::NewLink::classify(&resolved, base_url);
 
                 all.push(ExtractedLink {
                     href: resolved.clone(),
@@ -204,7 +204,7 @@ impl PageExtractor {
                 });
 
                 match link_type {
-                    crate::domain::LinkType::Internal => internal.push(resolved),
+                    crate::contexts::LinkType::Internal => internal.push(resolved),
                     _ => external.push(resolved),
                 }
             }

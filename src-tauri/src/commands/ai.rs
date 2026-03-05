@@ -2,8 +2,18 @@ use tauri::{command, State};
 
 use crate::{
     lifecycle::app_state::AppState,
-    service::{generate_gemini_analysis, GeminiRequest},
+    service::GeminiRequest,
 };
+
+trait ResultExt<T> {
+    fn context(self, msg: &str) -> Result<T, String>;
+}
+
+impl<T, E: std::fmt::Display> ResultExt<T> for Result<T, E> {
+    fn context(self, msg: &str) -> Result<T, String> {
+        self.map_err(|e| format!("{}: {}", msg, e))
+    }
+}
 
 #[command]
 #[specta::specta]
@@ -12,41 +22,13 @@ pub async fn get_gemini_insights(
     app_state: State<'_, AppState>,
 ) -> Result<String, String> {
     tracing::info!("Analysis Id for AI insight: {:?}", request.analysis_id);
-    let settings_repo = app_state.settings_repo.clone();
-    let ai_repo = app_state.ai_repo.clone();
-    let enabled = settings_repo
-        .get_setting("gemini_enabled")
-        .await
-        .map_err(|e| format!("Failed to check AI settings: {}", e))?;
-
-    if let Some(val) = enabled {
-        if val == "false" {
-            tracing::info!("AI analysis skipped (disabled by user)");
-            return Ok("".to_string());
-        }
-    }
-
-    generate_gemini_analysis(
-        ai_repo,
-        settings_repo,
-        request,
-        app_state.standard_spider.clone(),
-        None,
-    )
-    .await
-    .map_err(|e| format!("Failed to generate AI insights: {}", e))
+    app_state.ai_context.generate_insights(request).await.context("Failed to generate AI insights")
 }
 
 #[command]
 #[specta::specta]
 pub async fn get_gemini_enabled(app_state: State<'_, AppState>) -> Result<bool, String> {
-    let repo = app_state.settings_repo.clone();
-    let val = repo
-        .get_setting("gemini_enabled")
-        .await
-        .map_err(|e| format!("Failed to check AI settings: {}", e))?;
-
-    Ok(val.map(|v| v != "false").unwrap_or(true))
+    app_state.ai_context.is_enabled().await.context("Failed to check AI settings")
 }
 
 #[command]
@@ -55,19 +37,13 @@ pub async fn set_gemini_enabled(
     enabled: bool,
     app_state: State<'_, AppState>,
 ) -> Result<(), String> {
-    let repo = app_state.settings_repo.clone();
-    repo.set_setting("gemini_enabled", if enabled { "true" } else { "false" })
-        .await
-        .map_err(|e| format!("Failed to update AI settings: {}", e))
+    app_state.ai_context.set_enabled(enabled).await.context("Failed to update AI settings")
 }
 
 #[command]
 #[specta::specta]
 pub async fn get_gemini_api_key(app_state: State<'_, AppState>) -> Result<Option<String>, String> {
-    let repo = app_state.settings_repo.clone();
-    repo.get_setting("gemini_api_key")
-        .await
-        .map_err(|e| format!("Failed to get API key: {}", e))
+    app_state.ai_context.get_api_key().await.context("Failed to get API key")
 }
 
 #[command]
@@ -76,19 +52,13 @@ pub async fn set_gemini_api_key(
     api_key: String,
     app_state: State<'_, AppState>,
 ) -> Result<(), String> {
-    let repo = app_state.settings_repo.clone();
-    repo.set_setting("gemini_api_key", api_key.as_str())
-        .await
-        .map_err(|e| format!("Failed to set API key: {}", e))
+    app_state.ai_context.set_api_key(&api_key).await.context("Failed to set API key")
 }
 
 #[command]
 #[specta::specta]
 pub async fn get_gemini_persona(app_state: State<'_, AppState>) -> Result<Option<String>, String> {
-    let repo = app_state.settings_repo.clone();
-    repo.get_setting("gemini_persona")
-        .await
-        .map_err(|e| format!("Failed to get persona: {}", e))
+    app_state.ai_context.get_persona().await.context("Failed to get persona")
 }
 
 #[command]
@@ -97,10 +67,7 @@ pub async fn set_gemini_persona(
     persona: String,
     app_state: State<'_, AppState>,
 ) -> Result<(), String> {
-    let repo = app_state.settings_repo.clone();
-    repo.set_setting("gemini_persona", persona.as_str())
-        .await
-        .map_err(|e| format!("Failed to set persona: {}", e))
+    app_state.ai_context.set_persona(&persona).await.context("Failed to set persona")
 }
 
 #[command]
@@ -108,10 +75,7 @@ pub async fn set_gemini_persona(
 pub async fn get_gemini_requirements(
     app_state: State<'_, AppState>,
 ) -> Result<Option<String>, String> {
-    let repo = app_state.settings_repo.clone();
-    repo.get_setting("gemini_requirements")
-        .await
-        .map_err(|e| format!("Failed to get requirements: {}", e))
+    app_state.ai_context.get_requirements().await.context("Failed to get requirements")
 }
 
 #[command]
@@ -120,10 +84,7 @@ pub async fn set_gemini_requirements(
     requirements: String,
     app_state: State<'_, AppState>,
 ) -> Result<(), String> {
-    let repo = app_state.settings_repo.clone();
-    repo.set_setting("gemini_requirements", requirements.as_str())
-        .await
-        .map_err(|e| format!("Failed to set requirements: {}", e))
+    app_state.ai_context.set_requirements(&requirements).await.context("Failed to set requirements")
 }
 
 #[command]
@@ -131,10 +92,7 @@ pub async fn set_gemini_requirements(
 pub async fn get_gemini_context_options(
     app_state: State<'_, AppState>,
 ) -> Result<Option<String>, String> {
-    let repo = app_state.settings_repo.clone();
-    repo.get_setting("gemini_context_options")
-        .await
-        .map_err(|e| format!("Failed to get context options: {}", e))
+    app_state.ai_context.get_context_options().await.context("Failed to get context options")
 }
 
 #[command]
@@ -143,10 +101,7 @@ pub async fn set_gemini_context_options(
     options: String,
     app_state: State<'_, AppState>,
 ) -> Result<(), String> {
-    let repo = app_state.settings_repo.clone();
-    repo.set_setting("gemini_context_options", options.as_str())
-        .await
-        .map_err(|e| format!("Failed to set context options: {}", e))
+    app_state.ai_context.set_context_options(&options).await.context("Failed to set context options")
 }
 
 #[command]
@@ -154,10 +109,7 @@ pub async fn set_gemini_context_options(
 pub async fn get_gemini_prompt_blocks(
     app_state: State<'_, AppState>,
 ) -> Result<Option<String>, String> {
-    let repo = app_state.settings_repo.clone();
-    repo.get_setting("gemini_prompt_blocks")
-        .await
-        .map_err(|e| format!("Failed to get prompt blocks: {}", e))
+    app_state.ai_context.get_prompt_blocks().await.context("Failed to get prompt blocks")
 }
 
 #[command]
@@ -166,16 +118,13 @@ pub async fn set_gemini_prompt_blocks(
     blocks: String,
     app_state: State<'_, AppState>,
 ) -> Result<(), String> {
-    let repo = app_state.settings_repo.clone();
-    repo.set_setting("gemini_prompt_blocks", blocks.as_str())
-        .await
-        .map_err(|e| format!("Failed to set prompt blocks: {}", e))
+    app_state.ai_context.set_prompt_blocks(&blocks).await.context("Failed to set prompt blocks")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::permissions::Policy;
+    use crate::contexts::permissions::Policy;
     use crate::lifecycle::app_state::AppState;
     use crate::repository::{sqlite_ai_repo, sqlite_settings_repo};
     use crate::test_utils::fixtures::setup_test_db;
@@ -218,20 +167,29 @@ mod tests {
         let pool = setup_test_db().await;
         let settings_repo = sqlite_settings_repo(pool.clone());
         let ai_repo = sqlite_ai_repo(pool.clone());
+        let job_repo = crate::repository::sqlite_job_repo(pool.clone());
+        let results_repo = crate::repository::sqlite_results_repo(pool.clone());
         let licensing_service = Arc::new(crate::service::licensing::MockLicensingService::new(
             settings_repo.clone(),
         ));
 
+        let analysis_context = crate::contexts::analysis::AnalysisServiceFactory::with_repositories(
+            job_repo.clone(),
+            results_repo.clone(),
+        );
+
+        let ai_context = crate::contexts::ai::AiServiceFactory::from_repositories(
+            ai_repo.clone(),
+            settings_repo.clone(),
+        );
+
         let state = AppState {
-            settings_repo,
-            ai_repo,
-            job_repo: crate::repository::sqlite_job_repo(pool.clone()),
-            results_repo: crate::repository::sqlite_results_repo(pool.clone()),
             standard_spider: Arc::new(MockSpider),
             heavy_spider: Arc::new(MockSpider),
             job_processor: Arc::new(crate::service::JobProcessor::new(
                 crate::repository::sqlite_job_repo(pool.clone()),
                 crate::repository::sqlite_link_repo(pool.clone()),
+                crate::repository::sqlite_page_queue_repo(pool.clone()),
                 crate::service::processor::AnalyzerService::new(
                     crate::repository::sqlite_page_repo(pool.clone()),
                     crate::repository::sqlite_issue_repo(pool.clone()),
@@ -241,7 +199,11 @@ mod tests {
                 Arc::new(NilEmitter),
             )),
             permissions: RwLock::new(Policy::default()),
-            licensing_service,
+            licensing_context: licensing_service,
+            analysis_context,
+            ai_context,
+            extension_repository: crate::repository::sqlite_extension_repo(pool.clone()),
+            extension_registry: Arc::new(crate::extension::ExtensionRegistry::new()),
         };
 
         mock_builder()
@@ -268,7 +230,6 @@ mod tests {
             .build()
             .unwrap();
 
-        // Test set/get enabled
         tauri::test::get_ipc_response(
             &webview,
             tauri::webview::InvokeRequest {
@@ -300,7 +261,6 @@ mod tests {
 
         assert!(!enabled);
 
-        // Test set/get API key
         tauri::test::get_ipc_response(
             &webview,
             tauri::webview::InvokeRequest {
@@ -340,11 +300,10 @@ mod tests {
             .build()
             .unwrap();
 
-        // Disable Gemini
         webview
             .state::<AppState>()
-            .settings_repo
-            .set_setting("gemini_enabled", "false")
+            .ai_context
+            .set_enabled(false)
             .await
             .unwrap();
 
@@ -364,3 +323,4 @@ mod tests {
         assert_eq!(res, "");
     }
 }
+
