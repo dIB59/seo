@@ -1,6 +1,4 @@
-use app::domain::licensing::{LicenseData, SignedLicense};
-use app::domain::permissions::LicenseTier;
-use app::domain::TierVersion;
+use app::contexts::{LicenseData, LicenseTier, SignedLicense, TierVersion};
 use ed25519_dalek::{Signer, SigningKey};
 use std::io::{self, Write};
 

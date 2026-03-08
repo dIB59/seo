@@ -1,13 +1,13 @@
 use anyhow::Result;
 use scraper::{Html, Selector};
 use std::collections::HashSet;
-use std::sync::atomic::AtomicBool;
 use std::sync::OnceLock;
 use std::time::Duration;
 use tokio::time::sleep;
+use tokio_util::sync::CancellationToken;
 use url::Url;
 
-use crate::domain::ResourceStatus;
+use crate::contexts::ResourceStatus;
 use crate::service::spider::SpiderAgent;
 use std::sync::Arc;
 
@@ -36,7 +36,7 @@ impl PageDiscovery {
         max_pages: i64,
         delay_ms: i64,
         include_subdomains: bool,
-        cancel_flag: &AtomicBool,
+        cancel_token: &CancellationToken,
         on_discovered: impl Fn(usize) + Send + Sync,
     ) -> Result<Vec<String>> {
         let start_url = Url::parse(start_url_str)?;
@@ -61,7 +61,7 @@ impl PageDiscovery {
         );
 
         while let Some(url) = to_visit.pop() {
-            if cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
+            if cancel_token.is_cancelled() {
                 tracing::warn!(
                     "[DISCOVERY] Discovery cancelled by user at {} pages",
                     visited.len()
@@ -111,13 +111,9 @@ impl PageDiscovery {
             let mut new_links_count = 0;
             for link in links {
                 let link_type =
-                    crate::domain::link::NewLink::classify(link.as_str(), start_url_str);
+                    crate::contexts::link::NewLink::classify(link.as_str(), start_url_str);
 
-                let should_follow = match link_type {
-                    crate::domain::LinkType::Internal => true,
-                    crate::domain::LinkType::Subdomain => include_subdomains,
-                    _ => false,
-                };
+                let should_follow = link_type.should_follow(include_subdomains);
 
                 if should_follow && !visited.contains(&link) && !to_visit.contains(&link) {
                     to_visit.push(link);
@@ -135,7 +131,7 @@ impl PageDiscovery {
             "[DISCOVERY] Discovery complete - found {} pages",
             visited.len()
         );
-        Ok(visited.into_iter().map(|u| u.to_string()).collect())
+        Ok(visited.into_iter().map(|u: Url| u.to_string()).collect())
     }
 
     pub fn extract_links(html: &str, base_url: &Url) -> Vec<String> {
@@ -145,10 +141,10 @@ impl PageDiscovery {
         Html::parse_document(html)
             .select(selector)
             .filter_map(|a| a.value().attr("href"))
-            .filter(|raw| !raw.starts_with('#')) // Skip fragment-only links
+            .filter(|raw| !raw.starts_with('#'))
             .filter_map(|raw| base_url.join(raw).ok())
             .map(|mut u| {
-                u.set_fragment(None); // Strip fragments from all links
+                u.set_fragment(None);
                 u.to_string()
             })
             .collect()
@@ -175,7 +171,7 @@ impl ResourceChecker {
     }
 
     pub fn check_ssl_certificate(&self, url_str: &str) -> bool {
-        let has_ssl = url_str.starts_with("https"); // Simple check or parse
+        let has_ssl = url_str.starts_with("https");
         tracing::debug!("[RESOURCE] SSL check for {}: {}", url_str, has_ssl);
         has_ssl
     }

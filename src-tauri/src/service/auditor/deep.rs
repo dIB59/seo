@@ -14,7 +14,6 @@ use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 use tokio::sync::Mutex;
 
 struct PersistentProcess {
-    #[allow(dead_code)]
     child: Child,
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,

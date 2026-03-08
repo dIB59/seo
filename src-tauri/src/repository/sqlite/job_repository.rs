@@ -3,7 +3,7 @@ use chrono::Utc;
 use sqlx::SqlitePool;
 
 use super::map_job_status;
-use crate::domain::{Job, JobInfo, JobSettings, JobStatus, JobSummary};
+use crate::contexts::{Job, JobInfo, JobSettings, JobStatus, JobSummary};
 use std::str::FromStr;
 
 pub struct JobRepository {

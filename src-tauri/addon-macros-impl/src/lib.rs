@@ -59,11 +59,11 @@ pub fn addon_guard(attr: TokenStream, item: TokenStream) -> TokenStream {
                 // the error type to be available in the scope or we construct it.
 
                 // Inspecting the previous implementation:
-                // return Err(crate::domain::licensing::AddonError::FeatureLocked(#addon).into());
+                // return Err(crate::contexts::licensing::AddonError::FeatureLocked(#addon).into());
 
                 // We will keep this compatible by keeping the assumption that
-                // crate::domain::licensing::AddonError is available or we use the fully qualified path.
-                return Err(crate::domain::licensing::AddonError::PermissionDenied(#addon).into());
+                // crate::contexts::licensing::AddonError is available or we use the fully qualified path.
+                return Err(crate::contexts::licensing::AddonError::PermissionDenied(#addon).into());
             }
             #(#statements)*
         }

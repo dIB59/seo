@@ -1,6 +1,5 @@
-use crate::domain::permissions::LicenseTier;
-use crate::domain::TierPolicy;
-use crate::error::{self, CommandError};
+use crate::contexts::licensing::{LicenseTier, Policy};
+use crate::error::CommandError;
 use crate::lifecycle::app_state::AppState;
 use crate::service::hardware::HardwareService;
 use tauri::State;
@@ -10,9 +9,10 @@ use tauri::State;
 pub async fn activate_license(
     license_key: String,
     state: State<'_, AppState>,
-) -> Result<crate::domain::permissions::Policy, CommandError> {
-    let tier = state
-        .licensing_service
+) -> Result<Policy, CommandError> {
+    // Use the new context service (Strangler Fig pattern)
+    let tier: LicenseTier = state
+        .licensing_context
         .activate_with_key(&license_key)
         .await
         .map_err(|e| {
@@ -21,7 +21,7 @@ pub async fn activate_license(
         })?;
 
     state.update_from_tier(tier);
-    Ok(tier.get_policy())
+    Ok(state.permissions.read().map(|p| p.clone()).unwrap_or_default())
 }
 
 #[tauri::command]
@@ -29,9 +29,10 @@ pub async fn activate_license(
 pub async fn activate_with_key(
     key: String,
     state: State<'_, AppState>,
-) -> Result<crate::domain::permissions::Policy, CommandError> {
-    let tier = state
-        .licensing_service
+) -> Result<Policy, CommandError> {
+    // Use the new context service (Strangler Fig pattern)
+    let tier: LicenseTier = state
+        .licensing_context
         .activate_with_key(&key)
         .await
         .map_err(|e| {
@@ -40,30 +41,23 @@ pub async fn activate_with_key(
         })?;
 
     state.update_from_tier(tier);
-    Ok(tier.get_policy())
+    Ok(state.permissions.read().map(|p| p.clone()).unwrap_or_default())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn get_user_policy(
     state: State<'_, AppState>,
-) -> Result<crate::domain::permissions::Policy, CommandError> {
-    Ok(state.permissions.read().unwrap().clone())
+) -> Result<Policy, CommandError> {
+    // Return the policy from AppState
+    Ok(state.permissions.read().map(|p| p.clone()).unwrap_or_default())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn get_license_tier(state: State<'_, AppState>) -> Result<LicenseTier, CommandError> {
-    state
-        .permissions
-        .read()
-        .map_err(|_| {
-            CommandError::from(error::AppError::ServiceError {
-                service: "Hardware",
-                message: "Failed to get machine id".to_string(),
-            })
-        })
-        .map(|policy| policy.tier)
+    // Return the tier from the current policy
+    Ok(state.permissions.read().map(|p| p.tier).unwrap_or_default())
 }
 
 #[tauri::command]
@@ -75,7 +69,7 @@ pub async fn get_machine_id() -> Result<String, CommandError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::permissions::{Feature, Policy};
+    use crate::contexts::licensing::{Feature, Policy};
     use crate::repository::sqlite_settings_repo;
     use crate::service::licensing::MockLicensingService;
     use crate::test_utils::fixtures::setup_test_db;
@@ -117,18 +111,30 @@ mod tests {
     async fn create_test_app() -> tauri::App<MockRuntime> {
         let pool = setup_test_db().await;
         let settings_repo = sqlite_settings_repo(pool.clone());
+        let ai_repo = crate::repository::sqlite_ai_repo(pool.clone());
+        let job_repo = crate::repository::sqlite_job_repo(pool.clone());
+        let results_repo = crate::repository::sqlite_results_repo(pool.clone());
         let licensing_service = Arc::new(MockLicensingService::new(settings_repo.clone()));
 
+        // Create the new context-based analysis service
+        let analysis_context = crate::contexts::analysis::AnalysisServiceFactory::with_repositories(
+            job_repo.clone(),
+            results_repo.clone(),
+        );
+
+        // Create the new context-based AI service
+        let ai_context = crate::contexts::ai::AiServiceFactory::from_repositories(
+            ai_repo.clone(),
+            settings_repo.clone(),
+        );
+
         let state = AppState {
-            settings_repo,
-            ai_repo: crate::repository::sqlite_ai_repo(pool.clone()),
-            job_repo: crate::repository::sqlite_job_repo(pool.clone()),
-            results_repo: crate::repository::sqlite_results_repo(pool.clone()),
             standard_spider: Arc::new(MockSpider),
             heavy_spider: Arc::new(MockSpider),
             job_processor: Arc::new(crate::service::JobProcessor::new(
                 crate::repository::sqlite_job_repo(pool.clone()),
                 crate::repository::sqlite_link_repo(pool.clone()),
+                crate::repository::sqlite_page_queue_repo(pool.clone()),
                 crate::service::processor::AnalyzerService::new(
                     crate::repository::sqlite_page_repo(pool.clone()),
                     crate::repository::sqlite_issue_repo(pool.clone()),
@@ -138,7 +144,11 @@ mod tests {
                 Arc::new(NilEmitter),
             )),
             permissions: RwLock::new(Policy::default()),
-            licensing_service,
+            licensing_context: licensing_service,
+            analysis_context,
+            ai_context,
+            extension_repository: crate::repository::sqlite_extension_repo(pool.clone()),
+            extension_registry: Arc::new(crate::extension::ExtensionRegistry::new()),
         };
 
         mock_builder()
@@ -186,10 +196,12 @@ mod tests {
             .build()
             .unwrap();
 
-        // Get a valid key from the mock service in state
-        let state = webview.state::<AppState>();
-        let mock_service = MockLicensingService::new(state.settings_repo.clone());
-        let valid_key = mock_service.generate_short_key(LicenseTier::Premium);
+        // Get a valid key from the mock service using the licensing context
+        let _state = webview.state::<AppState>();
+        // Create a standalone mock service to generate a test key
+        let temp_pool = sqlx::SqlitePool::connect_lazy("sqlite::memory:").unwrap();
+        let temp_settings_repo = crate::repository::sqlite_settings_repo(temp_pool);
+        let valid_key = MockLicensingService::new(temp_settings_repo).generate_short_key(LicenseTier::Premium);
 
         let res = tauri::test::get_ipc_response(
             &webview,

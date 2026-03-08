@@ -1,10 +1,10 @@
-use crate::domain::JobSettings;
+use crate::contexts::JobSettings;
 use crate::service::discovery::{PageDiscovery, ResourceChecker, SiteResources};
 use crate::service::processor::reporter::{ProgressEmitter, ProgressEvent};
 use crate::service::spider::SpiderAgent;
 use anyhow::{Context, Result};
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 use url::Url;
 
 pub struct Crawler {
@@ -16,7 +16,7 @@ pub struct CrawlContext {
     pub job_id: String,
     pub settings: JobSettings,
     pub start_url: String,
-    pub cancel_flag: Arc<AtomicBool>,
+    pub cancel_token: CancellationToken,
 }
 
 impl Crawler {
@@ -52,12 +52,11 @@ impl Crawler {
     pub async fn discover_pages(
         &self,
         context: &CrawlContext,
-        progress_emitter: Arc<dyn ProgressEmitter>, // ← Single trait object
+        progress_emitter: Arc<dyn ProgressEmitter>,
     ) -> Result<Vec<String>> {
         let job_id = context.job_id.clone();
         let max_pages = context.settings.max_pages as usize;
 
-        // Clone emitter for the callback (Arc is cheap)
         let emitter = progress_emitter.clone();
         let job_id_clone = job_id.clone();
 
@@ -68,10 +67,9 @@ impl Crawler {
                 context.settings.max_pages,
                 context.settings.delay_between_requests,
                 context.settings.include_subdomains,
-                &context.cancel_flag,
+                &context.cancel_token,
                 move |count| {
                     tracing::trace!("Discovery progress: {}", count);
-                    // Emit discovery progress as a typed event
                     emitter.emit(ProgressEvent::Discovery {
                         job_id: job_id_clone.clone(),
                         count,

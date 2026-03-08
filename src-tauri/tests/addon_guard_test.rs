@@ -1,5 +1,5 @@
 use addon_macros::{addon_guard, AddonCheck};
-use app::domain::permissions::{Feature, PermissionRequest};
+use app::contexts::licensing::{Feature, PermissionRequest};
 use serde::Serialize; // Import from the library crate 'app'
 
 #[derive(Debug, Serialize, thiserror::Error)]
@@ -8,15 +8,15 @@ pub enum MockError {
     Any,
 }
 
-impl From<app::domain::licensing::AddonError> for MockError {
-    fn from(_: app::domain::licensing::AddonError) -> Self {
+impl From<app::contexts::licensing::AddonError> for MockError {
+    fn from(_: app::contexts::licensing::AddonError) -> Self {
         MockError::Any
     }
 }
 
-// Re-export app::domain as crate::domain for the macro
-pub mod domain {
-    pub use app::domain::*;
+// Re-export app::contexts as crate::contexts for the macro
+pub mod contexts {
+    pub use app::contexts::*;
 }
 
 // Mock state that implements AddonCheck

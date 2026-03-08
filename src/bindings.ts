@@ -212,12 +212,193 @@ async getMachineId() : Promise<Result<string, CommandError>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * Get a summary of the extension system
+ */
+async getExtensionSummary() : Promise<Result<ExtensionSummary, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_extension_summary") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Get all registered issue rules (legacy compatibility)
+ */
+async getAllIssueRules() : Promise<Result<IssueGeneratorInfo[], CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_all_issue_rules") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Get all registered data extractors
+ */
+async getAllExtractors() : Promise<Result<DataExtractorInfo[], CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_all_extractors") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Get all registered audit checks (legacy compatibility)
+ */
+async getAllAuditChecks() : Promise<Result<AuditCheckInfo[], CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_all_audit_checks") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Get all extractor configs from database (including custom ones)
+ */
+async getExtractorConfigs() : Promise<Result<ExtractorConfigInfo[], CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_extractor_configs") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Get rule-targetable field registry entries
+ */
+async getRuleFieldRegistry() : Promise<Result<RuleFieldInfo[], CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_rule_field_registry") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Create a new custom extractor
+ */
+async createCustomExtractor(request: CreateExtractorRequest) : Promise<Result<ExtractorConfigInfo, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("create_custom_extractor", { request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Update an existing custom extractor
+ */
+async updateCustomExtractor(request: UpdateExtractorRequest) : Promise<Result<ExtractorConfigInfo, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_custom_extractor", { request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Delete a custom extractor
+ */
+async deleteCustomExtractor(extractorId: string) : Promise<Result<null, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_custom_extractor", { extractorId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Toggle an extractor's enabled status
+ */
+async toggleExtractorEnabled(extractorId: string, enabled: boolean) : Promise<Result<ExtractorConfigInfo, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("toggle_extractor_enabled", { extractorId, enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Create a new custom issue generator
+ */
+async createCustomRule(request: CreateRuleRequest) : Promise<Result<IssueGeneratorInfo, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("create_custom_rule", { request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Update an existing custom rule
+ */
+async updateCustomRule(request: UpdateRuleRequest) : Promise<Result<IssueGeneratorInfo, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_custom_rule", { request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Delete a custom rule
+ */
+async deleteCustomRule(ruleId: string) : Promise<Result<null, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_custom_rule", { ruleId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Toggle a rule's enabled status
+ */
+async toggleRuleEnabled(ruleId: string, enabled: boolean) : Promise<Result<IssueGeneratorInfo, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("toggle_rule_enabled", { ruleId, enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Normalize legacy rule target syntax to field:* format
+ */
+async normalizeRuleTargetFields() : Promise<Result<RuleTargetMigrationResult, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("normalize_rule_target_fields") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Reload extensions from database
+ */
+async reloadExtensions() : Promise<Result<ExtensionSummary, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("reload_extensions") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
 /** user-defined events **/
 
 
+export const events = __makeEvents__<{
+progressEvent: ProgressEvent
+}>({
+progressEvent: "progress-event"
+})
 
 /** user-defined constants **/
 
@@ -230,34 +411,47 @@ export type AnalysisJobResponse = { job_id: string; url: string; status: JobStat
  * Analysis progress for frontend updates
  */
 export type AnalysisProgress = { job_id: string; url: string; job_status: JobStatus; result_id: string | null; progress: number | null; max_pages: number | null; is_deep_audit: boolean | null; total_issues: number | null }
-/**
- * Analysis results with date/time mapped to strings for Specta.
- */
 export type AnalysisResults = { id: string; url: string; status: JobStatus; progress: number; total_pages: number; analyzed_pages: number; started_at: string | null; completed_at: string | null; sitemap_found: boolean; robots_txt_found: boolean; ssl_certificate: boolean; created_at: string }
 export type AnalysisSettingsRequest = { max_pages: number; include_subdomains: boolean; check_images: boolean; mobile_analysis: boolean; lighthouse_analysis: boolean; delay_between_requests: number }
-/**
- * Summary of analysis results.
- */
 export type AnalysisSummary = { analysis_id: string; seo_score: number; avg_load_time: number; total_words: number; total_issues: number }
+/**
+ * Information about an audit check for the frontend (legacy)
+ */
+export type AuditCheckInfo = { key: string; label: string; category: string; weight: number; is_builtin: boolean; is_enabled: boolean }
 /**
  * Wrapper for errors returned from Tauri commands.
  * This type is serializable and can be sent to the frontend.
  */
 export type CommandError = string
-/**
- * Complete analysis response returned by `get_result`.
- */
 export type CompleteAnalysisResponse = { analysis: AnalysisResults; pages: PageAnalysisData[]; issues: SeoIssue[]; summary: AnalysisSummary }
+/**
+ * Request to create a custom data extractor
+ */
+export type CreateExtractorRequest = { name: string; display_name: string; description: string | null; extractor_type: string | null; selector: string; attribute: string | null; category_id: string | null; category_label: string | null; default_rule_severity: string | null; default_rule_recommendation: string | null; default_rule_threshold_min: number | null; default_rule_threshold_max: number | null }
+/**
+ * Request to create a new custom rule
+ */
+export type CreateRuleRequest = { name: string; category: string; severity: string; rule_type: string; target_field: string; threshold_min: number | null; threshold_max: number | null; regex_pattern: string | null; recommendation: string | null; selector: string | null; attribute: string | null; multiple: boolean | null; min_count: number | null; max_count: number | null; min_length: number | null; max_length: number | null; expected_value: string | null; negate: boolean | null }
+/**
+ * Information about a data extractor for the frontend
+ */
+export type DataExtractorInfo = { id: string; name: string; description: string | null; extractor_type: string; is_builtin: boolean; is_enabled: boolean }
+/**
+ * Summary of extension system status
+ */
+export type ExtensionSummary = { total_extensions: number; total_validators: number; total_extractors: number; total_exporters: number; builtin_count: number; custom_count: number }
+/**
+ * Information about an extractor config from the database
+ */
+export type ExtractorConfigInfo = { id: string; name: string; display_name: string; description: string | null; extractor_type: string; selector: string; attribute: string | null; storage_type: string; target_column: string | null; target_table: string | null; post_process: string | null; is_builtin: boolean; is_enabled: boolean }
 export type Feature = "LinkAnalysis" | "GraphView" | "ExportReports"
 export type GeminiRequest = { analysis_id: string; url: string; seo_score: number; pages_count: number; total_issues: number; critical_issues: number; warning_issues: number; suggestion_issues: number; top_issues: string[]; avg_load_time: number; total_words: number; ssl_certificate: boolean; sitemap_found: boolean; robots_txt_found: boolean }
-/**
- * Heading element for frontend display.
- */
 export type HeadingElement = { tag: string; text: string }
-/**
- * Image element for frontend display.
- */
 export type ImageElement = { src: string; alt: string | null }
+/**
+ * Information about an issue generator for the frontend
+ */
+export type IssueGeneratorInfo = { id: string; name: string; category: string; severity: string; rule_type: string | null; target_field: string | null; threshold_min: number | null; threshold_max: number | null; regex_pattern: string | null; recommendation: string | null; is_builtin: boolean; is_enabled: boolean }
 export type IssueSeverity = "critical" | "warning" | "info"
 /**
  * Status of an SEO analysis job.
@@ -265,21 +459,30 @@ export type IssueSeverity = "critical" | "warning" | "info"
 export type JobStatus = "pending" | "discovery" | "processing" | "completed" | "failed" | "cancelled"
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 export type LicenseTier = "Free" | "Premium"
-/**
- * Link details (frontend-compatible).
- */
 export type LinkDetail = { href: string; text: string; link_type: LinkType; is_broken: boolean; status_code: number | null }
 export type LinkType = "internal" | "subdomain" | "external" | "resource"
+export type PageAnalysisData = { analysis_id: string; url: string; title: string | null; meta_description: string | null; meta_keywords: string | null; canonical_url: string | null; word_count: number; image_count: number; images_without_alt: number; internal_links: number; external_links: number; load_time: number; status_code: number | null; content_size: number; mobile_friendly: boolean; has_structured_data: boolean; lighthouse_performance: number | null; lighthouse_accessibility: number | null; lighthouse_best_practices: number | null; lighthouse_seo: number | null; lighthouse_seo_audits: JsonValue | null; lighthouse_performance_metrics: JsonValue | null; images: ImageElement[]; detailed_links: LinkDetail[]; headings: HeadingElement[]; 
 /**
- * Page analysis data (frontend-compatible format).
+ * Extracted data from custom extractors (key-value pairs)
  */
-export type PageAnalysisData = { analysis_id: string; url: string; title: string | null; meta_description: string | null; meta_keywords: string | null; canonical_url: string | null; word_count: number; image_count: number; images_without_alt: number; internal_links: number; external_links: number; load_time: number; status_code: number | null; content_size: number; mobile_friendly: boolean; has_structured_data: boolean; lighthouse_performance: number | null; lighthouse_accessibility: number | null; lighthouse_best_practices: number | null; lighthouse_seo: number | null; lighthouse_seo_audits: JsonValue | null; lighthouse_performance_metrics: JsonValue | null; images: ImageElement[]; detailed_links: LinkDetail[]; headings: HeadingElement[] }
+extracted_data: Partial<{ [key in string]: JsonValue }> }
 export type PaginatedJobsResponse = { items: AnalysisProgress[]; total: number }
 export type Policy = { tier: LicenseTier; max_pages: number; enabled_features: Feature[] }
+export type ProgressEvent = { event: "analysis"; job_id: string; progress: number; pages_analyzed: number; total_pages: number } | { event: "discovery"; job_id: string; count: number; total_pages: number }
 /**
- * SEO issue (frontend-compatible format).
+ * Registry entry describing a rule-targetable field independent of extractor internals
  */
+export type RuleFieldInfo = { id: string; label: string; description: string | null; target_field: string; kind: string; category_id: string | null; category_label: string | null; default_rule_severity: string | null; default_rule_recommendation: string | null; default_rule_threshold_min: number | null; default_rule_threshold_max: number | null }
+export type RuleTargetMigrationResult = { migrated_count: number }
 export type SeoIssue = { page_id: string; severity: IssueSeverity; title: string; description: string; page_url: string; element: string | null; recommendation: string; line_number: number | null }
+/**
+ * Request to update an existing extractor
+ */
+export type UpdateExtractorRequest = { id: string; name: string | null; display_name: string | null; description: string | null; extractor_type: string | null; selector: string | null; attribute: string | null; category_id: string | null; category_label: string | null; default_rule_severity: string | null; default_rule_recommendation: string | null; default_rule_threshold_min: number | null; default_rule_threshold_max: number | null }
+/**
+ * Request to update an existing rule
+ */
+export type UpdateRuleRequest = { id: string; name: string | null; severity: string | null; threshold_min: number | null; threshold_max: number | null; regex_pattern: string | null; recommendation: string | null; is_enabled: boolean | null }
 
 /** tauri-specta globals **/
 

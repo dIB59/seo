@@ -139,36 +139,32 @@ pub async fn generate_gemini_analysis(
     Ok(text)
 }
 
+fn bool_to_yes_no(value: bool) -> &'static str {
+    if value { "Yes" } else { "No" }
+}
+
 pub fn replace_prompt_vars(text: &str, request: &GeminiRequest) -> String {
-    text.replace("{url}", &request.url)
-        .replace("{score}", &request.seo_score.to_string())
-        .replace("{pages_count}", &request.pages_count.to_string())
-        .replace("{total_issues}", &request.total_issues.to_string())
-        .replace("{critical_issues}", &request.critical_issues.to_string())
-        .replace("{warning_issues}", &request.warning_issues.to_string())
-        .replace(
-            "{suggestion_issues}",
-            &request.suggestion_issues.to_string(),
-        )
-        .replace("{top_issues}", &request.top_issues.join("\n"))
-        .replace("{avg_load_time}", &format!("{:.2}", request.avg_load_time))
-        .replace("{total_words}", &request.total_words.to_string())
-        .replace(
-            "{ssl_certificate}",
-            if request.ssl_certificate { "Yes" } else { "No" },
-        )
-        .replace(
-            "{sitemap_found}",
-            if request.sitemap_found { "Yes" } else { "No" },
-        )
-        .replace(
-            "{robots_txt_found}",
-            if request.robots_txt_found {
-                "Yes"
-            } else {
-                "No"
-            },
-        )
+    let replacements: &[(&str, String)] = &[
+        ("{url}", request.url.clone()),
+        ("{score}", request.seo_score.to_string()),
+        ("{pages_count}", request.pages_count.to_string()),
+        ("{total_issues}", request.total_issues.to_string()),
+        ("{critical_issues}", request.critical_issues.to_string()),
+        ("{warning_issues}", request.warning_issues.to_string()),
+        ("{suggestion_issues}", request.suggestion_issues.to_string()),
+        ("{top_issues}", request.top_issues.join("\n")),
+        ("{avg_load_time}", format!("{:.2}", request.avg_load_time)),
+        ("{total_words}", request.total_words.to_string()),
+        ("{ssl_certificate}", bool_to_yes_no(request.ssl_certificate).to_string()),
+        ("{sitemap_found}", bool_to_yes_no(request.sitemap_found).to_string()),
+        ("{robots_txt_found}", bool_to_yes_no(request.robots_txt_found).to_string()),
+    ];
+
+    replacements
+        .iter()
+        .fold(text.to_string(), |result, (pattern, replacement)| {
+            result.replace(pattern, replacement)
+        })
 }
 
 #[cfg(test)]

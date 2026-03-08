@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use std::sync::{Arc, Mutex};
 
-use crate::domain::{Issue, LighthouseData, NewHeading, NewImage, NewIssue, Page, PageInfo};
+use crate::contexts::{Issue, LighthouseData, NewHeading, NewImage, NewIssue, Page, PageInfo};
 use crate::repository::{IssueRepository, PageRepository};
 use crate::service::auditor::{AuditResult, AuditScores, Auditor, SeoAuditDetails};
 use crate::service::processor::AnalyzerService;
@@ -95,7 +95,7 @@ impl IssueRepository for MockIssueRepo {
     async fn get_by_job_and_severity(
         &self,
         _job_id: &str,
-        _severity: crate::domain::IssueSeverity,
+        _severity: crate::contexts::IssueSeverity,
     ) -> Result<Vec<Issue>> {
         Ok(vec![])
     }
