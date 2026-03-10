@@ -84,6 +84,49 @@ function getCommonKeys(arr: Record<string, unknown>[]): string[] {
     .map(([key]) => key);
 }
 
+function HoverableText({
+  value,
+  href,
+  className,
+}: {
+  value: string;
+  href?: string;
+  className?: string;
+}) {
+  const sharedClassName = "text-sm break-all whitespace-normal inline-block max-w-full align-top";
+
+  if (href) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`text-primary hover:underline ${sharedClassName} ${className ?? ""}`}
+          >
+            {value}
+          </a>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-md">
+          <p className="break-words">{value}</p>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={`${sharedClassName} cursor-default ${className ?? ""}`}>{value}</span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-md">
+        <p className="break-words">{value}</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 /**
  * Renders a value based on its type with collapsible support for nested objects
  */
@@ -98,40 +141,9 @@ function RenderedValue({ value, depth = 0 }: { value: unknown; depth?: number })
     // Check if it looks like a URL
     const strValue = value as string;
     if (strValue.startsWith("http://") || strValue.startsWith("https://")) {
-      return (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <a
-                href={strValue}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline text-sm break-all whitespace-normal inline-block max-w-full align-top"
-              >
-                {strValue}
-              </a>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-md">
-              <p className="break-words">{strValue}</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      );
+      return <HoverableText value={strValue} href={strValue} />;
     }
-    return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="text-sm break-all whitespace-normal inline-block max-w-full align-top cursor-default">
-              {strValue}
-            </span>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-md">
-            <p className="break-words">{strValue}</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
+    return <HoverableText value={strValue} />;
   }
 
   if (type === "number" || type === "boolean") {
@@ -169,14 +181,14 @@ function RenderedValue({ value, depth = 0 }: { value: unknown; depth?: number })
 
       if (keys.length > 0 && depth < 2) {
         return (
-          <div className="overflow-x-auto rounded-md border">
-            <Table className="table-fixed min-w-[760px]">
+          <div className="overflow-x-auto rounded-md border bg-card/40">
+            <Table className="table-fixed min-w-[840px]">
               <TableHeader>
                 <TableRow>
                   {keys.map((key) => (
                     <TableHead
                       key={key}
-                      className="text-xs whitespace-normal break-words align-top"
+                      className="text-xs whitespace-normal break-words align-top min-w-[140px]"
                     >
                       {key}
                     </TableHead>
@@ -189,9 +201,11 @@ function RenderedValue({ value, depth = 0 }: { value: unknown; depth?: number })
                     {keys.map((key) => (
                       <TableCell
                         key={key}
-                        className="text-xs max-w-[280px] align-top whitespace-normal break-all"
+                        className="text-xs max-w-[320px] align-top whitespace-normal break-all min-w-0"
                       >
-                        <RenderedValue value={obj[key]} depth={depth + 1} />
+                        <div className="min-w-0">
+                          <RenderedValue value={obj[key]} depth={depth + 1} />
+                        </div>
                       </TableCell>
                     ))}
                   </TableRow>
@@ -323,10 +337,12 @@ export default function ExtractedDataTab({ data }: ExtractedDataTabProps) {
   }
 
   return (
-    <div className="space-y-3">
-      {entries.map(([key, value]) => (
-        <KeyValueCard key={key} dataKey={key} value={value} />
-      ))}
-    </div>
+    <TooltipProvider>
+      <div className="space-y-3">
+        {entries.map(([key, value]) => (
+          <KeyValueCard key={key} dataKey={key} value={value} />
+        ))}
+      </div>
+    </TooltipProvider>
   );
 }
