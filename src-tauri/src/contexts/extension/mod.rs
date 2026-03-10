@@ -45,6 +45,7 @@ use sqlx::SqlitePool;
 use std::sync::Arc;
 
 use crate::contexts::analysis::{NewIssue, Page};
+use crate::repository::ExtensionRepositoryTrait;
 
 /// Central registry for all extensions.
 pub struct ExtensionRegistry {
@@ -111,7 +112,34 @@ impl ExtensionRegistry {
 	}
 
 	pub fn register_builtin_extensions(&self) {
-		builtins::register_builtins(&self.pipeline);
+		builtins::register_builtins(self);
+	}
+
+	pub async fn reload_from_repository(
+		&self,
+		repository: &dyn ExtensionRepositoryTrait,
+	) -> Result<()> {
+		self.pipeline.clear();
+		self.configs.clear();
+		self.register_builtin_extensions();
+
+		for rule in ExtensionLoader::load_issue_rules_from_repository(repository).await? {
+			self.register_validator(rule);
+		}
+
+		for extractor in ExtensionLoader::load_custom_extractors_from_repository(repository).await? {
+			self.register_extractor(extractor);
+		}
+
+		let (extractors, validators, exporters) = self.pipeline.counts();
+		tracing::info!(
+			"Extension registry reloaded: {} extractors, {} validators, {} exporters",
+			extractors,
+			validators,
+			exporters
+		);
+
+		Ok(())
 	}
 
 	pub fn register_validator(&self, validator: Arc<dyn IssueGenerator>) {

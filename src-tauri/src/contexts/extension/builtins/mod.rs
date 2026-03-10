@@ -13,28 +13,28 @@ pub use exporters::*;
 
 use std::sync::Arc;
 
-use super::pipeline::ExtensionPipeline;
+use super::ExtensionRegistry;
 
 /// Register all built-in extensions with the pipeline.
-pub fn register_builtins(pipeline: &ExtensionPipeline) {
+pub fn register_builtins(registry: &ExtensionRegistry) {
     // Register issue generators (rules)
-    pipeline.register_validator(Arc::new(rules::TitlePresenceRule::new()));
-    pipeline.register_validator(Arc::new(rules::TitleLengthRule::new()));
-    pipeline.register_validator(Arc::new(rules::MetaDescriptionPresenceRule::new()));
-    pipeline.register_validator(Arc::new(rules::MetaDescriptionLengthRule::new()));
-    pipeline.register_validator(Arc::new(rules::HttpStatusCodeRule::new()));
-    pipeline.register_validator(Arc::new(rules::WordCountRule::new()));
-    pipeline.register_validator(Arc::new(rules::LoadTimeRule::new()));
+    registry.register_validator(Arc::new(rules::TitlePresenceRule::new()));
+    registry.register_validator(Arc::new(rules::TitleLengthRule::new()));
+    registry.register_validator(Arc::new(rules::MetaDescriptionPresenceRule::new()));
+    registry.register_validator(Arc::new(rules::MetaDescriptionLengthRule::new()));
+    registry.register_validator(Arc::new(rules::HttpStatusCodeRule::new()));
+    registry.register_validator(Arc::new(rules::WordCountRule::new()));
+    registry.register_validator(Arc::new(rules::LoadTimeRule::new()));
     
     // Register data extractors
-    pipeline.register_extractor(Arc::new(extractors::OpenGraphExtractor::new()));
-    pipeline.register_extractor(Arc::new(extractors::TwitterCardExtractor::new()));
-    pipeline.register_extractor(Arc::new(extractors::StructuredDataExtractor::new()));
-    pipeline.register_extractor(Arc::new(extractors::HrefTagsExtractor::new()));
-    pipeline.register_extractor(Arc::new(extractors::KeywordsExtractor::new()));
+    registry.register_extractor(Arc::new(extractors::OpenGraphExtractor::new()));
+    registry.register_extractor(Arc::new(extractors::TwitterCardExtractor::new()));
+    registry.register_extractor(Arc::new(extractors::StructuredDataExtractor::new()));
+    registry.register_extractor(Arc::new(extractors::HrefTagsExtractor::new()));
+    registry.register_extractor(Arc::new(extractors::KeywordsExtractor::new()));
     
     // Register data exporters
-    pipeline.register_exporter(Arc::new(exporters::JsonExporter::new()));
+    registry.register_exporter(Arc::new(exporters::JsonExporter::new()));
     
     tracing::info!("Registered built-in extensions");
 }

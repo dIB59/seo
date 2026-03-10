@@ -60,7 +60,17 @@ pub trait ExtensionRepositoryTrait: Send + Sync {
     async fn get_all_rules(&self) -> Result<Vec<IssueRuleInfo>>;
     async fn get_rule_by_id(&self, id: &str) -> Result<IssueRuleInfo>;
     async fn insert_rule(&self, rule: &IssueRuleInfo) -> Result<()>;
-    async fn update_rule(&self, id: &str, name: Option<&str>, severity: Option<&str>, is_enabled: Option<bool>, recommendation: Option<&str>) -> Result<()>;
+    async fn update_rule(
+        &self,
+        id: &str,
+        name: Option<&str>,
+        severity: Option<&str>,
+        threshold_min: Option<f64>,
+        threshold_max: Option<f64>,
+        regex_pattern: Option<&str>,
+        is_enabled: Option<bool>,
+        recommendation: Option<&str>,
+    ) -> Result<()>;
     async fn delete_rule(&self, id: &str) -> Result<()>;
     async fn set_rule_enabled(&self, id: &str, enabled: bool) -> Result<()>;
     async fn count_custom_rules(&self) -> Result<usize>;

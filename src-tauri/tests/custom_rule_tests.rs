@@ -11,6 +11,7 @@ use chrono::Utc;
 use sqlx::SqlitePool;
 
 // Import from the app crate
+use app::contexts::extension::ExtensionRegistry;
 use app::contexts::{analysis::Page, IssueRuleInfo};
 use app::repository::{ExtensionRepositoryTrait, sqlite_extension_repo};
 
@@ -78,6 +79,9 @@ async fn test_valid_categories() {
             severity: "warning".to_string(),
             rule_type: "presence".to_string(),
             target_field: Some("title".to_string()),
+            threshold_min: None,
+            threshold_max: None,
+            regex_pattern: None,
             recommendation: Some("Test recommendation".to_string()),
             is_builtin: false,
             is_enabled: true,
@@ -109,6 +113,9 @@ async fn test_invalid_category_handling() {
         severity: "warning".to_string(),
         rule_type: "presence".to_string(),
         target_field: Some("title".to_string()),
+        threshold_min: None,
+        threshold_max: None,
+        regex_pattern: None,
         recommendation: None,
         is_builtin: false,
         is_enabled: true,
@@ -140,6 +147,9 @@ async fn test_valid_rule_types() {
             severity: "warning".to_string(),
             rule_type: rule_type.to_string(),
             target_field: Some("title".to_string()),
+            threshold_min: None,
+            threshold_max: None,
+            regex_pattern: None,
             recommendation: None,
             is_builtin: false,
             is_enabled: true,
@@ -174,6 +184,9 @@ async fn test_create_custom_rule_with_presence_type() {
         severity: "warning".to_string(),
         rule_type: "presence".to_string(),
         target_field: Some("title".to_string()),
+        threshold_min: None,
+        threshold_max: None,
+        regex_pattern: None,
         recommendation: Some("Add a title to the page".to_string()),
         is_builtin: false,
         is_enabled: true,
@@ -207,6 +220,9 @@ async fn test_create_custom_rule_with_threshold_type() {
         severity: "critical".to_string(),
         rule_type: "threshold".to_string(),
         target_field: Some("load_time_ms".to_string()),
+        threshold_min: None,
+        threshold_max: Some(1000.0),
+        regex_pattern: None,
         recommendation: Some("Optimize page load time".to_string()),
         is_builtin: false,
         is_enabled: true,
@@ -220,6 +236,7 @@ async fn test_create_custom_rule_with_threshold_type() {
     let rule = repo.get_rule_by_id(rule_id).await.unwrap();
     assert_eq!(rule.rule_type, "threshold");
     assert_eq!(rule.target_field, Some("load_time_ms".to_string()));
+    assert_eq!(rule.threshold_max, Some(1000.0));
 }
 
 #[tokio::test]
@@ -235,6 +252,9 @@ async fn test_create_custom_rule_with_length_type() {
         severity: "info".to_string(),
         rule_type: "length".to_string(),
         target_field: Some("meta_description".to_string()),
+        threshold_min: Some(50.0),
+        threshold_max: Some(160.0),
+        regex_pattern: None,
         recommendation: Some("Expand meta description".to_string()),
         is_builtin: false,
         is_enabled: true,
@@ -248,6 +268,8 @@ async fn test_create_custom_rule_with_length_type() {
     let rule = repo.get_rule_by_id(rule_id).await.unwrap();
     assert_eq!(rule.rule_type, "length");
     assert_eq!(rule.target_field, Some("meta_description".to_string()));
+    assert_eq!(rule.threshold_min, Some(50.0));
+    assert_eq!(rule.threshold_max, Some(160.0));
 }
 
 #[tokio::test]
@@ -263,6 +285,9 @@ async fn test_custom_rule_not_builtin() {
         severity: "warning".to_string(),
         rule_type: "presence".to_string(),
         target_field: Some("title".to_string()),
+        threshold_min: None,
+        threshold_max: None,
+        regex_pattern: None,
         recommendation: None,
         is_builtin: false,
         is_enabled: true,
@@ -326,8 +351,11 @@ async fn test_custom_rule_update_functionality() {
         name: "Original Name".to_string(),
         category: "seo".to_string(),
         severity: "warning".to_string(),
-        rule_type: "presence".to_string(),
+        rule_type: "regex".to_string(),
         target_field: Some("title".to_string()),
+        threshold_min: None,
+        threshold_max: None,
+        regex_pattern: Some("^Original".to_string()),
         recommendation: None,
         is_builtin: false,
         is_enabled: true,
@@ -341,6 +369,9 @@ async fn test_custom_rule_update_functionality() {
             rule_id,
             Some("Updated Name"),
             Some("critical"),
+            None,
+            None,
+            Some("^Updated"),
             Some(true),
             Some("Updated recommendation"),
         )
@@ -352,6 +383,7 @@ async fn test_custom_rule_update_functionality() {
     let updated_rule = repo.get_rule_by_id(rule_id).await.unwrap();
     assert_eq!(updated_rule.name, "Updated Name");
     assert_eq!(updated_rule.severity, "critical");
+    assert_eq!(updated_rule.regex_pattern, Some("^Updated".to_string()));
     assert_eq!(updated_rule.recommendation, Some("Updated recommendation".to_string()));
 }
 
@@ -369,6 +401,9 @@ async fn test_custom_rule_enable_disable() {
         severity: "warning".to_string(),
         rule_type: "presence".to_string(),
         target_field: Some("title".to_string()),
+        threshold_min: None,
+        threshold_max: None,
+        regex_pattern: None,
         recommendation: None,
         is_builtin: false,
         is_enabled: true,
@@ -418,6 +453,9 @@ async fn test_count_custom_rules() {
             severity: "warning".to_string(),
             rule_type: "presence".to_string(),
             target_field: Some("title".to_string()),
+            threshold_min: None,
+            threshold_max: None,
+            regex_pattern: None,
             recommendation: None,
             is_builtin: false,
             is_enabled: true,
@@ -462,6 +500,9 @@ async fn test_get_all_rules() {
             severity: "warning".to_string(),
             rule_type: "presence".to_string(),
             target_field: Some("title".to_string()),
+            threshold_min: None,
+            threshold_max: None,
+            regex_pattern: None,
             recommendation: None,
             is_builtin: false,
             is_enabled: true,
@@ -489,6 +530,74 @@ async fn test_get_rule_by_id_not_found() {
     
     // Should fail
     assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_create_custom_rule_with_regex_type() {
+    let pool = setup_test_db().await;
+    let repo: Arc<dyn ExtensionRepositoryTrait> = sqlite_extension_repo(pool);
+
+    let rule_id = "custom-test-regex";
+    let new_rule = IssueRuleInfo {
+        id: rule_id.to_string(),
+        name: "Custom Regex Rule".to_string(),
+        category: "seo".to_string(),
+        severity: "warning".to_string(),
+        rule_type: "regex".to_string(),
+        target_field: Some("title".to_string()),
+        threshold_min: None,
+        threshold_max: None,
+        regex_pattern: Some("^Product".to_string()),
+        recommendation: Some("Start titles with Product".to_string()),
+        is_builtin: false,
+        is_enabled: true,
+    };
+
+    repo.insert_rule(&new_rule).await.unwrap();
+
+    let rule = repo.get_rule_by_id(rule_id).await.unwrap();
+    assert_eq!(rule.regex_pattern, Some("^Product".to_string()));
+}
+
+#[tokio::test]
+async fn test_reload_registry_applies_custom_rules() {
+    let pool = setup_test_db().await;
+    let repo: Arc<dyn ExtensionRepositoryTrait> = sqlite_extension_repo(pool);
+
+    let rule_id = "runtime-custom-rule";
+    let new_rule = IssueRuleInfo {
+        id: rule_id.to_string(),
+        name: "Runtime Custom Title Rule".to_string(),
+        category: "seo".to_string(),
+        severity: "warning".to_string(),
+        rule_type: "presence".to_string(),
+        target_field: Some("title".to_string()),
+        threshold_min: None,
+        threshold_max: None,
+        regex_pattern: None,
+        recommendation: Some("Add a title".to_string()),
+        is_builtin: false,
+        is_enabled: true,
+    };
+
+    repo.insert_rule(&new_rule).await.unwrap();
+
+    let registry = ExtensionRegistry::new();
+    registry.reload_from_repository(repo.as_ref()).await.unwrap();
+
+    let mut page = make_test_page();
+    page.title = None;
+
+    let (_, issues) = registry.extract_and_validate(&page, "<html></html>").await;
+
+    assert!(issues.iter().any(|issue| issue.issue_type == "Runtime Custom Title Rule"));
+
+    repo.set_rule_enabled(rule_id, false).await.unwrap();
+    registry.reload_from_repository(repo.as_ref()).await.unwrap();
+
+    let (_, issues) = registry.extract_and_validate(&page, "<html></html>").await;
+
+    assert!(!issues.iter().any(|issue| issue.issue_type == "Runtime Custom Title Rule"));
 }
 
 // ============================================================================

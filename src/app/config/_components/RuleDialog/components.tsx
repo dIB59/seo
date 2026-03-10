@@ -3,7 +3,12 @@
 import type { LucideIcon } from "lucide-react";
 import { Check, ArrowRight } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
-import { CATEGORY_CONFIG, type RuleTemplate, type CategoryConfig } from "./rule-config";
+import {
+  CATEGORY_CONFIG,
+  RULE_TYPE_CONFIG,
+  type RuleTemplate,
+  type CategoryConfig,
+} from "./rule-config";
 
 // ============================================================================
 // Step Component

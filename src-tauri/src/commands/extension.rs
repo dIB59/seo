@@ -14,6 +14,31 @@ use crate::error::CommandError;
 use crate::lifecycle::app_state::AppState;
 use crate::repository::ExtractorConfigInfo;
 
+fn map_rule_info(rule: crate::contexts::IssueRuleInfo) -> IssueGeneratorInfo {
+    IssueGeneratorInfo {
+        id: rule.id,
+        name: rule.name,
+        category: rule.category,
+        severity: rule.severity,
+        rule_type: Some(rule.rule_type),
+        target_field: rule.target_field,
+        threshold_min: rule.threshold_min,
+        threshold_max: rule.threshold_max,
+        regex_pattern: rule.regex_pattern,
+        recommendation: rule.recommendation,
+        is_builtin: rule.is_builtin,
+        is_enabled: rule.is_enabled,
+    }
+}
+
+async fn reload_runtime_extensions(app_state: &AppState) -> Result<(), CommandError> {
+    app_state
+        .extension_registry
+        .reload_from_repository(app_state.extension_repository.as_ref())
+        .await
+        .map_err(|e| CommandError::from(anyhow::anyhow!("Failed to reload extensions: {}", e)))
+}
+
 // ============================================================================
 // Response Types
 // ============================================================================
@@ -324,20 +349,7 @@ pub async fn get_all_issue_generators(
     
     let generators: Vec<IssueGeneratorInfo> = rules
         .into_iter()
-        .map(|rule| IssueGeneratorInfo {
-            id: rule.id,
-            name: rule.name,
-            category: rule.category,
-            severity: rule.severity,
-            rule_type: Some(rule.rule_type),
-            target_field: rule.target_field,
-            threshold_min: None,
-            threshold_max: None,
-            regex_pattern: None,
-            recommendation: rule.recommendation,
-            is_builtin: rule.is_builtin,
-            is_enabled: rule.is_enabled,
-        })
+        .map(map_rule_info)
         .collect();
     
     Ok(generators)
@@ -623,6 +635,9 @@ pub async fn create_custom_rule(
         severity: request.severity.clone(),
         rule_type: request.rule_type.clone(),
         target_field: Some(request.target_field.clone()),
+        threshold_min: request.threshold_min,
+        threshold_max: request.threshold_max,
+        regex_pattern: request.regex_pattern.clone(),
         recommendation: request.recommendation.clone(),
         is_builtin: false,
         is_enabled: true,
@@ -630,21 +645,13 @@ pub async fn create_custom_rule(
     
     repo.insert_rule(&new_rule).await
         .map_err(|e| CommandError::from(anyhow::anyhow!("Failed to create custom rule: {}", e)))?;
-    
-    Ok(IssueGeneratorInfo {
-        id,
-        name: request.name,
-        category: request.category,
-        severity: request.severity,
-        rule_type: Some(request.rule_type),
-        target_field: Some(request.target_field),
-        threshold_min: request.threshold_min,
-        threshold_max: request.threshold_max,
-        regex_pattern: request.regex_pattern,
-        recommendation: request.recommendation,
-        is_builtin: false,
-        is_enabled: true,
-    })
+
+    reload_runtime_extensions(&app_state).await?;
+
+    let rule = repo.get_rule_by_id(&id).await
+        .map_err(|e| CommandError::from(anyhow::anyhow!("Failed to fetch created rule: {}", e)))?;
+
+    Ok(map_rule_info(rule))
 }
 
 /// Update an existing custom rule
@@ -669,29 +676,21 @@ pub async fn update_custom_rule(
         &request.id,
         request.name.as_deref(),
         request.severity.as_deref(),
+        request.threshold_min,
+        request.threshold_max,
+        request.regex_pattern.as_deref(),
         request.is_enabled,
         request.recommendation.as_deref(),
     ).await
         .map_err(|e| CommandError::from(anyhow::anyhow!("Failed to update rule: {}", e)))?;
+
+    reload_runtime_extensions(&app_state).await?;
     
     // Fetch the updated rule
     let rule = repo.get_rule_by_id(&request.id).await
         .map_err(|e| CommandError::from(anyhow::anyhow!("Failed to fetch updated rule: {}", e)))?;
     
-    Ok(IssueGeneratorInfo {
-        id: rule.id,
-        name: rule.name,
-        category: rule.category,
-        severity: rule.severity,
-        rule_type: Some(rule.rule_type),
-        target_field: rule.target_field,
-        threshold_min: None,
-        threshold_max: None,
-        regex_pattern: None,
-        recommendation: rule.recommendation,
-        is_builtin: rule.is_builtin,
-        is_enabled: rule.is_enabled,
-    })
+    Ok(map_rule_info(rule))
 }
 
 /// Delete a custom rule
@@ -713,6 +712,8 @@ pub async fn delete_custom_rule(
     
     repo.delete_rule(&rule_id).await
         .map_err(|e| CommandError::from(anyhow::anyhow!("Failed to delete rule: {}", e)))?;
+
+    reload_runtime_extensions(&app_state).await?;
     
     Ok(())
 }
@@ -729,24 +730,13 @@ pub async fn toggle_rule_enabled(
     
     repo.set_rule_enabled(&rule_id, enabled).await
         .map_err(|e| CommandError::from(anyhow::anyhow!("Failed to toggle rule: {}", e)))?;
+
+    reload_runtime_extensions(&app_state).await?;
     
     let rule = repo.get_rule_by_id(&rule_id).await
         .map_err(|e| CommandError::from(anyhow::anyhow!("Failed to fetch rule: {}", e)))?;
-    
-    Ok(IssueGeneratorInfo {
-        id: rule.id,
-        name: rule.name,
-        category: rule.category,
-        severity: rule.severity,
-        rule_type: Some(rule.rule_type),
-        target_field: rule.target_field,
-        threshold_min: None,
-        threshold_max: None,
-        regex_pattern: None,
-        recommendation: rule.recommendation,
-        is_builtin: rule.is_builtin,
-        is_enabled: rule.is_enabled,
-    })
+
+    Ok(map_rule_info(rule))
 }
 
 /// Reload extensions from database
@@ -755,8 +745,7 @@ pub async fn toggle_rule_enabled(
 pub async fn reload_extensions(
     app_state: State<'_, AppState>,
 ) -> Result<ExtensionSummary, CommandError> {
-    // This would require mutable access to the registry
-    // For now, just return the current summary
+    reload_runtime_extensions(&app_state).await?;
     get_extension_summary(app_state).await
 }
 

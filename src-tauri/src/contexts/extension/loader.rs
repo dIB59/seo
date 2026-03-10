@@ -15,6 +15,8 @@ use serde_json::Value;
 use super::traits::{DataExtractor, ExtensionConfig, IssueGenerator};
 use super::capabilities::ExtensionCapability;
 use crate::contexts::analysis::{IssueSeverity, NewIssue, Page};
+use crate::contexts::IssueRuleInfo;
+use crate::repository::{ExtensionRepositoryTrait, ExtractorConfigInfo};
 
 /// Loader for extensions from the database
 pub struct ExtensionLoader<'a> {
@@ -45,6 +47,31 @@ impl<'a> ExtensionLoader<'a> {
         }
 
         Ok(rules)
+    }
+
+    pub async fn load_issue_rules_from_repository(
+        repository: &dyn ExtensionRepositoryTrait,
+    ) -> Result<Vec<Arc<dyn IssueGenerator>>> {
+        let rules = repository
+            .get_all_rules()
+            .await
+            .context("Failed to fetch custom audit rules")?;
+
+        let mut generators = Vec::new();
+
+        for rule in rules
+            .into_iter()
+            .filter(|rule| !rule.is_builtin && rule.is_enabled)
+        {
+            match Self::parse_custom_rule_info(rule) {
+                Ok(generator) => generators.push(generator),
+                Err(error) => {
+                    tracing::warn!("Failed to parse custom rule: {}", error);
+                }
+            }
+        }
+
+        Ok(generators)
     }
 
     /// Load custom rules from the database
@@ -104,15 +131,48 @@ impl<'a> ExtensionLoader<'a> {
         let target_field: String = row.try_get("target_field")?;
         let recommendation: Option<String> = row.try_get("recommendation")?;
         let severity_str: String = row.try_get("severity")?;
+        let threshold_value: Option<String> = row.try_get("threshold_value")?;
+        let regex_pattern: Option<String> = row.try_get("regex_pattern")?;
+        let (threshold_min, threshold_max) = parse_threshold(&threshold_value);
 
-        let severity = match severity_str.as_str() {
+        Self::parse_custom_rule_info(IssueRuleInfo {
+            id,
+            name,
+            category: row.try_get("category")?,
+            severity: severity_str,
+            rule_type,
+            target_field: Some(target_field),
+            threshold_min,
+            threshold_max,
+            regex_pattern,
+            recommendation,
+            is_builtin: row.try_get::<i64, _>("is_builtin")? == 1,
+            is_enabled: row.try_get::<i64, _>("is_enabled")? == 1,
+        })
+    }
+
+    fn parse_custom_rule_info(rule: IssueRuleInfo) -> Result<Arc<dyn IssueGenerator>> {
+        let IssueRuleInfo {
+            id,
+            name,
+            severity,
+            rule_type,
+            target_field,
+            threshold_min,
+            threshold_max,
+            regex_pattern,
+            recommendation,
+            ..
+        } = rule;
+
+        let target_field = target_field.unwrap_or_default();
+        let severity = match severity.as_str() {
             "critical" => IssueSeverity::Critical,
             "warning" => IssueSeverity::Warning,
             _ => IssueSeverity::Info,
         };
 
-        // Create a dynamic rule based on type
-        let rule: Arc<dyn IssueGenerator> = match rule_type.as_str() {
+        let generator: Arc<dyn IssueGenerator> = match rule_type.as_str() {
             "presence" => Arc::new(DynamicPresenceRule {
                 config: ExtensionConfig::new(&id, &name)
                     .with_capabilities(vec![ExtensionCapability::IssueGeneration])
@@ -121,55 +181,39 @@ impl<'a> ExtensionLoader<'a> {
                 severity,
                 recommendation,
             }),
-            "threshold" => {
-                let threshold_value: Option<String> = row.try_get("threshold_value")?;
-                let (min, max) = parse_threshold(&threshold_value);
-                
-                Arc::new(DynamicThresholdRule {
-                    config: ExtensionConfig::new(&id, &name)
-                        .with_capabilities(vec![ExtensionCapability::IssueGeneration])
-                        .with_description(recommendation.clone().unwrap_or_default()),
-                    target_field,
-                    min,
-                    max,
-                    severity,
-                    recommendation,
-                })
-            }
-            "regex" => {
-                let regex_pattern: Option<String> = row.try_get("regex_pattern")?;
-
-                Arc::new(DynamicRegexRule {
-                    config: ExtensionConfig::new(&id, &name)
-                        .with_capabilities(vec![ExtensionCapability::IssueGeneration])
-                        .with_description(recommendation.clone().unwrap_or_default()),
-                    target_field,
-                    pattern: regex_pattern,
-                    severity,
-                    recommendation,
-                })
-            }
-            "length" => {
-                let threshold_value: Option<String> = row.try_get("threshold_value")?;
-                let (min, max) = parse_threshold(&threshold_value);
-                
-                Arc::new(DynamicLengthRule {
-                    config: ExtensionConfig::new(&id, &name)
-                        .with_capabilities(vec![ExtensionCapability::IssueGeneration])
-                        .with_description(recommendation.clone().unwrap_or_default()),
-                    target_field,
-                    min: min.map(|n| n as usize),
-                    max: max.map(|n| n as usize),
-                    severity,
-                    recommendation,
-                })
-            }
-            _ => {
-                anyhow::bail!("Unknown rule type: {}", rule_type);
-            }
+            "threshold" => Arc::new(DynamicThresholdRule {
+                config: ExtensionConfig::new(&id, &name)
+                    .with_capabilities(vec![ExtensionCapability::IssueGeneration])
+                    .with_description(recommendation.clone().unwrap_or_default()),
+                target_field,
+                min: threshold_min,
+                max: threshold_max,
+                severity,
+                recommendation,
+            }),
+            "regex" => Arc::new(DynamicRegexRule {
+                config: ExtensionConfig::new(&id, &name)
+                    .with_capabilities(vec![ExtensionCapability::IssueGeneration])
+                    .with_description(recommendation.clone().unwrap_or_default()),
+                target_field,
+                pattern: regex_pattern,
+                severity,
+                recommendation,
+            }),
+            "length" => Arc::new(DynamicLengthRule {
+                config: ExtensionConfig::new(&id, &name)
+                    .with_capabilities(vec![ExtensionCapability::IssueGeneration])
+                    .with_description(recommendation.clone().unwrap_or_default()),
+                target_field,
+                min: threshold_min.map(|value| value as usize),
+                max: threshold_max.map(|value| value as usize),
+                severity,
+                recommendation,
+            }),
+            _ => anyhow::bail!("Unknown rule type: {}", rule_type),
         };
 
-        Ok(rule)
+        Ok(generator)
     }
 
     /// Load custom data extractors from the database
@@ -214,6 +258,31 @@ impl<'a> ExtensionLoader<'a> {
         Ok(extractors)
     }
 
+    pub async fn load_custom_extractors_from_repository(
+        repository: &dyn ExtensionRepositoryTrait,
+    ) -> Result<Vec<Arc<dyn DataExtractor>>> {
+        let extractors = repository
+            .get_all_extractors()
+            .await
+            .context("Failed to fetch custom extractors")?;
+
+        let mut loaded = Vec::new();
+
+        for extractor in extractors
+            .into_iter()
+            .filter(|extractor| !extractor.is_builtin && extractor.is_enabled)
+        {
+            match Self::parse_custom_extractor_info(extractor) {
+                Ok(loaded_extractor) => loaded.push(loaded_extractor),
+                Err(error) => {
+                    tracing::warn!("Failed to parse custom extractor: {}", error);
+                }
+            }
+        }
+
+        Ok(loaded)
+    }
+
     /// Parse a database row into a custom extractor
     fn parse_custom_extractor(
         &self,
@@ -221,35 +290,54 @@ impl<'a> ExtensionLoader<'a> {
     ) -> Result<Arc<dyn DataExtractor>> {
         use sqlx::Row;
 
-        let id: String = row.try_get("id")?;
-        let name: String = row.try_get("name")?;
-        let display_name: String = row.try_get("display_name")?;
-        let description: Option<String> = row.try_get("description")?;
-        let extractor_type: String = row.try_get("extractor_type")?;
-        let selector: String = row.try_get("selector")?;
-        let attribute: Option<String> = row.try_get("attribute")?;
-        let post_process: Option<String> = row.try_get("post_process")?;
+        Self::parse_custom_extractor_info(ExtractorConfigInfo {
+            id: row.try_get("id")?,
+            name: row.try_get("name")?,
+            display_name: row.try_get("display_name")?,
+            description: row.try_get("description")?,
+            extractor_type: row.try_get("extractor_type")?,
+            selector: row.try_get("selector")?,
+            attribute: row.try_get("attribute")?,
+            storage_type: "json".to_string(),
+            target_column: None,
+            target_table: None,
+            post_process: row.try_get("post_process")?,
+            is_builtin: row.try_get::<i64, _>("is_builtin")? == 1,
+            is_enabled: row.try_get::<i64, _>("is_enabled")? == 1,
+        })
+    }
+
+    fn parse_custom_extractor_info(
+        extractor: ExtractorConfigInfo,
+    ) -> Result<Arc<dyn DataExtractor>> {
+        let ExtractorConfigInfo {
+            id,
+            name,
+            display_name,
+            description,
+            extractor_type,
+            selector,
+            attribute,
+            post_process,
+            ..
+        } = extractor;
 
         let category_id = post_process
             .as_deref()
             .and_then(parse_extractor_category_id);
 
         match extractor_type.as_str() {
-            "css_selector" | "css" => {
-                Ok(Arc::new(DynamicCssExtractor {
-                    config: ExtensionConfig::new(&id, &display_name)
-                        .with_capabilities(vec![ExtensionCapability::DataExtraction])
-                        .with_description(description.unwrap_or_default()),
-                    selector,
-                    attribute,
-                    output_key: name,
-                    category_id,
-                    multiple: false,
-                }))
-            }
-            _ => {
-                anyhow::bail!("Unknown extractor type: {}", extractor_type);
-            }
+            "css_selector" | "css" => Ok(Arc::new(DynamicCssExtractor {
+                config: ExtensionConfig::new(&id, &display_name)
+                    .with_capabilities(vec![ExtensionCapability::DataExtraction])
+                    .with_description(description.unwrap_or_default()),
+                selector,
+                attribute,
+                output_key: name,
+                category_id,
+                multiple: false,
+            })),
+            _ => anyhow::bail!("Unknown extractor type: {}", extractor_type),
         }
     }
 }

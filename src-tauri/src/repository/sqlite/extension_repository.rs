@@ -7,6 +7,35 @@ use specta::Type;
 
 use crate::{contexts::IssueRuleInfo, repository::ExtensionRepositoryTrait};
 
+fn serialize_threshold(min: Option<f64>, max: Option<f64>) -> Option<String> {
+    if min.is_none() && max.is_none() {
+        return None;
+    }
+
+    Some(
+        serde_json::json!({
+            "min": min,
+            "max": max,
+        })
+        .to_string(),
+    )
+}
+
+fn parse_threshold(threshold_json: Option<&str>) -> (Option<f64>, Option<f64>) {
+    match threshold_json {
+        Some(json) => {
+            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(json) {
+                let min = parsed.get("min").and_then(|v| v.as_f64());
+                let max = parsed.get("max").and_then(|v| v.as_f64());
+                (min, max)
+            } else {
+                (None, None)
+            }
+        }
+        None => (None, None),
+    }
+}
+
 /// Information about an extractor config from the database
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct ExtractorConfigInfo {
@@ -51,8 +80,8 @@ impl ExtensionRepository {
 
         let rows = sqlx::query(
             r#"
-            SELECT id, name, category, severity, rule_type, target_field,
-                   recommendation, is_builtin, is_enabled
+             SELECT id, name, category, severity, rule_type, target_field,
+                 threshold_value, regex_pattern, recommendation, is_builtin, is_enabled
             FROM audit_rules
             ORDER BY name
             "#,
@@ -63,16 +92,24 @@ impl ExtensionRepository {
 
         let rules = rows
             .iter()
-            .map(|row| IssueRuleInfo {
-                id: row.try_get("id").unwrap_or_default(),
-                name: row.try_get("name").unwrap_or_default(),
-                category: row.try_get("category").unwrap_or_else(|_| "seo".to_string()),
-                severity: row.try_get("severity").unwrap_or_else(|_| "warning".to_string()),
-                rule_type: row.try_get("rule_type").unwrap_or_else(|_| "presence".to_string()),
-                target_field: row.try_get("target_field").ok(),
-                recommendation: row.try_get("recommendation").ok(),
-                is_builtin: row.try_get::<i64, _>("is_builtin").unwrap_or(0) == 1,
-                is_enabled: row.try_get::<i64, _>("is_enabled").unwrap_or(1) == 1,
+            .map(|row| {
+                let threshold_value = row.try_get::<Option<String>, _>("threshold_value").ok().flatten();
+                let (threshold_min, threshold_max) = parse_threshold(threshold_value.as_deref());
+
+                IssueRuleInfo {
+                    id: row.try_get("id").unwrap_or_default(),
+                    name: row.try_get("name").unwrap_or_default(),
+                    category: row.try_get("category").unwrap_or_else(|_| "seo".to_string()),
+                    severity: row.try_get("severity").unwrap_or_else(|_| "warning".to_string()),
+                    rule_type: row.try_get("rule_type").unwrap_or_else(|_| "presence".to_string()),
+                    target_field: row.try_get("target_field").ok(),
+                    threshold_min,
+                    threshold_max,
+                    regex_pattern: row.try_get("regex_pattern").ok().flatten(),
+                    recommendation: row.try_get("recommendation").ok(),
+                    is_builtin: row.try_get::<i64, _>("is_builtin").unwrap_or(0) == 1,
+                    is_enabled: row.try_get::<i64, _>("is_enabled").unwrap_or(1) == 1,
+                }
             })
             .collect();
 
@@ -82,8 +119,8 @@ impl ExtensionRepository {
     pub async fn get_rule_by_id(&self, id: &str) -> Result<IssueRuleInfo> {
         let row = sqlx::query(
             r#"
-            SELECT id, name, category, severity, rule_type, target_field,
-                   recommendation, is_builtin, is_enabled
+             SELECT id, name, category, severity, rule_type, target_field,
+                 threshold_value, regex_pattern, recommendation, is_builtin, is_enabled
             FROM audit_rules
             WHERE id = ?
             "#,
@@ -93,6 +130,9 @@ impl ExtensionRepository {
         .await
         .context("Rule not found")?;
 
+        let threshold_value: Option<String> = row.try_get("threshold_value")?;
+        let (threshold_min, threshold_max) = parse_threshold(threshold_value.as_deref());
+
         Ok(IssueRuleInfo {
             id: row.try_get("id")?,
             name: row.try_get("name")?,
@@ -100,6 +140,9 @@ impl ExtensionRepository {
             severity: row.try_get("severity")?,
             rule_type: row.try_get("rule_type")?,
             target_field: row.try_get("target_field")?,
+            threshold_min,
+            threshold_max,
+            regex_pattern: row.try_get("regex_pattern")?,
             recommendation: row.try_get("recommendation")?,
             is_builtin: row.try_get::<i64, _>("is_builtin")? == 1,
             is_enabled: row.try_get::<i64, _>("is_enabled")? == 1,
@@ -149,6 +192,9 @@ impl ExtensionRepository {
         id: &str,
         name: Option<&str>,
         severity: Option<&str>,
+        threshold_min: Option<f64>,
+        threshold_max: Option<f64>,
+        regex_pattern: Option<&str>,
         is_enabled: Option<bool>,
         recommendation: Option<&str>,
     ) -> Result<()> {
@@ -160,21 +206,20 @@ impl ExtensionRepository {
 
         if name.is_some() { sql_parts.push("name = ?".into()); }
         if severity.is_some() { sql_parts.push("severity = ?".into()); }
+        sql_parts.push("threshold_value = ?".into());
+        sql_parts.push("regex_pattern = ?".into());
         if is_enabled.is_some() { sql_parts.push("is_enabled = ?".into()); }
         if recommendation.is_some() { sql_parts.push("recommendation = ?".into()); }
-
-        if sql_parts.is_empty() {
-            anyhow::bail!("No fields to update");
-        }
 
         sql_parts.push("updated_at = datetime('now')".into());
 
         let sql = format!("UPDATE audit_rules SET {} WHERE id = ?", sql_parts.join(", "));
 
-        // Bind as strings to keep things uniform (SQLite is flexible)
         let mut query = sqlx::query(&sql);
         if let Some(v) = name { query = query.bind(v); }
         if let Some(v) = severity { query = query.bind(v); }
+        query = query.bind(serialize_threshold(threshold_min, threshold_max));
+        query = query.bind(regex_pattern);
         if let Some(v) = is_enabled { query = query.bind(if v { 1i64 } else { 0i64 }); }
         if let Some(v) = recommendation { query = query.bind(v); }
         query = query.bind(id);
@@ -511,6 +556,9 @@ impl ExtensionRepositoryTrait for ExtensionRepository {
             severity,
             rule_type,
             target_field,
+            threshold_min,
+            threshold_max,
+            regex_pattern,
             recommendation,
             is_builtin: _,
             is_enabled: _,
@@ -525,8 +573,8 @@ impl ExtensionRepositoryTrait for ExtensionRepository {
             severity,
             rule_type,
             target_field_str,
-            None, // threshold_value not used for now
-            None, // regex_pattern not used for now
+            serialize_threshold(*threshold_min, *threshold_max).as_deref(),
+            regex_pattern.as_deref(),
             recommendation.as_deref(),
         )
         .await
@@ -537,11 +585,22 @@ impl ExtensionRepositoryTrait for ExtensionRepository {
         id: &str,
         name: Option<&str>,
         severity: Option<&str>,
+        threshold_min: Option<f64>,
+        threshold_max: Option<f64>,
+        regex_pattern: Option<&str>,
         is_enabled: Option<bool>,
         recommendation: Option<&str>,
     ) -> Result<()> {
         ExtensionRepository::update_rule(
-            self, id, name, severity, is_enabled, recommendation,
+            self,
+            id,
+            name,
+            severity,
+            threshold_min,
+            threshold_max,
+            regex_pattern,
+            is_enabled,
+            recommendation,
         )
         .await
     }
