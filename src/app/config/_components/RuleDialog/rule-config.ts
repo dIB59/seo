@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { Settings2, Eye, Gauge, Hash } from "lucide-react";
-import type { ExtensionCategory, RuleSeverity, RuleType } from "@/src/api/extensions";
+import type { ExtensionCategory, RuleSeverity, RuleType } from "@/src/lib/types/extension";
 
 export interface RuleTemplate {
   id: string;

@@ -1,4 +1,4 @@
-import type { Policy } from "@/src/lib/types";
+import type { Policy } from "@/src/api/licensing";
 import { FeatureBadges } from "./FeatureBadges";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/src/components/ui/tooltip";
 import { Info } from "lucide-react";

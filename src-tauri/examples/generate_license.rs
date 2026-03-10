@@ -1,4 +1,4 @@
-use app::contexts::{LicenseData, LicenseTier, SignedLicense, TierVersion};
+use app::contexts::licensing::{LicenseData, LicenseTier, SignedLicense, TierVersion};
 use ed25519_dalek::{Signer, SigningKey};
 use std::io::{self, Write};
 

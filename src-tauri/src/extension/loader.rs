@@ -14,7 +14,7 @@ use serde_json::Value;
 
 use super::traits::{DataExtractor, ExtensionConfig, IssueGenerator};
 use super::capabilities::ExtensionCapability;
-use crate::contexts::IssueSeverity;
+use crate::contexts::analysis::{IssueSeverity, NewIssue, Page};
 
 /// Loader for extensions from the database
 pub struct ExtensionLoader<'a> {
@@ -277,7 +277,6 @@ fn parse_threshold(threshold_json: &Option<String>) -> (Option<f64>, Option<f64>
 use crate::extension::context::ValidationContext;
 use crate::extension::result::ValidationResult;
 use crate::extension::traits::Extension;
-use crate::contexts::{NewIssue, Page};
 use std::collections::HashMap;
 
 /// Dynamic presence rule loaded from database

@@ -4,15 +4,9 @@ import { Separator } from "@/src/components/ui/separator";
 import { ScoreRing } from "../atoms/ScoreRing";
 import { IssueBadge } from "../atoms/IssueBadge";
 import { getScoreColor, getScoreLabel } from "@/src/lib/seo-metrics";
-import { PageAnalysisData, SeoIssue } from "@/src/lib/types";
+import type { PageAnalysisData, SeoIssue } from "@/src/api/analysis";
 
-export function ScoreCard({
-  pages,
-  issues,
-}: {
-  pages: PageAnalysisData[];
-  issues: SeoIssue[];
-}) {
+export function ScoreCard({ pages, issues }: { pages: PageAnalysisData[]; issues: SeoIssue[] }) {
   const criticalCount = issues.filter((i) => i.severity === "critical").length;
   const warningCount = issues.filter((i) => i.severity === "warning").length;
   const suggestionCount = issues.filter((i) => i.severity === "info").length;

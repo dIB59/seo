@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 
 use super::map_link_type;
-use crate::contexts::{Link, NewLink};
+use crate::contexts::analysis::{Link, NewLink};
 
 #[derive(Debug, Clone, Default)]
 pub struct LinkCounts {
@@ -259,23 +259,23 @@ use async_trait::async_trait;
 
 #[async_trait]
 impl LinkRepositoryTrait for LinkRepository {
-    async fn insert_batch(&self, links: &[crate::contexts::NewLink]) -> Result<()> {
+    async fn insert_batch(&self, links: &[NewLink]) -> Result<()> {
         LinkRepository::insert_batch(self, links).await
     }
 
-    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::contexts::Link>> {
+    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<Link>> {
         LinkRepository::get_by_job_id(self, job_id).await
     }
 
-    async fn get_outgoing(&self, source_page_id: &str) -> Result<Vec<crate::contexts::Link>> {
+    async fn get_outgoing(&self, source_page_id: &str) -> Result<Vec<Link>> {
         LinkRepository::get_outgoing(self, source_page_id).await
     }
 
-    async fn get_incoming(&self, target_page_id: &str) -> Result<Vec<crate::contexts::Link>> {
+    async fn get_incoming(&self, target_page_id: &str) -> Result<Vec<Link>> {
         LinkRepository::get_incoming(self, target_page_id).await
     }
 
-    async fn get_broken(&self, job_id: &str) -> Result<Vec<crate::contexts::Link>> {
+    async fn get_broken(&self, job_id: &str) -> Result<Vec<Link>> {
         LinkRepository::get_broken(self, job_id).await
     }
 

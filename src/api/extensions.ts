@@ -21,16 +21,11 @@ import type {
   UpdateExtractorRequest as BindingsUpdateExtractorRequest,
   Result,
 } from "@/src/bindings";
+export type { ExtensionCategory, RuleSeverity, RuleType } from "@/src/lib/types/extension";
 
-// Re-export bindings types for use in components
+// Re-export the canonical binding shapes used by the frontend.
 export type ExtensionSummary = BindingsExtensionSummary;
-export type IssueRuleInfo = IssueGeneratorInfo & {
-  rule_type: string | null;
-  target_field: string | null;
-  threshold_min: number | null;
-  threshold_max: number | null;
-  regex_pattern: string | null;
-};
+export type IssueRuleInfo = IssueGeneratorInfo;
 export type DataExtractorInfo = BindingsDataExtractorInfo;
 export type AuditCheckInfo = BindingsAuditCheckInfo;
 export type CreateRuleRequest = BindingsCreateRuleRequest;
@@ -40,11 +35,6 @@ export type UpdateExtractorRequest = BindingsUpdateExtractorRequest;
 export type ExtractorConfigInfo = BindingsExtractorConfigInfo;
 export type RuleFieldInfo = BindingsRuleFieldInfo;
 export type RuleTargetMigrationResult = BindingsRuleTargetMigrationResult;
-
-// Additional type exports for compatibility
-export type RuleType = "presence" | "threshold" | "regex" | "custom";
-export type RuleSeverity = "critical" | "warning" | "info";
-export type ExtensionCategory = string;
 
 export const EXTENSION_CATEGORIES = [
   "seo",

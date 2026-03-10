@@ -11,21 +11,11 @@ import {
   Edit,
   RefreshCw,
   Search,
-  Filter,
-  ChevronDown,
   ToggleLeft,
   ToggleRight,
-  X,
-  Save,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/src/components/ui/card";
+import { Card, CardContent } from "@/src/components/ui/card";
 import { Input } from "@/src/components/ui/input";
 import { Badge } from "@/src/components/ui/badge";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -41,17 +31,9 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -62,8 +44,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/src/components/ui/alert-dialog";
-import { Label } from "@/src/components/ui/label";
-import { Textarea } from "@/src/components/ui/textarea";
 import { toast } from "sonner";
 import { RuleDialog as EnhancedRuleDialog } from "./RuleDialog";
 import { ExtractorDialogContent } from "./ExtractorDialog";
@@ -91,17 +71,11 @@ import {
   type AuditCheckInfo,
   type CreateRuleRequest,
   type UpdateRuleRequest,
-  type RuleSeverity,
-  type ExtensionCategory,
-  type RuleType,
   type CreateExtractorRequest,
   type UpdateExtractorRequest,
   type ExtractorConfigInfo,
 } from "@/src/api/extensions";
-
-// ============================================================================
-// Main Extensions Settings Component
-// ============================================================================
+import type { RuleType } from "@/src/lib/types/extension";
 
 interface SummaryCardsProps {
   summary: ExtensionSummary | null;
@@ -152,9 +126,9 @@ function formatPresetThreshold(min: number | undefined, max: number | undefined)
 function SummaryCards({ summary, isLoading }: SummaryCardsProps) {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[1, 2, 3].map((i) => (
-          <Card key={i} className="bg-card/50">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {[1, 2, 3].map((index) => (
+          <Card key={index} className="bg-card/50">
             <CardContent className="p-4">
               <Skeleton className="h-16 w-full" />
             </CardContent>
@@ -189,12 +163,12 @@ function SummaryCards({ summary, isLoading }: SummaryCardsProps) {
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
       {cards.map((card) => (
-        <Card key={card.title} className="bg-card/50 hover:bg-card/70 transition-colors">
+        <Card key={card.title} className="bg-card/50 transition-colors hover:bg-card/70">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg bg-muted ${card.color}`}>
+              <div className={`rounded-lg bg-muted p-2 ${card.color}`}>
                 <card.icon className="h-5 w-5" />
               </div>
               <div>
@@ -210,10 +184,6 @@ function SummaryCards({ summary, isLoading }: SummaryCardsProps) {
   );
 }
 
-// ============================================================================
-// Rule List Item
-// ============================================================================
-
 interface RuleListItemProps {
   rule: IssueRuleInfo;
   onToggle: (id: string, enabled: boolean) => void;
@@ -222,16 +192,15 @@ interface RuleListItemProps {
 }
 
 function RuleListItem({ rule, onToggle, onEdit, onDelete }: RuleListItemProps) {
-  const severity = rule.severity as RuleSeverity;
   const ruleType = rule.rule_type as RuleType;
 
   return (
     <div
-      className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+      className={`flex items-center justify-between rounded-lg border p-3 transition-colors ${
         rule.is_enabled ? "bg-card/50" : "bg-muted/30 opacity-60"
       }`}
     >
-      <div className="flex items-center gap-3 flex-1 min-w-0">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
         <button onClick={() => onToggle(rule.id, !rule.is_enabled)} className="flex-shrink-0">
           {rule.is_enabled ? (
             <ToggleRight className="h-5 w-5 text-green-500" />
@@ -241,14 +210,14 @@ function RuleListItem({ rule, onToggle, onEdit, onDelete }: RuleListItemProps) {
         </button>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <p className="font-medium truncate">{rule.name}</p>
+            <p className="truncate font-medium">{rule.name}</p>
             {rule.is_builtin && (
               <Badge variant="outline" className="text-xs">
                 Built-in
               </Badge>
             )}
           </div>
-          <div className="flex items-center gap-2 mt-1">
+          <div className="mt-1 flex items-center gap-2">
             <span className="text-xs font-medium capitalize text-muted-foreground">
               {rule.severity}
             </span>
@@ -279,282 +248,7 @@ function RuleListItem({ rule, onToggle, onEdit, onDelete }: RuleListItemProps) {
   );
 }
 
-// ============================================================================
-// Create/Edit Rule Dialog
-// ============================================================================
-
-interface RuleDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  rule: IssueRuleInfo | null; // null for create, existing for edit
-  onCreate: (data: CreateRuleRequest) => Promise<void>;
-  onUpdate: (data: UpdateRuleRequest) => Promise<void>;
-}
-
-function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: RuleDialogProps) {
-  const [name, setName] = useState("");
-  const [category, setCategory] = useState<ExtensionCategory>("seo");
-  const [severity, setSeverity] = useState<RuleSeverity>("warning");
-  const [ruleType, setRuleType] = useState<RuleType>("presence");
-  const [targetField, setTargetField] = useState("");
-  const [thresholdMin, setThresholdMin] = useState<string>("");
-  const [thresholdMax, setThresholdMax] = useState<string>("");
-  const [regexPattern, setRegexPattern] = useState("");
-  const [recommendation, setRecommendation] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
-
-  const isEditing = rule !== null;
-
-  // Reset form when dialog opens
-  useEffect(() => {
-    if (open) {
-      if (rule) {
-        setName(rule.name);
-        setCategory(rule.category as ExtensionCategory);
-        setSeverity(rule.severity as RuleSeverity);
-        setRuleType(rule.rule_type as RuleType);
-        setTargetField(rule.target_field || "");
-        setRecommendation(rule.recommendation || "");
-      } else {
-        setName("");
-        setCategory("seo");
-        setSeverity("warning");
-        setRuleType("presence");
-        setTargetField("");
-        setThresholdMin("");
-        setThresholdMax("");
-        setRegexPattern("");
-        setRecommendation("");
-      }
-    }
-  }, [open, rule]);
-
-  const handleSave = async () => {
-    if (!name.trim() || (!isEditing && !targetField.trim())) {
-      toast.error("Name and target field are required");
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      if (isEditing && rule) {
-        await onUpdate({
-          id: rule.id,
-          name,
-          severity,
-          threshold_min: thresholdMin ? parseFloat(thresholdMin) : null,
-          threshold_max: thresholdMax ? parseFloat(thresholdMax) : null,
-          regex_pattern: regexPattern || null,
-          recommendation: recommendation || null,
-          is_enabled: null,
-        });
-      } else {
-        await onCreate({
-          name,
-          category,
-          severity,
-          rule_type: ruleType,
-          target_field: targetField,
-          threshold_min: thresholdMin ? parseFloat(thresholdMin) : null,
-          threshold_max: thresholdMax ? parseFloat(thresholdMax) : null,
-          regex_pattern: regexPattern || null,
-          recommendation: recommendation || null,
-          selector: null,
-          attribute: null,
-          multiple: null,
-          min_count: null,
-          max_count: null,
-          min_length: null,
-          max_length: null,
-          expected_value: null,
-          negate: null,
-        });
-      }
-      onOpenChange(false);
-    } catch (error) {
-      console.error("Failed to save rule:", error);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const categories: ExtensionCategory[] = [
-    "seo",
-    "accessibility",
-    "performance",
-    "security",
-    "content",
-    "technical",
-    "ux",
-    "mobile",
-  ];
-  const severities: RuleSeverity[] = ["critical", "warning", "info"];
-  const ruleTypes: RuleType[] = ["presence", "threshold", "regex", "custom"];
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>{isEditing ? "Edit Rule" : "Create Custom Rule"}</DialogTitle>
-          <DialogDescription>
-            {isEditing
-              ? "Modify the settings for this custom rule."
-              : "Define a new custom issue rule for SEO analysis."}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid gap-2">
-            <Label htmlFor="name">Rule Name</Label>
-            <Input
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g., Missing Meta Description"
-            />
-          </div>
-
-          {!isEditing && (
-            <>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label>Category</Label>
-                  <Select
-                    value={category}
-                    onValueChange={(v) => setCategory(v as ExtensionCategory)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat} value={cat}>
-                          {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label>Rule Type</Label>
-                  <Select value={ruleType} onValueChange={(v) => setRuleType(v as RuleType)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ruleTypes.map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type.charAt(0).toUpperCase() + type.slice(1)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="targetField">Target Field</Label>
-                <Input
-                  id="targetField"
-                  value={targetField}
-                  onChange={(e) => setTargetField(e.target.value)}
-                  placeholder="e.g., meta_description"
-                />
-                <p className="text-xs text-muted-foreground">
-                  The page data field this rule will check.
-                </p>
-              </div>
-            </>
-          )}
-
-          <div className="grid gap-2">
-            <Label>Severity</Label>
-            <Select value={severity} onValueChange={(v) => setSeverity(v as RuleSeverity)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {severities.map((sev) => (
-                  <SelectItem key={sev} value={sev}>
-                    {sev.charAt(0).toUpperCase() + sev.slice(1)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {ruleType === "threshold" && (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label>Min Threshold</Label>
-                <Input
-                  type="number"
-                  value={thresholdMin}
-                  onChange={(e) => setThresholdMin(e.target.value)}
-                  placeholder="e.g., 50"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label>Max Threshold</Label>
-                <Input
-                  type="number"
-                  value={thresholdMax}
-                  onChange={(e) => setThresholdMax(e.target.value)}
-                  placeholder="e.g., 160"
-                />
-              </div>
-            </div>
-          )}
-
-          {ruleType === "regex" && (
-            <div className="grid gap-2">
-              <Label>Regex Pattern</Label>
-              <Input
-                value={regexPattern}
-                onChange={(e) => setRegexPattern(e.target.value)}
-                placeholder="e.g., ^https://"
-              />
-            </div>
-          )}
-
-          <div className="grid gap-2">
-            <Label>Recommendation</Label>
-            <Textarea
-              value={recommendation}
-              onChange={(e) => setRecommendation(e.target.value)}
-              placeholder="How to fix this issue..."
-              rows={3}
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                {isEditing ? "Update Rule" : "Create Rule"}
-              </>
-            )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ============================================================================
-// Main Extensions Settings Component
-// ============================================================================
-
 export function ExtensionsSettings() {
-  // State
   const [summary, setSummary] = useState<ExtensionSummary | null>(null);
   const [rules, setRules] = useState<IssueRuleInfo[]>([]);
   const [extractors, setExtractors] = useState<DataExtractorInfo[]>([]);
@@ -562,24 +256,20 @@ export function ExtensionsSettings() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"rules" | "extractors" | "checks">("rules");
 
-  // Filter state
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [showOnlyCustom, setShowOnlyCustom] = useState(false);
 
-  // Dialog state
   const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<IssueRuleInfo | null>(null);
   const [deletingRuleId, setDeletingRuleId] = useState<string | null>(null);
 
-  // Extractor dialog state
   const [isExtractorDialogOpen, setIsExtractorDialogOpen] = useState(false);
   const [editingExtractor, setEditingExtractor] = useState<ExtractorConfigInfo | null>(null);
   const [deletingExtractorId, setDeletingExtractorId] = useState<string | null>(null);
   const [extractorConfigs, setExtractorConfigs] = useState<ExtractorConfigInfo[]>([]);
 
-  // Load data
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -610,11 +300,12 @@ export function ExtensionsSettings() {
     loadData();
   }, [loadData]);
 
-  // Handlers
   const handleToggleRule = async (id: string, enabled: boolean) => {
     const result = await toggleRuleEnabled(id, enabled);
     if (result.isOk()) {
-      setRules((prev) => prev.map((r) => (r.id === id ? { ...r, is_enabled: enabled } : r)));
+      setRules((previous) =>
+        previous.map((rule) => (rule.id === id ? { ...rule, is_enabled: enabled } : rule)),
+      );
       toast.success(enabled ? "Rule enabled" : "Rule disabled");
     } else {
       toast.error("Failed to toggle rule");
@@ -624,7 +315,7 @@ export function ExtensionsSettings() {
   const handleCreateRule = async (data: CreateRuleRequest) => {
     const result = await createCustomRule(data);
     if (result.isOk()) {
-      setRules((prev) => [...prev, result.unwrap()]);
+      setRules((previous) => [...previous, result.unwrap()]);
       toast.success("Rule created successfully");
     } else {
       const error = result.isErr() ? result.unwrapErr() : "Failed to create rule";
@@ -636,7 +327,9 @@ export function ExtensionsSettings() {
   const handleUpdateRule = async (data: UpdateRuleRequest) => {
     const result = await updateCustomRule(data);
     if (result.isOk()) {
-      setRules((prev) => prev.map((r) => (r.id === data.id ? result.unwrap() : r)));
+      setRules((previous) =>
+        previous.map((rule) => (rule.id === data.id ? result.unwrap() : rule)),
+      );
       toast.success("Rule updated successfully");
     } else {
       const error = result.isErr() ? result.unwrapErr() : "Failed to update rule";
@@ -650,7 +343,7 @@ export function ExtensionsSettings() {
 
     const result = await deleteCustomRule(deletingRuleId);
     if (result.isOk()) {
-      setRules((prev) => prev.filter((r) => r.id !== deletingRuleId));
+      setRules((previous) => previous.filter((rule) => rule.id !== deletingRuleId));
       toast.success("Rule deleted successfully");
     } else {
       toast.error("Failed to delete rule");
@@ -658,12 +351,13 @@ export function ExtensionsSettings() {
     setDeletingRuleId(null);
   };
 
-  // Extractor handlers
   const handleToggleExtractor = async (id: string, enabled: boolean) => {
     const result = await toggleExtractorEnabled(id, enabled);
     if (result.isOk()) {
-      setExtractorConfigs((prev) =>
-        prev.map((e) => (e.id === id ? { ...e, is_enabled: enabled } : e)),
+      setExtractorConfigs((previous) =>
+        previous.map((extractor) =>
+          extractor.id === id ? { ...extractor, is_enabled: enabled } : extractor,
+        ),
       );
       toast.success(enabled ? "Extractor enabled" : "Extractor disabled");
     } else {
@@ -674,7 +368,7 @@ export function ExtensionsSettings() {
   const handleCreateExtractor = async (data: CreateExtractorRequest) => {
     const result = await createCustomExtractor(data);
     if (result.isOk()) {
-      setExtractorConfigs((prev) => [...prev, result.unwrap()]);
+      setExtractorConfigs((previous) => [...previous, result.unwrap()]);
       toast.success("Extractor created successfully");
     } else {
       const error = result.isErr() ? result.unwrapErr() : "Failed to create extractor";
@@ -686,7 +380,9 @@ export function ExtensionsSettings() {
   const handleUpdateExtractor = async (data: UpdateExtractorRequest) => {
     const result = await updateCustomExtractor(data);
     if (result.isOk()) {
-      setExtractorConfigs((prev) => prev.map((e) => (e.id === data.id ? result.unwrap() : e)));
+      setExtractorConfigs((previous) =>
+        previous.map((extractor) => (extractor.id === data.id ? result.unwrap() : extractor)),
+      );
       toast.success("Extractor updated successfully");
     } else {
       const error = result.isErr() ? result.unwrapErr() : "Failed to update extractor";
@@ -700,7 +396,9 @@ export function ExtensionsSettings() {
 
     const result = await deleteCustomExtractor(deletingExtractorId);
     if (result.isOk()) {
-      setExtractorConfigs((prev) => prev.filter((e) => e.id !== deletingExtractorId));
+      setExtractorConfigs((previous) =>
+        previous.filter((extractor) => extractor.id !== deletingExtractorId),
+      );
       toast.success("Extractor deleted successfully");
     } else {
       toast.error("Failed to delete extractor");
@@ -720,7 +418,6 @@ export function ExtensionsSettings() {
     }
   };
 
-  // Filtered rules
   const filteredRules = filterRules(rules, {
     category: categoryFilter !== "all" ? categoryFilter : undefined,
     severity: severityFilter !== "all" ? severityFilter : undefined,
@@ -735,10 +432,9 @@ export function ExtensionsSettings() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold flex items-center gap-2">
+          <h3 className="flex items-center gap-2 text-lg font-semibold">
             <Puzzle className="h-5 w-5" />
             Extension System
           </h3>
@@ -748,7 +444,7 @@ export function ExtensionsSettings() {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={handleReload} disabled={isLoading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
             Reload
           </Button>
           <Button
@@ -758,18 +454,16 @@ export function ExtensionsSettings() {
               setIsRuleDialogOpen(true);
             }}
           >
-            <Plus className="h-4 w-4 mr-2" />
+            <Plus className="mr-2 h-4 w-4" />
             New Rule
           </Button>
         </div>
       </div>
 
-      {/* Summary Cards */}
       <SummaryCards summary={summary} isLoading={isLoading} />
 
       <Separator />
 
-      {/* Tabs */}
       <div className="flex gap-2 border-b">
         {[
           { id: "rules", label: "Issue Rules", count: rules.length },
@@ -779,7 +473,7 @@ export function ExtensionsSettings() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as typeof activeTab)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            className={`border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === tab.id
                 ? "border-primary text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
@@ -793,17 +487,15 @@ export function ExtensionsSettings() {
         ))}
       </div>
 
-      {/* Rules Tab */}
       {activeTab === "rules" && (
         <div className="space-y-4">
-          {/* Filters */}
           <div className="flex flex-wrap gap-3">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <div className="relative min-w-[200px] flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search rules..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(event) => setSearchQuery(event.target.value)}
                 className="pl-9"
               />
             </div>
@@ -813,9 +505,9 @@ export function ExtensionsSettings() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                {availableRuleCategories.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                {availableRuleCategories.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category.charAt(0).toUpperCase() + category.slice(1)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -840,13 +532,12 @@ export function ExtensionsSettings() {
             </Button>
           </div>
 
-          {/* Rules List */}
           <div className="space-y-2">
             {isLoading ? (
-              [...Array(5)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)
+              [...Array(5)].map((_, index) => <Skeleton key={index} className="h-16 w-full" />)
             ) : sortedRules.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <AlertTriangle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <div className="py-8 text-center text-muted-foreground">
+                <AlertTriangle className="mx-auto mb-2 h-8 w-8 opacity-50" />
                 <p>No rules found</p>
                 {(searchQuery ||
                   categoryFilter !== "all" ||
@@ -872,8 +563,8 @@ export function ExtensionsSettings() {
                   key={rule.id}
                   rule={rule}
                   onToggle={handleToggleRule}
-                  onEdit={(r) => {
-                    setEditingRule(r);
+                  onEdit={(selectedRule) => {
+                    setEditingRule(selectedRule);
                     setIsRuleDialogOpen(true);
                   }}
                   onDelete={setDeletingRuleId}
@@ -884,7 +575,6 @@ export function ExtensionsSettings() {
         </div>
       )}
 
-      {/* Extractors Tab */}
       {activeTab === "extractors" && (
         <div className="space-y-4">
           <div className="flex justify-end">
@@ -895,150 +585,147 @@ export function ExtensionsSettings() {
                 setIsExtractorDialogOpen(true);
               }}
             >
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="mr-2 h-4 w-4" />
               New Extractor
             </Button>
           </div>
           <div className="space-y-2">
             {isLoading ? (
-              [...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)
+              [...Array(3)].map((_, index) => <Skeleton key={index} className="h-16 w-full" />)
             ) : extractorConfigs.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Database className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <div className="py-8 text-center text-muted-foreground">
+                <Database className="mx-auto mb-2 h-8 w-8 opacity-50" />
                 <p>No data extractors configured</p>
               </div>
             ) : (
-              extractorConfigs.map((extractor) =>
-                (() => {
-                  const preset = parseExtractorRulePreset(extractor.post_process);
-                  const thresholdSummary = formatPresetThreshold(
-                    preset.default_rule_threshold_min,
-                    preset.default_rule_threshold_max,
-                  );
-                  const hasPreset =
-                    Boolean(preset.default_rule_severity) ||
-                    Boolean(preset.default_rule_recommendation) ||
-                    Boolean(thresholdSummary);
+              extractorConfigs.map((extractor) => {
+                const preset = parseExtractorRulePreset(extractor.post_process);
+                const thresholdSummary = formatPresetThreshold(
+                  preset.default_rule_threshold_min,
+                  preset.default_rule_threshold_max,
+                );
+                const hasPreset =
+                  Boolean(preset.default_rule_severity) ||
+                  Boolean(preset.default_rule_recommendation) ||
+                  Boolean(thresholdSummary);
 
-                  return (
-                    <div
-                      key={extractor.id}
-                      className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-                        extractor.is_enabled ? "bg-card/50" : "bg-muted/30 opacity-60"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <button
-                          onClick={() => handleToggleExtractor(extractor.id, !extractor.is_enabled)}
-                          className="flex-shrink-0"
-                        >
-                          {extractor.is_enabled ? (
-                            <ToggleRight className="h-5 w-5 text-green-500" />
-                          ) : (
-                            <ToggleLeft className="h-5 w-5 text-muted-foreground" />
+                return (
+                  <div
+                    key={extractor.id}
+                    className={`flex items-center justify-between rounded-lg border p-3 transition-colors ${
+                      extractor.is_enabled ? "bg-card/50" : "bg-muted/30 opacity-60"
+                    }`}
+                  >
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <button
+                        onClick={() => handleToggleExtractor(extractor.id, !extractor.is_enabled)}
+                        className="flex-shrink-0"
+                      >
+                        {extractor.is_enabled ? (
+                          <ToggleRight className="h-5 w-5 text-green-500" />
+                        ) : (
+                          <ToggleLeft className="h-5 w-5 text-muted-foreground" />
+                        )}
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="truncate font-medium">{extractor.display_name}</p>
+                          {extractor.is_builtin && (
+                            <Badge variant="outline" className="text-xs">
+                              Built-in
+                            </Badge>
                           )}
-                        </button>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium truncate">{extractor.display_name}</p>
-                            {extractor.is_builtin && (
-                              <Badge variant="outline" className="text-xs">
-                                Built-in
+                        </div>
+                        <div className="mt-1 flex items-center gap-2">
+                          <Badge variant="outline">{extractor.extractor_type}</Badge>
+                          <span className="font-mono text-xs text-muted-foreground">
+                            {extractor.selector}
+                          </span>
+                          {extractor.attribute && (
+                            <span className="text-xs text-muted-foreground">
+                              @{extractor.attribute}
+                            </span>
+                          )}
+                        </div>
+                        {extractor.description && (
+                          <p className="mt-1 truncate text-xs text-muted-foreground">
+                            {extractor.description}
+                          </p>
+                        )}
+
+                        {hasPreset && (
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <span className="text-xs text-muted-foreground">Default rule:</span>
+                            {preset.default_rule_severity && (
+                              <Badge variant="secondary" className="text-[10px] capitalize">
+                                {preset.default_rule_severity}
                               </Badge>
                             )}
-                          </div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Badge variant="outline">{extractor.extractor_type}</Badge>
-                            <span className="text-xs text-muted-foreground font-mono">
-                              {extractor.selector}
-                            </span>
-                            {extractor.attribute && (
-                              <span className="text-xs text-muted-foreground">
-                                @{extractor.attribute}
+                            {thresholdSummary && (
+                              <Badge variant="outline" className="text-[10px]">
+                                Threshold {thresholdSummary}
+                              </Badge>
+                            )}
+                            {preset.default_rule_recommendation && (
+                              <span className="max-w-[420px] truncate text-xs text-muted-foreground">
+                                {preset.default_rule_recommendation}
                               </span>
                             )}
                           </div>
-                          {extractor.description && (
-                            <p className="text-xs text-muted-foreground mt-1 truncate">
-                              {extractor.description}
-                            </p>
-                          )}
-
-                          {hasPreset && (
-                            <div className="mt-2 flex items-center gap-2 flex-wrap">
-                              <span className="text-xs text-muted-foreground">Default rule:</span>
-                              {preset.default_rule_severity && (
-                                <Badge variant="secondary" className="text-[10px] capitalize">
-                                  {preset.default_rule_severity}
-                                </Badge>
-                              )}
-                              {thresholdSummary && (
-                                <Badge variant="outline" className="text-[10px]">
-                                  Threshold {thresholdSummary}
-                                </Badge>
-                              )}
-                              {preset.default_rule_recommendation && (
-                                <span className="text-xs text-muted-foreground truncate max-w-[420px]">
-                                  {preset.default_rule_recommendation}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {!extractor.is_builtin && (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => {
-                                setEditingExtractor(extractor);
-                                setIsExtractorDialogOpen(true);
-                              }}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive"
-                              onClick={() => setDeletingExtractorId(extractor.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </>
                         )}
                       </div>
                     </div>
-                  );
-                })(),
-              )
+                    <div className="flex items-center gap-1">
+                      {!extractor.is_builtin && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => {
+                              setEditingExtractor(extractor);
+                              setIsExtractorDialogOpen(true);
+                            }}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => setDeletingExtractorId(extractor.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
         </div>
       )}
 
-      {/* Checks Tab */}
       {activeTab === "checks" && (
         <div className="space-y-2">
           {isLoading ? (
-            [...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)
+            [...Array(3)].map((_, index) => <Skeleton key={index} className="h-16 w-full" />)
           ) : checks.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <CheckCircle2 className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <div className="py-8 text-center text-muted-foreground">
+              <CheckCircle2 className="mx-auto mb-2 h-8 w-8 opacity-50" />
               <p>No audit checks configured</p>
             </div>
           ) : (
             checks.map((check) => (
               <div
                 key={check.key}
-                className="flex items-center justify-between p-3 rounded-lg border bg-card/50"
+                className="flex items-center justify-between rounded-lg border bg-card/50 p-3"
               >
                 <div>
                   <p className="font-medium">{check.label}</p>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="mt-1 flex items-center gap-2">
                     <Badge variant="outline">{check.category}</Badge>
                     <span className="text-xs text-muted-foreground">Weight: {check.weight}</span>
                     {check.is_builtin && <Badge variant="secondary">Built-in</Badge>}
@@ -1050,8 +737,8 @@ export function ExtensionsSettings() {
         </div>
       )}
 
-      {/* Create/Edit Rule Dialog */}
       <EnhancedRuleDialog
+        key={`${editingRule?.id ?? "new"}:${isRuleDialogOpen ? "open" : "closed"}`}
         open={isRuleDialogOpen}
         onOpenChange={setIsRuleDialogOpen}
         rule={editingRule}
@@ -1059,7 +746,6 @@ export function ExtensionsSettings() {
         onUpdate={handleUpdateRule}
       />
 
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!deletingRuleId} onOpenChange={() => setDeletingRuleId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -1080,9 +766,8 @@ export function ExtensionsSettings() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Create/Edit Extractor Dialog */}
       <Dialog open={isExtractorDialogOpen} onOpenChange={setIsExtractorDialogOpen}>
-        <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden sm:max-w-[560px]">
           <DialogHeader>
             <DialogTitle>
               {editingExtractor ? "Edit Extractor" : "Create Custom Extractor"}
@@ -1104,7 +789,6 @@ export function ExtensionsSettings() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Extractor Confirmation Dialog */}
       <AlertDialog open={!!deletingExtractorId} onOpenChange={() => setDeletingExtractorId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

@@ -149,13 +149,13 @@ pub trait IssueGenerator: Extension {
     /// Check if this rule applies to the given page.
     ///
     /// Override this to limit which pages a rule applies to.
-    fn applies_to(&self, _page: &crate::contexts::Page) -> bool {
+    fn applies_to(&self, _page: &crate::contexts::analysis::Page) -> bool {
         true
     }
     
     /// Get the default severity for issues from this generator.
-    fn default_severity(&self) -> crate::contexts::IssueSeverity {
-        crate::contexts::IssueSeverity::Warning
+    fn default_severity(&self) -> crate::contexts::analysis::IssueSeverity {
+        crate::contexts::analysis::IssueSeverity::Warning
     }
     
     /// Get a recommendation for fixing issues from this generator.

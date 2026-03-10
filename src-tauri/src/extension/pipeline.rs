@@ -7,7 +7,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
-use anyhow::Result;
 use dashmap::DashMap;
 use tokio::sync::RwLock;
 
@@ -15,7 +14,7 @@ use super::capabilities::ExtensionCapability;
 use super::context::{ExtractionContext, ExportContext, ValidationContext};
 use super::result::{ExtractionResult, ExportResult, ValidationResult, PipelineResult};
 use super::traits::{DataExporter, DataExtractor, Extension, ExtensionConfig, IssueGenerator};
-use crate::contexts::{NewIssue, Page};
+use crate::contexts::analysis::{NewIssue, Page};
 
 /// The extension pipeline that orchestrates execution.
 ///

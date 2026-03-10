@@ -1,4 +1,4 @@
-use crate::contexts::JobSettings;
+use crate::contexts::analysis::JobSettings;
 use crate::service::discovery::{PageDiscovery, ResourceChecker, SiteResources};
 use crate::service::processor::reporter::{ProgressEmitter, ProgressEvent};
 use crate::service::spider::SpiderAgent;

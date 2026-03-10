@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
+import useSWR from "swr";
 import {
   Plus,
   Edit,
@@ -44,11 +45,10 @@ import { toast } from "sonner";
 import {
   type CreateRuleRequest,
   type UpdateRuleRequest,
-  type ExtensionCategory,
   type IssueRuleInfo,
-  type RuleFieldInfo,
   getRuleFieldRegistry,
 } from "@/src/api/extensions";
+import type { ExtensionCategory, RuleType } from "@/src/lib/types/extension";
 import {
   RULE_TYPE_CONFIG,
   SEVERITIES,
@@ -59,6 +59,69 @@ import {
   type TargetField,
 } from "./rule-config";
 import { Step, TemplateCard, PreviewPanel, ChangesTracker } from "./components";
+
+interface RuleDialogFormState {
+  name: string;
+  category: ExtensionCategory | typeof CUSTOM_CATEGORY_VALUE;
+  severity: "critical" | "warning" | "info";
+  ruleType: RuleType;
+  targetField: string;
+  customTargetField: string;
+  customCategory: string;
+  thresholdMin: string;
+  thresholdMax: string;
+  regexPattern: string;
+  recommendation: string;
+  originalValues: {
+    name?: string;
+    severity?: string;
+    recommendation?: string;
+    thresholdMin?: number;
+    thresholdMax?: number;
+    regexPattern?: string;
+  };
+}
+
+function createInitialFormState(rule: IssueRuleInfo | null): RuleDialogFormState {
+  if (!rule) {
+    return {
+      name: "",
+      category: "seo",
+      severity: "warning",
+      ruleType: "presence",
+      targetField: "",
+      customTargetField: "",
+      customCategory: "",
+      thresholdMin: "",
+      thresholdMax: "",
+      regexPattern: "",
+      recommendation: "",
+      originalValues: {},
+    };
+  }
+
+  return {
+    name: rule.name,
+    category: rule.category as ExtensionCategory,
+    severity: rule.severity as "critical" | "warning" | "info",
+    ruleType: rule.rule_type as RuleType,
+    targetField: rule.target_field || "",
+    customTargetField: "",
+    customCategory: "",
+    thresholdMin: rule.threshold_min?.toString() || "",
+    thresholdMax: rule.threshold_max?.toString() || "",
+    regexPattern: rule.regex_pattern || "",
+    recommendation: rule.recommendation || "",
+    originalValues: {
+      name: rule.name,
+      severity: rule.severity,
+      recommendation: rule.recommendation || "",
+      thresholdMin: rule.threshold_min ?? undefined,
+      thresholdMax: rule.threshold_max ?? undefined,
+      regexPattern: rule.regex_pattern || "",
+    },
+  };
+}
 
 function toTitleCase(value: string): string {
   return value
@@ -81,35 +144,40 @@ interface RuleDialogProps {
 }
 
 export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: RuleDialogProps) {
+  const initialFormState = useMemo(() => createInitialFormState(rule), [rule]);
+
   // Form state
-  const [name, setName] = useState("");
-  const [category, setCategory] = useState<ExtensionCategory>("seo");
-  const [severity, setSeverity] = useState<"critical" | "warning" | "info">("warning");
-  const [ruleType, setRuleType] = useState<"presence" | "threshold" | "regex" | "custom">(
-    "presence",
+  const [name, setName] = useState(initialFormState.name);
+  const [category, setCategory] = useState<ExtensionCategory | typeof CUSTOM_CATEGORY_VALUE>(
+    initialFormState.category,
   );
-  const [targetField, setTargetField] = useState("");
-  const [customTargetField, setCustomTargetField] = useState("");
-  const [customCategory, setCustomCategory] = useState("");
-  const [thresholdMin, setThresholdMin] = useState("");
-  const [thresholdMax, setThresholdMax] = useState("");
-  const [regexPattern, setRegexPattern] = useState("");
-  const [recommendation, setRecommendation] = useState("");
+  const [severity, setSeverity] = useState<"critical" | "warning" | "info">(
+    initialFormState.severity,
+  );
+  const [ruleType, setRuleType] = useState<RuleType>(initialFormState.ruleType);
+  const [targetField, setTargetField] = useState(initialFormState.targetField);
+  const [customTargetField, setCustomTargetField] = useState(initialFormState.customTargetField);
+  const [customCategory, setCustomCategory] = useState(initialFormState.customCategory);
+  const [thresholdMin, setThresholdMin] = useState(initialFormState.thresholdMin);
+  const [thresholdMax, setThresholdMax] = useState(initialFormState.thresholdMax);
+  const [regexPattern, setRegexPattern] = useState(initialFormState.regexPattern);
+  const [recommendation, setRecommendation] = useState(initialFormState.recommendation);
   const [isSaving, setIsSaving] = useState(false);
 
   // UI state
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
-  const [originalValues, setOriginalValues] = useState<{
-    name?: string;
-    severity?: string;
-    recommendation?: string;
-    thresholdMin?: number;
-    thresholdMax?: number;
-    regexPattern?: string;
-  }>({});
-  const [fieldRegistry, setFieldRegistry] = useState<RuleFieldInfo[]>([]);
+  const [originalValues] = useState(initialFormState.originalValues);
+
+  const { data: fieldRegistry = [] } = useSWR(
+    open ? "rule-field-registry" : null,
+    async () => {
+      const result = await getRuleFieldRegistry();
+      return result.isOk() ? result.unwrap() : [];
+    },
+    { revalidateOnFocus: false },
+  );
 
   const categoryOptionMap = useMemo(() => {
     const entries = fieldRegistry
@@ -122,10 +190,16 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
     return new Map(entries);
   }, [fieldRegistry]);
 
-  const categoryOptions = useMemo(() => {
+  const categoryOptions = useMemo<(ExtensionCategory | typeof CUSTOM_CATEGORY_VALUE)[]>(() => {
     const values = [...categoryOptionMap.keys()].sort((left, right) => left.localeCompare(right));
-    return [...values, CUSTOM_CATEGORY_VALUE] as ExtensionCategory[];
-  }, [categoryOptionMap]);
+    if (rule?.category && !values.includes(rule.category)) {
+      values.unshift(rule.category);
+    }
+    return [
+      ...values.filter((value): value is ExtensionCategory => value !== CUSTOM_CATEGORY_VALUE),
+      CUSTOM_CATEGORY_VALUE,
+    ];
+  }, [categoryOptionMap, rule?.category]);
 
   const targetFieldOptions = useMemo(() => {
     const options: TargetField[] = [];
@@ -168,20 +242,20 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
     const templates: RuleTemplate[] = [];
 
     for (const field of fieldRegistry.filter((value) => value.kind === "extractor").slice(0, 8)) {
-      const categoryId = field.category_id || "technical";
+      const categoryId = (field.category_id || "technical") as ExtensionCategory;
       const target = field.target_field;
       const defaultSeverity =
         (field.default_rule_severity as "critical" | "warning" | "info") || "warning";
       const defaultRecommendation =
         field.default_rule_recommendation ||
-        `Ensure content targeted by field \"${field.label}\" exists on the page.`;
+        `Ensure content targeted by field "${field.label}" exists on the page.`;
       const defaultThresholdMin = field.default_rule_threshold_min;
       const defaultThresholdMax = field.default_rule_threshold_max;
 
       templates.push({
         id: `presence-${field.id}`,
         name: `${field.label} Presence`,
-        description: `Validate that field \"${field.label}\" returns at least one value`,
+        description: `Validate that field "${field.label}" returns at least one value`,
         category: categoryId,
         ruleType: "presence",
         targetField: target,
@@ -194,7 +268,7 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
         templates.push({
           id: `threshold-${field.id}`,
           name: `${field.label} Threshold`,
-          description: `Check whether \"${field.label}\" stays within acceptable bounds`,
+          description: `Check whether "${field.label}" stays within acceptable bounds`,
           category: categoryId,
           ruleType: "threshold",
           targetField: target,
@@ -229,75 +303,6 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
     ? ["Basics", "Recommendation"]
     : ["Templates", "Basics", "Validation", "Recommendation"];
 
-  // Reset form when dialog opens/closes or rule changes
-  useEffect(() => {
-    if (open) {
-      if (rule) {
-        setName(rule.name);
-        const predefinedCategory = categoryOptions.includes(rule.category)
-          ? rule.category
-          : CUSTOM_CATEGORY_VALUE;
-        setCategory(predefinedCategory as ExtensionCategory);
-        setCustomCategory(predefinedCategory === CUSTOM_CATEGORY_VALUE ? rule.category : "");
-        setSeverity(rule.severity as "critical" | "warning" | "info");
-        setRuleType(rule.rule_type as "presence" | "threshold" | "regex" | "custom");
-        setTargetField(rule.target_field || "");
-        setRecommendation(rule.recommendation || "");
-        setThresholdMin(rule.threshold_min?.toString() || "");
-        setThresholdMax(rule.threshold_max?.toString() || "");
-        setRegexPattern(rule.regex_pattern || "");
-        setCustomTargetField("");
-
-        setOriginalValues({
-          name: rule.name,
-          severity: rule.severity,
-          recommendation: rule.recommendation || "",
-          thresholdMin: rule.threshold_min,
-          thresholdMax: rule.threshold_max,
-          regexPattern: rule.regex_pattern || "",
-        });
-
-        setCurrentStep(0);
-      } else {
-        setName("");
-        setCategory(categoryOptions[0] ?? CUSTOM_CATEGORY_VALUE);
-        setSeverity("warning");
-        setRuleType("presence");
-        setTargetField("");
-        setCustomTargetField("");
-        setCustomCategory("");
-        setThresholdMin("");
-        setThresholdMax("");
-        setRegexPattern("");
-        setRecommendation("");
-        setOriginalValues({});
-        setCurrentStep(0);
-      }
-      setCompletedSteps(new Set());
-    }
-  }, [categoryOptions, open, rule]);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    let isDisposed = false;
-
-    const loadFieldRegistry = async () => {
-      const result = await getRuleFieldRegistry();
-      if (!isDisposed && result.isOk()) {
-        setFieldRegistry(result.unwrap());
-      }
-    };
-
-    void loadFieldRegistry();
-
-    return () => {
-      isDisposed = true;
-    };
-  }, [open]);
-
   // Handlers
   const handleTemplateSelect = (template: RuleTemplate) => {
     const selectedCategory = categoryOptions.includes(template.category)
@@ -319,7 +324,7 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
   };
 
   const markStepComplete = (step: number) => {
-    setCompletedSteps(new Set([...completedSteps, step]));
+    setCompletedSteps((previous) => new Set([...previous, step]));
   };
 
   const handleNext = () => {

@@ -1,4 +1,4 @@
-use crate::contexts::extract_root_domain;
+use crate::contexts::analysis::extract_root_domain;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{Mutex, Semaphore};

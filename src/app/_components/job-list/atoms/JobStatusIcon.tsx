@@ -1,4 +1,4 @@
-import type { JobStatus } from "@/src/lib/types";
+import type { JobStatus } from "@/src/api/analysis";
 import { CheckCircle2, Clock, Loader2, Search, XCircle, Ban } from "lucide-react";
 
 export function getStatusIcon(status: JobStatus) {

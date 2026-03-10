@@ -67,6 +67,7 @@ tauri = { version = "2.10.2", features = ["test"] }
 criterion = { version = "0.8.1", features = ["async_tokio"] }
 tokio-test = "0.4.4"
 mockito = "1.7.0"
+trybuild = "1.0.112"
 
 [[bench]]
 name = "database_benchmarks"

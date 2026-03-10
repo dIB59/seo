@@ -3,8 +3,11 @@ use chrono::Utc;
 use sqlx::SqlitePool;
 
 use crate::contexts::{
-    AiInsight, CompleteJobResult, Heading, Image, Issue, Job, JobSettings, JobSummary,
-    LighthouseData, Link, Page,
+    ai::AiInsight,
+    analysis::{
+        CompleteJobResult, Heading, Image, Issue, Job, JobSettings, JobSummary,
+        LighthouseData, Link, Page,
+    },
 };
 
 use super::{map_job_status, map_link_type, map_severity};
@@ -407,39 +410,39 @@ use async_trait::async_trait;
 
 #[async_trait]
 impl ResultsRepositoryTrait for ResultsRepository {
-    async fn get_complete_result(&self, job_id: &str) -> Result<crate::contexts::CompleteJobResult> {
+    async fn get_complete_result(&self, job_id: &str) -> Result<CompleteJobResult> {
         ResultsRepository::get_complete_result(self, job_id).await
     }
 
-    async fn get_job(&self, job_id: &str) -> Result<crate::contexts::Job> {
+    async fn get_job(&self, job_id: &str) -> Result<Job> {
         ResultsRepository::get_job(self, job_id).await
     }
 
-    async fn get_pages(&self, job_id: &str) -> Result<Vec<crate::contexts::Page>> {
+    async fn get_pages(&self, job_id: &str) -> Result<Vec<Page>> {
         ResultsRepository::get_pages(self, job_id).await
     }
 
-    async fn get_issues(&self, job_id: &str) -> Result<Vec<crate::contexts::Issue>> {
+    async fn get_issues(&self, job_id: &str) -> Result<Vec<Issue>> {
         ResultsRepository::get_issues(self, job_id).await
     }
 
-    async fn get_links(&self, job_id: &str) -> Result<Vec<crate::contexts::Link>> {
+    async fn get_links(&self, job_id: &str) -> Result<Vec<Link>> {
         ResultsRepository::get_links(self, job_id).await
     }
 
-    async fn get_lighthouse(&self, job_id: &str) -> Result<Vec<crate::contexts::LighthouseData>> {
+    async fn get_lighthouse(&self, job_id: &str) -> Result<Vec<LighthouseData>> {
         ResultsRepository::get_lighthouse(self, job_id).await
     }
 
-    async fn get_headings(&self, job_id: &str) -> Result<Vec<crate::contexts::Heading>> {
+    async fn get_headings(&self, job_id: &str) -> Result<Vec<Heading>> {
         ResultsRepository::get_headings(self, job_id).await
     }
 
-    async fn get_images(&self, job_id: &str) -> Result<Vec<crate::contexts::Image>> {
+    async fn get_images(&self, job_id: &str) -> Result<Vec<Image>> {
         ResultsRepository::get_images(self, job_id).await
     }
 
-    async fn get_ai_insights(&self, job_id: &str) -> Result<crate::contexts::AiInsight> {
+    async fn get_ai_insights(&self, job_id: &str) -> Result<AiInsight> {
         ResultsRepository::get_ai_insights(self, job_id).await
     }
 

@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
-use crate::contexts::{LighthouseData, Page};
+use crate::contexts::analysis::{LighthouseData, NewIssue, Page};
 
 /// Context for data extraction phase.
 ///
@@ -150,7 +150,7 @@ pub struct ExportContext {
     pub data: HashMap<String, serde_json::Value>,
     
     /// Issues generated for this page
-    pub issues: Vec<crate::contexts::NewIssue>,
+    pub issues: Vec<NewIssue>,
     
     /// Export format requested
     pub format: ExportFormat,
@@ -206,7 +206,7 @@ impl ExportContext {
     }
     
     /// Add issues
-    pub fn with_issues(mut self, issues: Vec<crate::contexts::NewIssue>) -> Self {
+    pub fn with_issues(mut self, issues: Vec<NewIssue>) -> Self {
         self.issues = issues;
         self
     }

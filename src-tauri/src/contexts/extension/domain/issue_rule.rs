@@ -7,7 +7,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::contexts::{IssueSeverity, NewIssue, Page};
+use crate::contexts::analysis::{IssueSeverity, LighthouseData, NewIssue, Page};
 
 /// Information about an issue rule for the frontend
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -33,7 +33,7 @@ pub struct EvaluationContext {
     pub headers: HashMap<String, String>,
 
     /// Lighthouse data if available
-    pub lighthouse_data: Option<crate::contexts::LighthouseData>,
+    pub lighthouse_data: Option<LighthouseData>,
 
     /// Additional extracted data
     pub extracted_data: HashMap<String, serde_json::Value>,

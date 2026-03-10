@@ -3,13 +3,9 @@
 //! This module provides the built-in issue generators that validate pages
 //! and generate SEO issues.
 
-use std::collections::HashMap;
-
 use anyhow::Result;
-use scraper::{Html, Selector};
-use std::sync::OnceLock;
 
-use crate::contexts::{IssueSeverity, NewIssue, Page};
+use crate::contexts::analysis::{IssueSeverity, NewIssue};
 use crate::extension::capabilities::ExtensionCapability;
 use crate::extension::context::ValidationContext;
 use crate::extension::result::ValidationResult;
@@ -61,8 +57,11 @@ impl Extension for TitlePresenceRule {
 
 impl IssueGenerator for TitlePresenceRule {
     fn validate(&self, context: &ValidationContext) -> Result<ValidationResult> {
-        let has_title = context.page.title.is_some() 
-            && !context.page.title.as_ref().is_some_and(|t| t.is_empty());
+        let has_title = context
+            .page
+            .title
+            .as_deref()
+            .is_some_and(|title| !title.is_empty());
         
         let result = if has_title {
             ValidationResult::new(self.id().to_string())
@@ -136,8 +135,8 @@ impl Extension for TitleLengthRule {
 
 impl IssueGenerator for TitleLengthRule {
     fn validate(&self, context: &ValidationContext) -> Result<ValidationResult> {
-        let title = match &context.page.title {
-            Some(t) if !t.is_empty() => t,
+        let title = match context.page.title.as_deref() {
+            Some(title) if !title.is_empty() => title,
             _ => return Ok(ValidationResult::new(self.id().to_string())), // No title - handled by presence rule
         };
         
@@ -225,8 +224,11 @@ impl Extension for MetaDescriptionPresenceRule {
 
 impl IssueGenerator for MetaDescriptionPresenceRule {
     fn validate(&self, context: &ValidationContext) -> Result<ValidationResult> {
-        let has_description = context.page.meta_description.is_some()
-            && !context.page.meta_description.as_ref().is_some_and(|d| d.is_empty());
+        let has_description = context
+            .page
+            .meta_description
+            .as_deref()
+            .is_some_and(|description| !description.is_empty());
         
         let result = if has_description {
             ValidationResult::new(self.id().to_string())
@@ -300,8 +302,8 @@ impl Extension for MetaDescriptionLengthRule {
 
 impl IssueGenerator for MetaDescriptionLengthRule {
     fn validate(&self, context: &ValidationContext) -> Result<ValidationResult> {
-        let description = match &context.page.meta_description {
-            Some(d) if !d.is_empty() => d,
+        let description = match context.page.meta_description.as_deref() {
+            Some(description) if !description.is_empty() => description,
             _ => return Ok(ValidationResult::new(self.id().to_string())),
         };
         
@@ -580,6 +582,7 @@ impl IssueGenerator for LoadTimeRule {
 mod tests {
     use super::*;
     use chrono::Utc;
+    use crate::contexts::analysis::Page;
     
     fn make_test_page() -> Page {
         Page {

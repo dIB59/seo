@@ -53,7 +53,7 @@ use dashmap::DashMap;
 use sqlx::SqlitePool;
 use std::sync::Arc;
 
-use crate::contexts::{NewIssue, Page};
+use crate::contexts::analysis::{NewIssue, Page};
 
 /// Central registry for all extensions.
 ///

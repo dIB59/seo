@@ -15,12 +15,13 @@ import {
 } from "@/src/api/ai";
 
 import { useAiSettings } from "@/src/hooks/use-ai-settings";
+import type { PromptBlock } from "@/src/lib/types";
 
 // Components
 import { ConfigSidebar, SIDEBAR_ITEMS } from "./_components/ConfigSidebar";
 import { GeneralSettings } from "./_components/GeneralSettings";
 import { PersonaSettings } from "./_components/PersonaSettings";
-import { PromptBuilder, PromptBlock } from "./_components/PromptBuilder";
+import { PromptBuilder } from "./_components/PromptBuilder";
 import { LicensingSection } from "./_components/LicensingSection";
 import { ThemeSettings } from "./_components/ThemeSettings";
 import { ExtensionsSettings } from "./_components/ExtensionsSettings";

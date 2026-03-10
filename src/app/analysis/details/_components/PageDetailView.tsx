@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useCallback, useState, useMemo } from "react";
+import useSWR from "swr";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import type { PageDetailData } from "@/src/lib/types";
+import type { PageAnalysisData } from "@/src/api/analysis";
 import { getExtractorConfigs, type ExtractorConfigInfo } from "@/src/api/extensions";
 import PageHeader from "./organisms/PageHeader";
 import PageInfoCard from "./molecules/PageInfoCard";
@@ -15,8 +16,8 @@ import ExtractedDataTab from "./molecules/ExtractedDataTab";
 import { Database, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface PageDetailViewProps {
-  page: PageDetailData;
-  pages: PageDetailData[];
+  page: PageAnalysisData;
+  pages: PageAnalysisData[];
   currentIndex: number;
   onBack: () => void;
   onNavigate: (index: number) => void;
@@ -54,18 +55,14 @@ export function PageDetailView({
   onNavigate,
 }: PageDetailViewProps) {
   const [, setSearchOpen] = useState(false);
-  const [extractorConfigs, setExtractorConfigs] = useState<ExtractorConfigInfo[]>([]);
-
-  useEffect(() => {
-    const loadExtractorConfigs = async () => {
+  const { data: extractorConfigs = [] } = useSWR<ExtractorConfigInfo[]>(
+    "extractor-configs",
+    async () => {
       const result = await getExtractorConfigs();
-      if (result.isOk()) {
-        setExtractorConfigs(result.unwrap());
-      }
-    };
-
-    loadExtractorConfigs();
-  }, []);
+      return result.isOk() ? result.unwrap() : [];
+    },
+    { revalidateOnFocus: false },
+  );
 
   const canGoPrev = currentIndex > 0;
   const canGoNext = currentIndex < pages.length - 1;

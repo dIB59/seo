@@ -125,7 +125,7 @@ export function PreviewPanel({
   regexPattern,
 }: PreviewPanelProps) {
   const catConfig: CategoryConfig = CATEGORY_CONFIG[category] || CATEGORY_CONFIG.technical;
-  const typeLabel = catConfig.label;
+  const typeLabel = RULE_TYPE_CONFIG[ruleType]?.label || ruleType;
 
   return (
     <div className="rounded-xl border border-border/60 bg-muted/30 overflow-hidden">

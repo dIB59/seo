@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 use url::Url;
 
-use crate::contexts::Page;
+use crate::contexts::analysis::Page;
 
 /// Context provided to audit checks
 #[derive(Debug, Clone)]

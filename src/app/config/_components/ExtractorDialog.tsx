@@ -5,9 +5,9 @@ import type { ChangeEvent } from "react";
 import type {
   CreateExtractorRequest,
   ExtractorConfigInfo,
-  RuleSeverity,
   UpdateExtractorRequest,
 } from "@/src/api/extensions";
+import type { RuleSeverity } from "@/src/lib/types/extension";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";

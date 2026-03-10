@@ -11,7 +11,7 @@ use chrono::Utc;
 use sqlx::SqlitePool;
 
 // Import from the app crate
-use app::contexts::{IssueRuleInfo, Page};
+use app::contexts::{analysis::Page, IssueRuleInfo};
 use app::repository::{ExtensionRepositoryTrait, sqlite_extension_repo};
 
 // ============================================================================

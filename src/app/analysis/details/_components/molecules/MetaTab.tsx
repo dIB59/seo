@@ -15,7 +15,7 @@ import {
 } from "@/src/components/ui/tooltip";
 import { FileText, Hash, KeyRound } from "lucide-react";
 import CharLengthBadge from "@/src/app/analysis/details/_components/atoms/CharLengthBadge";
-import type { PageDetailData } from "@/src/lib/types";
+import type { PageAnalysisData } from "@/src/api/analysis";
 
 function formatFieldLabel(key: string): string {
   return key
@@ -81,7 +81,7 @@ function MetaContentValue({ value }: { value: string }) {
   );
 }
 
-export default function MetaTab({ page }: { page: PageDetailData }) {
+export default function MetaTab({ page }: { page: PageAnalysisData }) {
   const metaFields = [
     { label: "Title", value: page.title, maxLength: 60, icon: FileText },
     { label: "Meta Description", value: page.meta_description, maxLength: 160, icon: FileText },

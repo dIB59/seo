@@ -1,0 +1,15 @@
+error[E0603]: struct `JobSettings` is private
+ --> tests/trybuild/flat_context_barrel.rs:1:20
+  |
+1 | use app::contexts::JobSettings;
+  |                    ^^^^^^^^^^^ private struct
+  |
+note: the struct `JobSettings` is defined here
+ --> src/contexts/mod.rs
+  |
+  |     JobInfo, JobSettings, JobStatus, JobSummary, LighthouseData, Link, LinkType, NewHeading,
+  |              ^^^^^^^^^^^
+help: import `JobSettings` directly
+  |
+1 | use app::contexts::analysis::domain::job::JobSettings;
+  |                    +++++++++++++++++++++++

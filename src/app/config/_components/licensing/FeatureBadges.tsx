@@ -1,4 +1,4 @@
-import type { Policy } from "@/src/lib/types";
+import type { Policy } from "@/src/api/licensing";
 import { Badge } from "@/src/components/ui/badge";
 
 interface FeatureBadgesProps {
