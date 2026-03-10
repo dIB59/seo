@@ -13,8 +13,7 @@ pub use exporters::*;
 
 use std::sync::Arc;
 
-use crate::extension::pipeline::ExtensionPipeline;
-use crate::extension::traits::{DataExporter, DataExtractor, IssueGenerator};
+use super::pipeline::ExtensionPipeline;
 
 /// Register all built-in extensions with the pipeline.
 pub fn register_builtins(pipeline: &ExtensionPipeline) {

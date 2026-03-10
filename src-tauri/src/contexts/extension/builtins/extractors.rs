@@ -10,10 +10,12 @@ use anyhow::Result;
 use scraper::{Html, Selector};
 use serde_json::json;
 
-use crate::extension::capabilities::ExtensionCapability;
-use crate::extension::context::ExtractionContext;
-use crate::extension::result::{ExtractionMetadata, ExtractionResult, ExtractedValue};
-use crate::extension::traits::{DataExtractor, Extension, ExtensionConfig, ExtractionSchema, SchemaField, SchemaFieldType};
+use super::super::capabilities::ExtensionCapability;
+use super::super::context::ExtractionContext;
+use super::super::result::{ExtractedValue, ExtractionMetadata, ExtractionResult};
+use super::super::traits::{
+    DataExtractor, Extension, ExtensionConfig, ExtractionSchema, SchemaField, SchemaFieldType,
+};
 
 // ============================================================================
 // Open Graph Extractor

@@ -8,12 +8,11 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use dashmap::DashMap;
-use tokio::sync::RwLock;
 
 use super::capabilities::ExtensionCapability;
 use super::context::{ExtractionContext, ExportContext, ValidationContext};
 use super::result::{ExtractionResult, ExportResult, ValidationResult, PipelineResult};
-use super::traits::{DataExporter, DataExtractor, Extension, ExtensionConfig, IssueGenerator};
+use super::traits::{DataExporter, DataExtractor, Extension, IssueGenerator};
 use crate::contexts::analysis::{NewIssue, Page};
 
 /// The extension pipeline that orchestrates execution.
@@ -31,13 +30,7 @@ pub struct ExtensionPipeline {
     
     /// Data exporters indexed by ID
     exporters: DashMap<String, Arc<dyn DataExporter>>,
-    
-    /// Extension configurations
-    configs: RwLock<HashMap<String, ExtensionConfig>>,
-    
-    /// Cache for extraction results
-    extraction_cache: DashMap<String, ExtractionResult>,
-    
+
     /// Whether to run phases in parallel where possible
     parallel: bool,
 }
@@ -49,8 +42,6 @@ impl ExtensionPipeline {
             extractors: DashMap::new(),
             validators: DashMap::new(),
             exporters: DashMap::new(),
-            configs: RwLock::new(HashMap::new()),
-            extraction_cache: DashMap::new(),
             parallel: true,
         }
     }
@@ -67,13 +58,10 @@ impl ExtensionPipeline {
     ///
     /// The extension is automatically categorized based on its capabilities.
     pub fn register(&self, extension: Arc<dyn Extension>) {
-        let config = extension.config();
-        let id = config.id.clone();
+        let id = extension.id();
         
         // Check capabilities and register appropriately
         if extension.has_capability(ExtensionCapability::DataExtraction) {
-            // We need to cast to DataExtractor
-            // This is a bit tricky in Rust - we'll use a different approach
             tracing::debug!("Extension {} has DataExtraction capability", id);
         }
         
@@ -84,10 +72,6 @@ impl ExtensionPipeline {
         if extension.has_capability(ExtensionCapability::DataExport) {
             tracing::debug!("Extension {} has DataExport capability", id);
         }
-        
-        // Store config
-        // Note: In a real implementation, we'd need to store typed extensions
-        // This requires the extension to be registered via specific methods
     }
     
     /// Register a data extractor
@@ -116,7 +100,6 @@ impl ExtensionPipeline {
         self.extractors.remove(id);
         self.validators.remove(id);
         self.exporters.remove(id);
-        self.extraction_cache.remove(id);
     }
     
     /// Get counts of registered extensions
@@ -133,13 +116,10 @@ impl ExtensionPipeline {
         self.extractors.clear();
         self.validators.clear();
         self.exporters.clear();
-        self.extraction_cache.clear();
     }
     
     /// Clear the extraction cache
-    pub fn clear_cache(&self) {
-        self.extraction_cache.clear();
-    }
+    pub fn clear_cache(&self) {}
     
     // ========================================================================
     // Phase 1: Extraction

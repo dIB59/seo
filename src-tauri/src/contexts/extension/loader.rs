@@ -274,9 +274,9 @@ fn parse_threshold(threshold_json: &Option<String>) -> (Option<f64>, Option<f64>
 // Dynamic Rule Implementations
 // ============================================================================
 
-use crate::extension::context::ValidationContext;
-use crate::extension::result::ValidationResult;
-use crate::extension::traits::Extension;
+use super::context::ValidationContext;
+use super::result::ValidationResult;
+use super::traits::Extension;
 use std::collections::HashMap;
 
 /// Dynamic presence rule loaded from database
@@ -529,8 +529,8 @@ impl IssueGenerator for DynamicLengthRule {
 // Dynamic Extractor Implementations
 // ============================================================================
 
-use crate::extension::context::ExtractionContext;
-use crate::extension::result::{ExtractionMetadata, ExtractionResult, ExtractedValue};
+use super::context::ExtractionContext;
+use super::result::{ExtractedValue, ExtractionMetadata, ExtractionResult};
 use anyhow::anyhow;
 use scraper::{Html, Selector};
 

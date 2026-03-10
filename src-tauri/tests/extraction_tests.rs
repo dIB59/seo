@@ -8,12 +8,10 @@ use std::sync::OnceLock;
 
 use scraper::{Html, Selector};
 
-use app::extension::builtins::{
+use app::contexts::extension::builtins::{
     HrefTagsExtractor, OpenGraphExtractor, StructuredDataExtractor, TwitterCardExtractor,
 };
-use app::extension::context::ExtractionContext;
-use app::extension::result::ExtractedValue;
-use app::extension::traits::DataExtractor;
+use app::contexts::extension::{DataExtractor, ExtractedValue, ExtractionContext};
 
 // ============================================================================
 // Test Helpers

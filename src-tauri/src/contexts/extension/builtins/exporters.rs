@@ -8,10 +8,10 @@ use std::collections::HashMap;
 use anyhow::Result;
 use serde_json::json;
 
-use crate::extension::capabilities::ExtensionCapability;
-use crate::extension::context::{ExportContext, ExportFormat};
-use crate::extension::result::ExportResult;
-use crate::extension::traits::{DataExporter, Extension, ExtensionConfig};
+use super::super::capabilities::ExtensionCapability;
+use super::super::context::{ExportContext, ExportFormat};
+use super::super::result::ExportResult;
+use super::super::traits::{DataExporter, Extension, ExtensionConfig};
 
 // ============================================================================
 // JSON Exporter

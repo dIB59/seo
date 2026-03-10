@@ -783,7 +783,7 @@ mod tests {
             IssueSeverity::Critical,
         );
 
-        let page = make_page(|p| {});
+		let page = make_page(|_| {});
         let context = EvaluationContext::new();
 
         let issue = rule.evaluate(&page, &context);

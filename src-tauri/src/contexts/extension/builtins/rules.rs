@@ -6,10 +6,10 @@
 use anyhow::Result;
 
 use crate::contexts::analysis::{IssueSeverity, NewIssue};
-use crate::extension::capabilities::ExtensionCapability;
-use crate::extension::context::ValidationContext;
-use crate::extension::result::ValidationResult;
-use crate::extension::traits::{ExtensionConfig, IssueGenerator, Extension};
+use super::super::capabilities::ExtensionCapability;
+use super::super::context::ValidationContext;
+use super::super::result::ValidationResult;
+use super::super::traits::{Extension, ExtensionConfig, IssueGenerator};
 
 // ============================================================================
 // Title Rules

@@ -203,7 +203,7 @@ mod tests {
             analysis_context,
             ai_context,
             extension_repository: crate::repository::sqlite_extension_repo(pool.clone()),
-            extension_registry: Arc::new(crate::extension::ExtensionRegistry::new()),
+            extension_registry: Arc::new(crate::contexts::extension::ExtensionRegistry::new()),
         };
 
         mock_builder()

@@ -394,6 +394,11 @@ async reloadExtensions() : Promise<Result<ExtensionSummary, CommandError>> {
 /** user-defined events **/
 
 
+export const events = __makeEvents__<{
+progressEvent: ProgressEvent
+}>({
+progressEvent: "progress-event"
+})
 
 /** user-defined constants **/
 
@@ -463,6 +468,7 @@ export type PageAnalysisData = { analysis_id: string; url: string; title: string
 extracted_data: Partial<{ [key in string]: JsonValue }> }
 export type PaginatedJobsResponse = { items: AnalysisProgress[]; total: number }
 export type Policy = { tier: LicenseTier; max_pages: number; enabled_features: Feature[] }
+export type ProgressEvent = { event: "analysis"; job_id: string; progress: number; pages_analyzed: number; total_pages: number } | { event: "discovery"; job_id: string; count: number; total_pages: number }
 /**
  * Registry entry describing a rule-targetable field independent of extractor internals
  */

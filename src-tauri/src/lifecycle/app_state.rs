@@ -1,7 +1,7 @@
 use crate::{
-    commands::extension, contexts::{
-        ai::{AiService, AiServiceFactory}, analysis::{AnalysisService, AnalysisServiceFactory}, licensing::{LicenseTier, LicensingAgent, PermissionRequest, Policy}
-    }, extension::ExtensionRegistry, repository::{
+    contexts::{
+        ai::{AiService, AiServiceFactory}, analysis::{AnalysisService, AnalysisServiceFactory}, extension::ExtensionRegistry, licensing::{LicenseTier, LicensingAgent, PermissionRequest, Policy}
+    }, repository::{
         ExtensionRepositoryTrait, sqlite_ai_repo, sqlite_issue_repo, sqlite_job_repo, sqlite_link_repo, sqlite_page_queue_repo, sqlite_page_repo, sqlite_results_repo, sqlite_settings_repo
     }, service::{
         JobProcessor, ProgressReporter, licensing::{LicensingService, MockLicensingService}, processor::{AnalyzerService, Crawler, reporter::ProgressEmitter}, spider::{ClientType, Spider, SpiderAgent}
