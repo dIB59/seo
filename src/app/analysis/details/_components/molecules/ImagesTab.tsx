@@ -20,6 +20,7 @@ import type { ImageElement } from "@/src/api/analysis";
 import { useState } from "react";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
+import Image from "next/image";
 
 export default function ImagesTab({ images }: { images: ImageElement[] }) {
   const [previewSrc, setPreviewSrc] = useState<string | null>(null);
@@ -142,9 +143,12 @@ export default function ImagesTab({ images }: { images: ImageElement[] }) {
           </DialogHeader>
           <div className="p-4 flex justify-center">
             {previewSrc && (
-              <img
+              <Image
                 src={previewSrc}
                 alt="preview"
+                width={1200}
+                height={800}
+                unoptimized
                 className="max-w-full max-h-[70vh] object-contain"
               />
             )}
