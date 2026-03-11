@@ -270,8 +270,11 @@ export function ExtensionsSettings() {
   const [deletingExtractorId, setDeletingExtractorId] = useState<string | null>(null);
   const [extractorConfigs, setExtractorConfigs] = useState<ExtractorConfigInfo[]>([]);
 
-  const loadData = useCallback(async () => {
-    setIsLoading(true);
+  const loadData = useCallback(async (showLoader = true) => {
+    if (showLoader) {
+      setIsLoading(true);
+    }
+
     try {
       await normalizeRuleTargetFields();
 
@@ -291,13 +294,15 @@ export function ExtensionsSettings() {
     } catch (error) {
       console.error("Failed to load extensions:", error);
       toast.error("Failed to load extension data");
-    } finally {
+    }
+
+    if (showLoader) {
       setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadData();
+    loadData(false);
   }, [loadData]);
 
   const handleToggleRule = async (id: string, enabled: boolean) => {

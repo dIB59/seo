@@ -31,6 +31,8 @@ function UrlInputFormContent({
   isFreeUser,
   defaults,
 }: UrlInputFormContentProps) {
+  "use no memo";
+
   const [showSettings, setShowSettings] = React.useState(false);
 
   const dynamicSchema = useMemo(() => createSchema(maxPages), [maxPages]);

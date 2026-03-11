@@ -43,19 +43,25 @@ const EXTRACTOR_TYPES = [
   { value: "json", label: "JSON Path" },
 ];
 
+function parseExtractorMeta(postProcess: string | null | undefined): ExtractorMeta {
+  if (!postProcess) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(postProcess) as ExtractorMeta;
+  } catch {
+    return {};
+  }
+}
+
 export function ExtractorDialogContent({
   extractor,
   onCreate,
   onUpdate,
   onCancel,
 }: ExtractorDialogContentProps) {
-  const extractorMeta: ExtractorMeta = (() => {
-    try {
-      return extractor?.post_process ? JSON.parse(extractor.post_process) : {};
-    } catch {
-      return {};
-    }
-  })();
+  const extractorMeta = parseExtractorMeta(extractor?.post_process);
 
   const [name, setName] = useState(extractor?.name || "");
   const [displayName, setDisplayName] = useState(extractor?.display_name || "");
@@ -131,9 +137,9 @@ export function ExtractorDialogContent({
       onCancel();
     } catch (error) {
       console.error("Failed to save extractor:", error);
-    } finally {
-      setIsSubmitting(false);
     }
+
+    setIsSubmitting(false);
   };
 
   return (

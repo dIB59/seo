@@ -199,7 +199,7 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
       ...values.filter((value): value is ExtensionCategory => value !== CUSTOM_CATEGORY_VALUE),
       CUSTOM_CATEGORY_VALUE,
     ];
-  }, [categoryOptionMap, rule?.category]);
+  }, [categoryOptionMap, rule]);
 
   const targetFieldOptions = useMemo(() => {
     const options: TargetField[] = [];
@@ -400,9 +400,9 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
     } catch (error) {
       console.error("Failed to save rule:", error);
       toast.error("Failed to save rule. Please try again.");
-    } finally {
-      setIsSaving(false);
     }
+
+    setIsSaving(false);
   };
 
   // Filter templates based on search

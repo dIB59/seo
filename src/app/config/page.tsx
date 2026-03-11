@@ -100,12 +100,20 @@ function ConfigContent({
 
   const handleSaveGeneral = useCallback(async () => {
     setIsLoading(true);
-    try {
-      const [keyRes, personaRes, enabledRes] = await Promise.all([
-        set_gemini_api_key(apiKey),
-        set_gemini_persona(persona),
-        set_gemini_enabled(aiEnabled),
-      ]);
+    const [keyTask, personaTask, enabledTask] = await Promise.allSettled([
+      set_gemini_api_key(apiKey),
+      set_gemini_persona(persona),
+      set_gemini_enabled(aiEnabled),
+    ]);
+
+    if (
+      keyTask.status === "fulfilled" &&
+      personaTask.status === "fulfilled" &&
+      enabledTask.status === "fulfilled"
+    ) {
+      const keyRes = keyTask.value;
+      const personaRes = personaTask.value;
+      const enabledRes = enabledTask.value;
 
       if (keyRes.isOk() && personaRes.isOk() && enabledRes.isOk()) {
         if (settings) {
@@ -115,17 +123,19 @@ function ConfigContent({
       } else {
         toast.error("Failed to save some settings");
       }
-    } catch {
+    } else {
       toast.error("An error occurred while saving");
-    } finally {
-      setIsLoading(false);
     }
+
+    setIsLoading(false);
   }, [apiKey, persona, aiEnabled, mutate, settings]);
 
   const handleSavePrompt = useCallback(async () => {
     setIsLoading(true);
-    try {
-      const res = await set_gemini_prompt_blocks(JSON.stringify(blocks));
+    const saveTask = await Promise.allSettled([set_gemini_prompt_blocks(JSON.stringify(blocks))]);
+
+    if (saveTask[0].status === "fulfilled") {
+      const res = saveTask[0].value;
       if (res.isOk()) {
         if (settings) {
           mutate({ ...settings, blocks }, { revalidate: false });
@@ -134,11 +144,11 @@ function ConfigContent({
       } else {
         toast.error("Failed to save layout");
       }
-    } catch {
+    } else {
       toast.error("Error saving layout");
-    } finally {
-      setIsLoading(false);
     }
+
+    setIsLoading(false);
   }, [blocks, mutate, settings]);
 
   // Keyboard Shortcut

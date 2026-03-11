@@ -38,9 +38,9 @@ export function LicensingSection() {
             toast.error("System Fault", {
                 description: "Failed to reach licensing server. Please check connection.",
             });
-        } finally {
-            setIsActivating(false);
         }
+
+        setIsActivating(false);
     };
 
     return (

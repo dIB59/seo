@@ -20,18 +20,6 @@ export function ApiKeyDialog() {
     const [apiKey, setApiKey] = useState("")
     const [isLoading, setIsLoading] = useState(false)
 
-    useEffect(() => {
-        // Listen for the custom event to open the dialog
-        const handleOpen = () => {
-            setOpen(true)
-            // Optionally try to load existing key to pre-fill (though usually empty if we're asking)
-            loadExistingKey()
-        }
-
-        window.addEventListener("open-api-key-dialog", handleOpen)
-        return () => window.removeEventListener("open-api-key-dialog", handleOpen)
-    }, [])
-
     const loadExistingKey = async () => {
         try {
             const keyRes = await get_gemini_api_key();
@@ -43,6 +31,18 @@ export function ApiKeyDialog() {
             console.error("Failed to load existing key:", error)
         }
     }
+
+    useEffect(() => {
+        // Listen for the custom event to open the dialog
+        const handleOpen = () => {
+            setOpen(true)
+            // Optionally try to load existing key to pre-fill (though usually empty if we're asking)
+            loadExistingKey()
+        }
+
+        window.addEventListener("open-api-key-dialog", handleOpen)
+        return () => window.removeEventListener("open-api-key-dialog", handleOpen)
+    }, [])
 
     const handleSave = async () => {
         if (!apiKey || apiKey.trim().length === 0) {
@@ -63,9 +63,9 @@ export function ApiKeyDialog() {
         } catch (error) {
             console.error("Error saving API key:", error)
             toast.error("Failed to save API Key")
-        } finally {
-            setIsLoading(false)
         }
+
+        setIsLoading(false)
     }
 
     return (

@@ -27,6 +27,7 @@ export default function PageHeader({
   onNavigate: (index: number) => void;
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
+  const commandListId = "page-header-command-list";
 
   const canGoPrev = currentIndex > 0;
   const canGoNext = currentIndex < pages.length - 1;
@@ -40,11 +41,10 @@ export default function PageHeader({
   }, [canGoNext, currentIndex, onNavigate]);
 
   const getShortPath = (url: string) => {
-    try {
+    if (URL.canParse(url)) {
       return new URL(url).pathname || "/";
-    } catch {
-      return url.replace(/^https?:\/\/[^/]+/, "") || "/";
     }
+    return url.replace(/^https?:\/\/[^/]+/, "") || "/";
   };
 
   return (
@@ -61,6 +61,7 @@ export default function PageHeader({
               variant="outline"
               role="combobox"
               aria-expanded={searchOpen}
+              aria-controls={commandListId}
               className="w-full justify-between text-left font-normal"
             >
               <div className="flex items-center gap-2 truncate">
@@ -78,12 +79,12 @@ export default function PageHeader({
           <PopoverContent className="w-[400px] p-0" align="center">
             <Command>
               <CommandInput placeholder="Search pages by URL or title..." />
-              <CommandList>
+              <CommandList id={commandListId}>
                 <CommandEmpty>No pages found.</CommandEmpty>
                 <CommandGroup heading="Pages">
                   {pages.map((p, idx) => (
                     <CommandItem
-                      key={idx}
+                      key={p.url}
                       value={`${p.url} ${p.title || ""}`}
                       onSelect={() => {
                         onNavigate(idx);

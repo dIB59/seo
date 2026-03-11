@@ -28,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import type { PromptBlock } from "@/src/lib/types";
+import { useRef } from "react";
 
 const VARIABLE_OPTIONS = [
   { id: "url", label: "Website URL", template: "Website URL: {url}" },
@@ -123,6 +124,8 @@ interface PromptBuilderProps {
 }
 
 export function PromptBuilder({ blocks, setBlocks }: PromptBuilderProps) {
+  const nextBlockIdRef = useRef(0);
+
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -147,11 +150,16 @@ export function PromptBuilder({ blocks, setBlocks }: PromptBuilderProps) {
   };
 
   // Helper functions
+  const createBlockId = (prefix: "text" | "var") => {
+    nextBlockIdRef.current += 1;
+    return `${prefix}-${nextBlockIdRef.current}`;
+  };
+
   const addTextBlock = () => {
-    setBlocks([...blocks, { id: `text-${Date.now()}`, type: "text", content: "" }]);
+    setBlocks([...blocks, { id: createBlockId("text"), type: "text", content: "" }]);
   };
   const addVariableBlock = (template: string) => {
-    setBlocks([...blocks, { id: `var-${Date.now()}`, type: "variable", content: template }]);
+    setBlocks([...blocks, { id: createBlockId("var"), type: "variable", content: template }]);
   };
   const removeBlock = (id: string) => setBlocks(blocks.filter((b) => b.id !== id));
   const updateBlockContent = (id: string, content: string) =>

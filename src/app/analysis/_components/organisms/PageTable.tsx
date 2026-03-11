@@ -12,6 +12,8 @@ export function PageTable({
   pages: PageAnalysisData[];
   onSelectPage: (p: number) => void;
 }) {
+  "use no memo";
+
   const parentRef = useRef<HTMLDivElement>(null);
 
   const virtualizer = useVirtualizer({

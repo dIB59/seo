@@ -22,6 +22,8 @@ import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 
 export default function ImagesTab({ images }: { images: ImageElement[] }) {
+  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
+
   if (!images || images.length === 0) {
     return (
       <Card>
@@ -38,8 +40,6 @@ export default function ImagesTab({ images }: { images: ImageElement[] }) {
 
   const withAlt = images.filter((img) => img.alt !== null && img.alt.length > 0).length;
   const missingAlt = images.length - withAlt;
-
-  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
 
   const isDataURI = (s: string) => s.startsWith("data:") || s.includes("base64,");
   const isLongSrc = (s: string) => s.length > 2000;
@@ -74,8 +74,8 @@ export default function ImagesTab({ images }: { images: ImageElement[] }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {images.map((image, idx) => (
-                <TableRow key={idx}>
+              {images.map((image) => (
+                <TableRow key={`${image.src}-${image.alt ?? "missing"}`}>
                   <TableCell className="max-w-[250px]">
                     <div className="flex items-center gap-2">
                       <TooltipProvider>

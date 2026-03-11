@@ -14,6 +14,8 @@ import { IssueIcon } from "../atoms/IssueIcon";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 function VirtualIssuePageList({ pages }: { pages: SeoIssue[] }) {
+  "use no memo";
+
   const parentRef = useRef<HTMLDivElement>(null);
 
   const virtualizer = useVirtualizer({
