@@ -60,9 +60,9 @@ export function ThemeSettings() {
           <p className="text-sm text-muted-foreground">Choose your preferred appearance.</p>
         </div>
         <div className="grid grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => (
+          {["light", "dark", "business"].map((themeOption) => (
             <div
-              key={i}
+              key={`skeleton-${themeOption}`}
               className="h-32 rounded-lg border border-border/50 bg-card/30 animate-pulse"
             />
           ))}

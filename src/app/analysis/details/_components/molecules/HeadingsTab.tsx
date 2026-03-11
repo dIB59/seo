@@ -52,8 +52,8 @@ export default function HeadingsTab({ headings }: { headings: HeadingElement[] }
             </TableRow>
           </TableHeader>
           <TableBody>
-            {headings.map((heading, idx) => (
-              <TableRow key={idx}>
+            {headings.map((heading) => (
+              <TableRow key={`${heading.tag}-${heading.text}`}>
                 <TableCell>
                   <span className={`font-mono uppercase ${tagColors[heading.tag]}`}>
                     {heading.tag}

@@ -45,6 +45,14 @@ function LinkStatCard({
   return (
     <div
       onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick();
+        }
+      }}
       className={cn(
         "cursor-pointer p-4 rounded-xl border transition-all duration-200",
         variant === "destructive" && !active && "border-destructive/20 bg-destructive/5",
@@ -164,8 +172,10 @@ export default function LinksTab({ links }: { links: LinkDetail[] }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredLinks.map((link, idx) => (
-                <TableRow key={idx}>
+              {filteredLinks.map((link) => (
+                <TableRow
+                  key={`${link.href}-${link.text ?? "no-text"}-${link.status_code ?? "na"}`}
+                >
                   <TableCell className="max-w-[250px]">
                     <TooltipProvider>
                       <Tooltip>

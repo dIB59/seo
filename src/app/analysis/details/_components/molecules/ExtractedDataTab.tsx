@@ -161,9 +161,9 @@ function RenderedValue({ value, depth = 0 }: { value: unknown; depth?: number })
       // Array of primitives
       return (
         <div className="flex flex-wrap gap-1">
-          {arr.map((item, idx) => (
+          {arr.map((item) => (
             <Badge
-              key={idx}
+              key={String(item)}
               variant="secondary"
               className="text-xs max-w-full break-all whitespace-normal"
             >
@@ -197,7 +197,7 @@ function RenderedValue({ value, depth = 0 }: { value: unknown; depth?: number })
               </TableHeader>
               <TableBody>
                 {objects.map((obj, idx) => (
-                  <TableRow key={idx}>
+                  <TableRow key={JSON.stringify(obj)}>
                     {keys.map((key) => (
                       <TableCell
                         key={key}
@@ -220,8 +220,8 @@ function RenderedValue({ value, depth = 0 }: { value: unknown; depth?: number })
     // Fallback to list
     return (
       <ul className="space-y-1">
-        {arr.map((item, idx) => (
-          <li key={idx} className="text-sm">
+        {arr.map((item) => (
+          <li key={JSON.stringify(item)} className="text-sm">
             <RenderedValue value={item} depth={depth + 1} />
           </li>
         ))}

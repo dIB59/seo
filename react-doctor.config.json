@@ -1,17 +1,5 @@
 {
   "ignore": {
-    "files": [
-      "src/generated/**",
-      "src-tauri/**",
-      "src/app/_components/settings/api-key-dialog.tsx",
-      "src/app/_components/url-input/UrlInputForm.tsx",
-      "src/app/analysis/_components/graph-view/GraphView.tsx",
-      "src/app/analysis/_components/organisms/IssuesAccordion.tsx",
-      "src/app/analysis/_components/organisms/PageTable.tsx",
-      "src/app/config/_components/ExtensionsSettings.tsx",
-      "src/app/config/_components/ExtractorDialog.tsx",
-      "src/app/config/_components/RuleDialog/RuleDialog.tsx",
-      "src/components/ui/calendar.tsx"
-    ]
+    "files": ["src/generated/**", "src-tauri/**"]
   }
 }

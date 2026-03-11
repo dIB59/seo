@@ -1,11 +1,12 @@
 "use client";
 
+import { Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAnalysis } from "@/src/hooks/use-analysis";
 import { LoadingState, ErrorState } from "@/src/components/ui/page-states";
 import { AnalysisDashboard } from "@/src/app/analysis/_components/AnalysisDashboard";
 
-export default function AnalysisPage() {
+function AnalysisPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -35,5 +36,13 @@ export default function AnalysisPage() {
         onSelectPage={(index: number) => router.push(`/analysis/details?id=${id}&index=${index}`)}
       />
     </main>
+  );
+}
+
+export default function AnalysisPage() {
+  return (
+    <Suspense fallback={<LoadingState message="Loading analysis..." />}>
+      <AnalysisPageContent />
+    </Suspense>
   );
 }

@@ -32,6 +32,14 @@ export function PageRow({ page, index, onClick }: PageRowProps) {
   return (
     <div
       onClick={() => onClick(index)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick(index);
+        }
+      }}
       className={cn(
         "grid px-4 py-2.5 border-b border-border/20 cursor-pointer items-center transition-all duration-150",
         GRID_COLS,

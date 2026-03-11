@@ -3,6 +3,7 @@ import { FileText, Clock, ImageIcon, Link2, ExternalLink } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
 import PageStructure from "@/src/app/analysis/details/_components/molecules/PageStructure";
 import type { PageAnalysisData } from "@/src/api/analysis";
+import { open } from "@tauri-apps/plugin-shell";
 
 export default function PageInfoCard({ page }: { page: PageAnalysisData }) {
   return (
@@ -11,18 +12,14 @@ export default function PageInfoCard({ page }: { page: PageAnalysisData }) {
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-semibold truncate">{page.url}</h2>
-            <a
-              href={page.url}
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              aria-label="Open page URL in external browser"
               className="shrink-0"
-              target="_blank"
-              onClick={(e) => {
-                e.preventDefault();
-                open(page.url);
-              }}
+              onClick={() => open(page.url)}
             >
               <ExternalLink className="h-4 w-4 text-muted-foreground hover:text-foreground" />
-            </a>
+            </button>
           </div>
           <p className="text-sm text-muted-foreground truncate">{page.title || "No title"}</p>
           <div className="flex flex-wrap gap-4 text-sm">
