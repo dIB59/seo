@@ -330,13 +330,13 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
   const handleNext = () => {
     markStepComplete(currentStep);
     if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
+      setCurrentStep((previous) => previous + 1);
     }
   };
 
   const handleBack = () => {
     if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
+      setCurrentStep((previous) => previous - 1);
     }
   };
 
@@ -362,43 +362,44 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
     }
 
     setIsSaving(true);
-    try {
-      if (isEditing && rule) {
-        await onUpdate({
-          id: rule.id,
-          name,
-          severity,
-          threshold_min: thresholdMin ? parseFloat(thresholdMin) : null,
-          threshold_max: thresholdMax ? parseFloat(thresholdMax) : null,
-          regex_pattern: regexPattern || null,
-          recommendation: recommendation || null,
-          is_enabled: null,
-        });
-      } else {
-        await onCreate({
-          name,
-          category: category === CUSTOM_CATEGORY_VALUE ? customCategory : category,
-          severity,
-          rule_type: ruleType,
-          target_field: targetField === CUSTOM_FIELD_VALUE ? customTargetField : targetField,
-          threshold_min: thresholdMin ? parseFloat(thresholdMin) : null,
-          threshold_max: thresholdMax ? parseFloat(thresholdMax) : null,
-          regex_pattern: regexPattern || null,
-          recommendation: recommendation || null,
-          selector: null,
-          attribute: null,
-          multiple: null,
-          min_count: null,
-          max_count: null,
-          min_length: null,
-          max_length: null,
-          expected_value: null,
-          negate: null,
-        });
-      }
+    const action =
+      isEditing && rule
+        ? onUpdate({
+            id: rule.id,
+            name,
+            severity,
+            threshold_min: thresholdMin ? parseFloat(thresholdMin) : null,
+            threshold_max: thresholdMax ? parseFloat(thresholdMax) : null,
+            regex_pattern: regexPattern || null,
+            recommendation: recommendation || null,
+            is_enabled: null,
+          })
+        : onCreate({
+            name,
+            category: category === CUSTOM_CATEGORY_VALUE ? customCategory : category,
+            severity,
+            rule_type: ruleType,
+            target_field: targetField === CUSTOM_FIELD_VALUE ? customTargetField : targetField,
+            threshold_min: thresholdMin ? parseFloat(thresholdMin) : null,
+            threshold_max: thresholdMax ? parseFloat(thresholdMax) : null,
+            regex_pattern: regexPattern || null,
+            recommendation: recommendation || null,
+            selector: null,
+            attribute: null,
+            multiple: null,
+            min_count: null,
+            max_count: null,
+            min_length: null,
+            max_length: null,
+            expected_value: null,
+            negate: null,
+          });
+
+    const result = await Promise.allSettled([action]);
+    if (result[0].status === "fulfilled") {
       onOpenChange(false);
-    } catch (error) {
-      console.error("Failed to save rule:", error);
+    } else {
+      console.error("Failed to save rule:", result[0].reason);
       toast.error("Failed to save rule. Please try again.");
     }
 
@@ -541,7 +542,9 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
                   {/* Rule Name */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-1.5">
-                      <label className="text-sm font-semibold">Rule Name</label>
+                      <label htmlFor="rule-name" className="text-sm font-semibold">
+                        Rule Name
+                      </label>
                       <span className="text-destructive">*</span>
                       <TooltipProvider>
                         <Tooltip>
@@ -558,6 +561,7 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
                       </TooltipProvider>
                     </div>
                     <Input
+                      id="rule-name"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder="e.g., Check Meta Description Length"
@@ -567,10 +571,13 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
 
                   {/* Category */}
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold">Category</label>
+                    <label htmlFor="rule-category" className="text-sm font-semibold">
+                      Category
+                    </label>
                     <div className="grid grid-cols-4 gap-2">
                       {categoryOptions.map((cat) => (
                         <button
+                          id={cat === category ? "rule-category" : undefined}
                           key={cat}
                           type="button"
                           onClick={() => setCategory(cat)}
@@ -599,12 +606,15 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
                   {/* Rule Type */}
                   {!isEditing && (
                     <div className="space-y-2">
-                      <label className="text-sm font-semibold">Rule Type</label>
+                      <label htmlFor="rule-type" className="text-sm font-semibold">
+                        Rule Type
+                      </label>
                       <div className="grid grid-cols-2 gap-2">
                         {RULE_TYPES.map((type) => {
                           const config = RULE_TYPE_CONFIG[type];
                           return (
                             <button
+                              id={type === ruleType ? "rule-type" : undefined}
                               key={type}
                               type="button"
                               onClick={() => setRuleType(type)}
@@ -635,11 +645,13 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
                   {/* Target Field */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-1.5">
-                      <label className="text-sm font-semibold">Target Field</label>
+                      <label htmlFor="rule-target-field" className="text-sm font-semibold">
+                        Target Field
+                      </label>
                       <span className="text-destructive">*</span>
                     </div>
                     <Select value={targetField} onValueChange={setTargetField}>
-                      <SelectTrigger className="h-10">
+                      <SelectTrigger id="rule-target-field" className="h-10">
                         <SelectValue placeholder="Select a field to check" />
                       </SelectTrigger>
                       <SelectContent>
@@ -657,10 +669,14 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
                     </Select>
                     {targetField === CUSTOM_FIELD_VALUE && (
                       <div className="mt-3">
-                        <label className="text-xs text-muted-foreground mb-1.5 block">
+                        <label
+                          htmlFor="custom-target-field"
+                          className="text-xs text-muted-foreground mb-1.5 block"
+                        >
                           Enter custom field name
                         </label>
                         <Input
+                          id="custom-target-field"
                           value={customTargetField}
                           onChange={(e) => setCustomTargetField(e.target.value)}
                           placeholder="e.g., field:extractor:open_graph_title or field:category:open_graph"
@@ -673,11 +689,14 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
                   {/* Threshold */}
                   {ruleType === "threshold" && (
                     <div className="p-4 rounded-xl border border-border/40 bg-muted/30 space-y-4">
-                      <label className="text-sm font-semibold">Threshold Values</label>
+                      <p className="text-sm font-semibold">Threshold Values</p>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="text-xs text-muted-foreground">Minimum</label>
+                          <label htmlFor="threshold-min" className="text-xs text-muted-foreground">
+                            Minimum
+                          </label>
                           <Input
+                            id="threshold-min"
                             type="number"
                             value={thresholdMin}
                             onChange={(e) => setThresholdMin(e.target.value)}
@@ -685,8 +704,11 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
                           />
                         </div>
                         <div>
-                          <label className="text-xs text-muted-foreground">Maximum</label>
+                          <label htmlFor="threshold-max" className="text-xs text-muted-foreground">
+                            Maximum
+                          </label>
                           <Input
+                            id="threshold-max"
                             type="number"
                             value={thresholdMax}
                             onChange={(e) => setThresholdMax(e.target.value)}
@@ -700,8 +722,11 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
                   {/* Regex */}
                   {ruleType === "regex" && (
                     <div className="space-y-2">
-                      <label className="text-sm font-semibold">Regex Pattern</label>
+                      <label htmlFor="regex-pattern" className="text-sm font-semibold">
+                        Regex Pattern
+                      </label>
                       <Input
+                        id="regex-pattern"
                         value={regexPattern}
                         onChange={(e) => setRegexPattern(e.target.value)}
                         placeholder="e.g., ^https?://[^\s]+$"
@@ -712,10 +737,13 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
 
                   {/* Severity */}
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold">Issue Severity</label>
+                    <label htmlFor="issue-severity" className="text-sm font-semibold">
+                      Issue Severity
+                    </label>
                     <div className="grid grid-cols-3 gap-2">
                       {SEVERITIES.map((sev) => (
                         <button
+                          id={sev === severity ? "issue-severity" : undefined}
                           key={sev}
                           type="button"
                           onClick={() => setSeverity(sev)}
@@ -747,7 +775,9 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
                 <div className="space-y-5">
                   <div className="space-y-2">
                     <div className="flex items-center gap-1.5">
-                      <label className="text-sm font-semibold">Recommendation</label>
+                      <label htmlFor="rule-recommendation" className="text-sm font-semibold">
+                        Recommendation
+                      </label>
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger>
@@ -762,6 +792,7 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
                       </TooltipProvider>
                     </div>
                     <Textarea
+                      id="rule-recommendation"
                       value={recommendation}
                       onChange={(e) => setRecommendation(e.target.value)}
                       placeholder="e.g., Add a meta description between 70-160 characters..."
@@ -840,5 +871,3 @@ export function RuleDialog({ open, onOpenChange, rule, onCreate, onUpdate }: Rul
     </Dialog>
   );
 }
-
-export default RuleDialog;

@@ -1,4 +1,5 @@
 "use client";
+"use no memo";
 
 import React, { useCallback, useMemo } from "react";
 import { useForm } from "react-hook-form";
@@ -31,8 +32,6 @@ function UrlInputFormContent({
   isFreeUser,
   defaults,
 }: UrlInputFormContentProps) {
-  "use no memo";
-
   const [showSettings, setShowSettings] = React.useState(false);
 
   const dynamicSchema = useMemo(() => createSchema(maxPages), [maxPages]);

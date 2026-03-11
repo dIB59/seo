@@ -93,9 +93,8 @@ export function ExtractorDialogContent({
     e.preventDefault();
     setIsSubmitting(true);
 
-    try {
-      if (isEditing) {
-        await onUpdate({
+    const action = isEditing
+      ? onUpdate({
           id: extractor.id,
           name: extractor.name,
           display_name: displayName,
@@ -113,9 +112,8 @@ export function ExtractorDialogContent({
           default_rule_threshold_max: defaultRuleThresholdMax
             ? parseFloat(defaultRuleThresholdMax)
             : null,
-        });
-      } else {
-        await onCreate({
+        })
+      : onCreate({
           name: name.toLowerCase().replace(/\s+/g, "_"),
           display_name: displayName,
           description: description || null,
@@ -133,10 +131,12 @@ export function ExtractorDialogContent({
             ? parseFloat(defaultRuleThresholdMax)
             : null,
         });
-      }
+
+    const result = await Promise.allSettled([action]);
+    if (result[0].status === "fulfilled") {
       onCancel();
-    } catch (error) {
-      console.error("Failed to save extractor:", error);
+    } else {
+      console.error("Failed to save extractor:", result[0].reason);
     }
 
     setIsSubmitting(false);

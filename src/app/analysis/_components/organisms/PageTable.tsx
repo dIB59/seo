@@ -1,3 +1,5 @@
+"use no memo";
+
 import { useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { PageAnalysisData } from "@/src/api/analysis";
@@ -12,8 +14,6 @@ export function PageTable({
   pages: PageAnalysisData[];
   onSelectPage: (p: number) => void;
 }) {
-  "use no memo";
-
   const parentRef = useRef<HTMLDivElement>(null);
 
   const virtualizer = useVirtualizer({

@@ -1,7 +1,9 @@
 "use client";
+"use no memo";
 
 import { useRef, useState, useEffect, useCallback } from "react";
 import { useTheme } from "next-themes";
+import { Graph } from "@cosmograph/cosmos";
 import type { CompleteAnalysisResponse } from "@/src/api/analysis";
 import type { GraphNode, CosmographInstance } from "./atoms/graph-types";
 import GraphControls from "./molecules/GraphControls";
@@ -65,33 +67,26 @@ export default function GraphView({ data, onNodeClick, onSelectPage }: GraphView
     let mounted = true;
     const init = async () => {
       if (!canvasRef.current || nodes.length === 0) return;
+      if (!mounted) return;
 
-      try {
-        const { Graph } = await import("@cosmograph/cosmos");
-        if (!mounted) return;
+      const config = {
+        simulation: { repulsion, linkDistance },
+        nodeSize: (node: GraphNode) => 2 + Math.log((node.inDegree || 0) + 1) * 2,
+        nodeColor: (node: GraphNode) => node.color,
+        linkColor: () => "#d5d2d2ff",
+        backgroundColor: theme === "dark" ? "#000000" : "#ffffff",
+        onClick: handleNodeClick,
+        onNodeMouseOver: handleNodeMouseOver,
+        onNodeMouseOut: handleNodeMouseOut,
+      };
 
-        const config = {
-          simulation: { repulsion, linkDistance },
-          nodeSize: (node: GraphNode) => 2 + Math.log((node.inDegree || 0) + 1) * 2,
-          nodeColor: (node: GraphNode) => node.color,
-          linkColor: () => "#d5d2d2ff",
-          backgroundColor: theme === "dark" ? "#000000" : "#ffffff",
-          onClick: handleNodeClick,
-          onNodeMouseOver: handleNodeMouseOver,
-          onNodeMouseOut: handleNodeMouseOut,
-        };
+      const graph = new Graph(canvasRef.current, config);
+      cosmographRef.current = graph as unknown as CosmographInstance;
 
-        const graph = new Graph(canvasRef.current, config);
-        cosmographRef.current = graph as unknown as CosmographInstance;
+      graph.setData(nodes, links);
+      graph.fitView();
 
-        graph.setData(nodes, links);
-        graph.fitView();
-
-        setIsLoading(false);
-      } catch (err) {
-        console.error("Failed to init Cosmograph", err);
-        setIsLoading(false);
-      }
+      setIsLoading(false);
     };
 
     init();

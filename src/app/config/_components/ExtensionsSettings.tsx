@@ -127,8 +127,8 @@ function SummaryCards({ summary, isLoading }: SummaryCardsProps) {
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {[1, 2, 3].map((index) => (
-          <Card key={index} className="bg-card/50">
+        {["rules", "extractors", "checks"].map((slot) => (
+          <Card key={slot} className="bg-card/50">
             <CardContent className="p-4">
               <Skeleton className="h-16 w-full" />
             </CardContent>
@@ -302,7 +302,11 @@ export function ExtensionsSettings() {
   }, []);
 
   useEffect(() => {
-    loadData(false);
+    const timer = window.setTimeout(() => {
+      void loadData(false);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [loadData]);
 
   const handleToggleRule = async (id: string, enabled: boolean) => {
@@ -539,7 +543,9 @@ export function ExtensionsSettings() {
 
           <div className="space-y-2">
             {isLoading ? (
-              [...Array(5)].map((_, index) => <Skeleton key={index} className="h-16 w-full" />)
+              ["r1", "r2", "r3", "r4", "r5"].map((slot) => (
+                <Skeleton key={slot} className="h-16 w-full" />
+              ))
             ) : sortedRules.length === 0 ? (
               <div className="py-8 text-center text-muted-foreground">
                 <AlertTriangle className="mx-auto mb-2 h-8 w-8 opacity-50" />
@@ -596,7 +602,7 @@ export function ExtensionsSettings() {
           </div>
           <div className="space-y-2">
             {isLoading ? (
-              [...Array(3)].map((_, index) => <Skeleton key={index} className="h-16 w-full" />)
+              ["e1", "e2", "e3"].map((slot) => <Skeleton key={slot} className="h-16 w-full" />)
             ) : extractorConfigs.length === 0 ? (
               <div className="py-8 text-center text-muted-foreground">
                 <Database className="mx-auto mb-2 h-8 w-8 opacity-50" />
@@ -716,7 +722,7 @@ export function ExtensionsSettings() {
       {activeTab === "checks" && (
         <div className="space-y-2">
           {isLoading ? (
-            [...Array(3)].map((_, index) => <Skeleton key={index} className="h-16 w-full" />)
+            ["c1", "c2", "c3"].map((slot) => <Skeleton key={slot} className="h-16 w-full" />)
           ) : checks.length === 0 ? (
             <div className="py-8 text-center text-muted-foreground">
               <CheckCircle2 className="mx-auto mb-2 h-8 w-8 opacity-50" />
