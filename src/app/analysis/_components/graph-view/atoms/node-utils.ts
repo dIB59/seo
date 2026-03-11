@@ -36,7 +36,7 @@ export const calculateNodeDegrees = (
   return { inDegree, outDegree };
 };
 
-export const getNodeColor = (issues: CompleteAnalysisResponse["issues"], pageUrl: string) => {
+const getNodeColor = (issues: CompleteAnalysisResponse["issues"], pageUrl: string) => {
   const pageIssues = issues.filter((issue) => issue.page_url === pageUrl);
 
   if (pageIssues.some((i) => i.severity === "critical")) return "#f14444ff";
@@ -45,6 +45,6 @@ export const getNodeColor = (issues: CompleteAnalysisResponse["issues"], pageUrl
   return "#46c773ff";
 };
 
-export const calculateNodeSize = (inDegree: number) => {
+const calculateNodeSize = (inDegree: number) => {
   return 2 + Math.log(inDegree + 1) * 2;
 };

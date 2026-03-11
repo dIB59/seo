@@ -1,6 +1,5 @@
-"use no memo";
+"use client";
 
-import { useRef } from "react";
 import type { SeoIssue } from "@/src/api/analysis";
 import {
   Accordion,
@@ -13,64 +12,31 @@ import { Button } from "@/src/components/ui/button";
 import { open } from "@tauri-apps/plugin-shell";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { IssueIcon } from "../atoms/IssueIcon";
-import { useVirtualizer } from "@tanstack/react-virtual";
 
-function VirtualIssuePageList({ pages }: { pages: SeoIssue[] }) {
-  const parentRef = useRef<HTMLDivElement>(null);
-
-  const virtualizer = useVirtualizer({
-    count: pages.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 40, // Approximate height of each row
-    overscan: 5,
-  });
-
+function IssuePageList({ pages }: { pages: SeoIssue[] }) {
   return (
-    <div
-      ref={parentRef}
-      className="h-[200px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent"
-    >
-      <div
-        style={{
-          height: `${virtualizer.getTotalSize()}px`,
-          width: "100%",
-          position: "relative",
-        }}
-      >
-        {virtualizer.getVirtualItems().map((virtualItem) => {
-          const issue = pages[virtualItem.index];
-          return (
-            <div
-              key={virtualItem.key}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                height: `${virtualItem.size}px`,
-                transform: `translateY(${virtualItem.start}px)`,
-              }}
-              className="py-1" // Add padding to separate items slightly if needed
-            >
-              <div className="flex items-center justify-between p-2 rounded-md bg-muted/20 border border-transparent hover:border-border/40 transition-colors h-full">
-                <p className="text-xs font-mono text-muted-foreground truncate flex-1">
-                  {issue.page_url}
-                </p>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100 shrink-0"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    open(issue.page_url);
-                  }}
-                >
-                  <ExternalLink className="h-3 w-3" />
-                </Button>
-              </div>
+    <div className="h-[200px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+      <div className="space-y-2">
+        {pages.map((issue) => (
+          <div key={`${issue.title}-${issue.page_url}-${issue.severity}`} className="py-1">
+            <div className="flex items-center justify-between p-2 rounded-md bg-muted/20 border border-transparent hover:border-border/40 transition-colors h-full">
+              <p className="text-xs font-mono text-muted-foreground truncate flex-1">
+                {issue.page_url}
+              </p>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 opacity-0 group-hover:opacity-100 shrink-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  open(issue.page_url);
+                }}
+              >
+                <ExternalLink className="h-3 w-3" />
+              </Button>
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -196,7 +162,7 @@ export function IssuesAccordion({ issues }: { issues: SeoIssue[] }) {
                 <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
                   Affected URLs
                 </p>
-                <VirtualIssuePageList pages={issueGroup} />
+                <IssuePageList pages={issueGroup} />
               </div>
             </div>
           </IssueContent>

@@ -9,7 +9,8 @@ import {
 import { Smartphone, FileCode, ChevronRight, AlertTriangle } from "lucide-react";
 
 // Column width definitions - shared between header and rows
-export const GRID_COLS = "grid-cols-[minmax(180px,1.5fr)_80px_80px_100px_100px_90px_100px_80px_36px]";
+export const GRID_COLS =
+  "grid-cols-[minmax(180px,1.5fr)_80px_80px_100px_100px_90px_100px_80px_36px]";
 export const GRID_GAP = "gap-1.5";
 
 // Common cell wrapper classes
@@ -23,7 +24,8 @@ export const CELL = {
 export const STYLES = {
   healthy: {
     row: "hover:bg-primary/[0.03] group",
-    loadTime: (loadTime: number) => cn("font-mono text-[13px] font-medium tabular-nums", getLoadTimeColor(loadTime)),
+    loadTime: (loadTime: number) =>
+      cn("font-mono text-[13px] font-medium tabular-nums", getLoadTimeColor(loadTime)),
     text: "text-foreground",
     subtext: "text-muted-foreground",
   },
@@ -48,12 +50,14 @@ export function StatusIcons({
       <div className="flex items-center justify-center gap-2">
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className={cn(
-              "p-1 rounded-md transition-colors",
-              mobileFriendly
-                ? "text-success bg-success/10"
-                : "text-muted-foreground/50 bg-muted/30"
-            )}>
+            <div
+              className={cn(
+                "p-1 rounded-md transition-colors",
+                mobileFriendly
+                  ? "text-success bg-success/10"
+                  : "text-muted-foreground/50 bg-muted/30",
+              )}
+            >
               <Smartphone className="h-3.5 w-3.5" />
             </div>
           </TooltipTrigger>
@@ -63,12 +67,14 @@ export function StatusIcons({
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className={cn(
-              "p-1 rounded-md transition-colors",
-              hasStructuredData
-                ? "text-success bg-success/10"
-                : "text-muted-foreground/50 bg-muted/30"
-            )}>
+            <div
+              className={cn(
+                "p-1 rounded-md transition-colors",
+                hasStructuredData
+                  ? "text-success bg-success/10"
+                  : "text-muted-foreground/50 bg-muted/30",
+              )}
+            >
               <FileCode className="h-3.5 w-3.5" />
             </div>
           </TooltipTrigger>
@@ -89,12 +95,16 @@ export function SeoScore({ score }: { score: number | null }) {
     <TooltipProvider delayDuration={200}>
       <Tooltip>
         <TooltipTrigger className="flex items-center justify-center w-full">
-          <span className={cn(
-            "inline-flex items-center justify-center min-w-[36px] px-1.5 py-0.5 rounded-md text-xs font-semibold font-mono tabular-nums",
-            score >= 80 ? "bg-success/15 text-success" :
-              score >= 50 ? "bg-warning/15 text-warning" :
-                "bg-destructive/15 text-destructive"
-          )}>
+          <span
+            className={cn(
+              "inline-flex items-center justify-center min-w-[36px] px-1.5 py-0.5 rounded-md text-xs font-semibold font-mono tabular-nums",
+              score >= 80
+                ? "bg-success/15 text-success"
+                : score >= 50
+                  ? "bg-warning/15 text-warning"
+                  : "bg-destructive/15 text-destructive",
+            )}
+          >
             {score.toPrecision(3)}
           </span>
         </TooltipTrigger>
@@ -107,7 +117,7 @@ export function SeoScore({ score }: { score: number | null }) {
 }
 
 // Helper to format URL path
-export function formatUrlPath(url: string): string {
+function formatUrlPath(url: string): string {
   return url.replace(/^https?:\/\/[^/]+/, "") || "/";
 }
 
@@ -128,10 +138,12 @@ export function PageInfo({
   return (
     <div className={cn(CELL.left, "min-w-0 gap-2.5")}>
       {/* Status dot */}
-      <div className={cn(
-        "w-1.5 h-1.5 rounded-full shrink-0",
-        isBroken ? "bg-destructive" : "bg-success"
-      )} />
+      <div
+        className={cn(
+          "w-1.5 h-1.5 rounded-full shrink-0",
+          isBroken ? "bg-destructive" : "bg-success",
+        )}
+      />
       <div className="flex flex-col gap-0 w-full min-w-0">
         <div className="flex items-center gap-1.5">
           <span className={cn("font-medium text-[13px] truncate leading-tight", styles.text)}>
@@ -152,20 +164,12 @@ export function PageInfo({
 }
 
 // Load time cell — monospace + contextual icon
-export function LoadTime({
-  loadTime,
-  isBroken,
-}: {
-  loadTime: number;
-  isBroken: boolean;
-}) {
+export function LoadTime({ loadTime, isBroken }: { loadTime: number; isBroken: boolean }) {
   if (isBroken) {
     return <span className={STYLES.broken.loadTime}>{loadTime.toPrecision(2)}s</span>;
   }
 
-  return (
-    <span className={STYLES.healthy.loadTime(loadTime)}>{loadTime.toFixed(2)}s</span>
-  );
+  return <span className={STYLES.healthy.loadTime(loadTime)}>{loadTime.toFixed(2)}s</span>;
 }
 
 // Images cell with alt text warning
@@ -210,19 +214,33 @@ export function WordsCell({ count, isBroken }: { count: number; isBroken: boolea
 }
 
 // Heading counts cell (H1/H2/H3) — individual labels
-export function HeadingCounts({ h1, h2, h3, isBroken }: { h1: number; h2: number; h3: number; isBroken: boolean }) {
+export function HeadingCounts({
+  h1,
+  h2,
+  h3,
+  isBroken,
+}: {
+  h1: number;
+  h2: number;
+  h3: number;
+  isBroken: boolean;
+}) {
   if (isBroken) {
     return <div className={cn(CELL.base, "text-muted-foreground/40")}>—</div>;
   }
 
   return (
     <div className={cn(CELL.base, "gap-1")}>
-      <span className={cn(
-        "text-[11px] font-mono tabular-nums px-1 py-0 rounded",
-        h1 === 0 ? "text-destructive/70 bg-destructive/8" :
-          h1 > 1 ? "text-warning/80 bg-warning/8" :
-            "text-foreground/70 bg-muted/40"
-      )}>
+      <span
+        className={cn(
+          "text-[11px] font-mono tabular-nums px-1 py-0 rounded",
+          h1 === 0
+            ? "text-destructive/70 bg-destructive/8"
+            : h1 > 1
+              ? "text-warning/80 bg-warning/8"
+              : "text-foreground/70 bg-muted/40",
+        )}
+      >
         {h1}
       </span>
       <span className="text-border/80">/</span>
@@ -234,7 +252,15 @@ export function HeadingCounts({ h1, h2, h3, isBroken }: { h1: number; h2: number
 }
 
 // Links count cell — internal/external with labels
-export function LinksCell({ internal, external, isBroken }: { internal: number; external: number; isBroken: boolean }) {
+export function LinksCell({
+  internal,
+  external,
+  isBroken,
+}: {
+  internal: number;
+  external: number;
+  isBroken: boolean;
+}) {
   if (isBroken) {
     return <div className={cn(CELL.base, "text-muted-foreground/40")}>—</div>;
   }
@@ -251,7 +277,9 @@ export function LinksCell({ internal, external, isBroken }: { internal: number; 
 // Chevron/action cell — reveals on hover
 export function ChevronCell() {
   return (
-    <div className={cn(CELL.base, "opacity-0 group-hover:opacity-100 transition-opacity duration-200")}>
+    <div
+      className={cn(CELL.base, "opacity-0 group-hover:opacity-100 transition-opacity duration-200")}
+    >
       <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
     </div>
   );

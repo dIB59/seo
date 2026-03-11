@@ -15,7 +15,6 @@ import type {
 import { Result } from "@/src/lib/result";
 
 export type {
-  AnalysisJobResponse,
   AnalysisProgress,
   AnalysisSettingsRequest,
   CompleteAnalysisResponse,
@@ -42,7 +41,7 @@ export async function startAnalysis(
   return wrapTauriCommand(commands.startAnalysis(url, settings || null));
 }
 
-export async function getAllJobs(
+async function getAllJobs(
   limit?: number,
   offset?: number,
 ): Promise<Result<AnalysisProgress[], string>> {
@@ -68,9 +67,7 @@ export async function cancelAnalysis(jobId: string): Promise<Result<null, string
   return wrapTauriCommand(commands.cancelAnalysis(jobId));
 }
 
-export async function getAnalysisProgress(
-  jobId: string,
-): Promise<Result<AnalysisProgress, string>> {
+async function getAnalysisProgress(jobId: string): Promise<Result<AnalysisProgress, string>> {
   return wrapTauriCommand(commands.getAnalysisProgress(jobId));
 }
 

@@ -27,13 +27,12 @@ export default function GraphView({ data, onNodeClick, onSelectPage }: GraphView
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const cosmographRef = useRef<CosmographInstance | null>(null);
-  const mousePosRef = useRef({ x: 0, y: 0 });
 
   const [repulsion, setRepulsion] = useState(10);
   const [linkDistance, setLinkDistance] = useState(100);
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
-  const [, forceUpdate] = useState(0);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [isLoading, setIsLoading] = useState(true);
 
   const dimensions = useContainerDimensions(containerRef);
@@ -120,8 +119,9 @@ export default function GraphView({ data, onNodeClick, onSelectPage }: GraphView
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      mousePosRef.current = { x: e.clientX, y: e.clientY };
-      if (hoveredNode) forceUpdate((n) => n + 1);
+      if (hoveredNode) {
+        setMousePos({ x: e.clientX, y: e.clientY });
+      }
     },
     [hoveredNode],
   );
@@ -159,9 +159,7 @@ export default function GraphView({ data, onNodeClick, onSelectPage }: GraphView
           />
         )}
 
-        {hoveredNode && !selectedNode && (
-          <NodeTooltip node={hoveredNode} position={mousePosRef.current} />
-        )}
+        {hoveredNode && !selectedNode && <NodeTooltip node={hoveredNode} position={mousePos} />}
 
         <div
           className="flex-1 w-full h-full min-h-[600px] relative"

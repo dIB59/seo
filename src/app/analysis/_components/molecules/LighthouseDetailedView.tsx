@@ -283,7 +283,7 @@ export function LighthouseDetailedView({ page }: LighthouseDetailedViewProps) {
   );
 }
 
-export function LighthouseScoresCompact({ page }: { page: PageAnalysisData }) {
+function LighthouseScoresCompact({ page }: { page: PageAnalysisData }) {
   if (!page.lighthouse_performance) return null;
 
   const scores = [

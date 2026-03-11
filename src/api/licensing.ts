@@ -11,7 +11,7 @@ export async function activate_license(key: string): Promise<Result<Policy, stri
     : Result.Err(res.error ?? "Failed to activate license");
 }
 
-export async function get_license_tier(): Promise<Result<string, string>> {
+async function get_license_tier(): Promise<Result<string, string>> {
   const res = await commands.getLicenseTier();
   return res.status === "ok"
     ? Result.Ok(res.data)

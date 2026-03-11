@@ -2,7 +2,7 @@ import { toast } from "sonner";
 import { Result } from "../lib/result";
 import { commands, type CompleteAnalysisResponse, type SeoIssue } from "@/src/bindings";
 
-export const AiError = {
+const AiError = {
   MissingKey: "MISSING_KEY",
   InvalidKey: "INVALID_KEY",
   RateLimit: "RATE_LIMIT",
@@ -10,7 +10,7 @@ export const AiError = {
   Unknown: "UNKNOWN",
 } as const;
 
-export type AiError = (typeof AiError)[keyof typeof AiError];
+type AiError = (typeof AiError)[keyof typeof AiError];
 
 async function getStoredApiKey(): Promise<Result<string, string>> {
   const res = await commands.getGeminiApiKey();
@@ -112,22 +112,22 @@ export async function set_gemini_enabled(enabled: boolean): Promise<Result<null,
   return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "");
 }
 
-export async function get_gemini_requirements(): Promise<Result<string | null, string>> {
+async function get_gemini_requirements(): Promise<Result<string | null, string>> {
   const res = await commands.getGeminiRequirements();
   return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "");
 }
 
-export async function set_gemini_requirements(requirements: string): Promise<Result<null, string>> {
+async function set_gemini_requirements(requirements: string): Promise<Result<null, string>> {
   const res = await commands.setGeminiRequirements(requirements);
   return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "");
 }
 
-export async function get_gemini_context_options(): Promise<Result<string | null, string>> {
+async function get_gemini_context_options(): Promise<Result<string | null, string>> {
   const res = await commands.getGeminiContextOptions();
   return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "");
 }
 
-export async function set_gemini_context_options(options: string): Promise<Result<null, string>> {
+async function set_gemini_context_options(options: string): Promise<Result<null, string>> {
   const res = await commands.setGeminiContextOptions(options);
   return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "");
 }

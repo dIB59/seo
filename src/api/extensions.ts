@@ -21,7 +21,6 @@ import type {
   UpdateExtractorRequest as BindingsUpdateExtractorRequest,
   Result,
 } from "@/src/bindings";
-export type { ExtensionCategory, RuleSeverity, RuleType } from "@/src/lib/types/extension";
 
 // Re-export the canonical binding shapes used by the frontend.
 export type ExtensionSummary = BindingsExtensionSummary;
@@ -33,10 +32,8 @@ export type UpdateRuleRequest = BindingsUpdateRuleRequest;
 export type CreateExtractorRequest = BindingsCreateExtractorRequest;
 export type UpdateExtractorRequest = BindingsUpdateExtractorRequest;
 export type ExtractorConfigInfo = BindingsExtractorConfigInfo;
-export type RuleFieldInfo = BindingsRuleFieldInfo;
-export type RuleTargetMigrationResult = BindingsRuleTargetMigrationResult;
 
-export const EXTENSION_CATEGORIES = [
+const EXTENSION_CATEGORIES = [
   "seo",
   "accessibility",
   "performance",
@@ -376,9 +373,7 @@ export function sortRules(
 /**
  * Group rules by category
  */
-export function groupRulesByCategory(
-  rules: IssueGeneratorInfo[],
-): Map<string, IssueGeneratorInfo[]> {
+function groupRulesByCategory(rules: IssueGeneratorInfo[]): Map<string, IssueGeneratorInfo[]> {
   const groups = new Map<string, IssueGeneratorInfo[]>();
   for (const rule of rules) {
     const category = rule.category || "other";
@@ -392,9 +387,7 @@ export function groupRulesByCategory(
 /**
  * Group rules by severity
  */
-export function groupRulesBySeverity(
-  rules: IssueGeneratorInfo[],
-): Map<string, IssueGeneratorInfo[]> {
+function groupRulesBySeverity(rules: IssueGeneratorInfo[]): Map<string, IssueGeneratorInfo[]> {
   const groups = new Map<string, IssueGeneratorInfo[]>();
   for (const rule of rules) {
     const existing = groups.get(rule.severity) || [];

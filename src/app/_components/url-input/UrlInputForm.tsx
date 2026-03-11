@@ -1,17 +1,13 @@
 "use client";
-"use no memo";
 
-import React, { useCallback, useMemo } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import React, { useMemo } from "react";
 import type { AnalysisSettingsRequest } from "@/src/api/analysis";
 import { UrlInputGroup } from "./molecules/UrlInputGroup";
 import { AnalysisSettingsCollapsible } from "./molecules/SettingsCollapsible";
 import { AnalysisSettingsFields } from "./organisms/AnalysisSettingsFields";
-import { Form, FormField, FormItem, FormControl } from "@/src/components/ui/form";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { usePermissions } from "@/src/hooks/use-permissions";
-import { createSchema, normalizeUrl, type FormValues } from "./schema";
+import { normalizeUrl } from "./schema";
 import { useAnalysisDefaults } from "./use-analysis-defaults";
 
 interface UrlInputFormProps {
@@ -34,23 +30,11 @@ function UrlInputFormContent({
 }: UrlInputFormContentProps) {
   const [showSettings, setShowSettings] = React.useState(false);
 
-  const dynamicSchema = useMemo(() => createSchema(maxPages), [maxPages]);
-
-  const form = useForm<FormValues>({
-    resolver: zodResolver(dynamicSchema),
-    mode: "onChange",
-    defaultValues: {
-      url: "",
-      settings: {
-        ...defaults,
-        // Ensure max_pages doesn't exceed user's hard limit, even if default is higher (though backend should handle this)
-        max_pages: Math.min(defaults.max_pages, maxPages),
-      },
-    },
-  });
-
-  const { watch, setValue, handleSubmit, reset, formState } = form;
-  const currentSettings = watch("settings");
+  const [url, setUrl] = React.useState("");
+  const [settings, setSettings] = React.useState<AnalysisSettingsRequest>(() => ({
+    ...defaults,
+    max_pages: Math.min(defaults.max_pages, maxPages),
+  }));
 
   // Calculate effective defaults for comparison (including the maxPage clamp)
   const effectiveDefaults = useMemo(
@@ -61,49 +45,46 @@ function UrlInputFormContent({
     [defaults, maxPages],
   );
 
-  const isModified = JSON.stringify(currentSettings) !== JSON.stringify(effectiveDefaults);
+  const isModified = JSON.stringify(settings) !== JSON.stringify(effectiveDefaults);
+  const isValidUrl = url.trim().length > 0;
 
-  const handleReset = useCallback(() => {
-    setValue("settings", effectiveDefaults, { shouldDirty: true, shouldValidate: true });
-  }, [setValue, effectiveDefaults]);
+  const handleReset = () => setSettings(effectiveDefaults);
 
-  const onFormSubmit = (values: FormValues) => {
-    const normalizedUrl = normalizeUrl(values.url);
-    onSubmit(normalizedUrl, values.settings);
-    reset({ url: "", settings: values.settings });
+  const onFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const normalizedUrl = normalizeUrl(url);
+    onSubmit(normalizedUrl, settings);
+    setUrl("");
+  };
+
+  const updateSettings = (next: Partial<AnalysisSettingsRequest>) => {
+    setSettings((previous) => ({ ...previous, ...next }));
   };
 
   return (
-    <Form {...form}>
-      <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
-        <FormField
-          control={form.control}
-          name="url"
-          render={({ field }) => (
-            <FormItem>
-              <FormControl>
-                <UrlInputGroup
-                  url={field.value}
-                  setUrl={field.onChange}
-                  onClear={() => setValue("url", "", { shouldValidate: true })}
-                  isLoading={isLoading}
-                  isValid={formState.isValid}
-                />
-              </FormControl>
-            </FormItem>
-          )}
-        />
+    <form onSubmit={onFormSubmit} className="space-y-4">
+      <UrlInputGroup
+        url={url}
+        setUrl={setUrl}
+        onClear={() => setUrl("")}
+        isLoading={isLoading}
+        isValid={isValidUrl}
+      />
 
-        <AnalysisSettingsCollapsible
-          isOpen={showSettings}
-          onOpenChange={setShowSettings}
-          isModified={isModified}
-          onReset={handleReset}
-        >
-          <AnalysisSettingsFields maxPages={maxPages} isFreeUser={isFreeUser} />
-        </AnalysisSettingsCollapsible>
-      </form>
-    </Form>
+      <AnalysisSettingsCollapsible
+        isOpen={showSettings}
+        onOpenChange={setShowSettings}
+        isModified={isModified}
+        onReset={handleReset}
+      >
+        <AnalysisSettingsFields
+          maxPages={maxPages}
+          isFreeUser={isFreeUser}
+          settings={settings}
+          onSettingsChange={updateSettings}
+        />
+      </AnalysisSettingsCollapsible>
+    </form>
   );
 }
 

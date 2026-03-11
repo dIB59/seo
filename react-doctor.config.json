@@ -1,5 +1,5 @@
 {
   "ignore": {
-    "files": ["src/generated/**", "src-tauri/**"]
+    "files": ["src/generated/**", "src-tauri/**", " src/components/ui/**"]
   }
 }

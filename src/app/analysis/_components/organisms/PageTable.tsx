@@ -1,7 +1,5 @@
-"use no memo";
+"use client";
 
-import { useRef } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import type { PageAnalysisData } from "@/src/api/analysis";
 import { PageRow } from "../molecules/PageRow";
 import { GRID_COLS, GRID_GAP } from "../atoms/PageRowAtoms";
@@ -14,16 +12,6 @@ export function PageTable({
   pages: PageAnalysisData[];
   onSelectPage: (p: number) => void;
 }) {
-  const parentRef = useRef<HTMLDivElement>(null);
-
-  const virtualizer = useVirtualizer({
-    count: pages.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 53,
-  });
-
-  const virtualItems = virtualizer.getVirtualItems();
-
   // Empty state
   if (pages.length === 0) {
     return (
@@ -39,7 +27,7 @@ export function PageTable({
   return (
     <div className="bg-card/40 backdrop-blur border border-border/40 rounded-lg overflow-hidden">
       <div className="overflow-x-auto">
-        <div ref={parentRef} className="overflow-y-scroll" style={{ height: "600px" }}>
+        <div className="overflow-y-scroll" style={{ height: "600px" }}>
           <div
             className={`grid ${GRID_COLS} ${GRID_GAP} px-4 py-2.5 items-center border-b border-border/30 bg-muted/15 text-[10px] uppercase tracking-[0.08em] font-semibold text-muted-foreground/70 sticky top-0 z-10 backdrop-blur bg-card/95`}
           >
@@ -54,32 +42,10 @@ export function PageTable({
             <div></div>
           </div>
 
-          {/* Virtualized rows */}
-          <div
-            style={{
-              height: `${virtualizer.getTotalSize()}px`,
-              position: "relative",
-            }}
-          >
-            {virtualItems.map((virtualItem) => {
-              const page = pages[virtualItem.index];
-
-              return (
-                <div
-                  key={virtualItem.key}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: `${virtualItem.size}px`,
-                    transform: `translateY(${virtualItem.start}px)`,
-                  }}
-                >
-                  <PageRow page={page} index={virtualItem.index} onClick={onSelectPage} />
-                </div>
-              );
-            })}
+          <div>
+            {pages.map((page, index) => (
+              <PageRow key={page.url} page={page} index={index} onClick={onSelectPage} />
+            ))}
           </div>
         </div>
       </div>

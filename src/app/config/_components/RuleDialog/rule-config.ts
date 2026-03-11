@@ -29,7 +29,7 @@ export interface CategoryConfig {
   lightBg: string;
 }
 
-export interface RuleTypeConfig {
+interface RuleTypeConfig {
   label: string;
   description: string;
   icon: LucideIcon;
