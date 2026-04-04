@@ -24,7 +24,8 @@ import { PersonaSettings } from "./_components/PersonaSettings";
 import { PromptBuilder } from "./_components/PromptBuilder";
 import { LicensingSection } from "./_components/LicensingSection";
 import { ThemeSettings } from "./_components/ThemeSettings";
-import { ExtensionsSettings } from "./_components/ExtensionsSettings";
+import { CustomChecksSettings } from "./_components/CustomChecksSettings";
+import { ExtractorsSettings } from "./_components/ExtractorsSettings";
 
 function ContentSkeleton() {
   return (
@@ -202,9 +203,10 @@ function ConfigContent({
         )}
 
         {activeSection === "prompt" && <PromptBuilder blocks={blocks} setBlocks={setBlocks} />}
-        {activeSection === "extensions" && <ExtensionsSettings />}
         {activeSection === "licensing" && <LicensingSection />}
         {activeSection === "appearance" && <ThemeSettings />}
+        {activeSection === "custom-checks" && <CustomChecksSettings />}
+        {activeSection === "custom-extractors" && <ExtractorsSettings />}
       </div>
     </>
   );
