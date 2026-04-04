@@ -24,7 +24,7 @@ jobs:
     # Pre-baked image with webkit2gtk, gtk3, appindicator, etc. — no apt-get needed.
     # Image source: https://github.com/ivangabriele/docker-tauri
     runs-on: ubuntu-22.04
-    container: ghcr.io/ivangabriele/tauri:debian-bookworm-22
+    container: ivangabriele/tauri:debian-bookworm-22
     defaults:
       run:
         working-directory: src-tauri
