@@ -1,3 +1,4 @@
+pub mod checker;
 pub mod commands;
 pub mod contexts;
 pub mod db;
