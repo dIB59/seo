@@ -6,7 +6,10 @@
       "Bash(cargo check:*)",
       "Bash(node_modules/.bin/tsc --noEmit)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "WebFetch(domain:github.com)",
+      "WebSearch",
+      "WebFetch(domain:v2.tauri.app)"
     ]
   }
 }
