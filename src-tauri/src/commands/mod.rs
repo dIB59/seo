@@ -2,7 +2,7 @@ use tauri_specta::{collect_commands, Commands};
 
 mod ai;
 pub mod analysis;
-pub mod extension;
+mod extension;
 mod licensing;
 
 pub fn register_commands() -> Commands<tauri::Wry> {
@@ -37,22 +37,14 @@ pub fn register_commands() -> Commands<tauri::Wry> {
         licensing::get_license_tier,
         licensing::get_machine_id,
         // Extension commands
-        extension::get_extension_summary,
-        extension::get_all_issue_rules,
-        extension::get_all_extractors,
-        extension::get_all_audit_checks,
-        extension::get_extractor_configs,
-        extension::get_rule_field_registry,
+        extension::list_custom_checks,
+        extension::create_custom_check,
+        extension::update_custom_check,
+        extension::delete_custom_check,
+        extension::list_custom_extractors,
         extension::create_custom_extractor,
         extension::update_custom_extractor,
         extension::delete_custom_extractor,
-        extension::toggle_extractor_enabled,
-        extension::create_custom_rule,
-        extension::update_custom_rule,
-        extension::delete_custom_rule,
-        extension::toggle_rule_enabled,
-        extension::normalize_rule_target_fields,
-        extension::reload_extensions,
     ];
     s
 }
