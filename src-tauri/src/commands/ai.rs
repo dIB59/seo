@@ -194,6 +194,7 @@ mod tests {
                     crate::repository::sqlite_page_repo(pool.clone()),
                     crate::repository::sqlite_issue_repo(pool.clone()),
                     Arc::new(MockSpider),
+                    Arc::new(crate::extractor::data_extractor::ExtractorRegistry::new()),
                 ),
                 crate::service::processor::Crawler::new(Arc::new(MockSpider)),
                 Arc::new(NilEmitter),
@@ -202,8 +203,7 @@ mod tests {
             licensing_context: licensing_service,
             analysis_context,
             ai_context,
-            extension_repository: crate::repository::sqlite_extension_repo(pool.clone()),
-            extension_registry: Arc::new(crate::contexts::extension::ExtensionRegistry::new()),
+            extension_repo: crate::repository::sqlite_extension_repo(pool.clone()),
         };
 
         mock_builder()
