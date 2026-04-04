@@ -1,0 +1,2 @@
+-- Rollback: see 0028_create_extension_tables.up.sql to recreate these tables.
+-- The extension system was intentionally removed and will be rebuilt from scratch.
