@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo build:*)",
+      "Bash(cargo test:*)",
+      "Bash(cargo check:*)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
