@@ -31,6 +31,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install cmake (required by rquest/BoringSSL)
+        run: apt-get install -y cmake
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
