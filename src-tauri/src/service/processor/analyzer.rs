@@ -1,7 +1,8 @@
+use crate::checker::{CheckContext, CheckerRegistry};
 use crate::contexts::analysis::{
     JobSettings, LighthouseData, LinkType, NewHeading, NewImage, NewIssue, NewLink, Page,
 };
-use crate::contexts::extension::ExtensionRegistry;
+use crate::extractor::data_extractor::ExtractorRegistry;
 use crate::extractor::page_extractor::{ExtractedHeading, ExtractedImage, PageExtractor};
 use crate::repository::{IssueRepository as IssueRepoTrait, PageRepository as PageRepoTrait};
 use crate::service::auditor::{Auditor, AuditResult, DeepAuditor, LightAuditor};
@@ -15,7 +16,8 @@ pub struct AnalyzerService {
     issue_db: Arc<dyn IssueRepoTrait>,
     light_auditor: Arc<LightAuditor>,
     deep_auditor: Arc<DeepAuditor>,
-    extension_registry: Option<Arc<ExtensionRegistry>>,
+    checker_registry: Arc<CheckerRegistry>,
+    extractor_registry: Arc<ExtractorRegistry>,
 }
 
 pub struct PageResult {
@@ -54,6 +56,7 @@ fn extract_page_data(
     job_id: &str,
     depth: i64,
     audit_result: &AuditResult,
+    extracted_data: std::collections::HashMap<String, serde_json::Value>,
 ) -> ExtractedPageData {
     let parsed_html = Html::parse_document(html);
     let final_url = audit_result.url.clone();
@@ -88,7 +91,7 @@ fn extract_page_data(
         has_viewport,
         has_structured_data,
         crawled_at: chrono::Utc::now(),
-        extracted_data: std::collections::HashMap::new(),
+        extracted_data,
     };
 
     let link_edges: Vec<ExtractedLinkEdge> = all_links
@@ -146,35 +149,16 @@ impl AnalyzerService {
         page_db: Arc<dyn PageRepoTrait>,
         issue_db: Arc<dyn IssueRepoTrait>,
         deep_spider: Arc<dyn SpiderAgent>,
+        extractor_registry: Arc<ExtractorRegistry>,
     ) -> Self {
         Self {
             page_db,
             issue_db,
             light_auditor: Arc::new(LightAuditor::new(deep_spider.clone())),
             deep_auditor: Arc::new(DeepAuditor::new(deep_spider.clone())),
-            extension_registry: None,
+            checker_registry: Arc::new(CheckerRegistry::with_defaults()),
+            extractor_registry,
         }
-    }
-
-    /// Create an AnalyzerService with an extension registry for dynamic rules
-    pub fn with_extensions(
-        page_db: Arc<dyn PageRepoTrait>,
-        issue_db: Arc<dyn IssueRepoTrait>,
-        deep_spider: Arc<dyn SpiderAgent>,
-        extension_registry: Arc<ExtensionRegistry>,
-    ) -> Self {
-        Self {
-            page_db,
-            issue_db,
-            light_auditor: Arc::new(LightAuditor::new(deep_spider.clone())),
-            deep_auditor: Arc::new(DeepAuditor::new(deep_spider.clone())),
-            extension_registry: Some(extension_registry),
-        }
-    }
-
-    /// Set or update the extension registry
-    pub fn set_extension_registry(&mut self, registry: Arc<ExtensionRegistry>) {
-        self.extension_registry = Some(registry);
     }
 
     pub fn select_auditor(&self, settings: &JobSettings) -> Arc<dyn Auditor + Send + Sync> {
@@ -217,58 +201,18 @@ impl AnalyzerService {
             );
         }
 
-        // First, extract data using the extension registry if available
-        // This must be done BEFORE creating the Page so we can include extracted_data
-        let extracted_data = if let Some(registry) = &self.extension_registry {
-            let (data, _) = registry
-                .extract_and_validate(&{
-                    // Create a temporary page for extraction
-                    crate::contexts::analysis::Page {
-                        id: String::new(),
-                        job_id: job_id.to_string(),
-                        url: url.to_string(),
-                        depth,
-                        status_code: Some(audit_result.status_code as i64),
-                        content_type: None,
-                        title: None,
-                        meta_description: None,
-                        canonical_url: None,
-                        robots_meta: None,
-                        word_count: None,
-                        load_time_ms: Some(audit_result.load_time_ms as i64),
-                        response_size_bytes: Some(audit_result.content_size as i64),
-                        has_viewport: false,
-                        has_structured_data: false,
-                        crawled_at: chrono::Utc::now(),
-                        extracted_data: std::collections::HashMap::new(),
-                    }
-                }, &audit_result.html)
-                .await;
-            data
-        } else {
-            std::collections::HashMap::new()
-        };
+        let custom_data = self.extractor_registry.run(&audit_result.html);
+        let extracted = extract_page_data(&audit_result.html, url, job_id, depth, &audit_result, custom_data);
 
-        let extracted = extract_page_data(&audit_result.html, url, job_id, depth, &audit_result);
+        let page_id = self.page_db.insert(&extracted.page).await?;
 
-        // Add extracted data from custom extractors to the page
-        let mut page_with_extracted_data = extracted.page;
-        page_with_extracted_data.extracted_data = extracted_data;
-
-        let page_id = self.page_db.insert(&page_with_extracted_data).await?;
-
-        // Generate issues using extension registry if available, otherwise fall back to built-in audit
-        // Note: We already extracted data earlier in this function, so we just need to get issues now
-        let issues = if let Some(registry) = &self.extension_registry {
-            // Use the extension registry to get issues (extracted_data was already obtained above)
-            let (_, issues) = registry
-                .extract_and_validate(&page_with_extracted_data, &audit_result.html)
-                .await;
-            issues
-        } else {
-            // Fallback to built-in audit for backward compatibility
-            page_with_extracted_data.audit()
-        };
+        let check_ctx = CheckContext::new(
+            &extracted.page,
+            &audit_result.scores.seo_details,
+            job_id,
+            &page_id,
+        );
+        let issues = self.checker_registry.run(&check_ctx);
         let lighthouse = LighthouseData::from_audit_scores(&page_id, &audit_result.scores);
 
         let heading_rows: Vec<NewHeading> = extracted
@@ -334,3 +278,4 @@ impl AnalyzerService {
         ))
     }
 }
+

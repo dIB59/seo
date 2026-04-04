@@ -1,4 +1,3 @@
-use super::{IssueSeverity, NewIssue};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 
@@ -36,49 +35,6 @@ impl Page {
                 .is_some_and(|t| t <= SPEED_HEURISTIC_LOAD_TIME_MS)
     }
 
-    /// Perform a basic SEO audit on the page and generate a list of issues.
-    pub fn audit(&self) -> Vec<NewIssue> {
-        let mut issues = Vec::new();
-
-        if self.title.as_ref().is_none_or(|t| t.is_empty()) {
-            issues.push(NewIssue {
-                job_id: self.job_id.clone(),
-                page_id: Some(self.id.clone()),
-                issue_type: "Missing Title".to_string(),
-                severity: IssueSeverity::Critical,
-                message: "Page has no title tag".to_string(),
-                details: Some("Add a descriptive title tag".to_string()),
-            });
-        }
-
-        if self
-            .meta_description
-            .as_ref()
-            .is_none_or(|d| d.is_empty())
-        {
-            issues.push(NewIssue {
-                job_id: self.job_id.clone(),
-                page_id: Some(self.id.clone()),
-                issue_type: "Missing Meta Description".to_string(),
-                severity: IssueSeverity::Warning,
-                message: "Page has no meta description".to_string(),
-                details: Some("Add a meta description".to_string()),
-            });
-        }
-
-        if self.status_code.is_some_and(|s| s >= 400) {
-            issues.push(NewIssue {
-                job_id: self.job_id.clone(),
-                page_id: Some(self.id.clone()),
-                issue_type: "HTTP Error".to_string(),
-                severity: IssueSeverity::Critical,
-                message: format!("Page returned status code {}", self.status_code.unwrap()),
-                details: Some("Fix the HTTP error".to_string()),
-            });
-        }
-
-        issues
-    }
 }
 
 /// Lightweight page info for listings.
@@ -241,28 +197,6 @@ mod tests {
         };
         overrides(&mut page);
         page
-    }
-
-    #[test]
-    fn test_audit_missing_title() {
-        let page = make_page(|p| {
-            p.title = None;
-        });
-        let issues = page.audit();
-        assert_eq!(issues.len(), 1);
-        assert_eq!(issues[0].issue_type, "Missing Title");
-        assert_eq!(issues[0].severity, IssueSeverity::Critical);
-    }
-
-    #[test]
-    fn test_audit_http_error() {
-        let page = make_page(|p| {
-            p.status_code = Some(404);
-        });
-        let issues = page.audit();
-        assert_eq!(issues.len(), 1);
-        assert_eq!(issues[0].issue_type, "HTTP Error");
-        assert_eq!(issues[0].severity, IssueSeverity::Critical);
     }
 
     #[test]
