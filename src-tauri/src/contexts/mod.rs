@@ -1,10 +1,10 @@
 // Bounded Contexts for the SEO Analyzer
 // Each context represents a distinct domain with clear boundaries
 
-pub mod analysis;
-pub mod licensing;
-pub mod extension;
 pub mod ai;
+pub mod analysis;
+pub mod extension;
+pub mod licensing;
 
 #[allow(unused_imports)]
 pub(crate) use crate::contexts::analysis::{
@@ -22,26 +22,6 @@ pub(crate) use crate::contexts::licensing::{
     LicenseStatus, LicenseTier, LicenseVerifier, LicensingAgent, PermissionRequest, Policy,
     SignedLicense, TierPolicy, TierVersion,
 };
-
-// IssueRuleInfo is now defined here for backward compatibility with the database layer
-use serde::{Deserialize, Serialize};
-
-/// Information about an issue rule for the frontend and database
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-pub struct IssueRuleInfo {
-    pub id: String,
-    pub name: String,
-    pub category: String,
-    pub severity: String,
-    pub rule_type: String,
-    pub target_field: Option<String>,
-    pub threshold_min: Option<f64>,
-    pub threshold_max: Option<f64>,
-    pub regex_pattern: Option<String>,
-    pub recommendation: Option<String>,
-    pub is_builtin: bool,
-    pub is_enabled: bool,
-}
 
 // Submodule-like re-exports for backwards compatibility
 pub mod permissions {
