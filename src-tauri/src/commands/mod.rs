@@ -5,6 +5,7 @@ pub mod analysis;
 mod extension;
 mod licensing;
 mod local_model;
+mod report;
 
 pub fn register_commands() -> Commands<tauri::Wry> {
     let s = collect_commands![
@@ -56,6 +57,13 @@ pub fn register_commands() -> Commands<tauri::Wry> {
         extension::create_custom_extractor,
         extension::update_custom_extractor,
         extension::delete_custom_extractor,
+        // Report commands
+        report::list_report_patterns,
+        report::create_report_pattern,
+        report::update_report_pattern,
+        report::toggle_report_pattern,
+        report::delete_report_pattern,
+        report::generate_report_data,
     ];
     s
 }

@@ -8,6 +8,8 @@ pub use crate::contexts::analysis::IssueSeverity;
 #[serde(rename_all = "snake_case")]
 pub enum Operator {
     Missing,
+    Present,
+    Eq,
     Lt,
     Gt,
     Contains,
@@ -18,6 +20,8 @@ impl std::fmt::Display for Operator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Missing => write!(f, "missing"),
+            Self::Present => write!(f, "present"),
+            Self::Eq => write!(f, "eq"),
             Self::Lt => write!(f, "lt"),
             Self::Gt => write!(f, "gt"),
             Self::Contains => write!(f, "contains"),
@@ -32,6 +36,8 @@ impl std::str::FromStr for Operator {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "missing" => Ok(Self::Missing),
+            "present" => Ok(Self::Present),
+            "eq" => Ok(Self::Eq),
             "lt" => Ok(Self::Lt),
             "gt" => Ok(Self::Gt),
             "contains" => Ok(Self::Contains),

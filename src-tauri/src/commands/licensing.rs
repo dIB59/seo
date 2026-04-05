@@ -101,6 +101,11 @@ mod tests {
                 url: String::new(),
             })
         }
+        async fn stream_get(&self, _url: &str) -> anyhow::Result<crate::service::spider::StreamResponse> {
+            use crate::service::spider::MockSpider as Ms;
+            let ms = Ms { html_response: String::new(), generic_response: crate::service::spider::SpiderResponse { status: 200, body: String::new(), url: String::new() } };
+            ms.stream_get(_url).await
+        }
     }
 
     struct NilEmitter;
@@ -171,6 +176,11 @@ mod tests {
                 )
             },
             extension_repo: crate::repository::sqlite_extension_repo(pool.clone()),
+            report_pattern_repo: crate::repository::sqlite_report_pattern_repo(pool.clone()),
+            report_context: crate::contexts::report::ReportService::new(
+                crate::repository::sqlite_report_pattern_repo(pool.clone()),
+                results_repo.clone(),
+            ),
         };
 
         mock_builder()

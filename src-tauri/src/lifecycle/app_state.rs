@@ -4,13 +4,15 @@ use crate::{
         analysis::{AnalysisService, AnalysisServiceFactory},
         licensing::{LicenseTier, LicensingAgent, PermissionRequest, Policy},
         local_model::{LocalModelService, LocalModelServiceFactory},
+        report::ReportService,
     },
     extractor::data_extractor::{ExtractorConfig, ExtractorRegistry},
     extractor::data_extractor::selector::SelectorExtractor,
     repository::{
         sqlite_ai_repo, sqlite_extension_repo, sqlite_issue_repo, sqlite_job_repo,
-        sqlite_link_repo, sqlite_page_queue_repo, sqlite_page_repo, sqlite_results_repo,
-        sqlite_settings_repo, ExtensionRepository,
+        sqlite_link_repo, sqlite_page_queue_repo, sqlite_page_repo, sqlite_report_pattern_repo,
+        sqlite_results_repo, sqlite_settings_repo, ExtensionRepository,
+        ReportPatternRepository,
     },
     service::{
         JobProcessor, ProgressReporter,
@@ -36,6 +38,8 @@ pub struct AppState {
     pub ai_context: AiService,
     pub local_model_context: LocalModelService,
     pub extension_repo: Arc<dyn ExtensionRepository>,
+    pub report_pattern_repo: Arc<dyn ReportPatternRepository>,
+    pub report_context: ReportService,
 }
 
 impl AppState {
@@ -54,6 +58,7 @@ impl AppState {
         let ai_repo = sqlite_ai_repo(pool.clone());
         let page_queue_repo = sqlite_page_queue_repo(pool.clone());
         let extension_repo = sqlite_extension_repo(pool.clone());
+        let report_pattern_repo = sqlite_report_pattern_repo(pool.clone());
         let progress_reporter: Arc<dyn ProgressEmitter> =
             Arc::new(ProgressReporter::new(app_handle.clone()));
 
@@ -145,6 +150,11 @@ impl AppState {
             app_handle.clone(),
         );
 
+        let report_context = ReportService::new(
+            report_pattern_repo.clone(),
+            results_repo.clone(),
+        );
+
         Ok(AppState {
             standard_spider,
             heavy_spider,
@@ -155,6 +165,8 @@ impl AppState {
             ai_context,
             local_model_context,
             extension_repo,
+            report_pattern_repo,
+            report_context,
         })
     }
 
