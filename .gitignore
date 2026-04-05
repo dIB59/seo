@@ -48,7 +48,8 @@ bin
 src-tauri/binaries/lighthouse-runner/node_modules
 src-tauri/private_key.bin
 **/*.db
-src-tauri/.sqlx_dev.db
+**/*.db-shm
+**/*.db-wal
 target/rust-analyzer
 src/bindings.ts
 
