@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import { Input } from "@/src/components/ui/input";
+import { Textarea } from "@/src/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 
@@ -24,18 +24,19 @@ export function ActivationForm({ isLoading, onActivate }: ActivationFormProps) {
                 <div className="flex items-center gap-2 mb-0.5 px-1">
                     <span className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest">Apply License Key</span>
                 </div>
-                <div className="flex gap-2">
-                    <Input
+                <div className="space-y-2">
+                    <Textarea
                         value={key}
                         onChange={(e) => setKey(e.target.value)}
-                        placeholder="XXXX-XXXX-XXXX-XXXX"
-                        className="font-mono bg-transparent border-border/10 focus:border-primary/20 focus:ring-0 transition-all h-9 text-xs"
+                        placeholder="SEOINSIKT-..."
+                        className="font-mono bg-transparent border-border/10 focus:border-primary/20 focus:ring-0 transition-all text-xs resize-none min-h-[60px]"
                         disabled={isLoading}
+                        rows={2}
                     />
                     <Button
                         type="submit"
                         disabled={isLoading || !key.trim()}
-                        className="h-9 px-4 text-xs font-bold uppercase tracking-tight"
+                        className="w-full h-9 px-4 text-xs font-bold uppercase tracking-tight"
                     >
                         {isLoading ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
