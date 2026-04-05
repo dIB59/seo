@@ -12,7 +12,10 @@ export function QuickStatsCard({
 }) {
   const totalImages = pages.reduce((acc, p) => acc + p.image_count, 0);
   const totalInternalLinks = pages.reduce((acc, p) => acc + p.internal_links, 0);
-  const avgLoadTime = pages.reduce((acc, p) => acc + p.load_time, 0) / pages.length;
+  const avgLoadTime =
+    pages.length > 0
+      ? pages.reduce((acc, p) => acc + p.load_time, 0) / pages.length
+      : 0;
 
   return (
     <Card className="bg-card/40 backdrop-blur-sm border-white/5 shadow-sm relative group overflow-hidden">
