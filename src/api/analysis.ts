@@ -32,7 +32,9 @@ export async function wrapTauriCommand<T>(
   commandPromise: Promise<{ status: "ok" | "error"; data?: T; error?: unknown }>,
 ): Promise<Result<T, string>> {
   const res = await commandPromise;
-  return res.status === "ok" ? Result.Ok(res.data as T) : Result.Err(res.error as string);
+  return res.status === "ok"
+    ? Result.Ok(res.data as T)
+    : Result.Err(String(res.error ?? "Unknown error"));
 }
 
 export async function startAnalysis(
