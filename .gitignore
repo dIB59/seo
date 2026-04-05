@@ -50,9 +50,11 @@ src-tauri/private_key.bin
 **/*.db
 **/*.db-shm
 **/*.db-wal
-target/rust-analyzer
+target/
+*.dot
 src/bindings.ts
 
 .agents
 .agent
 .claude
+graph.svg
