@@ -24,15 +24,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache apt packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            /var/cache/apt/archives
-            /var/lib/apt/lists
-          key: apt-webkit-${{ runner.os }}-${{ hashFiles('.github/workflows/rust.yml') }}
-          restore-keys: apt-webkit-${{ runner.os }}-
-
       - name: Install system dependencies
         run: |
           sudo apt-get update
