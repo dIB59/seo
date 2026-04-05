@@ -1,4 +1,5 @@
 import type { CompleteAnalysisResponse } from "@/src/api/analysis";
+import { resolveInternalUrl } from "./url-utils";
 
 export const calculateNodeDegrees = (
   pages: CompleteAnalysisResponse["pages"],
@@ -20,10 +21,7 @@ export const calculateNodeDegrees = (
     page.detailed_links.forEach((link) => {
       if (link.link_type === "external" || link.link_type === "resource") return;
 
-      const targetUrl =
-        // caller can import resolveInternalUrl directly when composing
-        // but for convenience we try to use validUrls map here
-        validUrls.get(link.href) || null;
+      const targetUrl = resolveInternalUrl(link.href, page.url, validUrls);
       if (targetUrl) {
         outgoingCount++;
         inDegree.set(targetUrl, (inDegree.get(targetUrl) || 0) + 1);
