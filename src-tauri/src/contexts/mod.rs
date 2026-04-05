@@ -18,7 +18,7 @@ pub(crate) use crate::contexts::analysis::{
 pub(crate) use crate::contexts::ai::{AiInsight, PromptBlock, PromptConfig};
 #[allow(unused_imports)]
 pub(crate) use crate::contexts::licensing::{
-    AddonError, EntitlementRequest, EntitlementSet, Feature, LicenseActivationRequest, LicenseData,
+    AddonError, EntitlementRequest, EntitlementSet, Feature, LicenseData,
     LicenseStatus, LicenseTier, LicenseVerifier, LicensingAgent, PermissionRequest, Policy,
     SignedLicense, TierPolicy, TierVersion,
 };
