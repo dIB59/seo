@@ -11,35 +11,10 @@
 //! `issue` reads private_key.bin from the current directory and outputs a key string
 //! ready to paste into the app.
 
-use base64::Engine;
 use ed25519_dalek::Signer;
+use app::contexts::licensing::{LicenseData, LicenseTier, LicensingAgent, SignedLicense, TierVersion};
+use app::service::licensing::{LicensingService, MockLicensingService};
 use std::path::Path;
-
-const KEY_PREFIX: &str = "SEOINSIKT-";
-
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-struct LicenseData {
-    key: String,
-    machine_id: String,
-    tier: String,
-    tier_version: TierVersion,
-    tier_meta: Option<serde_json::Value>,
-    expires_at: Option<chrono::DateTime<chrono::Utc>>,
-    issued_at: chrono::DateTime<chrono::Utc>,
-}
-
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
-struct TierVersion {
-    major: u64,
-    minor: u64,
-    patch: u64,
-}
-
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-struct SignedLicense {
-    data: LicenseData,
-    signature: String,
-}
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -47,7 +22,10 @@ fn main() {
     if args.len() < 2 {
         eprintln!("Usage:");
         eprintln!("  keygen generate-keys");
-        eprintln!("  keygen issue --tier <premium|free> --customer <string> [--expires-days <n>]");
+        eprintln!("  keygen issue --tier <premium|free> --customer <string> [--expires-days <n>] [--mode <dev|prod>]");
+        eprintln!();
+        eprintln!("  --mode dev   Sign with the hardcoded mock key (works in debug/dev builds)");
+        eprintln!("  --mode prod  Sign with private_key.bin (default, for release builds)");
         std::process::exit(1);
     }
 
@@ -78,6 +56,7 @@ fn cmd_issue(args: &[String]) {
     let mut tier = String::new();
     let mut customer = String::new();
     let mut expires_days: Option<i64> = None;
+    let mut mode = "prod".to_string();
 
     let mut i = 0;
     while i < args.len() {
@@ -85,6 +64,7 @@ fn cmd_issue(args: &[String]) {
             "--tier" => { i += 1; tier = args[i].clone(); }
             "--customer" => { i += 1; customer = args[i].clone(); }
             "--expires-days" => { i += 1; expires_days = Some(args[i].parse().expect("--expires-days must be a number")); }
+            "--mode" => { i += 1; mode = args[i].clone(); }
             other => { eprintln!("Unknown flag: {other}"); std::process::exit(1); }
         }
         i += 1;
@@ -95,32 +75,36 @@ fn cmd_issue(args: &[String]) {
         std::process::exit(1);
     }
 
-    let tier_str = match tier.to_lowercase().as_str() {
-        "premium" => "Premium",
-        "free" => "Free",
+    let tier_val = match tier.to_lowercase().as_str() {
+        "premium" => LicenseTier::Premium,
+        "free" => LicenseTier::Free,
         other => { eprintln!("Unknown tier: {other}. Use premium or free"); std::process::exit(1); }
     };
 
-    let private_key_path = Path::new("private_key.bin");
-    if !private_key_path.exists() {
-        eprintln!("private_key.bin not found. Run `keygen generate-keys` first.");
-        std::process::exit(1);
-    }
-
-    let key_bytes: [u8; 32] = std::fs::read(private_key_path)
-        .expect("read private_key.bin")
-        .try_into()
-        .expect("private_key.bin must be exactly 32 bytes");
+    let key_bytes: [u8; 32] = match mode.as_str() {
+        "dev" => MockLicensingService::MOCK_PRIVATE_KEY,
+        "prod" => {
+            let private_key_path = Path::new("private_key.bin");
+            if !private_key_path.exists() {
+                eprintln!("private_key.bin not found. Run `keygen generate-keys` first.");
+                std::process::exit(1);
+            }
+            std::fs::read(private_key_path)
+                .expect("read private_key.bin")
+                .try_into()
+                .expect("private_key.bin must be exactly 32 bytes")
+        }
+        other => { eprintln!("Unknown mode: {other}. Use dev or prod"); std::process::exit(1); }
+    };
 
     let signing_key = ed25519_dalek::SigningKey::from_bytes(&key_bytes);
-
     let expires_at = expires_days.map(|d| chrono::Utc::now() + chrono::Duration::days(d));
 
     let data = LicenseData {
         key: customer.clone(),
         machine_id: "*".to_string(),
-        tier: tier_str.to_string(),
-        tier_version: TierVersion { major: 1, minor: 0, patch: 0 },
+        tier: tier_val,
+        tier_version: TierVersion::new(1, 0, 0),
         tier_meta: None,
         expires_at,
         issued_at: chrono::Utc::now(),
@@ -129,16 +113,19 @@ fn cmd_issue(args: &[String]) {
     let data_json = serde_json::to_string(&data).expect("serialize");
     let signature = signing_key.sign(data_json.as_bytes());
     let signed = SignedLicense { data, signature: hex::encode(signature.to_bytes()) };
-    let json = serde_json::to_string(&signed).expect("serialize signed");
-    let key = format!("{KEY_PREFIX}{}", base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(json));
+    let key = LicensingService::encode_key(&signed);
 
     println!("\n=== SEO Insikt License Key ===");
     println!("Customer : {customer}");
-    println!("Tier     : {tier_str}");
+    println!("Tier     : {tier_val:?}");
+    println!("Mode     : {mode}");
     if let Some(days) = expires_days {
         println!("Expires  : {} days from now", days);
     } else {
         println!("Expires  : never");
+    }
+    if mode == "dev" {
+        println!("\n[dev key — works only in debug builds, not for distribution]");
     }
     println!("\n{key}\n");
 }
