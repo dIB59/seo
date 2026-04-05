@@ -1,14 +1,16 @@
 use crate::contexts::{
-    Job, JobInfo, JobSettings, JobStatus, NewPageQueueItem, PageQueueItem, PageQueueStatus, IssueRuleInfo,
+    ai::AiInsight,
+    analysis::{
+        CompleteJobResult, Heading, Image, Issue, IssueSeverity, Job, JobInfo, JobSettings,
+        JobStatus, LighthouseData, Link, NewHeading, NewImage, NewIssue, NewLink,
+        NewPageQueueItem, Page, PageInfo, PageQueueItem, PageQueueStatus,
+    },
+    extension::{CustomCheck, CustomCheckParams, CustomExtractor, CustomExtractorParams},
 };
 use anyhow::Result;
 use async_trait::async_trait;
 use std::sync::Arc;
 pub mod sqlite;
-
-pub fn sqlite_extension_repo(pool: sqlx::SqlitePool) -> Arc<dyn ExtensionRepositoryTrait> {
-    Arc::new(sqlite::ExtensionRepository::new(pool))
-}
 
 // Factory functions for SQLite repositories
 pub fn sqlite_job_repo(pool: sqlx::SqlitePool) -> Arc<dyn JobRepository> {
@@ -43,32 +45,11 @@ pub fn sqlite_page_queue_repo(pool: sqlx::SqlitePool) -> Arc<dyn PageQueueReposi
     Arc::new(sqlite::PageQueueRepository::new(pool))
 }
 
-pub use sqlite::{ExternalDomain, IssueCounts, IssueGroup, LinkCounts};
-
-// Re-export ExtractorConfigInfo for use in commands
-pub use sqlite::extension_repository::ExtractorConfigInfo;
-
-
-#[async_trait]
-pub trait ExtensionRepositoryTrait: Send + Sync {
-    async fn get_all_rules(&self) -> Result<Vec<IssueRuleInfo>>;
-    async fn get_rule_by_id(&self, id: &str) -> Result<IssueRuleInfo>;
-    async fn insert_rule(&self, rule: &IssueRuleInfo) -> Result<()>;
-    async fn update_rule(&self, id: &str, name: Option<&str>, severity: Option<&str>, is_enabled: Option<bool>, recommendation: Option<&str>) -> Result<()>;
-    async fn delete_rule(&self, id: &str) -> Result<()>;
-    async fn set_rule_enabled(&self, id: &str, enabled: bool) -> Result<()>;
-    async fn count_custom_rules(&self) -> Result<usize>;
-    async fn migrate_rule_targets_to_field_format(&self) -> Result<usize>;
-    
-    // Extractor methods
-    async fn get_all_extractors(&self) -> Result<Vec<ExtractorConfigInfo>>;
-    async fn get_extractor_by_id(&self, id: &str) -> Result<ExtractorConfigInfo>;
-    async fn insert_extractor(&self, id: &str, name: &str, display_name: &str, description: Option<&str>, extractor_type: &str, selector: &str, attribute: Option<&str>, post_process: Option<&str>) -> Result<()>;
-    async fn update_extractor(&self, id: &str, name: Option<&str>, display_name: Option<&str>, description: Option<&str>, extractor_type: Option<&str>, selector: Option<&str>, attribute: Option<&str>, post_process: Option<&str>) -> Result<()>;
-    async fn delete_extractor(&self, id: &str) -> Result<()>;
-    async fn set_extractor_enabled(&self, id: &str, enabled: bool) -> Result<()>;
-    async fn count_custom_extractors(&self) -> Result<usize>;
+pub fn sqlite_extension_repo(pool: sqlx::SqlitePool) -> Arc<dyn ExtensionRepository> {
+    Arc::new(sqlite::SqliteExtensionRepository::new(pool))
 }
+
+pub use sqlite::{ExternalDomain, IssueCounts, IssueGroup, LinkCounts};
 
 #[async_trait]
 pub trait JobRepository: Send + Sync {
@@ -100,24 +81,20 @@ pub trait JobRepository: Send + Sync {
 
 #[async_trait]
 pub trait PageRepository: Send + Sync {
-    async fn insert(&self, page: &crate::contexts::Page) -> Result<String>;
-    async fn insert_batch(&self, pages: &[crate::contexts::Page]) -> Result<()>;
-    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::contexts::Page>>;
-    async fn get_info_by_job_id(&self, job_id: &str) -> Result<Vec<crate::contexts::PageInfo>>;
-    async fn get_by_id(&self, page_id: &str) -> Result<crate::contexts::Page>;
+    async fn insert(&self, page: &Page) -> Result<String>;
+    async fn insert_batch(&self, pages: &[Page]) -> Result<()>;
+    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<Page>>;
+    async fn get_info_by_job_id(&self, job_id: &str) -> Result<Vec<PageInfo>>;
+    async fn get_by_id(&self, page_id: &str) -> Result<Page>;
     async fn replace_headings(
         &self,
         page_id: &str,
-        headings: &[crate::contexts::NewHeading],
+        headings: &[NewHeading],
     ) -> Result<()>;
-    async fn replace_images(&self, page_id: &str, images: &[crate::contexts::NewImage])
-        -> Result<()>;
+    async fn replace_images(&self, page_id: &str, images: &[NewImage]) -> Result<()>;
     async fn count_by_job_id(&self, job_id: &str) -> Result<i64>;
-    async fn insert_lighthouse(&self, data: &crate::contexts::LighthouseData) -> Result<()>;
-    async fn get_lighthouse_by_job_id(
-        &self,
-        job_id: &str,
-    ) -> Result<Vec<crate::contexts::LighthouseData>>;
+    async fn insert_lighthouse(&self, data: &LighthouseData) -> Result<()>;
+    async fn get_lighthouse_by_job_id(&self, job_id: &str) -> Result<Vec<LighthouseData>>;
 }
 
 #[async_trait]
@@ -128,11 +105,11 @@ pub trait SettingsRepository: Send + Sync {
 
 #[async_trait]
 pub trait LinkRepository: Send + Sync {
-    async fn insert_batch(&self, links: &[crate::contexts::NewLink]) -> Result<()>;
-    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::contexts::Link>>;
-    async fn get_outgoing(&self, source_page_id: &str) -> Result<Vec<crate::contexts::Link>>;
-    async fn get_incoming(&self, target_page_id: &str) -> Result<Vec<crate::contexts::Link>>;
-    async fn get_broken(&self, job_id: &str) -> Result<Vec<crate::contexts::Link>>;
+    async fn insert_batch(&self, links: &[NewLink]) -> Result<()>;
+    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<Link>>;
+    async fn get_outgoing(&self, source_page_id: &str) -> Result<Vec<Link>>;
+    async fn get_incoming(&self, target_page_id: &str) -> Result<Vec<Link>>;
+    async fn get_broken(&self, job_id: &str) -> Result<Vec<Link>>;
     async fn count_by_type(&self, job_id: &str) -> Result<LinkCounts>;
     async fn get_external_domains(&self, job_id: &str) -> Result<Vec<ExternalDomain>>;
     async fn update_status_codes(&self, updates: &[(i64, i64)]) -> Result<()>;
@@ -140,14 +117,14 @@ pub trait LinkRepository: Send + Sync {
 
 #[async_trait]
 pub trait IssueRepository: Send + Sync {
-    async fn insert_batch(&self, issues: &[crate::contexts::NewIssue]) -> Result<()>;
-    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<crate::contexts::Issue>>;
-    async fn get_by_page_id(&self, page_id: &str) -> Result<Vec<crate::contexts::Issue>>;
+    async fn insert_batch(&self, issues: &[NewIssue]) -> Result<()>;
+    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<Issue>>;
+    async fn get_by_page_id(&self, page_id: &str) -> Result<Vec<Issue>>;
     async fn get_by_job_and_severity(
         &self,
         job_id: &str,
-        severity: crate::contexts::IssueSeverity,
-    ) -> Result<Vec<crate::contexts::Issue>>;
+        severity: IssueSeverity,
+    ) -> Result<Vec<Issue>>;
     async fn count_by_severity(&self, job_id: &str) -> Result<IssueCounts>;
     async fn count_by_job_id(&self, job_id: &str) -> Result<i64>;
     async fn get_grouped_by_type(&self, job_id: &str) -> Result<Vec<IssueGroup>>;
@@ -155,15 +132,15 @@ pub trait IssueRepository: Send + Sync {
 
 #[async_trait]
 pub trait ResultsRepository: Send + Sync {
-    async fn get_complete_result(&self, job_id: &str) -> Result<crate::contexts::CompleteJobResult>;
-    async fn get_job(&self, job_id: &str) -> Result<crate::contexts::Job>;
-    async fn get_pages(&self, job_id: &str) -> Result<Vec<crate::contexts::Page>>;
-    async fn get_issues(&self, job_id: &str) -> Result<Vec<crate::contexts::Issue>>;
-    async fn get_links(&self, job_id: &str) -> Result<Vec<crate::contexts::Link>>;
-    async fn get_lighthouse(&self, job_id: &str) -> Result<Vec<crate::contexts::LighthouseData>>;
-    async fn get_headings(&self, job_id: &str) -> Result<Vec<crate::contexts::Heading>>;
-    async fn get_images(&self, job_id: &str) -> Result<Vec<crate::contexts::Image>>;
-    async fn get_ai_insights(&self, job_id: &str) -> Result<crate::contexts::AiInsight>;
+    async fn get_complete_result(&self, job_id: &str) -> Result<CompleteJobResult>;
+    async fn get_job(&self, job_id: &str) -> Result<Job>;
+    async fn get_pages(&self, job_id: &str) -> Result<Vec<Page>>;
+    async fn get_issues(&self, job_id: &str) -> Result<Vec<Issue>>;
+    async fn get_links(&self, job_id: &str) -> Result<Vec<Link>>;
+    async fn get_lighthouse(&self, job_id: &str) -> Result<Vec<LighthouseData>>;
+    async fn get_headings(&self, job_id: &str) -> Result<Vec<Heading>>;
+    async fn get_images(&self, job_id: &str) -> Result<Vec<Image>>;
+    async fn get_ai_insights(&self, job_id: &str) -> Result<AiInsight>;
     async fn save_ai_insights(
         &self,
         job_id: &str,
@@ -231,4 +208,25 @@ pub trait PageQueueRepository: Send + Sync {
 
     /// Check if all pages for a job are complete (no pending or processing).
     async fn is_job_complete(&self, job_id: &str) -> Result<bool>;
+}
+
+#[async_trait]
+pub trait ExtensionRepository: Send + Sync {
+    async fn create_check(&self, params: &CustomCheckParams) -> Result<CustomCheck>;
+    async fn list_checks(&self) -> Result<Vec<CustomCheck>>;
+    async fn get_check(&self, id: &str) -> Result<CustomCheck>;
+    async fn update_check(&self, id: &str, params: &CustomCheckParams) -> Result<CustomCheck>;
+    async fn delete_check(&self, id: &str) -> Result<()>;
+    async fn list_enabled_checks(&self) -> Result<Vec<CustomCheck>>;
+
+    async fn create_extractor(&self, params: &CustomExtractorParams) -> Result<CustomExtractor>;
+    async fn list_extractors(&self) -> Result<Vec<CustomExtractor>>;
+    async fn get_extractor(&self, id: &str) -> Result<CustomExtractor>;
+    async fn update_extractor(
+        &self,
+        id: &str,
+        params: &CustomExtractorParams,
+    ) -> Result<CustomExtractor>;
+    async fn delete_extractor(&self, id: &str) -> Result<()>;
+    async fn list_enabled_extractors(&self) -> Result<Vec<CustomExtractor>>;
 }

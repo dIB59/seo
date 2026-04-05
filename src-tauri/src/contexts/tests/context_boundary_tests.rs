@@ -4,7 +4,10 @@
 use std::sync::Arc;
 use std::sync::RwLock;
 
-use crate::contexts::permissions::{LicenseTier, Policy};
+use crate::contexts::{
+    analysis::{JobSettings, JobStatus},
+    licensing::LicenseTier,
+};
 use crate::repository::{
     sqlite_ai_repo, sqlite_issue_repo, sqlite_job_repo, sqlite_link_repo, sqlite_page_queue_repo,
     sqlite_page_repo, sqlite_results_repo, sqlite_settings_repo,
@@ -135,7 +138,7 @@ async fn test_analysis_context_create_job() {
     let analysis_context = fixture.create_analysis_context();
 
     // Create a job
-    let settings = crate::contexts::JobSettings::default();
+    let settings = JobSettings::default();
     let job_id = analysis_context
         .create_job("https://example.com", &settings)
         .await
@@ -146,7 +149,7 @@ async fn test_analysis_context_create_job() {
     // Verify job can be retrieved
     let job = analysis_context.get_job(&job_id).await.expect("Failed to get job");
     assert_eq!(job.url, "https://example.com");
-    assert_eq!(job.status, crate::contexts::JobStatus::Pending);
+    assert_eq!(job.status, JobStatus::Pending);
 }
 
 #[tokio::test]
@@ -155,7 +158,7 @@ async fn test_analysis_context_get_progress() {
     let analysis_context = fixture.create_analysis_context();
 
     // Create a job
-    let settings = crate::contexts::JobSettings::default();
+    let settings = JobSettings::default();
     let job_id = analysis_context
         .create_job("https://example.com", &settings)
         .await
@@ -168,7 +171,7 @@ async fn test_analysis_context_get_progress() {
         .expect("Failed to get progress");
 
     assert_eq!(progress.id, job_id);
-    assert_eq!(progress.status, crate::contexts::JobStatus::Pending);
+    assert_eq!(progress.status, JobStatus::Pending);
 }
 
 #[tokio::test]
@@ -177,7 +180,7 @@ async fn test_analysis_context_list_jobs() {
     let analysis_context = fixture.create_analysis_context();
 
     // Create multiple jobs
-    let settings = crate::contexts::JobSettings::default();
+    let settings = JobSettings::default();
     for i in 0..3 {
         analysis_context
             .create_job(&format!("https://example{}.com", i), &settings)
@@ -196,7 +199,7 @@ async fn test_analysis_context_paginated_jobs() {
     let analysis_context = fixture.create_analysis_context();
 
     // Create multiple jobs
-    let settings = crate::contexts::JobSettings::default();
+    let settings = JobSettings::default();
     for i in 0..5 {
         analysis_context
             .create_job(&format!("https://example{}.com", i), &settings)
@@ -234,7 +237,7 @@ async fn test_analysis_context_cancel_job() {
 
     // Verify job is cancelled
     let job = analysis_context.get_job(&job_id).await.expect("Failed to get job");
-    assert_eq!(job.status, crate::contexts::JobStatus::Cancelled);
+    assert_eq!(job.status, JobStatus::Cancelled);
 }
 
 // ============================================================================
@@ -322,7 +325,7 @@ async fn test_cross_context_job_and_ai_insights() {
     let ai_context = fixture.create_ai_context();
 
     // Create a job via analysis context
-    let settings = crate::contexts::JobSettings::default();
+    let settings = JobSettings::default();
     let job_id = analysis_context
         .create_job("https://example.com", &settings)
         .await
@@ -349,7 +352,7 @@ async fn test_context_isolation() {
     let analysis_context2 = fixture.create_analysis_context();
 
     // Create a job in context1
-    let settings = crate::contexts::JobSettings::default();
+    let settings = JobSettings::default();
     let job_id = analysis_context1
         .create_job("https://context1.com", &settings)
         .await
@@ -371,7 +374,7 @@ async fn test_data_flow_from_command_to_repository() {
 
     // Simulate command layer creating a job
     let url = "https://dataflow-test.com";
-    let settings = crate::contexts::JobSettings {
+    let settings = JobSettings {
         max_pages: 50,
         include_subdomains: true,
         check_images: false,

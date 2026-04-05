@@ -1,91 +1,95 @@
-import { useMemo, useEffect, useState } from "react"
-import type { CompleteAnalysisResponse } from "@/src/lib/types"
-import { normalizeUrl, resolveInternalUrl } from "./url-utils"
-import { calculateNodeDegrees } from "./node-utils"
-import type { GraphNode, GraphLink } from "./graph-types"
+import { useMemo, useEffect, useState } from "react";
+import type { CompleteAnalysisResponse } from "@/src/api/analysis";
+import { normalizeUrl, resolveInternalUrl } from "./url-utils";
+import { calculateNodeDegrees } from "./node-utils";
+import type { GraphNode, GraphLink } from "./graph-types";
 
 export const useGraphData = (data: CompleteAnalysisResponse, selectedNodeId: string | null) => {
-    return useMemo(() => {
-        const nodes: GraphNode[] = []
-        const links: GraphLink[] = []
+  return useMemo(() => {
+    const nodes: GraphNode[] = [];
+    const links: GraphLink[] = [];
 
-        const validUrls = new Map<string, string>()
-        data.pages.forEach(page => {
-            validUrls.set(normalizeUrl(page.url), page.url)
-        })
+    const validUrls = new Map<string, string>();
+    data.pages.forEach((page) => {
+      validUrls.set(normalizeUrl(page.url), page.url);
+    });
 
-        const { inDegree, outDegree } = calculateNodeDegrees(data.pages, validUrls)
+    const { inDegree, outDegree } = calculateNodeDegrees(data.pages, validUrls);
 
-        data.pages.forEach(page => {
-            const issuesForPage = data.issues.filter(i => i.page_url === page.url)
-            const baseColor = issuesForPage.some(i => i.severity === "critical") ? '#f14444ff' : issuesForPage.some(i => i.severity === "warning") ? '#e8aa3fff' : '#46c773ff'
+    data.pages.forEach((page) => {
+      const issuesForPage = data.issues.filter((i) => i.page_url === page.url);
+      const baseColor = issuesForPage.some((i) => i.severity === "critical")
+        ? "#f14444ff"
+        : issuesForPage.some((i) => i.severity === "warning")
+          ? "#e8aa3fff"
+          : "#46c773ff";
 
-            nodes.push({
-                id: page.url,
-                url: page.url,
-                title: page.title || "No Title",
-                status: page.status_code,
-                issueCount: issuesForPage.length,
-                inDegree: inDegree.get(page.url) || 0,
-                outDegree: outDegree.get(page.url) || 0,
-                color: baseColor
-            })
-        })
+      nodes.push({
+        id: page.url,
+        url: page.url,
+        title: page.title || "No Title",
+        status: page.status_code,
+        issueCount: issuesForPage.length,
+        inDegree: inDegree.get(page.url) || 0,
+        outDegree: outDegree.get(page.url) || 0,
+        color: baseColor,
+      });
+    });
 
-        data.pages.forEach(page => {
-            if (!page.detailed_links) return
+    data.pages.forEach((page) => {
+      if (!page.detailed_links) return;
 
-            page.detailed_links.forEach(link => {
-                if (link.is_external) return
+      page.detailed_links.forEach((link) => {
+        if (link.link_type === "external" || link.link_type === "resource") return;
 
-                const targetUrl = resolveInternalUrl(link.href, page.url, validUrls)
-                if (!targetUrl) return
+        const targetUrl = resolveInternalUrl(link.href, page.url, validUrls);
+        if (!targetUrl) return;
 
-                const targetPage = data.pages.find(p => p.url === targetUrl)
-                const isBroken = targetPage?.status_code ? targetPage.status_code >= 400 : false
+        const targetPage = data.pages.find((p) => p.url === targetUrl);
+        const isBroken = targetPage?.status_code ? targetPage.status_code >= 400 : false;
 
-                links.push({ source: page.url, target: targetUrl, isBroken })
-            })
-        })
+        links.push({ source: page.url, target: targetUrl, isBroken });
+      });
+    });
 
-        if (selectedNodeId) {
-            const filteredLinks = links.filter(
-                link => link.source === selectedNodeId || link.target === selectedNodeId
-            )
+    if (selectedNodeId) {
+      const filteredLinks = links.filter(
+        (link) => link.source === selectedNodeId || link.target === selectedNodeId,
+      );
 
-            const connectedNodeIds = new Set([selectedNodeId])
-            filteredLinks.forEach(link => {
-                connectedNodeIds.add(link.source)
-                connectedNodeIds.add(link.target)
-            })
+      const connectedNodeIds = new Set([selectedNodeId]);
+      filteredLinks.forEach((link) => {
+        connectedNodeIds.add(link.source);
+        connectedNodeIds.add(link.target);
+      });
 
-            nodes.forEach(node => {
-                if (!connectedNodeIds.has(node.id)) node.color = '#666666ff'
-            })
+      nodes.forEach((node) => {
+        if (!connectedNodeIds.has(node.id)) node.color = "#666666ff";
+      });
 
-            return { nodes, links: filteredLinks }
-        }
+      return { nodes, links: filteredLinks };
+    }
 
-        return { nodes, links }
-    }, [data, selectedNodeId])
-}
+    return { nodes, links };
+  }, [data, selectedNodeId]);
+};
 
 export const useContainerDimensions = (containerRef: React.RefObject<HTMLDivElement | null>) => {
-    const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
+  const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
 
-    useEffect(() => {
-        if (!containerRef.current) return
+  useEffect(() => {
+    if (!containerRef.current) return;
 
-        const observer = new ResizeObserver((entries) => {
-            if (!entries[0]) return
-            const { width, height } = entries[0].contentRect
-            setDimensions({ width, height })
-        })
+    const observer = new ResizeObserver((entries) => {
+      if (!entries[0]) return;
+      const { width, height } = entries[0].contentRect;
+      setDimensions({ width, height });
+    });
 
-        observer.observe(containerRef.current)
+    observer.observe(containerRef.current);
 
-        return () => observer.disconnect()
-    }, [containerRef])
+    return () => observer.disconnect();
+  }, [containerRef]);
 
-    return dimensions
-}
+  return dimensions;
+};

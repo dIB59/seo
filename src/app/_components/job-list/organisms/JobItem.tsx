@@ -1,4 +1,4 @@
-import type { AnalysisProgress } from "@/src/lib/types";
+import type { AnalysisProgress } from "@/src/api/analysis";
 import { getStatusIcon } from "../atoms/JobStatusIcon";
 import { CancelButton } from "../atoms/CancelButton";
 import { ViewResultButton } from "../atoms/ViewResultButton";

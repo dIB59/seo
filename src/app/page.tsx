@@ -5,7 +5,7 @@ import { mutate as globalMutate } from "swr";
 import { HomeHeader } from "@/src/app/_components/home/HomeHeader";
 import { JobHistory } from "@/src/app/_components/job-list/organisms/JobHistory";
 import { startAnalysis } from "@/src/api/analysis";
-import type { AnalysisSettingsRequest } from "@/src/lib/types";
+import type { AnalysisSettingsRequest } from "@/src/api/analysis";
 import { logger } from "@/src/lib/logger";
 import { UrlInputForm } from "@/src/app/_components/url-input/UrlInputForm";
 

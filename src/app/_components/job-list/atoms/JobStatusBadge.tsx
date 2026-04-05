@@ -1,5 +1,5 @@
 import { cn } from "@/src/lib/utils";
-import type { JobStatus } from "@/src/lib/types";
+import type { JobStatus } from "@/src/api/analysis";
 
 export function JobStatusBadge({ status }: { status: JobStatus }) {
   const baseClasses = "px-2 py-0.5 rounded-full text-xs font-medium";

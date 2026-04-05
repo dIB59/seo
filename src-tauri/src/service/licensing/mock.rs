@@ -1,10 +1,7 @@
-
 use crate::contexts::licensing::{
-    AddonError, LicenseData, LicenseTier, LicenseVerifier, LicensingAgent, SignedLicense
+    AddonError, LicenseData, LicenseTier, LicenseStatus, LicenseVerifier, LicensingAgent, SignedLicense,
 };
-use crate::service::hardware::HardwareService;
 use async_trait::async_trait;
-use chrono::Timelike;
 use std::sync::Arc;
 
 pub struct MockLicensingService {
@@ -14,8 +11,7 @@ pub struct MockLicensingService {
 }
 
 impl MockLicensingService {
-    // Hardcoded keys for development
-    const MOCK_PRIVATE_KEY: [u8; 32] = [
+    pub const MOCK_PRIVATE_KEY: [u8; 32] = [
         0xfe, 0xdc, 0xba, 0x09, 0x87, 0x65, 0x43, 0x21, 0xfe, 0xdc, 0xba, 0x09, 0x87, 0x65, 0x43,
         0x21, 0xfe, 0xdc, 0xba, 0x09, 0x87, 0x65, 0x43, 0x21, 0xfe, 0xdc, 0xba, 0x09, 0x87, 0x65,
         0x43, 0x21,
@@ -24,143 +20,72 @@ impl MockLicensingService {
     pub fn new(settings_repo: Arc<dyn crate::repository::SettingsRepository>) -> Self {
         let signing_key = ed25519_dalek::SigningKey::from_bytes(&Self::MOCK_PRIVATE_KEY);
         let public_key = signing_key.verifying_key().to_bytes();
-
-        Self {
-            settings_repo,
-            public_key,
-            private_key: Self::MOCK_PRIVATE_KEY,
-        }
+        Self { settings_repo, public_key, private_key: Self::MOCK_PRIVATE_KEY }
     }
 
-    fn verify_short_key(&self, key: &str) -> Result<LicenseTier, AddonError> {
-        let parts: Vec<&str> = key.split('-').collect();
-        if parts.len() != 3 {
-            return Err(AddonError::InvalidLicenseKey);
-        }
-
-        let tier = match parts[0] {
-            "P" => LicenseTier::Premium,
-            "F" => LicenseTier::Free,
-            _ => return Err(AddonError::VerificationFailed),
+    /// Generate a valid offline key for the given tier and expiry.
+    /// Used in tests and dev builds.
+    pub fn generate_license_key(
+        &self,
+        tier: LicenseTier,
+        expires_at: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> String {
+        use ed25519_dalek::Signer;
+        let data = LicenseData {
+            key: format!("mock-{}", uuid::Uuid::new_v4()),
+            machine_id: "*".to_string(),
+            tier,
+            tier_version: crate::contexts::licensing::TierVersion::new(1, 0, 0),
+            tier_meta: None,
+            expires_at,
+            issued_at: chrono::Utc::now(),
         };
-
-        let _mach_part = parts[1];
-        let sig_part = parts[2];
-
-        // Verify "signature" by hashing (Tier + MachineID + Secret)
-        // In a real system this would be more complex, but for mock we use this.
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-
-        let mut hasher = DefaultHasher::new();
-        tier.hash(&mut hasher);
-        HardwareService::get_machine_id().hash(&mut hasher);
-        self.private_key.hash(&mut hasher);
-        let expected_hash = format!("{:x}", hasher.finish());
-
-        // Match truncated hash (first 6 chars)
-        if sig_part.to_lowercase() == expected_hash[..sig_part.len()].to_lowercase() {
-            Ok(tier)
-        } else {
-            Err(AddonError::InvalidSignature)
-        }
-    }
-
-    pub fn generate_short_key(&self, tier: LicenseTier) -> String {
-        let tier_code = match tier {
-            LicenseTier::Premium => "P",
-            LicenseTier::Free => "F",
-        };
-
-        // Use a short version of machine ID for the MACH part
-        let mach_id = HardwareService::get_machine_id();
-        let mach_part = if mach_id.len() > 6 {
-            &mach_id[..6]
-        } else {
-            &mach_id
-        };
-
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-
-        let mut hasher = DefaultHasher::new();
-        tier.hash(&mut hasher);
-        mach_id.hash(&mut hasher);
-        self.private_key.hash(&mut hasher);
-        let hash = format!("{:x}", hasher.finish());
-
-        format!("{}-{}-{}", tier_code, mach_part, &hash[..6]).to_uppercase()
+        let data_json = serde_json::to_string(&data).unwrap();
+        let signing_key = ed25519_dalek::SigningKey::from_bytes(&self.private_key);
+        let signature = signing_key.sign(data_json.as_bytes());
+        let signed = SignedLicense { data, signature: hex::encode(signature.to_bytes()) };
+        Self::encode_key(&signed)
     }
 }
 
 #[async_trait]
 impl LicensingAgent for MockLicensingService {
-    async fn load_license(&self) -> Result<LicenseTier, AddonError> {
+    async fn load_license(&self) -> Result<LicenseStatus, AddonError> {
         let license_content = self
             .settings_repo
             .get_setting("signed_license")
             .await
             .map_err(|_| AddonError::VerificationFailed)?;
 
-        let Some(license_content) = license_content else {
-            return Ok(LicenseTier::Free);
+        let Some(content) = license_content else {
+            return Ok(LicenseStatus::Active(LicenseTier::Free));
         };
 
-        if license_content.is_empty() {
-            return Ok(LicenseTier::Free);
+        if content.is_empty() {
+            return Ok(LicenseStatus::Active(LicenseTier::Free));
         }
 
         let signed_license: SignedLicense =
-            serde_json::from_str(&license_content).map_err(|_| AddonError::InvalidSignature)?;
+            serde_json::from_str(&content).map_err(|_| AddonError::InvalidSignature)?;
 
         let verifier = LicenseVerifier::new(self.public_key)?;
-        verifier.verify(&signed_license, &HardwareService::get_machine_id())
+        verifier.verify(&signed_license)
     }
 
-    async fn activate_with_key(&self, key: &str) -> Result<LicenseTier, AddonError> {
-        use ed25519_dalek::Signer;
-
-        tracing::info!("[MOCK] Activating license with key: {}", key);
-
-        // 1. Try to verify as a short Product Key
-        let tier = self.verify_short_key(key)?;
-
-        let machine_id = HardwareService::get_machine_id();
-
-        // 2. "Redeem" the short key by generating a full digital license
-        let data = LicenseData {
-            key: key.to_string(),
-            machine_id: machine_id.clone(),
-            tier,
-            tier_version: crate::contexts::licensing::TierVersion::new(1, 0, 0),
-            tier_meta: None,
-            expires_at: None,
-            issued_at: chrono::Utc::now().with_nanosecond(0).unwrap(),
-        };
-
-        let data_json = serde_json::to_string(&data).map_err(|_| AddonError::VerificationFailed)?;
-        let signing_key = ed25519_dalek::SigningKey::from_bytes(&self.private_key);
-        let signature = signing_key.sign(data_json.as_bytes());
-
-        let signed_license = SignedLicense {
-            data,
-            signature: hex::encode(signature.to_bytes()),
-        };
+    async fn activate_with_key(&self, key: &str) -> Result<LicenseStatus, AddonError> {
+        let signed_license = <Self as LicensingAgent>::decode_key(key)?;
+        let verifier = LicenseVerifier::new(self.public_key)?;
+        let status = verifier.verify(&signed_license)?;
 
         let license_json =
             serde_json::to_string(&signed_license).map_err(|_| AddonError::VerificationFailed)?;
 
-        tracing::info!("[MOCK] Redeemed short key for full license.");
-
         self.settings_repo
             .set_setting("signed_license", &license_json)
             .await
-            .map_err(|e| {
-                tracing::error!("[MOCK] Failed to save license to repo: {}", e);
-                AddonError::VerificationFailed
-            })?;
+            .map_err(|_| AddonError::VerificationFailed)?;
 
-        Ok(tier)
+        Ok(status)
     }
 }
 
@@ -171,62 +96,45 @@ mod tests {
     use crate::test_utils::fixtures::setup_test_db;
 
     #[tokio::test]
-    async fn test_mock_initial_state_is_free() {
+    async fn initial_state_is_free() {
         let pool = setup_test_db().await;
-        let settings_repo = sqlite_settings_repo(pool);
-        let service = MockLicensingService::new(settings_repo);
-
-        let tier = service.load_license().await.unwrap();
-        assert_eq!(tier, LicenseTier::Free);
-    }
-
-    #[tokio::test]
-    async fn test_mock_key_generation_and_verification() {
-        let pool = setup_test_db().await;
-        let settings_repo = sqlite_settings_repo(pool);
-        let service = MockLicensingService::new(settings_repo);
-
-        let premium_key = service.generate_short_key(LicenseTier::Premium);
-        let free_key = service.generate_short_key(LicenseTier::Free);
-
+        let service = MockLicensingService::new(sqlite_settings_repo(pool));
         assert_eq!(
-            service.verify_short_key(&premium_key).unwrap(),
-            LicenseTier::Premium
-        );
-        assert_eq!(
-            service.verify_short_key(&free_key).unwrap(),
-            LicenseTier::Free
+            service.load_license().await.unwrap(),
+            LicenseStatus::Active(LicenseTier::Free)
         );
     }
 
     #[tokio::test]
-    async fn test_mock_activation_fallbacks() {
-        let _ = tracing_subscriber::fmt()
-            .with_env_filter("app=debug")
-            .with_test_writer()
-            .try_init();
+    async fn generate_and_activate_premium() {
         let pool = setup_test_db().await;
-        let settings_repo = sqlite_settings_repo(pool.clone());
-        let service = MockLicensingService::new(settings_repo);
+        let service = MockLicensingService::new(sqlite_settings_repo(pool));
+        let key = service.generate_license_key(
+            LicenseTier::Premium,
+            Some(chrono::Utc::now() + chrono::Duration::days(365)),
+        );
+        let status = service.activate_with_key(&key).await.unwrap();
+        assert_eq!(status, LicenseStatus::Active(LicenseTier::Premium));
+        assert_eq!(service.load_license().await.unwrap(), LicenseStatus::Active(LicenseTier::Premium));
+    }
 
-        // 1. Generate a valid short key for Premium
-        let premium_key = service.generate_short_key(LicenseTier::Premium);
+    #[tokio::test]
+    async fn updates_expired_key_still_activates() {
+        let pool = setup_test_db().await;
+        let service = MockLicensingService::new(sqlite_settings_repo(pool));
+        let key = service.generate_license_key(
+            LicenseTier::Premium,
+            Some(chrono::Utc::now() - chrono::Duration::days(1)),
+        );
+        let status = service.activate_with_key(&key).await.unwrap();
+        assert_eq!(status, LicenseStatus::UpdatesExpired(LicenseTier::Premium));
+    }
 
-        // 2. Activate with valid key -> Premium
-        let tier = service.activate_with_key(&premium_key).await.unwrap();
-        assert_eq!(tier, LicenseTier::Premium);
-
-        // 3. Verify that a full license was saved and can be loaded
-        let loaded_tier = service.load_license().await.unwrap();
-        assert_eq!(loaded_tier, LicenseTier::Premium);
-
-        // 4. Activate with invalid key -> AddonError::InvalidLicenseKey
-        let tier_err = service.activate_with_key("INVALID-KEY").await;
-        assert!(matches!(tier_err, Err(AddonError::InvalidLicenseKey)));
-
-        // 5. Activate with tampered key (wrong tier) -> AddonError::InvalidSignature
-        let tampered_key = premium_key.replace("P-", "F-");
-        let tier_err = service.activate_with_key(&tampered_key).await;
-        assert!(matches!(tier_err, Err(AddonError::InvalidSignature)));
+    #[tokio::test]
+    async fn invalid_key_rejected() {
+        let pool = setup_test_db().await;
+        let service = MockLicensingService::new(sqlite_settings_repo(pool));
+        let err = service.activate_with_key("SEOINSIKT-garbage").await.unwrap_err();
+        assert!(matches!(err, AddonError::InvalidLicenseKey));
     }
 }

@@ -1,38 +1,8 @@
-import type {
-  AnalysisResults,
-  PageAnalysisData,
-  CompleteAnalysisResponse,
-  SeoIssue,
-  IssueSeverity,
-  ImageElement,
-  JsonValue,
-  AnalysisProgress,
-  AnalysisSettingsRequest,
-  AnalysisJobResponse,
-  LinkDetail,
-  JobStatus,
-  Feature,
-  Policy,
-} from "../bindings";
-
-export type {
-  AnalysisResults,
-  PageAnalysisData,
-  CompleteAnalysisResponse,
-  SeoIssue,
-  IssueSeverity,
-  ImageElement,
-  JsonValue,
-  AnalysisProgress,
-  AnalysisSettingsRequest,
-  AnalysisJobResponse,
-  LinkDetail,
-  JobStatus,
-  Feature,
-  Policy,
-};
-
-export type CompleteAnalysisResult = CompleteAnalysisResponse;
+export interface PromptBlock {
+  id: string;
+  type: "text" | "variable";
+  content: string;
+}
 
 export interface LighthouseAuditResult {
   passed: boolean;
@@ -61,38 +31,4 @@ export interface LighthousePerformanceMetrics {
   time_to_interactive: number | null;
   total_blocking_time: number | null;
   cumulative_layout_shift: number | null;
-}
-
-export type IssueType = IssueSeverity;
-
-// Re-exported as alias at the top: CompleteAnalysisResult = CompleteAnalysisResponse
-
-export type HeadingTag = "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
-
-export interface HeadingElement {
-  tag: HeadingTag | string;
-  text: string;
-}
-
-// ImageElement is provided by generated bindings; don't duplicate it here.
-
-export interface LinkElement {
-  href: string;
-  text: string;
-  link_type: string;
-  status_code: number | null;
-  is_broken: boolean;
-}
-
-// Extended page data with detailed elements
-export type PageDetailData = PageAnalysisData & {
-  /** Extracted data from custom extractors (key-value pairs) */
-  extracted_data?: Record<string, unknown>;
-};
-
-// AI / Prompt builder types
-export interface PromptBlock {
-  id: string;
-  type: "text" | "variable";
-  content: string;
 }

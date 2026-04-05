@@ -1,23 +1,42 @@
 use super::entitlement::{LicenseTier, PermissionRequest};
 use super::tier::TierVersion;
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 
-/// Core license payload that is signed by the licensing server. `tier_version`
-/// is now a typed `TierVersion` value object (serialized as a string to keep
-/// JSON compact and compatible with existing string-form usage).
+pub const KEY_PREFIX: &str = "SEOINSIKT-";
+
+/// Build date embedded at compile time — used for soft-expiry checks.
+const BUILD_DATE: &str = env!("BUILD_DATE");
+
+/// Status of a verified license.
+///
+/// Soft-expiry model: the app never stops working. `expires_at` only controls
+/// whether the installed build is within the user's 1-year update window.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LicenseStatus {
+    /// Build date ≤ `expires_at` (or no expiry) — full access.
+    Active(LicenseTier),
+    /// Build date > `expires_at` — app works, renewal banner shown.
+    UpdatesExpired(LicenseTier),
+}
+
+/// Core license payload signed by the developer's private key.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LicenseData {
+    /// Customer / order reference — used for support, not enforced in app.
     pub key: String,
+    /// Always `"*"` in Phase 1 (no machine binding). Reserved for Phase 2.
     pub machine_id: String,
     pub tier: LicenseTier,
     pub tier_version: TierVersion,
     pub tier_meta: Option<serde_json::Value>,
+    /// End of the update window (purchase date + 1 year).
+    /// `None` means the key never expires.
     pub expires_at: Option<chrono::DateTime<chrono::Utc>>,
     pub issued_at: chrono::DateTime<chrono::Utc>,
 }
 
 impl LicenseData {
-    /// Convenience: return tuple if `tier_version` is present.
     pub fn tier_version_tuple(&self) -> (u64, u64, u64) {
         (
             self.tier_version.major,
@@ -30,13 +49,8 @@ impl LicenseData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SignedLicense {
     pub data: LicenseData,
-    pub signature: String, // Hex encoded signature
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-pub struct LicenseActivationRequest {
-    pub key: String,
-    pub machine_id: String,
+    /// Hex-encoded Ed25519 signature over the JSON of `data`.
+    pub signature: String,
 }
 
 pub struct LicenseVerifier {
@@ -50,23 +64,9 @@ impl LicenseVerifier {
         Ok(Self { public_key })
     }
 
-    pub fn verify(
-        &self,
-        signed_license: &SignedLicense,
-        current_machine_id: &str,
-    ) -> Result<LicenseTier, AddonError> {
-        if signed_license.data.machine_id != current_machine_id {
-            return Err(AddonError::HardwareMismatch);
-        }
-
-        if signed_license
-            .data
-            .expires_at
-            .is_some_and(|expiry| expiry < chrono::Utc::now())
-        {
-            return Err(AddonError::LicenseExpired);
-        }
-
+    /// Verify the Ed25519 signature and determine soft-expiry status.
+    /// Machine binding is intentionally skipped (Phase 1 — no server).
+    pub fn verify(&self, signed_license: &SignedLicense) -> Result<LicenseStatus, AddonError> {
         use ed25519_dalek::Verifier;
 
         let data_json = serde_json::to_string(&signed_license.data)
@@ -82,14 +82,59 @@ impl LicenseVerifier {
             .verify(data_json.as_bytes(), &signature)
             .map_err(|_| AddonError::InvalidSignature)?;
 
-        Ok(signed_license.data.tier)
+        // Soft expiry: compare the embedded build date against the license window.
+        let updates_expired = signed_license
+            .data
+            .expires_at
+            .map(|expiry| {
+                chrono::NaiveDate::parse_from_str(BUILD_DATE, "%Y-%m-%d")
+                    .ok()
+                    .and_then(|d| d.and_hms_opt(0, 0, 0))
+                    .map(|dt| dt.and_utc() > expiry)
+                    .unwrap_or(false)
+            })
+            .unwrap_or(false);
+
+        let tier = signed_license.data.tier;
+        if updates_expired {
+            Ok(LicenseStatus::UpdatesExpired(tier))
+        } else {
+            Ok(LicenseStatus::Active(tier))
+        }
     }
 }
 
 #[async_trait::async_trait]
 pub trait LicensingAgent: Send + Sync {
-    async fn load_license(&self) -> Result<LicenseTier, AddonError>;
-    async fn activate_with_key(&self, key: &str) -> Result<LicenseTier, AddonError>;
+    /// Decode a pasted key string into a `SignedLicense`.
+    /// `where Self: Sized` keeps the trait object-safe while preventing
+    /// implementations from silently re-implementing the wire format.
+    fn decode_key(key: &str) -> Result<SignedLicense, AddonError>
+    where
+        Self: Sized,
+    {
+        let b64 = key.trim().strip_prefix(KEY_PREFIX).unwrap_or(key.trim());
+        let json_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(b64)
+            .map_err(|_| AddonError::InvalidLicenseKey)?;
+        serde_json::from_slice::<SignedLicense>(&json_bytes)
+            .map_err(|_| AddonError::InvalidLicenseKey)
+    }
+
+    /// Encode a `SignedLicense` into the `SEOINSIKT-<base64url>` key string.
+    fn encode_key(signed: &SignedLicense) -> String
+    where
+        Self: Sized,
+    {
+        let json = serde_json::to_string(signed).expect("SignedLicense is always serializable");
+        format!(
+            "{KEY_PREFIX}{}",
+            base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(json)
+        )
+    }
+
+    async fn load_license(&self) -> Result<LicenseStatus, AddonError>;
+    async fn activate_with_key(&self, key: &str) -> Result<LicenseStatus, AddonError>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, thiserror::Error, specta::Type)]
@@ -98,9 +143,7 @@ pub enum AddonError {
     PermissionDenied(PermissionRequest),
     #[error("Invalid license signature.")]
     InvalidSignature,
-    #[error("License has expired.")]
-    LicenseExpired,
-    #[error("License is tied to another machine.")]
+    #[error("License is for a different machine.")]
     HardwareMismatch,
     #[error("Internal verification error.")]
     VerificationFailed,
@@ -108,7 +151,7 @@ pub enum AddonError {
     InvalidPublicKey,
     #[error("Network error during activation.")]
     NetworkError,
-    #[error("Invalid license key.")]
+    #[error("Invalid license key format.")]
     InvalidLicenseKey,
 }
 
@@ -116,203 +159,98 @@ pub enum AddonError {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_license_verification() {
+    fn make_signed_license(
+        signing_key: &ed25519_dalek::SigningKey,
+        tier: LicenseTier,
+        expires_at: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> SignedLicense {
         use ed25519_dalek::Signer;
-        use rand::rngs::OsRng;
-
-        // 1. Generate Keypair
-        let mut csprng = OsRng;
-        let signing_key: ed25519_dalek::SigningKey =
-            ed25519_dalek::SigningKey::generate(&mut csprng);
-        let public_key = signing_key.verifying_key();
-
-        // 2. Create data (now includes typed `tier_version` + optional tier_meta)
-        let machine_id = "test-machine-id".to_string();
         let data = LicenseData {
-            key: "AAAA-BBBB-CCCC".to_string(),
-            machine_id: machine_id.clone(),
-            tier: LicenseTier::Premium,
-            tier_version: TierVersion::new(2, 0, 0),
-            tier_meta: None,
-            expires_at: None,
-            issued_at: chrono::Utc::now(),
-        };
-
-        // ensure value-object comparisons work as expected
-        let tv = data.tier_version;
-        assert_eq!(tv, TierVersion::new(2, 0, 0));
-        assert!(tv >= TierVersion::new(1, 9, 0));
-        assert!(tv >= TierVersion::new(2, 0, 0));
-        assert!(tv < TierVersion::new(2, 1, 0));
-
-        // 3. Sign data
-        let data_json = serde_json::to_string(&data).unwrap();
-        let signature = signing_key.sign(data_json.as_bytes());
-        let signed_license = SignedLicense {
-            data: data.clone(),
-            signature: hex::encode(signature.to_bytes()),
-        };
-
-        // 4. Verify
-        let verifier = LicenseVerifier::new(public_key.to_bytes()).unwrap();
-        let result = verifier.verify(&signed_license, &machine_id);
-
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), LicenseTier::Premium);
-
-        // round-trip: deserializing the signed structure should preserve version
-        let serialized = serde_json::to_string(&signed_license).unwrap();
-        let deserialized: SignedLicense = serde_json::from_str(&serialized).unwrap();
-        assert_eq!(deserialized.data.tier_version, TierVersion::new(2, 0, 0));
-    }
-
-    #[test]
-    fn test_license_verification_hardware_mismatch() {
-        use ed25519_dalek::Signer;
-        use rand::rngs::OsRng;
-
-        let mut csprng = OsRng;
-        let signing_key = ed25519_dalek::SigningKey::generate(&mut csprng);
-        let public_key = signing_key.verifying_key();
-
-        let data = LicenseData {
-            key: "KEY".to_string(),
-            machine_id: "machine-1".to_string(),
-            tier: LicenseTier::Premium,
+            key: "TEST-KEY".to_string(),
+            machine_id: "*".to_string(),
+            tier,
             tier_version: TierVersion::new(1, 0, 0),
             tier_meta: None,
-            expires_at: None,
+            expires_at,
             issued_at: chrono::Utc::now(),
         };
-
         let data_json = serde_json::to_string(&data).unwrap();
         let signature = signing_key.sign(data_json.as_bytes());
-        let signed_license = SignedLicense {
+        SignedLicense {
             data,
             signature: hex::encode(signature.to_bytes()),
-        };
-
-        let verifier = LicenseVerifier::new(public_key.to_bytes()).unwrap();
-        let result = verifier.verify(&signed_license, "machine-2");
-
-        assert!(matches!(result, Err(AddonError::HardwareMismatch)));
+        }
     }
 
     #[test]
-    fn test_license_verification_expired() {
-        use ed25519_dalek::Signer;
+    fn test_valid_license_no_expiry() {
         use rand::rngs::OsRng;
+        let signing_key = ed25519_dalek::SigningKey::generate(&mut OsRng);
+        let verifier = LicenseVerifier::new(signing_key.verifying_key().to_bytes()).unwrap();
 
-        let mut csprng = OsRng;
-        let signing_key = ed25519_dalek::SigningKey::generate(&mut csprng);
-        let public_key = signing_key.verifying_key();
-
-        let data = LicenseData {
-            key: "KEY".to_string(),
-            machine_id: "machine-1".to_string(),
-            tier: LicenseTier::Premium,
-            tier_version: TierVersion::new(1, 0, 0),
-            tier_meta: None,
-            expires_at: Some(chrono::Utc::now() - chrono::Duration::days(1)),
-            issued_at: chrono::Utc::now() - chrono::Duration::days(2),
-        };
-
-        let data_json = serde_json::to_string(&data).unwrap();
-        let signature = signing_key.sign(data_json.as_bytes());
-        let signed_license = SignedLicense {
-            data,
-            signature: hex::encode(signature.to_bytes()),
-        };
-
-        let verifier = LicenseVerifier::new(public_key.to_bytes()).unwrap();
-        let result = verifier.verify(&signed_license, "machine-1");
-
-        assert!(matches!(result, Err(AddonError::LicenseExpired)));
+        let signed = make_signed_license(&signing_key, LicenseTier::Premium, None);
+        let status = verifier.verify(&signed).unwrap();
+        assert_eq!(status, LicenseStatus::Active(LicenseTier::Premium));
     }
 
     #[test]
-    fn test_license_verification_invalid_signature() {
-        use ed25519_dalek::Signer;
+    fn test_updates_expired_when_expiry_in_past() {
         use rand::rngs::OsRng;
+        let signing_key = ed25519_dalek::SigningKey::generate(&mut OsRng);
+        let verifier = LicenseVerifier::new(signing_key.verifying_key().to_bytes()).unwrap();
 
-        let mut csprng = OsRng;
-        let signing_key = ed25519_dalek::SigningKey::generate(&mut csprng);
-        let public_key = signing_key.verifying_key();
-
-        let data = LicenseData {
-            key: "KEY".to_string(),
-            machine_id: "machine-1".to_string(),
-            tier: LicenseTier::Premium,
-            tier_version: TierVersion::new(1, 0, 0),
-            tier_meta: None,
-            expires_at: None,
-            issued_at: chrono::Utc::now(),
-        };
-
-        let data_json = serde_json::to_string(&data).unwrap();
-        let signature = signing_key.sign(data_json.as_bytes());
-        let mut signed_license = SignedLicense {
-            data,
-            signature: hex::encode(signature.to_bytes()),
-        };
-
-        // Corrupt the signature
-        signed_license.signature = "00".repeat(64);
-
-        let verifier = LicenseVerifier::new(public_key.to_bytes()).unwrap();
-        let result = verifier.verify(&signed_license, "machine-1");
-
-        assert!(matches!(result, Err(AddonError::InvalidSignature)));
+        let past = chrono::Utc::now() - chrono::Duration::days(365);
+        let signed = make_signed_license(&signing_key, LicenseTier::Premium, Some(past));
+        // Build date is today, license expired a year ago — updates should be expired.
+        let status = verifier.verify(&signed).unwrap();
+        assert_eq!(status, LicenseStatus::UpdatesExpired(LicenseTier::Premium));
     }
 
     #[test]
-    fn test_license_verification_tampered_data() {
-        use ed25519_dalek::Signer;
+    fn test_active_when_expiry_in_future() {
         use rand::rngs::OsRng;
+        let signing_key = ed25519_dalek::SigningKey::generate(&mut OsRng);
+        let verifier = LicenseVerifier::new(signing_key.verifying_key().to_bytes()).unwrap();
 
-        let mut csprng = OsRng;
-        let signing_key = ed25519_dalek::SigningKey::generate(&mut csprng);
-        let public_key = signing_key.verifying_key();
-
-        let data = LicenseData {
-            key: "KEY".to_string(),
-            machine_id: "machine-1".to_string(),
-            tier: LicenseTier::Free, // Originally Free
-            tier_version: TierVersion::new(1, 0, 0),
-            tier_meta: None,
-            expires_at: None,
-            issued_at: chrono::Utc::now(),
-        };
-
-        let data_json = serde_json::to_string(&data).unwrap();
-        let signature = signing_key.sign(data_json.as_bytes());
-        let mut signed_license = SignedLicense {
-            data,
-            signature: hex::encode(signature.to_bytes()),
-        };
-
-        // Tamper with data: change tier to Premium
-        signed_license.data.tier = LicenseTier::Premium;
-
-        let verifier = LicenseVerifier::new(public_key.to_bytes()).unwrap();
-        let result = verifier.verify(&signed_license, "machine-1");
-
-        assert!(matches!(result, Err(AddonError::InvalidSignature)));
+        let future = chrono::Utc::now() + chrono::Duration::days(365);
+        let signed = make_signed_license(&signing_key, LicenseTier::Premium, Some(future));
+        let status = verifier.verify(&signed).unwrap();
+        assert_eq!(status, LicenseStatus::Active(LicenseTier::Premium));
     }
 
     #[test]
-    fn test_license_data_tier_version_tuple() {
+    fn test_tampered_data_rejected() {
+        use rand::rngs::OsRng;
+        let signing_key = ed25519_dalek::SigningKey::generate(&mut OsRng);
+        let verifier = LicenseVerifier::new(signing_key.verifying_key().to_bytes()).unwrap();
+
+        let mut signed = make_signed_license(&signing_key, LicenseTier::Free, None);
+        signed.data.tier = LicenseTier::Premium; // tamper
+        assert!(matches!(verifier.verify(&signed), Err(AddonError::InvalidSignature)));
+    }
+
+    #[test]
+    fn test_invalid_signature_rejected() {
+        use rand::rngs::OsRng;
+        let signing_key = ed25519_dalek::SigningKey::generate(&mut OsRng);
+        let verifier = LicenseVerifier::new(signing_key.verifying_key().to_bytes()).unwrap();
+
+        let mut signed = make_signed_license(&signing_key, LicenseTier::Premium, None);
+        signed.signature = "00".repeat(64);
+        assert!(matches!(verifier.verify(&signed), Err(AddonError::InvalidSignature)));
+    }
+
+    #[test]
+    fn test_tier_version_tuple() {
         let data = LicenseData {
-            key: "KEY".to_string(),
-            machine_id: "MID".to_string(),
+            key: "K".to_string(),
+            machine_id: "*".to_string(),
             tier: LicenseTier::Free,
             tier_version: TierVersion::new(1, 2, 3),
             tier_meta: None,
             expires_at: None,
             issued_at: chrono::Utc::now(),
         };
-
         assert_eq!(data.tier_version_tuple(), (1, 2, 3));
     }
 }

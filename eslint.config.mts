@@ -5,6 +5,17 @@ import pluginReact from "eslint-plugin-react";
 import { defineConfig } from "eslint/config";
 import youMightNotNeedAnEffect from "eslint-plugin-react-you-might-not-need-an-effect";
 
+const generatedContractImportMessage =
+  "Import generated contracts through a domain API module in src/api instead of importing generated surfaces directly.";
+
+const restrictedGeneratedContractPaths = ["@/src/bindings", "@/src/bindings.ts"];
+
+const restrictedGeneratedContractPatterns = [
+  "@/src/gen/**",
+  "@/src/generated/**",
+  "@/src/**/__generated__/**",
+];
+
 export default defineConfig([
   {
     ignores: [
@@ -14,7 +25,7 @@ export default defineConfig([
       "node_modules/**/*",
       ".next/**/*",
       "out/**/*",
-      "target/**/*"
+      "target/**/*",
     ],
   },
   {
@@ -30,9 +41,9 @@ export default defineConfig([
         it: "readonly",
         expect: "readonly",
         $: "readonly",
-        browser: "readonly"
-      }
-    }
+        browser: "readonly",
+      },
+    },
   },
   tseslint.configs.recommended,
   pluginReact.configs.flat.recommended,
@@ -54,6 +65,30 @@ export default defineConfig([
     rules: {
       "react/react-in-jsx-scope": "off",
       "react/jsx-uses-react": "off",
+    },
+  },
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: restrictedGeneratedContractPaths.map((name) => ({
+            name,
+            message: generatedContractImportMessage,
+          })),
+          patterns: restrictedGeneratedContractPatterns.map((group) => ({
+            group: [group],
+            message: generatedContractImportMessage,
+          })),
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/api/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": "off",
     },
   },
 ]);

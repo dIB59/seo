@@ -10,7 +10,7 @@ mod tier;
 // ============================================================================
 
 pub use license::{
-    LicenseData, SignedLicense, LicenseActivationRequest, LicenseVerifier, 
+    KEY_PREFIX, LicenseData, LicenseStatus, SignedLicense, LicenseVerifier,
     LicensingAgent, AddonError,
 };
 
@@ -28,22 +28,6 @@ pub use entitlement::{
 
 pub use tier::TierVersion;
 
-// ============================================================================
-// Context-Specific Types
-// ============================================================================
-
-/// Status of a license
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LicenseStatus {
-    /// No license activated
-    Unlicensed,
-    /// License is valid and active
-    Active,
-    /// License has expired
-    Expired,
-    /// License verification failed
-    Invalid,
-}
 
 /// Request to check an entitlement
 #[derive(Debug, Clone)]

@@ -1,0 +1,5 @@
+error[E0432]: unresolved import `app::extension`
+ --> tests/trybuild/removed_top_level_extension.rs:1:10
+  |
+1 | use app::extension::ExtensionRegistry;
+  |          ^^^^^^^^^ could not find `extension` in `app`

@@ -1,8 +1,8 @@
+pub mod checker;
 pub mod commands;
 pub mod contexts;
 pub mod db;
 pub mod error;
-pub mod extension;
 pub mod extractor;
 pub mod lifecycle;
 pub mod repository;

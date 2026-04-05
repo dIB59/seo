@@ -2,7 +2,13 @@
 //!
 //! These tests verify the full analysis pipeline against real URLs.
 
-use app::{contexts::{IssueSeverity, JobSettings, JobStatus, LinkType, NewIssue, NewLink, NewPageQueueItem, Page, PageQueueStatus}, repository::sqlite_job_repo};
+use app::{
+    contexts::analysis::{
+        IssueSeverity, JobSettings, JobStatus, LinkType, NewIssue, NewLink, NewPageQueueItem,
+        Page, PageQueueStatus,
+    },
+    repository::sqlite_job_repo,
+};
 use sqlx::SqlitePool;
 
 /// Creates an in-memory SQLite database with migrations applied for testing.

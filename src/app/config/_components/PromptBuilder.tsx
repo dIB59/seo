@@ -29,9 +29,6 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import type { PromptBlock } from "@/src/lib/types";
 
-// Re-export for backward compatibility
-export type { PromptBlock };
-
 const VARIABLE_OPTIONS = [
   { id: "url", label: "Website URL", template: "Website URL: {url}" },
   { id: "score", label: "SEO Score", template: "SEO Score: {score}" },

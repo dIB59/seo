@@ -37,17 +37,19 @@ impl TierPolicy for LicenseTier {
         match self {
             LicenseTier::Free => Policy {
                 tier: LicenseTier::Free,
-                max_pages: 1, // Strict limit for free users
+                max_pages: 1,
                 enabled_features: HashSet::new(),
+                updates_expired: false,
             },
             LicenseTier::Premium => Policy {
                 tier: LicenseTier::Premium,
-                max_pages: 100000, // Unlimited for premium
+                max_pages: 100000,
                 enabled_features: HashSet::from([
                     Feature::LinkAnalysis,
                     Feature::GraphView,
                     Feature::ExportReports,
                 ]),
+                updates_expired: false,
             },
         }
     }
@@ -58,6 +60,9 @@ pub struct Policy {
     pub tier: LicenseTier,
     pub max_pages: usize,
     pub enabled_features: HashSet<Feature>,
+    /// True when the installed build is newer than the license's update window.
+    /// The app still works — this flag drives a renewal banner in the UI.
+    pub updates_expired: bool,
 }
 
 impl Default for Policy {
@@ -80,6 +85,17 @@ impl Policy {
 
     pub fn update_from_tier(&mut self, tier: LicenseTier) {
         *self = tier.get_policy();
+    }
+
+    pub fn from_status(status: crate::contexts::licensing::domain::license::LicenseStatus) -> Self {
+        use crate::contexts::licensing::domain::license::LicenseStatus;
+        let (tier, updates_expired) = match status {
+            LicenseStatus::Active(t) => (t, false),
+            LicenseStatus::UpdatesExpired(t) => (t, true),
+        };
+        let mut policy = tier.get_policy();
+        policy.updates_expired = updates_expired;
+        policy
     }
 }
 

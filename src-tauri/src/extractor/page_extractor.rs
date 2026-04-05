@@ -2,6 +2,8 @@ use scraper::{Html, Selector};
 use std::sync::OnceLock;
 use url::Url;
 
+use crate::contexts::analysis::LinkType;
+
 #[derive(Debug, Clone)]
 pub struct ExtractedHeading {
     pub level: i64,
@@ -22,7 +24,7 @@ pub struct ExtractedImage {
 #[derive(Debug, Clone)]
 pub struct ExtractedLink {
     pub href: String,
-    pub link_type: crate::contexts::LinkType,
+    pub link_type: LinkType,
     pub text: Option<String>,
 }
 
@@ -204,7 +206,7 @@ impl PageExtractor {
                 });
 
                 match link_type {
-                    crate::contexts::LinkType::Internal => internal.push(resolved),
+                    LinkType::Internal => internal.push(resolved),
                     _ => external.push(resolved),
                 }
             }

@@ -2,7 +2,7 @@ import { Card, CardContent } from "@/src/components/ui/card";
 import { FileText, Clock, ImageIcon, Link2, ExternalLink } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
 import PageStructure from "@/src/app/analysis/details/_components/molecules/PageStructure";
-import type { PageAnalysisData } from "@/src/lib/types";
+import type { PageAnalysisData } from "@/src/api/analysis";
 
 export default function PageInfoCard({ page }: { page: PageAnalysisData }) {
   return (

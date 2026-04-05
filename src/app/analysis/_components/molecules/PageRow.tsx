@@ -1,5 +1,5 @@
 import { cn } from "@/src/lib/utils";
-import { PageAnalysisData } from "@/src/lib/types";
+import type { PageAnalysisData } from "@/src/api/analysis";
 import { getScoreColor } from "@/src/lib/seo-metrics";
 
 interface PageRowProps {
@@ -25,9 +25,7 @@ import {
 } from "../atoms/PageRowAtoms";
 
 export function PageRow({ page, index, onClick }: PageRowProps) {
-  const isBroken = Boolean(
-    page.status_code && (page.status_code >= 400 || page.status_code < 200)
-  );
+  const isBroken = Boolean(page.status_code && (page.status_code >= 400 || page.status_code < 200));
 
   const rowClass = isBroken ? STYLES.broken.row : STYLES.healthy.row;
 
@@ -38,15 +36,25 @@ export function PageRow({ page, index, onClick }: PageRowProps) {
         "grid px-4 py-2.5 border-b border-border/20 cursor-pointer items-center transition-all duration-150",
         GRID_COLS,
         GRID_GAP,
-        rowClass
+        rowClass,
       )}
     >
-      <PageInfo url={page.url} title={page.title} isBroken={isBroken} statusCode={page.status_code} />
+      <PageInfo
+        url={page.url}
+        title={page.title}
+        isBroken={isBroken}
+        statusCode={page.status_code}
+      />
       <div className={CELL.base}>
         <LoadTime loadTime={page.load_time} isBroken={isBroken} />
       </div>
       <WordsCell count={page.word_count} isBroken={isBroken} />
-      <HeadingCounts h1={page.headings.filter((h) => h.tag === "h1").length} h2={page.headings.filter((h) => h.tag === "h2").length} h3={page.headings.filter((h) => h.tag === "h3").length} isBroken={isBroken} />
+      <HeadingCounts
+        h1={page.headings.filter((h) => h.tag === "h1").length}
+        h2={page.headings.filter((h) => h.tag === "h2").length}
+        h3={page.headings.filter((h) => h.tag === "h3").length}
+        isBroken={isBroken}
+      />
       <div className={CELL.base}>
         <ImageCount
           count={page.image_count}
@@ -54,7 +62,11 @@ export function PageRow({ page, index, onClick }: PageRowProps) {
           isBroken={isBroken}
         />
       </div>
-      <LinksCell internal={page.internal_links} external={page.external_links} isBroken={isBroken} />
+      <LinksCell
+        internal={page.internal_links}
+        external={page.external_links}
+        isBroken={isBroken}
+      />
       <div className={CELL.base}>
         {isBroken ? (
           <span className="text-muted-foreground/40">—</span>
@@ -72,7 +84,7 @@ export function PageRow({ page, index, onClick }: PageRowProps) {
             <span
               className={cn(
                 "text-xs font-semibold font-mono tabular-nums",
-                getScoreColor(page.lighthouse_seo)
+                getScoreColor(page.lighthouse_seo),
               )}
             >
               {page.lighthouse_seo.toPrecision(2)}

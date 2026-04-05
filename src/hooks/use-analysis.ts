@@ -1,6 +1,6 @@
 import useSWR from "swr";
 import { getResult } from "@/src/api/analysis";
-import type { CompleteAnalysisResponse } from "@/src/lib/types";
+import type { CompleteAnalysisResponse } from "@/src/api/analysis";
 
 // Helper for SWR
 const fetchAnalysis = async (id: string) => {

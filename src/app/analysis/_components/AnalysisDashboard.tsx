@@ -11,14 +11,14 @@ import { AnalysisHeader } from "./organisms/AnalysisHeader";
 import { Network, Activity, AlertTriangle, FileText } from "lucide-react";
 import { OverviewTab } from "./molecules/OverviewTab";
 import GraphView from "@/src/app/analysis/_components/graph-view/GraphView";
-import { CompleteAnalysisResult, PageAnalysisData } from "@/src/lib/types";
+import type { CompleteAnalysisResponse, PageAnalysisData } from "@/src/api/analysis";
 
 export function AnalysisDashboard({
   data,
   onBack,
   onSelectPage,
 }: {
-  data: CompleteAnalysisResult;
+  data: CompleteAnalysisResponse;
   onBack: () => void;
   onSelectPage: (index: number) => void;
 }) {

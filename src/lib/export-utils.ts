@@ -1,5 +1,5 @@
 import jsPDF from "jspdf";
-import type { CompleteAnalysisResponse } from "@/src/lib/types";
+import type { CompleteAnalysisResponse } from "@/src/api/analysis";
 import { generateReport, generateCSV } from "@/src/lib/report-generator";
 import { getScoreLabel } from "@/src/lib/seo-metrics";
 import { logger } from "@/src/lib/logger";

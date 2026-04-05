@@ -103,8 +103,5 @@ async fn dump_schema(pool: &SqlitePool, output_path: &std::path::Path) -> Result
     }
     Ok(())
 }
-
-use tokio::runtime::Runtime;
-
 #[cfg(test)]
 mod tests {}

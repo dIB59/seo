@@ -1,7 +1,7 @@
 import useSWR from "swr";
 import { getUserPolicy } from "@/src/api/permissions";
 import { get_machine_id } from "@/src/api/licensing";
-import type { Feature } from "@/src/lib/types";
+import type { Feature } from "@/src/api/permissions";
 
 async function fetchPermissions() {
   const [policyRes, machineRes] = await Promise.all([getUserPolicy(), get_machine_id()]);

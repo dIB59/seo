@@ -7,7 +7,7 @@ use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 use url::Url;
 
-use crate::contexts::ResourceStatus;
+use crate::contexts::analysis::ResourceStatus;
 use crate::service::spider::SpiderAgent;
 use std::sync::Arc;
 

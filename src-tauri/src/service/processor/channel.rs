@@ -1,4 +1,4 @@
-use crate::contexts::Job;
+use crate::contexts::analysis::Job;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 
@@ -150,7 +150,7 @@ impl JobDispatcher {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::contexts::{Job, JobSettings};
+    use crate::contexts::analysis::{Job, JobSettings};
 
     fn make_test_job(url: &str) -> Job {
         Job::new(url.to_string(), JobSettings::default())

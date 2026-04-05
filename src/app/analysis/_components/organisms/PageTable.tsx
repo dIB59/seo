@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { PageAnalysisData } from "@/src/lib/types";
+import type { PageAnalysisData } from "@/src/api/analysis";
 import { PageRow } from "../molecules/PageRow";
 import { GRID_COLS, GRID_GAP } from "../atoms/PageRowAtoms";
 import { FileText } from "lucide-react";
