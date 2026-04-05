@@ -10,7 +10,7 @@ mod tier;
 // ============================================================================
 
 pub use license::{
-    LicenseData, LicenseStatus, SignedLicense, LicenseVerifier,
+    KEY_PREFIX, LicenseData, LicenseStatus, SignedLicense, LicenseVerifier,
     LicensingAgent, AddonError,
 };
 

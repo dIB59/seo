@@ -69,7 +69,6 @@ mod tests {
     use crate::contexts::licensing::{LicenseData, TierVersion};
     use crate::repository::sqlite_settings_repo;
     use crate::test_utils::fixtures::setup_test_db;
-    use base64::Engine;
     use ed25519_dalek::Signer;
     use rand::rngs::OsRng;
 
@@ -86,8 +85,7 @@ mod tests {
         let data_json = serde_json::to_string(&data).unwrap();
         let signature = signing_key.sign(data_json.as_bytes());
         let signed = SignedLicense { data, signature: hex::encode(signature.to_bytes()) };
-        let json = serde_json::to_string(&signed).unwrap();
-        format!("{KEY_PREFIX}{}", base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(json))
+        LicensingService::encode_key(&signed)
     }
 
     async fn setup() -> (LicensingService, ed25519_dalek::SigningKey) {
@@ -134,12 +132,9 @@ mod tests {
         let (service, signing_key) = setup().await;
         let key = make_key(&signing_key, LicenseTier::Free, None);
         // Decode, tamper tier to Premium, re-encode
-        let b64 = key.strip_prefix(KEY_PREFIX).unwrap();
-        let json_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(b64).unwrap();
-        let mut signed: SignedLicense = serde_json::from_slice(&json_bytes).unwrap();
+        let mut signed = LicensingService::decode_key(&key).unwrap();
         signed.data.tier = LicenseTier::Premium;
-        let tampered_json = serde_json::to_string(&signed).unwrap();
-        let tampered_key = format!("{KEY_PREFIX}{}", base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(tampered_json));
+        let tampered_key = LicensingService::encode_key(&signed);
         let err = service.activate_with_key(&tampered_key).await.unwrap_err();
         assert!(matches!(err, AddonError::InvalidSignature));
     }
