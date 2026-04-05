@@ -43,6 +43,7 @@ yarn-error.log*
 next-env.d.ts
 
 bin
+!src-tauri/src/bin
 
 src-tauri/binaries/lighthouse-runner/node_modules
 **/*.db
