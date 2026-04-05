@@ -148,6 +148,28 @@ mod tests {
             licensing_context: licensing_service,
             analysis_context,
             ai_context,
+            local_model_context: {
+                struct NilEmitter;
+                impl crate::service::local_model::DownloadEmitter for NilEmitter {
+                    fn emit(&self, _: crate::service::local_model::ModelDownloadEvent) {}
+                }
+                crate::contexts::local_model::LocalModelService::new(
+                    settings_repo.clone(),
+                    std::path::PathBuf::from("/tmp"),
+                    Arc::new(crate::service::local_model::ModelDownloader::new(
+                        Arc::new(crate::service::spider::MockSpider {
+                            html_response: String::new(),
+                            generic_response: crate::service::spider::SpiderResponse {
+                                status: 200,
+                                body: String::new(),
+                                url: String::new(),
+                            },
+                        }),
+                        Arc::new(NilEmitter),
+                    )),
+                    Arc::new(crate::service::local_model::LlamaInferenceEngine::new()),
+                )
+            },
             extension_repo: crate::repository::sqlite_extension_repo(pool.clone()),
         };
 

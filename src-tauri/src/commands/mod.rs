@@ -4,6 +4,7 @@ mod ai;
 pub mod analysis;
 mod extension;
 mod licensing;
+mod local_model;
 
 pub fn register_commands() -> Commands<tauri::Wry> {
     let s = collect_commands![
@@ -21,6 +22,8 @@ pub fn register_commands() -> Commands<tauri::Wry> {
         ai::set_gemini_prompt_blocks,
         ai::get_gemini_enabled,
         ai::set_gemini_enabled,
+        ai::get_ai_source,
+        ai::set_ai_source,
         // Analysis commands
         analysis::start_analysis,
         analysis::get_analysis_progress,
@@ -36,6 +39,14 @@ pub fn register_commands() -> Commands<tauri::Wry> {
         licensing::get_user_policy,
         licensing::get_license_tier,
         licensing::get_machine_id,
+        // Local model commands
+        local_model::list_local_models,
+        local_model::download_local_model,
+        local_model::cancel_model_download,
+        local_model::delete_local_model,
+        local_model::get_active_local_model,
+        local_model::set_active_local_model,
+        local_model::generate_local_insights,
         // Extension commands
         extension::list_custom_checks,
         extension::create_custom_check,

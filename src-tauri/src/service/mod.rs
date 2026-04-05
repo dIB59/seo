@@ -3,6 +3,7 @@ pub mod discovery;
 pub mod gemini;
 pub mod hardware;
 pub mod licensing;
+pub mod local_model;
 pub mod processor;
 pub mod spider;
 

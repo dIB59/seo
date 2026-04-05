@@ -3,7 +3,7 @@ import type { CompleteAnalysisResponse } from "@/src/api/analysis";
 import { generateReport, generateCSV } from "@/src/lib/report-generator";
 import { getScoreLabel } from "@/src/lib/seo-metrics";
 import { logger } from "@/src/lib/logger";
-import { generateGeminiAnalysis, get_gemini_enabled } from "@/src/api/ai";
+import { generateAnalysis } from "@/src/api/ai";
 import { Result } from "@/src/lib/result";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile, writeFile } from "@tauri-apps/plugin-fs";
@@ -103,17 +103,11 @@ function fallbackDownload(content: string | Uint8Array<ArrayBuffer>, filename: s
 export async function generatePDF(result: CompleteAnalysisResponse): Promise<void> {
   const { analysis, summary, pages, issues } = result;
 
-  // Generate AI-powered recommendations if enabled
-  const aiEnabledResult = await get_gemini_enabled();
-  const aiEnabled = aiEnabledResult.isOk() ? aiEnabledResult.unwrap() : false;
-  let aiInsights: Result<string, string> = Result.Err("AI analysis skipped (disabled in settings)");
-
-  if (aiEnabled) {
-    toast.info("Generating AI-powered insights...");
-    aiInsights = await generateGeminiAnalysis(result);
-  } else {
-    toast.info("AI analysis skipped (disabled in settings)");
-  }
+  toast.info("Generating AI-powered insights...");
+  const aiResult = await generateAnalysis(result);
+  const aiInsights: Result<string, string> = aiResult.isOk()
+    ? Result.Ok(aiResult.unwrap().text)
+    : Result.Err(aiResult.unwrapErr());
 
   const pdf = new jsPDF();
   const pageWidth = pdf.internal.pageSize.getWidth();

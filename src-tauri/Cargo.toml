@@ -20,7 +20,7 @@ tauri = { version = "2.10.2", features = [] }
 tauri-plugin-dialog = "2.6.0"
 tauri-plugin-fs = "2.4.5"
 tokio = { version = "1.29.1", features = ["macros", "rt-multi-thread", "process", "sync"] }
-tokio-util = { version = "0.7", features = ["rt"] }
+tokio-util = { version = "0.7", features = ["rt", "io"] }
 uuid = { version = "1.11.0", features = ["v4"] }
 
 rand = "0.8.5"
@@ -49,6 +49,8 @@ hex = "0.4.3"
 base64 = "0.22"
 num_cpus = "1.16"
 regex = "1.10"
+llama-cpp-2 = "0.1"
+encoding_rs = "0.8"
 
 [features]
 custom-protocol = [ "tauri/custom-protocol" ]
@@ -65,6 +67,7 @@ strip = true
 inherits = "release"
 
 [dev-dependencies]
+tempfile = "3"
 tauri = { version = "2.10.2", features = ["test"] }
 criterion = { version = "0.8.1", features = ["async_tokio"] }
 tokio-test = "0.4.4"

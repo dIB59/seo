@@ -33,6 +33,18 @@ pub async fn get_gemini_enabled(app_state: State<'_, AppState>) -> Result<bool, 
 
 #[command]
 #[specta::specta]
+pub async fn get_ai_source(app_state: State<'_, AppState>) -> Result<String, String> {
+    app_state.ai_context.get_ai_source().await.context("Failed to get AI source")
+}
+
+#[command]
+#[specta::specta]
+pub async fn set_ai_source(source: String, app_state: State<'_, AppState>) -> Result<(), String> {
+    app_state.ai_context.set_ai_source(&source).await.context("Failed to set AI source")
+}
+
+#[command]
+#[specta::specta]
 pub async fn set_gemini_enabled(
     enabled: bool,
     app_state: State<'_, AppState>,
@@ -203,6 +215,28 @@ mod tests {
             licensing_context: licensing_service,
             analysis_context,
             ai_context,
+            local_model_context: {
+                struct NilEmitter;
+                impl crate::service::local_model::DownloadEmitter for NilEmitter {
+                    fn emit(&self, _: crate::service::local_model::ModelDownloadEvent) {}
+                }
+                crate::contexts::local_model::LocalModelService::new(
+                    settings_repo.clone(),
+                    std::path::PathBuf::from("/tmp"),
+                    Arc::new(crate::service::local_model::ModelDownloader::new(
+                        Arc::new(crate::service::spider::MockSpider {
+                            html_response: String::new(),
+                            generic_response: crate::service::spider::SpiderResponse {
+                                status: 200,
+                                body: String::new(),
+                                url: String::new(),
+                            },
+                        }),
+                        Arc::new(NilEmitter),
+                    )),
+                    Arc::new(crate::service::local_model::LlamaInferenceEngine::new()),
+                )
+            },
             extension_repo: crate::repository::sqlite_extension_repo(pool.clone()),
         };
 

@@ -140,6 +140,17 @@ impl AiService {
         Ok(val.map(|v| v != "false").unwrap_or(true))
     }
 
+    /// Get the active AI source ("gemini" | "local"). Defaults to "gemini".
+    pub async fn get_ai_source(&self) -> Result<String> {
+        let val = self.settings_repo.get_setting("ai_source").await?;
+        Ok(val.unwrap_or_else(|| "gemini".to_string()))
+    }
+
+    /// Set the active AI source ("gemini" | "local").
+    pub async fn set_ai_source(&self, source: &str) -> Result<()> {
+        self.settings_repo.set_setting("ai_source", source).await
+    }
+
     // === Prompt Configuration ===
 
     /// Get the current prompt configuration

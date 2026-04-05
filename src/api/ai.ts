@@ -132,6 +132,59 @@ export async function set_gemini_context_options(options: string): Promise<Resul
   return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "");
 }
 
+function buildInsightsPayload(result: CompleteAnalysisResponse) {
+  const { analysis, summary, issues, pages } = result;
+  return {
+    analysis_id: analysis.id,
+    url: analysis.url,
+    seo_score: summary.seo_score,
+    pages_count: pages.length,
+    total_issues: summary.total_issues,
+    critical_issues: issues.filter((i: SeoIssue) => i.severity === "critical").length,
+    warning_issues: issues.filter((i: SeoIssue) => i.severity === "warning").length,
+    suggestion_issues: issues.filter((i: SeoIssue) => i.severity === "info").length,
+    top_issues: issues.slice(0, 10).map((i: SeoIssue) => `- ${i.title}`),
+    avg_load_time: summary.avg_load_time,
+    total_words: summary.total_words,
+    ssl_certificate: analysis.ssl_certificate,
+    sitemap_found: analysis.sitemap_found,
+    robots_txt_found: analysis.robots_txt_found,
+  };
+}
+
+export type AiSource = "gemini" | "local";
+
+/**
+ * Generate AI insights using whichever source the user has selected in
+ * Settings → AI. Returns { text, source } on success.
+ */
+export async function generateAnalysis(
+  result: CompleteAnalysisResponse,
+): Promise<Result<{ text: string; source: AiSource }, string>> {
+  const payload = buildInsightsPayload(result);
+
+  const sourceRes = await commands.getAiSource();
+  const source: AiSource =
+    sourceRes.status === "ok" && sourceRes.data === "local" ? "local" : "gemini";
+
+  if (source === "gemini") {
+    const res = await commands.getGeminiInsights(payload);
+    if (res.status === "ok") return Result.Ok({ text: res.data, source: "gemini" });
+    const err = res.status === "error" ? (res.error as string) : "Gemini request failed";
+    handleAiUiEffects(mapErrorToType(err));
+    return Result.Err(err);
+  }
+
+  // local
+  const res = await commands.generateLocalInsights(payload);
+  if (res.status === "ok") return Result.Ok({ text: res.data, source: "local" });
+  return Result.Err(
+    res.status === "error"
+      ? (res.error as string)
+      : "Local model inference failed. Make sure a model is downloaded and active in Settings → AI.",
+  );
+}
+
 function handleAiUiEffects(error: AiError) {
   switch (error) {
     case AiError.MissingKey:

@@ -12,7 +12,8 @@ fn main() {
     let builder = Builder::<tauri::Wry>::new()
         .commands(commands::register_commands())
         .events(tauri_specta::collect_events![
-            app::service::processor::reporter::ProgressEvent
+            app::service::processor::reporter::ProgressEvent,
+            app::service::local_model::ModelDownloadEvent
         ]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
@@ -25,12 +26,17 @@ fn main() {
         )
         .expect("Failed to export typescript bindings");
 
+    let invoke_handler = builder.invoke_handler();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .setup(lifecycle::setup)
-        .invoke_handler(builder.invoke_handler())
+        .setup(move |app| {
+            builder.mount_events(app);
+            lifecycle::setup(app)
+        })
+        .invoke_handler(invoke_handler)
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(lifecycle::handle_run_event);

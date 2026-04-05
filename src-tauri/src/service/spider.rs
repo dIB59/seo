@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use rquest::Client;
 use rquest_util::Emulation;
 use serde::Serialize;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -19,6 +20,11 @@ pub trait SpiderAgent: Send + Sync {
     async fn get(&self, url: &str) -> Result<SpiderResponse>;
 
     async fn post_json(&self, url: &str, payload: &serde_json::Value) -> Result<SpiderResponse>;
+
+    /// Begin a streaming GET for large binary downloads (e.g. model files).
+    /// Returns a [`StreamResponse`] whose [`StreamResponse::next_chunk`] method
+    /// yields successive byte chunks until the body is exhausted.
+    async fn stream_get(&self, url: &str) -> Result<StreamResponse>;
 }
 
 pub struct Spider {
@@ -84,7 +90,60 @@ impl SpiderAgent for Spider {
             url: url.to_string(),
         })
     }
+
+    async fn stream_get(&self, url: &str) -> Result<StreamResponse> {
+        let response = self.client.get(url).send().await?;
+        let status = response.status().as_u16();
+        let content_length = response.content_length();
+        Ok(StreamResponse::new(
+            status,
+            content_length,
+            Box::new(RquestChunker(response)),
+        ))
+    }
 }
+
+// ── StreamResponse ────────────────────────────────────────────────────────────
+
+/// Type-erased streaming response for large binary downloads.
+/// All `rquest` types are contained here; callers only see `Vec<u8>` chunks.
+pub struct StreamResponse {
+    pub status: u16,
+    /// `None` when the server omits `Content-Length`.
+    pub content_length: Option<u64>,
+    inner: Box<dyn ChunkStream>,
+}
+
+impl StreamResponse {
+    fn new(status: u16, content_length: Option<u64>, inner: Box<dyn ChunkStream>) -> Self {
+        Self { status, content_length, inner }
+    }
+
+    pub async fn next_chunk(&mut self) -> Result<Option<Vec<u8>>> {
+        self.inner.next_chunk().await
+    }
+}
+
+// Object-safe async chunk iterator — keeps rquest types private to this module.
+trait ChunkStream: Send {
+    fn next_chunk<'a>(
+        &'a mut self,
+    ) -> Pin<Box<dyn std::future::Future<Output = Result<Option<Vec<u8>>>> + Send + 'a>>;
+}
+
+struct RquestChunker(rquest::Response);
+
+impl ChunkStream for RquestChunker {
+    fn next_chunk<'a>(
+        &'a mut self,
+    ) -> Pin<Box<dyn std::future::Future<Output = Result<Option<Vec<u8>>>> + Send + 'a>> {
+        Box::pin(async move {
+            Ok(self.0.chunk().await?.map(|b| b.to_vec()))
+        })
+    }
+}
+
+// ── SpiderResponse ────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct SpiderResponse {
@@ -92,6 +151,9 @@ pub struct SpiderResponse {
     pub body: String,
     pub url: String,
 }
+
+// ── MockSpider (test only) ────────────────────────────────────────────────────
+
 #[cfg(test)]
 pub struct MockSpider {
     pub html_response: String,
@@ -111,6 +173,22 @@ impl SpiderAgent for MockSpider {
 
     async fn post_json(&self, _url: &str, _payload: &serde_json::Value) -> Result<SpiderResponse> {
         Ok(self.generic_response.clone())
+    }
+
+    async fn stream_get(&self, _url: &str) -> Result<StreamResponse> {
+        Ok(StreamResponse::new(200, Some(0), Box::new(EmptyChunker)))
+    }
+}
+
+#[cfg(test)]
+struct EmptyChunker;
+
+#[cfg(test)]
+impl ChunkStream for EmptyChunker {
+    fn next_chunk<'a>(
+        &'a mut self,
+    ) -> Pin<Box<dyn std::future::Future<Output = Result<Option<Vec<u8>>>> + Send + 'a>> {
+        Box::pin(async move { Ok(None) })
     }
 }
 

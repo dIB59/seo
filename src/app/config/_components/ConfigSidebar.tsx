@@ -6,8 +6,8 @@ import { LayoutDashboard, Bot, Key, CreditCard, Palette, ChevronLeft, Puzzle, Co
 import { Button } from "@/src/components/ui/button";
 
 export const SIDEBAR_ITEMS = [
-  { id: "general", label: "General & API", icon: Key },
-  { id: "persona", label: "AI Persona", icon: Bot },
+  { id: "ai", label: "AI Settings", icon: Bot },
+  { id: "persona", label: "AI Persona", icon: Key },
   { id: "prompt", label: "Prompt Builder", icon: LayoutDashboard },
   { id: "licensing", label: "Licensing", icon: CreditCard },
   { id: "appearance", label: "Appearance", icon: Palette },

@@ -109,6 +109,22 @@ async setGeminiEnabled(enabled: boolean) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async getAiSource() : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_ai_source") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async setAiSource(source: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_ai_source", { source }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async startAnalysis(url: string, settings: AnalysisSettingsRequest | null) : Promise<Result<AnalysisJobResponse, CommandError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("start_analysis", { url, settings }) };
@@ -213,6 +229,62 @@ async getMachineId() : Promise<Result<string, CommandError>> {
     else return { status: "error", error: e  as any };
 }
 },
+async listLocalModels() : Promise<Result<ModelInfo[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_local_models") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async downloadLocalModel(modelId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("download_local_model", { modelId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cancelModelDownload(modelId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cancel_model_download", { modelId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteLocalModel(modelId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_local_model", { modelId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getActiveLocalModel() : Promise<Result<string | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_active_local_model") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async setActiveLocalModel(modelId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_active_local_model", { modelId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async generateLocalInsights(request: GeminiRequest) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("generate_local_insights", { request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async listCustomChecks() : Promise<Result<CustomCheck[], CommandError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("list_custom_checks") };
@@ -283,8 +355,10 @@ async deleteCustomExtractor(id: string) : Promise<Result<null, CommandError>> {
 
 
 export const events = __makeEvents__<{
+modelDownloadEvent: ModelDownloadEvent,
 progressEvent: ProgressEvent
 }>({
+modelDownloadEvent: "model-download-event",
 progressEvent: "progress-event"
 })
 
@@ -353,6 +427,23 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | Partial
 export type LicenseTier = "Free" | "Premium"
 export type LinkDetail = { href: string; text: string; link_type: LinkType; is_broken: boolean; status_code: number | null }
 export type LinkType = "internal" | "subdomain" | "external" | "resource"
+/**
+ * Per-model download progress event emitted to the frontend.
+ */
+export type ModelDownloadEvent = { modelId: string; status: ModelDownloadStatus; downloadedBytes: number; totalBytes: number; 
+/**
+ * 0.0–1.0, or -1.0 when total size is unknown.
+ */
+progress: number }
+export type ModelDownloadStatus = "downloading" | "completed" | "failed" | "cancelled"
+/**
+ * Runtime state of a model: registry metadata + whether it's on disk.
+ */
+export type ModelInfo = ({ id: string; name: string; description: string; 
+/**
+ * "small" | "medium" | "large"
+ */
+tier: string; size_bytes: number; download_url: string; filename: string; sha256: string }) & { is_downloaded: boolean; is_active: boolean }
 /**
  * Condition operator for a custom check.
  */
