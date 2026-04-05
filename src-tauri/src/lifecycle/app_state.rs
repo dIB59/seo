@@ -116,15 +116,10 @@ impl AppState {
         let licensing_context: Arc<dyn LicensingAgent> =
             match cfg!(debug_assertions) || cfg!(feature = "mock-licensing") {
                 true => Arc::new(MockLicensingService::new(settings_repo.clone())),
-                false => Arc::new(LicensingService::new(
-                    settings_repo.clone(),
-                    standard_spider.clone(),
-                )?),
+                false => Arc::new(LicensingService::new(settings_repo.clone())?),
             };
-        let initial_tier = licensing_context.load_license().await?;
-        if initial_tier != LicenseTier::Free {
-            tracing::info!("License verified: {:?}", initial_tier);
-        }
+        let initial_status = licensing_context.load_license().await?;
+        tracing::info!("License status on startup: {:?}", initial_status);
 
         let analysis_context = AnalysisServiceFactory::with_processor(
             job_repo.clone(),
@@ -141,7 +136,7 @@ impl AppState {
             standard_spider,
             heavy_spider,
             job_processor,
-            permissions: RwLock::new(Policy::new(initial_tier)),
+            permissions: RwLock::new(Policy::from_status(initial_status)),
             licensing_context,
             analysis_context,
             ai_context,
@@ -149,9 +144,9 @@ impl AppState {
         })
     }
 
-    pub fn update_from_tier(&self, tier: LicenseTier) {
+    pub fn update_from_status(&self, status: crate::contexts::licensing::LicenseStatus) {
         if let Ok(mut p) = self.permissions.write() {
-            p.update_from_tier(tier);
+            *p = Policy::from_status(status);
         }
     }
 }
