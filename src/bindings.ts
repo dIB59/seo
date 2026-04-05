@@ -363,7 +363,12 @@ export type PageAnalysisData = { analysis_id: string; url: string; title: string
  */
 extracted_data: Partial<{ [key in string]: JsonValue }> }
 export type PaginatedJobsResponse = { items: AnalysisProgress[]; total: number }
-export type Policy = { tier: LicenseTier; max_pages: number; enabled_features: Feature[] }
+export type Policy = { tier: LicenseTier; max_pages: number; enabled_features: Feature[]; 
+/**
+ * True when the installed build is newer than the license's update window.
+ * The app still works — this flag drives a renewal banner in the UI.
+ */
+updates_expired: boolean }
 export type ProgressEvent = { event: "analysis"; job_id: string; progress: number; pages_analyzed: number; total_pages: number } | { event: "discovery"; job_id: string; count: number; total_pages: number }
 export type SeoIssue = { page_id: string; severity: IssueSeverity; title: string; description: string; page_url: string; element: string | null; recommendation: string; line_number: number | null }
 
