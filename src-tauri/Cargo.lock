@@ -122,6 +122,7 @@ dependencies = [
  "addon-macros",
  "anyhow",
  "async-trait",
+ "base64 0.22.1",
  "chrono",
  "criterion",
  "dashmap",

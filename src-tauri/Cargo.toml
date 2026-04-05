@@ -11,6 +11,7 @@ rust-version = "1.89"
 
 [build-dependencies]
 tauri-build = { version = "2.0.0", features = [] }
+chrono = "0.4"
 
 [dependencies]
 serde_json = "1.0.145"
@@ -45,6 +46,7 @@ addon-macros = { path = "addon-macros" }
 ed25519-dalek = { version = "2.2.0", features = ["rand_core", "serde"] }
 machine-uid = "0.5.4"
 hex = "0.4.3"
+base64 = "0.22"
 num_cpus = "1.16"
 regex = "1.10"
 
@@ -68,6 +70,10 @@ criterion = { version = "0.8.1", features = ["async_tokio"] }
 tokio-test = "0.4.4"
 mockito = "1.7.0"
 trybuild = "1.0.112"
+
+[[bin]]
+name = "keygen"
+path = "src/bin/keygen.rs"
 
 [[bench]]
 name = "database_benchmarks"

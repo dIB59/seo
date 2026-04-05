@@ -1,4 +1,4 @@
-use crate::contexts::licensing::{LicenseTier, Policy};
+use crate::contexts::licensing::{LicenseTier, LicenseStatus, Policy};
 use crate::error::CommandError;
 use crate::lifecycle::app_state::AppState;
 use crate::service::hardware::HardwareService;
@@ -11,7 +11,7 @@ pub async fn activate_license(
     state: State<'_, AppState>,
 ) -> Result<Policy, CommandError> {
     // Use the new context service (Strangler Fig pattern)
-    let tier: LicenseTier = state
+    let status = state
         .licensing_context
         .activate_with_key(&license_key)
         .await
@@ -20,7 +20,7 @@ pub async fn activate_license(
             CommandError::from(e)
         })?;
 
-    state.update_from_tier(tier);
+    state.update_from_status(status);
     Ok(state.permissions.read().map(|p| p.clone()).unwrap_or_default())
 }
 
@@ -30,8 +30,7 @@ pub async fn activate_with_key(
     key: String,
     state: State<'_, AppState>,
 ) -> Result<Policy, CommandError> {
-    // Use the new context service (Strangler Fig pattern)
-    let tier: LicenseTier = state
+    let status = state
         .licensing_context
         .activate_with_key(&key)
         .await
@@ -40,7 +39,7 @@ pub async fn activate_with_key(
             CommandError::from(e)
         })?;
 
-    state.update_from_tier(tier);
+    state.update_from_status(status);
     Ok(state.permissions.read().map(|p| p.clone()).unwrap_or_default())
 }
 
@@ -65,6 +64,7 @@ pub async fn get_license_tier(state: State<'_, AppState>) -> Result<LicenseTier,
 pub async fn get_machine_id() -> Result<String, CommandError> {
     Ok(HardwareService::get_machine_id())
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -201,7 +201,10 @@ mod tests {
         // Create a standalone mock service to generate a test key
         let temp_pool = sqlx::SqlitePool::connect_lazy("sqlite::memory:").unwrap();
         let temp_settings_repo = crate::repository::sqlite_settings_repo(temp_pool);
-        let valid_key = MockLicensingService::new(temp_settings_repo).generate_short_key(LicenseTier::Premium);
+        let valid_key = MockLicensingService::new(temp_settings_repo).generate_license_key(
+            LicenseTier::Premium,
+            Some(chrono::Utc::now() + chrono::Duration::days(365)),
+        );
 
         let res = tauri::test::get_ipc_response(
             &webview,
