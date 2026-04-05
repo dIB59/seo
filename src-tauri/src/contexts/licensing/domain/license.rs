@@ -1,6 +1,9 @@
 use super::entitlement::{LicenseTier, PermissionRequest};
 use super::tier::TierVersion;
+use base64::Engine;
 use serde::{Deserialize, Serialize};
+
+pub const KEY_PREFIX: &str = "SEOINSIKT-";
 
 /// Build date embedded at compile time — used for soft-expiry checks.
 const BUILD_DATE: &str = env!("BUILD_DATE");
@@ -103,6 +106,33 @@ impl LicenseVerifier {
 
 #[async_trait::async_trait]
 pub trait LicensingAgent: Send + Sync {
+    /// Decode a pasted key string into a `SignedLicense`.
+    /// `where Self: Sized` keeps the trait object-safe while preventing
+    /// implementations from silently re-implementing the wire format.
+    fn decode_key(key: &str) -> Result<SignedLicense, AddonError>
+    where
+        Self: Sized,
+    {
+        let b64 = key.trim().strip_prefix(KEY_PREFIX).unwrap_or(key.trim());
+        let json_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(b64)
+            .map_err(|_| AddonError::InvalidLicenseKey)?;
+        serde_json::from_slice::<SignedLicense>(&json_bytes)
+            .map_err(|_| AddonError::InvalidLicenseKey)
+    }
+
+    /// Encode a `SignedLicense` into the `SEOINSIKT-<base64url>` key string.
+    fn encode_key(signed: &SignedLicense) -> String
+    where
+        Self: Sized,
+    {
+        let json = serde_json::to_string(signed).expect("SignedLicense is always serializable");
+        format!(
+            "{KEY_PREFIX}{}",
+            base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(json)
+        )
+    }
+
     async fn load_license(&self) -> Result<LicenseStatus, AddonError>;
     async fn activate_with_key(&self, key: &str) -> Result<LicenseStatus, AddonError>;
 }

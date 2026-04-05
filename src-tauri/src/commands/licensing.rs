@@ -65,6 +65,7 @@ pub async fn get_machine_id() -> Result<String, CommandError> {
     Ok(HardwareService::get_machine_id())
 }
 
+
 #[cfg(test)]
 mod tests {
     use super::*;

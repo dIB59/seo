@@ -2,10 +2,7 @@ use crate::contexts::licensing::{
     AddonError, LicenseData, LicenseTier, LicenseStatus, LicenseVerifier, LicensingAgent, SignedLicense,
 };
 use async_trait::async_trait;
-use base64::Engine;
 use std::sync::Arc;
-
-const KEY_PREFIX: &str = "SEOINSIKT-";
 
 pub struct MockLicensingService {
     settings_repo: Arc<dyn crate::repository::SettingsRepository>,
@@ -14,7 +11,7 @@ pub struct MockLicensingService {
 }
 
 impl MockLicensingService {
-    const MOCK_PRIVATE_KEY: [u8; 32] = [
+    pub const MOCK_PRIVATE_KEY: [u8; 32] = [
         0xfe, 0xdc, 0xba, 0x09, 0x87, 0x65, 0x43, 0x21, 0xfe, 0xdc, 0xba, 0x09, 0x87, 0x65, 0x43,
         0x21, 0xfe, 0xdc, 0xba, 0x09, 0x87, 0x65, 0x43, 0x21, 0xfe, 0xdc, 0xba, 0x09, 0x87, 0x65,
         0x43, 0x21,
@@ -47,19 +44,7 @@ impl MockLicensingService {
         let signing_key = ed25519_dalek::SigningKey::from_bytes(&self.private_key);
         let signature = signing_key.sign(data_json.as_bytes());
         let signed = SignedLicense { data, signature: hex::encode(signature.to_bytes()) };
-        let json = serde_json::to_string(&signed).unwrap();
-        format!("{KEY_PREFIX}{}", base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(json))
-    }
-
-    fn decode_and_verify(&self, key: &str) -> Result<LicenseStatus, AddonError> {
-        let b64 = key.trim().strip_prefix(KEY_PREFIX).unwrap_or(key.trim());
-        let json_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
-            .decode(b64)
-            .map_err(|_| AddonError::InvalidLicenseKey)?;
-        let signed_license: SignedLicense =
-            serde_json::from_slice(&json_bytes).map_err(|_| AddonError::InvalidLicenseKey)?;
-        let verifier = LicenseVerifier::new(self.public_key)?;
-        verifier.verify(&signed_license)
+        Self::encode_key(&signed)
     }
 }
 
@@ -88,15 +73,10 @@ impl LicensingAgent for MockLicensingService {
     }
 
     async fn activate_with_key(&self, key: &str) -> Result<LicenseStatus, AddonError> {
-        let status = self.decode_and_verify(key)?;
+        let signed_license = <Self as LicensingAgent>::decode_key(key)?;
+        let verifier = LicenseVerifier::new(self.public_key)?;
+        let status = verifier.verify(&signed_license)?;
 
-        // Persist the raw SignedLicense JSON (not the base64 key).
-        let b64 = key.trim().strip_prefix(KEY_PREFIX).unwrap_or(key.trim());
-        let json_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
-            .decode(b64)
-            .map_err(|_| AddonError::InvalidLicenseKey)?;
-        let signed_license: SignedLicense =
-            serde_json::from_slice(&json_bytes).map_err(|_| AddonError::InvalidLicenseKey)?;
         let license_json =
             serde_json::to_string(&signed_license).map_err(|_| AddonError::VerificationFailed)?;
 

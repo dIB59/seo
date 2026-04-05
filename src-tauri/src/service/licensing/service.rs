@@ -1,11 +1,6 @@
-use crate::contexts::licensing::{AddonError, LicenseStatus, LicenseVerifier, LicensingAgent, SignedLicense};
-use crate::contexts::licensing::LicenseTier;
+use crate::contexts::licensing::{AddonError, LicenseTier, LicenseStatus, LicenseVerifier, LicensingAgent, SignedLicense};
 use async_trait::async_trait;
-use base64::Engine;
 use std::sync::Arc;
-
-/// Key prefix that identifies a SEO Insikt offline license.
-const KEY_PREFIX: &str = "SEOINSIKT-";
 
 pub struct LicensingService {
     verifier: LicenseVerifier,
@@ -24,17 +19,6 @@ impl LicensingService {
         Ok(Self { verifier, settings_repo })
     }
 
-    /// Decode a pasted key string into a `SignedLicense`.
-    ///
-    /// Accepts both `SEOINSIKT-<base64url>` and raw base64url.
-    fn decode_key(key: &str) -> Result<SignedLicense, AddonError> {
-        let b64 = key.trim().strip_prefix(KEY_PREFIX).unwrap_or(key.trim());
-        let json_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
-            .decode(b64)
-            .map_err(|_| AddonError::InvalidLicenseKey)?;
-        serde_json::from_slice::<SignedLicense>(&json_bytes)
-            .map_err(|_| AddonError::InvalidLicenseKey)
-    }
 }
 
 #[async_trait]
@@ -61,7 +45,7 @@ impl LicensingAgent for LicensingService {
     }
 
     async fn activate_with_key(&self, key: &str) -> Result<LicenseStatus, AddonError> {
-        let signed_license = Self::decode_key(key)?;
+        let signed_license = <Self as LicensingAgent>::decode_key(key)?;
 
         // Verify signature + determine soft-expiry status.
         let status = self.verifier.verify(&signed_license)?;
