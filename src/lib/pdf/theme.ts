@@ -1,70 +1,85 @@
-// Design tokens for the SEO Insikt PDF report.
-// Mirrors the app's visual language: near-black surfaces, indigo accent,
-// generous whitespace, and semantic colors used sparingly.
+// Design tokens — professional, muted, monochromatic-first.
+// Accent colours are used only for score/severity indicators, never as fills.
 
 export const C = {
   // Page
+  white: "#FFFFFF",
   pageBg: "#FFFFFF",
 
-  // Dark cover / header band
-  ink: "#0C0D11",        // near-black background
-  inkSurface: "#15171E", // slightly lighter surface on dark
-  inkBorder: "#2A2D3A",  // subtle dark border
+  // Dark page frame (top bar on every page)
+  ink: "#111118",
+  inkSurface: "#1C1C26",
+  inkText: "#FFFFFF",
+  inkMuted: "#8B8FA8",
 
-  // Body surfaces
-  surface: "#F8F9FC",    // off-white card background
-  border: "#E8EAF0",     // hairline divider
-  borderMid: "#D1D5E0",  // slightly more visible border
+  // Body typography
+  text: "#111118",
+  secondary: "#4B5563",   // gray-600
+  muted: "#6B7280",       // gray-500
+  faint: "#9CA3AF",       // gray-400
+  hairline: "#9CA3AF",    // very light divider
 
-  // Typography
-  text: "#0C0D11",       // primary body text
-  muted: "#6B7280",      // secondary/label text
-  faint: "#9CA3AF",      // tertiary/hint text
-  onDark: "#FFFFFF",     // text on dark background
-  onDarkMuted: "#9AA3B8",// muted text on dark background
+  // Surfaces
+  surface: "#F9FAFB",     // gray-50
+  border: "#E5E7EB",      // gray-200
 
-  // Brand
-  accent: "#6366F1",     // indigo-500 — primary brand
-  accentLight: "#EEF2FF",// indigo-50
+  // Severity — all intentionally muted/dark, never bright
+  critical: "#B91C1C",    // red-700
+  warning: "#B45309",     // amber-700
+  suggestion: "#6D28D9",  // violet-700
+  success: "#15803D",     // green-700
 
-  // Semantic
-  critical: "#EF4444",
-  criticalBg: "#FEF2F2",
-  warning: "#F59E0B",
-  warningBg: "#FFFBEB",
-  success: "#22C55E",
-  successBg: "#F0FDF4",
-  info: "#3B82F6",
-  infoBg: "#EFF6FF",
-  suggestion: "#8B5CF6",
-  suggestionBg: "#F5F3FF",
+  // Pillar bars — desaturated, readable
+  pillarTechnical:    "#4B7DB8",
+  pillarContent:      "#7C5ABF",
+  pillarPerformance:  "#B07A1E",
+  pillarAccessibility:"#2D8A52",
+
+  // Score colour thresholds
+  scoreGood:    "#15803D",
+  scoreWarn:    "#B45309",
+  scoreBad:     "#B91C1C",
 } as const;
 
 export const F = {
   regular: "Helvetica",
-  bold: "Helvetica-Bold",
-  italic: "Helvetica-Oblique",
-  mono: "Courier",
+  bold:    "Helvetica-Bold",
+  italic:  "Helvetica-Oblique",
+  mono:    "Courier",
 } as const;
 
-export const S = {
-  pageH: 841.89,  // A4 height in pt
-  pageW: 595.28,  // A4 width in pt
-  margin: 36,
-  marginLg: 48,
+// Spacing
+export const SP = {
+  page:    40,   // horizontal page margin
+  bar:     32,   // top bar height
   gap: {
-    xs: 3,
-    sm: 6,
-    md: 10,
-    lg: 16,
-    xl: 24,
+    xs:  3,
+    sm:  6,
+    md:  10,
+    lg:  16,
+    xl:  24,
     xxl: 36,
   },
 } as const;
 
-// Severity helpers
-export function severityColor(sev: string) {
-  switch (sev) {
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+export function scoreColor(n: number): string {
+  if (n >= 70) return C.scoreGood;
+  if (n >= 40) return C.scoreWarn;
+  return C.scoreBad;
+}
+
+export function scoreGrade(n: number): string {
+  if (n >= 90) return "Excellent";
+  if (n >= 70) return "Good";
+  if (n >= 50) return "Needs Attention";
+  if (n >= 30) return "Poor";
+  return "Critical";
+}
+
+export function severityColor(s: string): string {
+  switch (s) {
     case "critical":   return C.critical;
     case "warning":    return C.warning;
     case "suggestion": return C.suggestion;
@@ -72,35 +87,21 @@ export function severityColor(sev: string) {
   }
 }
 
-export function severityBg(sev: string) {
-  switch (sev) {
-    case "critical":   return C.criticalBg;
-    case "warning":    return C.warningBg;
-    case "suggestion": return C.suggestionBg;
-    default:           return C.surface;
+export function pillarColor(cat: string): string {
+  switch (cat.toLowerCase()) {
+    case "technical":    return C.pillarTechnical;
+    case "content":      return C.pillarContent;
+    case "performance":  return C.pillarPerformance;
+    case "accessibility":return C.pillarAccessibility;
+    default:             return C.muted;
   }
 }
 
-export function pillarColor(cat: string) {
-  switch (cat) {
-    case "technical":    return C.info;
-    case "content":      return C.accent;
-    case "performance":  return C.warning;
-    case "accessibility":return C.success;
-    default:             return C.faint;
-  }
-}
-
-export function scoreColor(n: number) {
-  if (n >= 80) return C.success;
-  if (n >= 50) return C.warning;
-  return C.critical;
-}
-
-export function scoreLabel(n: number) {
-  if (n >= 90) return "Excellent";
-  if (n >= 80) return "Good";
-  if (n >= 60) return "Needs Work";
-  if (n >= 40) return "Poor";
-  return "Critical";
+// Strip basic markdown syntax for plain-text rendering
+export function stripMd(s: string): string {
+  return s
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/_(.+?)_/g, "$1")
+    .replace(/`(.+?)`/g, "$1");
 }
