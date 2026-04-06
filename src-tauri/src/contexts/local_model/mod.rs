@@ -1,4 +1,4 @@
-mod domain;
+pub mod domain;
 mod factory;
 mod services;
 

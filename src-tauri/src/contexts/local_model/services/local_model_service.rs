@@ -5,8 +5,9 @@ use anyhow::Result;
 
 use crate::contexts::local_model::domain::{ModelEntry, ModelInfo, MODEL_REGISTRY};
 use crate::repository::SettingsRepository;
+use crate::service::gemini::{GeminiRequest, PromptBlock};
 use crate::service::local_model::{InferenceEngine, InferenceRequest, ModelDownloader};
-use crate::service::gemini::GeminiRequest;
+use crate::service::prompt::{build_prompt_from_blocks, DEFAULT_PERSONA};
 
 const ACTIVE_MODEL_SETTING: &str = "local_model_active_id";
 
@@ -94,6 +95,9 @@ impl LocalModelService {
     }
 
     /// Generate SEO insights using the active local model.
+    ///
+    /// Uses the same persona and prompt blocks configured in Settings → AI Instructions,
+    /// so Gemini and the local model produce prompts in exactly the same shape.
     pub async fn generate_insights(&self, request: &GeminiRequest) -> Result<String> {
         let model_id = self.get_active_model_id().await?
             .ok_or_else(|| anyhow::anyhow!("No local model selected. Download and activate a model first."))?;
@@ -106,7 +110,19 @@ impl LocalModelService {
         }
 
         let model_path = self.model_path(entry);
-        let prompt = build_seo_prompt(request);
+
+        // Load persona + blocks — same settings keys used by Gemini
+        let persona = match self.settings_repo.get_setting("gemini_persona").await? {
+            Some(p) if !p.is_empty() => p,
+            _ => DEFAULT_PERSONA.to_string(),
+        };
+        let blocks_json = self.settings_repo
+            .get_setting("gemini_prompt_blocks")
+            .await?
+            .unwrap_or_else(|| "[]".to_string());
+        let blocks: Vec<PromptBlock> = serde_json::from_str(&blocks_json).unwrap_or_default();
+
+        let prompt = build_prompt_from_blocks(&persona, &blocks, request);
 
         self.inference_engine.infer(InferenceRequest {
             model_path,
@@ -114,6 +130,17 @@ impl LocalModelService {
             max_tokens: 1024,
             temperature: 0.7,
         }).await
+    }
+
+    /// Expose the models directory path (needed by ReportService for direct inference).
+    pub fn models_dir(&self) -> &PathBuf {
+        &self.models_dir
+    }
+
+    /// Low-level inference call — bypasses GeminiRequest wrapping.
+    /// Used by ReportService for phased AI brief generation.
+    pub async fn infer_raw(&self, request: InferenceRequest) -> Result<String> {
+        self.inference_engine.infer(request).await
     }
 
     // --- private helpers ---
@@ -127,33 +154,3 @@ impl LocalModelService {
     }
 }
 
-fn build_seo_prompt(req: &GeminiRequest) -> String {
-    format!(
-        "You are an expert SEO consultant. Analyze the following SEO audit results and provide \
-        actionable insights and recommendations.\n\n\
-        Website: {url}\n\
-        SEO Score: {score}/100\n\
-        Pages Analyzed: {pages}\n\
-        Total Issues: {issues} (Critical: {critical}, Warnings: {warnings}, Info: {info})\n\
-        Average Load Time: {load_time:.2}s\n\
-        Total Words: {words}\n\
-        SSL Certificate: {ssl}\n\
-        Sitemap Found: {sitemap}\n\
-        Robots.txt Found: {robots}\n\
-        Top Issues: {top_issues}\n\n\
-        Provide a concise professional analysis with the most important improvements the site owner should make.",
-        url = req.url,
-        score = req.seo_score,
-        pages = req.pages_count,
-        issues = req.total_issues,
-        critical = req.critical_issues,
-        warnings = req.warning_issues,
-        info = req.suggestion_issues,
-        load_time = req.avg_load_time,
-        words = req.total_words,
-        ssl = req.ssl_certificate,
-        sitemap = req.sitemap_found,
-        robots = req.robots_txt_found,
-        top_issues = req.top_issues.join(", "),
-    )
-}
