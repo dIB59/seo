@@ -24,6 +24,7 @@ import { LicensingSection } from "./_components/LicensingSection";
 import { ThemeSettings } from "./_components/ThemeSettings";
 import { CustomChecksSettings } from "./_components/CustomChecksSettings";
 import { ExtractorsSettings } from "./_components/ExtractorsSettings";
+import { ReportPatternsSettings } from "./_components/ReportPatternsSettings";
 
 function ContentSkeleton() {
   return (
@@ -181,6 +182,7 @@ function ConfigContent({
         {activeSection === "appearance" && <ThemeSettings />}
         {activeSection === "custom-checks" && <CustomChecksSettings />}
         {activeSection === "custom-extractors" && <ExtractorsSettings />}
+        {activeSection === "report-patterns" && <ReportPatternsSettings />}
       </div>
     </>
   );
