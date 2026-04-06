@@ -40,8 +40,8 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  barLeft:  { fontSize: 7.5, color: C.inkMuted, fontFamily: F.regular, letterSpacing: 0.5, textTransform: "uppercase" },
-  barRight: { fontSize: 7.5, color: C.inkMuted, fontFamily: F.regular },
+  barLeft:  { fontSize: 7, color: C.inkMuted, fontFamily: F.regular, letterSpacing: 0.6, textTransform: "uppercase" },
+  barRight: { fontSize: 7, color: C.inkMuted, fontFamily: F.regular, letterSpacing: 0.4 },
 
   // Body area beneath the bar
   body: {
@@ -64,13 +64,13 @@ const s = StyleSheet.create({
   // Hairline divider
   hr: { borderBottomWidth: 0.5, borderBottomColor: C.border },
 
-  // Text scale
-  h1: { fontSize: 22, fontFamily: F.bold, color: C.text },
-  h2: { fontSize: 14, fontFamily: F.bold, color: C.text },
-  h3: { fontSize: 10, fontFamily: F.bold, color: C.text },
-  body1: { fontSize: 9, lineHeight: 1.55, color: C.text },
-  body2: { fontSize: 8.5, lineHeight: 1.5, color: C.secondary },
-  caption: { fontSize: 7.5, color: C.muted },
+  // Text scale — consistent 1.4× ratio steps
+  h1: { fontSize: 20, fontFamily: F.bold, color: C.text, lineHeight: 1.2 },
+  h2: { fontSize: 13, fontFamily: F.bold, color: C.text, lineHeight: 1.25 },
+  h3: { fontSize: 10, fontFamily: F.bold, color: C.secondary, lineHeight: 1.3 },
+  body1: { fontSize: 9, lineHeight: 1.6, color: C.text },
+  body2: { fontSize: 8.5, lineHeight: 1.55, color: C.secondary },
+  caption: { fontSize: 7.5, lineHeight: 1.4, color: C.muted },
   mono:    { fontFamily: F.mono, fontSize: 7.5, color: C.muted },
 
   // Layout helpers
@@ -235,7 +235,7 @@ function CoverPage({ data, date }: { data: ReportData; date: string }) {
                 marginRight: i < 3 ? SP.gap.xl : 0,
               }}
             >
-              <Text style={{ fontFamily: F.bold, fontSize: 24, color: m.color, fontFamily: F.mono } as object}>
+              <Text style={{ fontFamily: F.mono, fontSize: 24, color: m.color }}>
                 {m.n}
               </Text>
               <Text style={{ ...s.caption, marginTop: 2 }}>{m.label}</Text>
@@ -455,7 +455,7 @@ function SummaryPage({ data }: { data: ReportData }) {
             const col   = severityColor(sev);
             return (
               <View key={sev} style={{ flex: 1 }}>
-                <Text style={{ fontFamily: F.bold, fontSize: 22, color: col, fontFamily: F.mono } as object}>
+                <Text style={{ fontFamily: F.mono, fontSize: 22, color: col }}>
                   {count}
                 </Text>
                 <Text style={{ ...s.caption, marginTop: 2, textTransform: "capitalize" }}>{sev}</Text>
@@ -541,7 +541,7 @@ function RecommendationsPage({ data }: { data: ReportData }) {
             >
               {/* Index */}
               <View style={{ width: 20, alignItems: "flex-end", flexShrink: 0 }}>
-                <Text style={{ fontFamily: F.bold, fontSize: 11, color: C.faint, fontFamily: F.mono } as object}>
+                <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.faint }}>
                   {String(i + 1).padStart(2, "0")}
                 </Text>
               </View>
@@ -590,27 +590,30 @@ function NarrativePage({ data }: { data: ReportData }) {
           const t = line.trimEnd();
           if (!t) return <View key={i} style={{ marginTop: SP.gap.md }} />;
 
-          // H1
+          // H1 — document title (treated as section break)
           if (t.startsWith("# ")) {
             return (
-              <View key={i} style={{ marginTop: SP.gap.xl, marginBottom: 6 }}>
-                <Text style={{ ...s.h2, color: C.text }}>{stripMd(t.slice(2))}</Text>
+              <View key={i} wrap={false} style={{ marginTop: SP.gap.xl, marginBottom: SP.gap.md }}>
+                <Text style={s.h2}>{stripMd(t.slice(2))}</Text>
+                <View style={{ ...s.hr, marginTop: 5 }} />
+              </View>
+            );
+          }
+          // H2 — section heading
+          if (t.startsWith("## ")) {
+            return (
+              <View key={i} wrap={false} style={{ marginTop: SP.gap.xl, marginBottom: 5 }}>
+                <Text style={{ fontFamily: F.bold, fontSize: 10.5, color: C.text }}>
+                  {stripMd(t.slice(3))}
+                </Text>
                 <View style={{ ...s.hr, marginTop: 4 }} />
               </View>
             );
           }
-          // H2
-          if (t.startsWith("## ")) {
-            return (
-              <Text key={i} style={{ fontFamily: F.bold, fontSize: 11, color: C.text, marginTop: SP.gap.lg, marginBottom: 4 }}>
-                {stripMd(t.slice(3))}
-              </Text>
-            );
-          }
-          // H3
+          // H3 — sub-section heading
           if (t.startsWith("### ")) {
             return (
-              <Text key={i} style={{ fontFamily: F.bold, fontSize: 9.5, color: C.secondary, marginTop: SP.gap.md, marginBottom: 3 }}>
+              <Text key={i} wrap={false} style={{ fontFamily: F.bold, fontSize: 9, color: C.secondary, marginTop: SP.gap.md, marginBottom: 3 }}>
                 {stripMd(t.slice(4))}
               </Text>
             );
@@ -618,8 +621,8 @@ function NarrativePage({ data }: { data: ReportData }) {
           // Bullet
           if (t.startsWith("- ") || t.startsWith("* ")) {
             return (
-              <View key={i} style={{ ...s.row, gap: SP.gap.sm, marginBottom: 3, paddingLeft: SP.gap.md, alignItems: "flex-start" }}>
-                <View style={{ width: 3, height: 3, borderRadius: 1.5, backgroundColor: C.muted, marginTop: 4.5, flexShrink: 0 }} />
+              <View key={i} style={{ flexDirection: "row", gap: SP.gap.sm, marginBottom: 3, paddingLeft: SP.gap.md, alignItems: "flex-start" }}>
+                <View style={{ width: 3, height: 3, borderRadius: 1.5, backgroundColor: C.muted, marginTop: 5, flexShrink: 0 }} />
                 <Text style={{ ...s.body2, flex: 1 }}>{stripMd(t.slice(2))}</Text>
               </View>
             );
@@ -627,14 +630,17 @@ function NarrativePage({ data }: { data: ReportData }) {
           // Numbered list
           if (/^\d+\.\s/.test(t)) {
             return (
-              <Text key={i} style={{ ...s.body2, paddingLeft: SP.gap.md, marginBottom: 3 }}>
-                {stripMd(t)}
-              </Text>
+              <View key={i} style={{ flexDirection: "row", gap: SP.gap.sm, marginBottom: 4, paddingLeft: SP.gap.md, alignItems: "flex-start" }}>
+                <Text style={{ fontFamily: F.mono, fontSize: 8, color: C.faint, flexShrink: 0, marginTop: 1 }}>
+                  {t.match(/^(\d+)\./)?.[1] ?? ""}
+                </Text>
+                <Text style={{ ...s.body2, flex: 1 }}>{stripMd(t.replace(/^\d+\.\s*/, ""))}</Text>
+              </View>
             );
           }
           // Paragraph
           return (
-            <Text key={i} style={{ ...s.body1, marginBottom: 4 }}>
+            <Text key={i} style={{ ...s.body1, marginBottom: 5 }}>
               {stripMd(t)}
             </Text>
           );
