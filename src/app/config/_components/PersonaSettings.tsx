@@ -21,13 +21,13 @@ export function PersonaSettings({ persona, setPersona }: PersonaSettingsProps) {
                 <div className="absolute inset-0 bg-primary/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none rounded-lg" />
 
                 <div className="flex items-center gap-2 relative">
-                    <Label>System Persona</Label>
+                    <Label>AI Instructions</Label>
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <Info className="h-3.5 w-3.5 text-muted-foreground/70 hover:text-primary transition-colors cursor-help" />
                         </TooltipTrigger>
                         <TooltipContent>
-                            <p className="max-w-xs">Defines the AI&apos;s role and tone. Use this to customize the analysis perspective (e.g., &apos;Strict Technical Auditor&apos; or &apos;Marketing Specialist&apos;).</p>
+                            <p className="max-w-xs">Sets the role, tone, and priorities for all AI models — Gemini, local models, and PDF report generation. Changes here affect every AI output in the app.</p>
                         </TooltipContent>
                     </Tooltip>
                 </div>
@@ -35,11 +35,11 @@ export function PersonaSettings({ persona, setPersona }: PersonaSettingsProps) {
                     className="flex min-h-[200px] w-full rounded-md border border-input/50 bg-background/50 px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus:bg-background disabled:cursor-not-allowed disabled:opacity-50 font-mono transition-all duration-200 resize-y focus-visible:border-primary relative z-10"
                     value={persona}
                     onChange={(e) => setPersona(e.target.value)}
-                    placeholder="You are an expert SEO auditor..."
+                    placeholder="You are a senior SEO consultant writing a professional audit report..."
                 />
                 <div className="flex justify-between items-center relative z-10">
                     <p className="text-xs text-muted-foreground">
-                        Defines the personality and expertise level of the AI.
+                        Applies to all AI models — Gemini, local inference, and report briefs.
                     </p>
                     <span className="text-[10px] text-muted-foreground font-mono bg-muted/50 px-2 py-0.5 rounded">Markdown Supported</span>
                 </div>

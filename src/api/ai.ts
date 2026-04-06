@@ -82,7 +82,7 @@ export async function set_gemini_api_key(apiKey: string): Promise<Result<null, s
   return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "");
 }
 
-export async function get_gemini_persona(): Promise<Result<string | null, string>> {
+export async function get_gemini_persona(): Promise<Result<string, string>> {
   const res = await commands.getGeminiPersona();
   return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "");
 }

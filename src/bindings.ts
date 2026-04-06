@@ -29,7 +29,7 @@ async setGeminiApiKey(apiKey: string) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async getGeminiPersona() : Promise<Result<string | null, string>> {
+async getGeminiPersona() : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_gemini_persona") };
 } catch (e) {
@@ -402,6 +402,13 @@ async generateReportData(jobId: string) : Promise<Result<ReportData, CommandErro
 /** user-defined events **/
 
 
+export const events = __makeEvents__<{
+modelDownloadEvent: ModelDownloadEvent,
+progressEvent: ProgressEvent
+}>({
+modelDownloadEvent: "model-download-event",
+progressEvent: "progress-event"
+})
 
 /** user-defined constants **/
 
@@ -487,6 +494,15 @@ export type LicenseTier = "Free" | "Premium"
 export type LinkDetail = { href: string; text: string; link_type: LinkType; is_broken: boolean; status_code: number | null }
 export type LinkType = "internal" | "subdomain" | "external" | "resource"
 /**
+ * Per-model download progress event emitted to the frontend.
+ */
+export type ModelDownloadEvent = { modelId: string; status: ModelDownloadStatus; downloadedBytes: number; totalBytes: number; 
+/**
+ * 0.0–1.0, or -1.0 when total size is unknown.
+ */
+progress: number }
+export type ModelDownloadStatus = "downloading" | "completed" | "failed" | "cancelled"
+/**
  * Runtime state of a model: registry metadata + whether it's on disk.
  */
 export type ModelInfo = ({ id: string; name: string; description: string; 
@@ -516,6 +532,7 @@ export type Policy = { tier: LicenseTier; max_pages: number; enabled_features: F
  * The app still works — this flag drives a renewal banner in the UI.
  */
 updates_expired: boolean }
+export type ProgressEvent = { event: "analysis"; job_id: string; progress: number; pages_analyzed: number; total_pages: number } | { event: "discovery"; job_id: string; count: number; total_pages: number }
 /**
  * The full output of the report engine — ready for frontend rendering / PDF export.
  */

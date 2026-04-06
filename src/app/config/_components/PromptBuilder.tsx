@@ -174,7 +174,7 @@ export function PromptBuilder({ blocks, setBlocks }: PromptBuilderProps) {
       <div className="flex items-center justify-between">
         <div className="space-y-1">
           <p className="text-sm text-muted-foreground">
-            Design the prompt structure sent to Gemini. Blocks are processed top-to-bottom.
+            Design the data sent to all AI models (Gemini and local). Blocks are processed top-to-bottom.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={handleReset}>
