@@ -158,7 +158,7 @@ mod tests {
                 impl crate::service::local_model::DownloadEmitter for NilEmitter {
                     fn emit(&self, _: crate::service::local_model::ModelDownloadEvent) {}
                 }
-                crate::contexts::local_model::LocalModelService::new(
+                Arc::new(crate::contexts::local_model::LocalModelService::new(
                     settings_repo.clone(),
                     std::path::PathBuf::from("/tmp"),
                     Arc::new(crate::service::local_model::ModelDownloader::new(
@@ -173,13 +173,14 @@ mod tests {
                         Arc::new(NilEmitter),
                     )),
                     Arc::new(crate::service::local_model::LlamaInferenceEngine::new()),
-                )
+                ))
             },
             extension_repo: crate::repository::sqlite_extension_repo(pool.clone()),
             report_pattern_repo: crate::repository::sqlite_report_pattern_repo(pool.clone()),
             report_context: crate::contexts::report::ReportService::new(
                 crate::repository::sqlite_report_pattern_repo(pool.clone()),
                 results_repo.clone(),
+                settings_repo.clone(),
             ),
         };
 

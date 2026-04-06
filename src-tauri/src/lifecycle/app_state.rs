@@ -36,7 +36,7 @@ pub struct AppState {
     pub licensing_context: Arc<dyn LicensingAgent>,
     pub analysis_context: AnalysisService,
     pub ai_context: AiService,
-    pub local_model_context: LocalModelService,
+    pub local_model_context: Arc<LocalModelService>,
     pub extension_repo: Arc<dyn ExtensionRepository>,
     pub report_pattern_repo: Arc<dyn ReportPatternRepository>,
     pub report_context: ReportService,
@@ -144,15 +144,17 @@ impl AppState {
             .app_data_dir()
             .map_err(|e| anyhow::anyhow!("Failed to get app data dir: {e}"))?
             .join("models");
-        let local_model_context = LocalModelServiceFactory::new(
+        let local_model_context = Arc::new(LocalModelServiceFactory::new(
             settings_repo.clone(),
             models_dir,
             app_handle.clone(),
-        );
+        ));
 
-        let report_context = ReportService::new(
+        let report_context = ReportService::with_local_model(
             report_pattern_repo.clone(),
             results_repo.clone(),
+            settings_repo.clone(),
+            local_model_context.clone(),
         );
 
         Ok(AppState {

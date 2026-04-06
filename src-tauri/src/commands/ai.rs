@@ -69,8 +69,12 @@ pub async fn set_gemini_api_key(
 
 #[command]
 #[specta::specta]
-pub async fn get_gemini_persona(app_state: State<'_, AppState>) -> Result<Option<String>, String> {
-    app_state.ai_context.get_persona().await.context("Failed to get persona")
+pub async fn get_gemini_persona(app_state: State<'_, AppState>) -> Result<String, String> {
+    let stored = app_state.ai_context.get_persona().await.context("Failed to get persona")?;
+    Ok(match stored {
+        Some(p) if !p.trim().is_empty() => p,
+        _ => crate::service::prompt::DEFAULT_PERSONA.to_string(),
+    })
 }
 
 #[command]
@@ -225,7 +229,7 @@ mod tests {
                 impl crate::service::local_model::DownloadEmitter for NilEmitter {
                     fn emit(&self, _: crate::service::local_model::ModelDownloadEvent) {}
                 }
-                crate::contexts::local_model::LocalModelService::new(
+                Arc::new(crate::contexts::local_model::LocalModelService::new(
                     settings_repo.clone(),
                     std::path::PathBuf::from("/tmp"),
                     Arc::new(crate::service::local_model::ModelDownloader::new(
@@ -240,13 +244,14 @@ mod tests {
                         Arc::new(NilEmitter),
                     )),
                     Arc::new(crate::service::local_model::LlamaInferenceEngine::new()),
-                )
+                ))
             },
             extension_repo: crate::repository::sqlite_extension_repo(pool.clone()),
             report_pattern_repo: crate::repository::sqlite_report_pattern_repo(pool.clone()),
             report_context: crate::contexts::report::ReportService::new(
                 crate::repository::sqlite_report_pattern_repo(pool.clone()),
                 results_repo.clone(),
+                settings_repo.clone(),
             ),
         };
 
