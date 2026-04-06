@@ -1,108 +1,195 @@
 use crate::contexts::analysis::Job;
 use crate::contexts::report::domain::{DetectedPattern, PatternSeverity, PillarScores};
 
-/// Build a structured text summary of the analysis findings.
-///
-/// This brief is used:
-/// 1. As context passed to an AI model to generate a narrative.
-/// 2. Directly embedded in the PDF if AI is not available.
-pub fn build_ai_brief(
+// ── Phase prompts ─────────────────────────────────────────────────────────────
+//
+// Each phase is intentionally small so the full prompt (system_prompt + task)
+// stays well under 2 048 tokens.  `system_prompt` is the user-configured
+// persona loaded from settings ("gemini_persona") — the same text that drives
+// Gemini and the local model for regular analysis.
+
+/// Phase 1 — Diagnosis: 2–3 sentences on the site's SEO health and the
+/// business risk of leaving issues unaddressed.
+pub fn phase1_diagnosis_prompt(
+    system_prompt: &str,
+    url: &str,
+    score: i64,
+    grade: &str,
+    pages: i64,
+    critical: i64,
+    warnings: i64,
+    sitemap: bool,
+    robots: bool,
+) -> String {
+    format!(
+        "{system_prompt}\n\n\
+        TASK — DIAGNOSIS (max 3 sentences, max 80 words):\n\
+        Site: {url}\n\
+        SEO score: {score}/100 — {grade}\n\
+        Pages analysed: {pages}\n\
+        Issues found: {critical} critical, {warnings} warnings\n\
+        Sitemap present: {sitemap}. Robots.txt present: {robots}.\n\n\
+        Describe the site's current SEO health and the business risk of leaving \
+        these issues unaddressed. Be specific — no generic filler.\n\
+        RESPONSE:",
+        system_prompt = system_prompt,
+        url = url,
+        score = score,
+        grade = grade,
+        pages = pages,
+        critical = critical,
+        warnings = warnings,
+        sitemap = if sitemap { "yes" } else { "no" },
+        robots  = if robots  { "yes" } else { "no" },
+    )
+}
+
+/// Phase 2 — Issue narrative: called once per issue (max 3).
+/// Asks the model what the issue costs and what the team should do first.
+pub fn phase2_issue_prompt(
+    system_prompt: &str,
+    name: &str,
+    description: &str,
+    pct: u64,
+    business_impact: &str,
+    fix_effort: &str,
+    recommendation: &str,
+) -> String {
+    format!(
+        "{system_prompt}\n\n\
+        TASK — ISSUE NARRATIVE (max 2 sentences, max 60 words):\n\
+        Issue: {name}\n\
+        What it means: {description}\n\
+        Affects: {pct}% of pages\n\
+        Business impact: {business_impact}\n\
+        Fix effort: {fix_effort}\n\
+        Fix: {recommendation}\n\n\
+        Write what this issue is costing the site and what the team must do first.\n\
+        RESPONSE:",
+        system_prompt    = system_prompt,
+        name             = name,
+        description      = description,
+        pct              = pct,
+        business_impact  = business_impact,
+        fix_effort       = fix_effort,
+        recommendation   = recommendation,
+    )
+}
+
+/// Phase 3 — Roadmap & call to action based on pillar scores.
+pub fn phase3_roadmap_prompt(
+    system_prompt: &str,
+    pillars: &PillarScores,
+    weakest: &str,
+) -> String {
+    format!(
+        "{system_prompt}\n\n\
+        TASK — ROADMAP & CALL TO ACTION (max 3 sentences, max 80 words):\n\
+        Pillar scores — Technical: {t:.0}/100, Content: {c:.0}/100, \
+        Performance: {p:.0}/100, Accessibility: {a:.0}/100\n\
+        Weakest pillar: {weakest}\n\n\
+        Give a prioritised starting point. Tell the client exactly what to work \
+        on first and why it will move the needle fastest.\n\
+        RESPONSE:",
+        system_prompt = system_prompt,
+        t       = pillars.technical,
+        c       = pillars.content,
+        p       = pillars.performance,
+        a       = pillars.accessibility,
+        weakest = weakest,
+    )
+}
+
+// ── Fallback static brief ─────────────────────────────────────────────────────
+//
+// Used when no local model is active.  Still directive and structured —
+// not a data dump — but template-generated rather than AI-written.
+
+pub fn build_static_brief(
     job: &Job,
     detected: &[DetectedPattern],
     pillars: &PillarScores,
 ) -> String {
     let mut out = String::new();
 
-    // Header
+    out.push_str("## Diagnosis\n\n");
+    let critical = job.summary.critical_issues;
+    let warnings = job.summary.warning_issues;
+    let pages    = job.summary.total_pages;
     out.push_str(&format!(
-        "# SEO Analysis Report — {}\n\n",
-        job.url
+        "This audit covered {pages} page(s) and surfaced {critical} critical \
+        issue(s) and {warnings} warning(s). Critical issues block search engines \
+        from indexing or ranking pages correctly — every day they remain unfixed \
+        is revenue left on the table.\n\n"
     ));
 
-    // Executive summary
-    let total = job.summary.total_pages;
-    let issues = job.summary.total_issues;
-    let seo_score = job.calculate_seo_score();
-    out.push_str("## Executive Summary\n");
-    out.push_str(&format!(
-        "Analysed {} page(s). Overall SEO score: {}/100. {} issue(s) detected across all pages.\n\n",
-        total, seo_score, issues
-    ));
-
-    // Pillar scores
-    out.push_str("## Pillar Health Scores\n");
-    out.push_str(&format!("- Technical: {:.0}/100\n", pillars.technical));
-    out.push_str(&format!("- Content: {:.0}/100\n", pillars.content));
-    out.push_str(&format!("- Performance: {:.0}/100\n", pillars.performance));
-    out.push_str(&format!("- Accessibility: {:.0}/100\n\n", pillars.accessibility));
-
-    // Detected patterns
-    if detected.is_empty() {
-        out.push_str("## Findings\nNo significant SEO patterns detected. The site appears to be in good health.\n\n");
-    } else {
-        let critical: Vec<_> = detected.iter().filter(|d| d.pattern.severity == PatternSeverity::Critical).collect();
-        let warnings: Vec<_> = detected.iter().filter(|d| d.pattern.severity == PatternSeverity::Warning).collect();
-        let suggestions: Vec<_> = detected.iter().filter(|d| d.pattern.severity == PatternSeverity::Suggestion).collect();
-
-        out.push_str("## Detected Issues\n\n");
-
-        if !critical.is_empty() {
-            out.push_str("### Critical Issues\n");
-            for d in &critical {
-                write_pattern_entry(&mut out, d);
-            }
-        }
-
-        if !warnings.is_empty() {
-            out.push_str("### Warnings\n");
-            for d in &warnings {
-                write_pattern_entry(&mut out, d);
-            }
-        }
-
-        if !suggestions.is_empty() {
-            out.push_str("### Suggestions\n");
-            for d in &suggestions {
-                write_pattern_entry(&mut out, d);
-            }
-        }
-    }
-
-    // Top recommendations
     if !detected.is_empty() {
-        out.push_str("## Top Recommendations\n");
-        for (i, d) in detected.iter().take(5).enumerate() {
+        out.push_str("## Priority Actions\n\n");
+        let high_priority: Vec<_> = detected
+            .iter()
+            .filter(|d| {
+                d.pattern.severity == PatternSeverity::Critical
+                    || d.pattern.severity == PatternSeverity::Warning
+            })
+            .take(3)
+            .collect();
+
+        for dp in &high_priority {
+            let pct = (dp.prevalence * 100.0).round() as u64;
             out.push_str(&format!(
-                "{}. **{}** — {}\n",
-                i + 1,
-                d.pattern.name,
-                d.pattern.recommendation
+                "**{}** — affects {}% of pages. {}\n\n",
+                dp.pattern.name, pct, dp.pattern.recommendation
             ));
         }
-        out.push('\n');
     }
 
-    // Site metadata
-    out.push_str("## Site Information\n");
-    out.push_str(&format!("- Sitemap found: {}\n", if job.sitemap_found { "Yes" } else { "No" }));
-    out.push_str(&format!("- Robots.txt found: {}\n", if job.robots_txt_found { "Yes" } else { "No" }));
+    out.push_str("## Pillar Health\n\n");
+    out.push_str(&format!(
+        "- Technical: {:.0}/100\n- Content: {:.0}/100\n\
+        - Performance: {:.0}/100\n- Accessibility: {:.0}/100\n\n",
+        pillars.technical, pillars.content, pillars.performance, pillars.accessibility,
+    ));
+
+    let weakest = weakest_pillar(pillars);
+    out.push_str("## Next Steps\n\n");
+    out.push_str(&format!(
+        "Start with the **{weakest}** pillar — it has the largest gap and \
+        addressing it will produce the fastest gains. Fix critical issues first, \
+        then work through warnings in order of page coverage. Reassess scores \
+        after each sprint.\n"
+    ));
+
+    if !job.sitemap_found {
+        out.push_str(
+            "\n**Action required:** Generate and submit a sitemap to \
+            Google Search Console immediately.\n",
+        );
+    }
 
     out
 }
 
-fn write_pattern_entry(out: &mut String, d: &DetectedPattern) {
-    let pct = (d.prevalence * 100.0).round() as u64;
-    out.push_str(&format!(
-        "**{}** — affects {}% of pages ({}/{} pages)\n",
-        d.pattern.name, pct, d.affected_pages, d.total_pages
-    ));
-    out.push_str(&format!("  _{}_\n", d.pattern.description));
-    out.push_str(&format!("  Fix: {}\n", d.pattern.recommendation));
-    if !d.sample_urls.is_empty() {
-        out.push_str("  Affected pages (sample):\n");
-        for url in &d.sample_urls {
-            out.push_str(&format!("  - {}\n", url));
-        }
-    }
-    out.push('\n');
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+pub fn score_grade(n: i64) -> &'static str {
+    if n >= 90      { "Excellent" }
+    else if n >= 70 { "Good" }
+    else if n >= 50 { "Needs Attention" }
+    else if n >= 30 { "Poor" }
+    else            { "Critical" }
+}
+
+/// Returns the name of the pillar with the lowest score.
+pub fn weakest_pillar(p: &PillarScores) -> &'static str {
+    let scores = [
+        ("Technical",     p.technical),
+        ("Content",       p.content),
+        ("Performance",   p.performance),
+        ("Accessibility", p.accessibility),
+    ];
+    scores
+        .iter()
+        .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+        .map(|(name, _)| *name)
+        .unwrap_or("Technical")
 }
