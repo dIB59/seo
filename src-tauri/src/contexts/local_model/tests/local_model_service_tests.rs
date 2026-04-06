@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use crate::contexts::local_model::{LocalModelService, ModelInfo};
 use crate::repository::SettingsRepository;
 use crate::service::local_model::{
-    DownloadEmitter, InferenceEngine, InferenceRequest, LlamaInferenceEngine, ModelDownloadEvent,
+    DownloadEmitter, InferenceEngine, InferenceRequest, ModelDownloadEvent,
     ModelDownloader,
 };
 use crate::service::spider::{MockSpider, SpiderResponse};

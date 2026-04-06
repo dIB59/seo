@@ -509,7 +509,11 @@ export type ModelInfo = ({ id: string; name: string; description: string;
 /**
  * "small" | "medium" | "large"
  */
-tier: string; size_bytes: number; download_url: string; filename: string; sha256: string }) & { is_downloaded: boolean; is_active: boolean }
+tier: string; size_bytes: number; download_url: string; filename: string; sha256: string }) & { is_downloaded: boolean; is_active: boolean; 
+/**
+ * `true` when a partial `.tmp` file exists — the download can be resumed.
+ */
+has_partial: boolean }
 /**
  * Condition operator for a custom check.
  */

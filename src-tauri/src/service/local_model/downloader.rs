@@ -58,7 +58,11 @@ impl<R: tauri::Runtime> DownloadEmitter for TauriDownloadEmitter<R> {
     }
 }
 
-/// Manages streaming downloads of GGUF model files with per-model cancellation.
+/// Manages streaming downloads of GGUF model files with per-model cancellation
+/// and resume-on-reconnect support.
+///
+/// Partial downloads are saved to `<dest>.tmp` and atomically renamed to
+/// `<dest>` on completion, so `dest.exists()` is only true for complete files.
 pub struct ModelDownloader {
     spider: Arc<dyn SpiderAgent>,
     emitter: Arc<dyn DownloadEmitter>,
@@ -77,7 +81,9 @@ impl ModelDownloader {
     /// Convenience constructor for production use.
     pub fn with_handle<R: tauri::Runtime + 'static>(app_handle: tauri::AppHandle<R>) -> Result<Self> {
         use crate::service::spider::{ClientType, Spider};
-        let spider = Spider::new_agent(ClientType::Standard)?;
+        // Use a no-request-timeout client — model files are several GB and can
+        // take many minutes on slow connections.
+        let spider = Spider::new_agent(ClientType::Download)?;
         let emitter = Arc::new(TauriDownloadEmitter::new(app_handle));
         Ok(Self::new(spider, emitter))
     }
@@ -94,6 +100,7 @@ impl ModelDownloader {
     }
 
     /// Cancel an in-progress download. No-op if the model is not downloading.
+    /// The partial `.tmp` file is kept so the download can be resumed later.
     pub fn cancel(&self, model_id: &str) {
         if let Some(token) = self.cancellations.get(model_id) {
             token.cancel();
@@ -109,40 +116,75 @@ impl ModelDownloader {
         dest: &Path,
         cancel: CancellationToken,
     ) -> Result<()> {
-        let mut stream = self.spider.stream_get(url).await?;
+        // Write to a `.tmp` sibling so `dest` only exists when the download is
+        // complete (makes `is_downloaded` reliable and enables resume).
+        let tmp = dest.with_extension("tmp");
 
-        if stream.status < 200 || stream.status >= 300 {
+        // How many bytes we already have from a previous (interrupted) attempt.
+        let resume_from: u64 = match tokio::fs::metadata(&tmp).await {
+            Ok(m) => m.len(),
+            Err(_) => 0,
+        };
+
+        if resume_from > 0 {
+            tracing::info!("[downloader] {model_id}: resuming from {resume_from} bytes");
+        }
+
+        let mut stream = self.spider.stream_get_range(url, resume_from).await?;
+
+        // If the server ignored the Range header and returned 200, we must
+        // discard the partial file and start over.
+        let (start_byte, append) = if resume_from > 0 && stream.status == 206 {
+            (resume_from, true)
+        } else {
+            if resume_from > 0 {
+                tracing::warn!("[downloader] {model_id}: server returned {} instead of 206; restarting", stream.status);
+            }
+            (0, false)
+        };
+
+        if stream.status != 200 && stream.status != 206 {
             anyhow::bail!("Download failed with HTTP {}", stream.status);
         }
 
         let total_bytes = stream.content_length.unwrap_or(0);
 
-        if let Some(parent) = dest.parent() {
+        if let Some(parent) = tmp.parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
 
-        let mut file = tokio::fs::File::create(dest).await?;
-        let mut downloaded: u64 = 0;
-        let mut last_reported: u64 = 0;
+        let mut file = if append {
+            tokio::fs::OpenOptions::new()
+                .append(true)
+                .open(&tmp)
+                .await?
+        } else {
+            tokio::fs::File::create(&tmp).await?
+        };
+
+        let mut downloaded: u64 = start_byte;
+        let mut last_reported: u64 = start_byte;
         const REPORT_INTERVAL: u64 = 1_024 * 1_024; // 1 MB
 
-        loop {
+        let result = loop {
             tokio::select! {
+                biased;
                 _ = cancel.cancelled() => {
-                    drop(file);
-                    let _ = tokio::fs::remove_file(dest).await;
-                    self.emit(model_id, ModelDownloadStatus::Cancelled, downloaded, total_bytes);
-                    return Ok(());
+                    // Keep the partial file so the download can be resumed.
+                    break Ok(false); // false = cancelled
                 }
                 chunk = stream.next_chunk() => {
-                    match chunk? {
-                        None => break,
-                        Some(chunk) => {
-                            file.write_all(&chunk).await?;
+                    match chunk {
+                        Err(e) => break Err(e),
+                        Ok(None) => break Ok(true), // true = completed normally
+                        Ok(Some(chunk)) => {
+                            if let Err(e) = file.write_all(&chunk).await {
+                                break Err(e.into());
+                            }
                             downloaded += chunk.len() as u64;
 
                             if downloaded.saturating_sub(last_reported) >= REPORT_INTERVAL
-                                || (total_bytes > 0 && downloaded == total_bytes)
+                                || (total_bytes > 0 && downloaded >= total_bytes)
                             {
                                 self.emit(model_id, ModelDownloadStatus::Downloading, downloaded, total_bytes);
                                 last_reported = downloaded;
@@ -151,11 +193,31 @@ impl ModelDownloader {
                     }
                 }
             }
-        }
+        };
 
-        file.flush().await?;
-        self.emit(model_id, ModelDownloadStatus::Completed, downloaded, total_bytes);
-        Ok(())
+        // Flush and drop before any rename/cleanup.
+        file.flush().await.ok();
+        drop(file);
+
+        match result {
+            Ok(true) => {
+                // Atomic rename: only now does `dest` exist.
+                tokio::fs::rename(&tmp, dest).await?;
+                self.emit(model_id, ModelDownloadStatus::Completed, downloaded, total_bytes);
+                Ok(())
+            }
+            Ok(false) => {
+                // Cancelled — keep the partial .tmp for resume.
+                self.emit(model_id, ModelDownloadStatus::Cancelled, downloaded, total_bytes);
+                Ok(())
+            }
+            Err(e) => {
+                // Keep the partial .tmp for resume; emit Failed so the UI
+                // updates immediately without waiting for the command to return.
+                self.emit(model_id, ModelDownloadStatus::Failed, downloaded, total_bytes);
+                Err(e)
+            }
+        }
     }
 
     fn emit(&self, model_id: &str, status: ModelDownloadStatus, downloaded: u64, total: u64) {

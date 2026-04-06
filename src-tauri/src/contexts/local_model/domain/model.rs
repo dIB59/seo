@@ -22,6 +22,8 @@ pub struct ModelInfo {
     pub entry: ModelEntry,
     pub is_downloaded: bool,
     pub is_active: bool,
+    /// `true` when a partial `.tmp` file exists — the download can be resumed.
+    pub has_partial: bool,
 }
 
 /// Curated model registry — three tiers, all public GGUF files from Hugging Face.

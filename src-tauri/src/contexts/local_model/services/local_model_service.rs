@@ -34,9 +34,10 @@ impl LocalModelService {
         Ok(MODEL_REGISTRY
             .iter()
             .map(|entry| ModelInfo {
-                entry: entry.clone(),
                 is_downloaded: self.is_downloaded(entry),
                 is_active: active_id.as_deref() == Some(entry.id.as_str()),
+                has_partial: self.has_partial(entry),
+                entry: entry.clone(),
             })
             .collect())
     }
@@ -59,14 +60,25 @@ impl LocalModelService {
         self.downloader.cancel(model_id);
     }
 
-    /// Delete the model file from disk and clear active if it was active.
+    /// Delete the model file (and any partial `.tmp`) from disk, and clear
+    /// the active setting if this model was active.
     pub async fn delete_model(&self, model_id: &str) -> Result<()> {
         let entry = ModelEntry::find_by_id(model_id)
             .ok_or_else(|| anyhow::anyhow!("Unknown model id: {model_id}"))?;
 
         let path = self.model_path(entry);
-        if path.exists() {
-            std::fs::remove_file(&path)?;
+        match std::fs::remove_file(&path) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e.into()),
+        }
+
+        // Also clean up any partial download.
+        let tmp = path.with_extension("tmp");
+        match std::fs::remove_file(&tmp) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e.into()),
         }
 
         // Clear active setting if this was the active model
@@ -151,6 +163,10 @@ impl LocalModelService {
 
     fn is_downloaded(&self, entry: &ModelEntry) -> bool {
         self.model_path(entry).exists()
+    }
+
+    fn has_partial(&self, entry: &ModelEntry) -> bool {
+        self.model_path(entry).with_extension("tmp").exists()
     }
 }
 

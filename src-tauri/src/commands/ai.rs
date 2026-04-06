@@ -5,15 +5,7 @@ use crate::{
     service::GeminiRequest,
 };
 
-trait ResultExt<T> {
-    fn context(self, msg: &str) -> Result<T, String>;
-}
-
-impl<T, E: std::fmt::Display> ResultExt<T> for Result<T, E> {
-    fn context(self, msg: &str) -> Result<T, String> {
-        self.map_err(|e| format!("{}: {}", msg, e))
-    }
-}
+use super::ResultExt;
 
 #[command]
 #[specta::specta]
@@ -176,6 +168,9 @@ mod tests {
             use crate::service::spider::MockSpider as Ms;
             let ms = Ms { html_response: String::new(), generic_response: crate::service::spider::SpiderResponse { status: 200, body: String::new(), url: String::new() } };
             ms.stream_get(_url).await
+        }
+        async fn stream_get_range(&self, _url: &str, _start_byte: u64) -> anyhow::Result<crate::service::spider::StreamResponse> {
+            self.stream_get(_url).await
         }
     }
 

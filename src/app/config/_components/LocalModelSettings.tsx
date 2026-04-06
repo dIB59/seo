@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Download, HardDrive, Trash2, X } from "lucide-react";
+import { CheckCircle2, Download, HardDrive, RotateCcw, Trash2, X } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -141,6 +141,22 @@ function ModelCard({
             >
               <Trash2 className="h-3 w-3" />
               Delete
+            </Button>
+          </>
+        ) : model.has_partial ? (
+          <>
+            <Button variant="outline" size="sm" onClick={onDownload} className="h-7 text-xs gap-1.5">
+              <RotateCcw className="h-3 w-3" />
+              Resume
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onDelete}
+              className="h-7 text-xs gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
+            >
+              <Trash2 className="h-3 w-3" />
+              Discard
             </Button>
           </>
         ) : (
