@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Bot, Cpu, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { generateAnalysis, type AiSource } from "@/src/api/ai";
@@ -15,6 +15,7 @@ export function AiInsightsTab({ data }: { data: CompleteAnalysisResponse }) {
   const [insights, setInsights] = useState<{ text: string; source: AiSource } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const topRef = useRef<HTMLDivElement>(null);
 
   const generate = async () => {
     setLoading(true);
@@ -26,6 +27,7 @@ export function AiInsightsTab({ data }: { data: CompleteAnalysisResponse }) {
 
     if (res.isOk()) {
       setInsights(res.unwrap());
+      topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     } else {
       setError(res.unwrapErr());
     }
@@ -33,6 +35,7 @@ export function AiInsightsTab({ data }: { data: CompleteAnalysisResponse }) {
 
   return (
     <div className="space-y-4">
+      <div ref={topRef} />
       {/* Action bar */}
       <div className="flex items-center gap-3 p-4 rounded-lg border border-border/50 bg-card/30">
         <div className="flex-1">

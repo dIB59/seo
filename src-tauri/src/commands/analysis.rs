@@ -156,17 +156,24 @@ pub struct AnalysisSummary {
 
 impl AnalysisSummary {
     fn compute(job: &Job, pages: &[PageAnalysisData]) -> Self {
-        let (total_load, load_count) = pages.iter().fold((0.0f64, 0usize), |(sum, cnt), p| {
-            if p.load_time > 0.0 {
-                (sum + p.load_time, cnt + 1)
-            } else {
-                (sum, cnt)
-            }
-        });
+        let (total_load, load_count) = pages
+            .iter()
+            .filter(|p| p.load_time > 0.0)
+            .fold((0.0f64, 0usize), |(sum, cnt), p| (sum + p.load_time, cnt + 1));
+
+        // Use Lighthouse SEO scores when available — they reflect the real score shown in
+        // the UI. The issue-deduction formula saturates at 0 when there are many issues,
+        // so it does not match what the user sees.
+        let lh_scores: Vec<f64> = pages.iter().filter_map(|p| p.lighthouse_seo).collect();
+        let seo_score = if lh_scores.is_empty() {
+            job.calculate_seo_score()
+        } else {
+            (lh_scores.iter().sum::<f64>() / lh_scores.len() as f64).round() as i64
+        };
 
         Self {
             analysis_id: job.id.clone(),
-            seo_score: job.calculate_seo_score(),
+            seo_score,
             avg_load_time: total_load / load_count.max(1) as f64,
             total_words: pages.iter().map(|p| p.word_count).sum(),
             total_issues: job.summary.total_issues,
@@ -314,27 +321,13 @@ impl From<CompleteJobResult> for CompleteAnalysisResponse {
         let mut images_by_page: HashMap<String, Vec<ImageElement>> = HashMap::new();
 
         for link in links {
-            let page_id = link.source_page_id.clone();
-            links_by_page
-                .entry(page_id)
-                .or_default()
-                .push(link.into());
+            links_by_page.entry(link.source_page_id.clone()).or_default().push(link.into());
         }
-
         for heading in headings {
-            let page_id = heading.page_id.clone();
-            headings_by_page
-                .entry(page_id)
-                .or_default()
-                .push(heading.into());
+            headings_by_page.entry(heading.page_id.clone()).or_default().push(heading.into());
         }
-
         for image in images {
-            let page_id = image.page_id.clone();
-            images_by_page
-                .entry(page_id)
-                .or_default()
-                .push(image.into());
+            images_by_page.entry(image.page_id.clone()).or_default().push(image.into());
         }
 
         let lighthouse_by_page: HashMap<String, LighthouseData> = lighthouse
@@ -344,16 +337,16 @@ impl From<CompleteJobResult> for CompleteAnalysisResponse {
 
         let assembled_pages: Vec<PageAnalysisData> = pages
             .into_iter()
-            .map(|p| {
+            .map(|mut p| {
                 let page_id = p.id.clone();
-                let page_extracted_data = p.extracted_data.clone();
+                let extracted_data = std::mem::take(&mut p.extracted_data);
                 Self::assemble_page(
                     p,
                     lighthouse_by_page.get(&page_id),
                     links_by_page.remove(&page_id).unwrap_or_default(),
                     headings_by_page.remove(&page_id).unwrap_or_default(),
                     images_by_page.remove(&page_id).unwrap_or_default(),
-                    page_extracted_data,
+                    extracted_data,
                 )
             })
             .collect();
@@ -361,13 +354,13 @@ impl From<CompleteJobResult> for CompleteAnalysisResponse {
         let assembled_issues: Vec<SeoIssue> = issues
             .into_iter()
             .map(|issue| {
-                let page_id = issue.page_id.clone().unwrap_or_default();
+                let page_id = issue.page_id.unwrap_or_default();
                 SeoIssue {
-                    page_id: page_id.clone(),
+                    page_url: page_url_by_id.get(&page_id).cloned().unwrap_or_default(),
+                    page_id,
                     severity: issue.severity,
                     title: issue.issue_type,
                     description: issue.message,
-                    page_url: page_url_by_id.get(&page_id).cloned().unwrap_or_default(),
                     element: issue.details.clone(),
                     recommendation: issue.details.unwrap_or_default(),
                     line_number: None,
@@ -795,6 +788,124 @@ mod tests {
             void_link_external.link_type,
             LinkType::External,
             "javascript:external:void(0) should be treated as external when link_type is External"
+        );
+    }
+
+    // ── seo_score in AnalysisSummary ─────────────────────────────────────────
+
+    /// When Lighthouse data is present, the summary seo_score should be the
+    /// average of the per-page Lighthouse SEO scores, NOT the issue-deduction
+    /// formula (which returns 0 when there are many issues).
+    #[tokio::test]
+    async fn summary_seo_score_uses_lighthouse_when_available() {
+        let pool = fixtures::setup_test_db().await;
+        let job_repo = sqlite_job_repo(pool.clone());
+        let page_repo = sqlite_page_repo(pool.clone());
+
+        let job_id = job_repo
+            .create("https://example.com", &JobSettings::default())
+            .await
+            .unwrap();
+
+        let page = Page {
+            id: "".to_string(),
+            job_id: job_id.clone(),
+            url: "https://example.com/".to_string(),
+            depth: 0,
+            status_code: Some(200),
+            content_type: None,
+            title: Some("Home".to_string()),
+            meta_description: None,
+            canonical_url: None,
+            robots_meta: None,
+            word_count: Some(100),
+            load_time_ms: Some(500),
+            response_size_bytes: Some(1024),
+            has_viewport: true,
+            has_structured_data: false,
+            crawled_at: Utc::now(),
+            extracted_data: std::collections::HashMap::new(),
+        };
+
+        let page_id = page_repo.insert(&page).await.unwrap();
+
+        // Lighthouse reports 89 — this is what the user sees in the UI.
+        let lh = LighthouseData {
+            page_id: page_id.clone(),
+            performance_score: None,
+            accessibility_score: None,
+            best_practices_score: None,
+            seo_score: Some(89.0),
+            first_contentful_paint_ms: None,
+            largest_contentful_paint_ms: None,
+            total_blocking_time_ms: None,
+            cumulative_layout_shift: None,
+            speed_index: None,
+            time_to_interactive_ms: None,
+            raw_json: None,
+        };
+        page_repo.insert_lighthouse(&lh).await.unwrap();
+
+        let results_repo = sqlite_results_repo(pool.clone());
+        let result: CompleteAnalysisResponse = results_repo
+            .get_complete_result(&job_id)
+            .await
+            .unwrap()
+            .into();
+
+        assert_eq!(
+            result.summary.seo_score, 89,
+            "summary.seo_score should equal the Lighthouse SEO score (89), not the issue-deduction score"
+        );
+    }
+
+    /// When no Lighthouse data exists, the summary seo_score falls back to the
+    /// issue-deduction formula.
+    #[tokio::test]
+    async fn summary_seo_score_falls_back_to_issue_formula_without_lighthouse() {
+        let pool = fixtures::setup_test_db().await;
+        let job_repo = sqlite_job_repo(pool.clone());
+        let page_repo = sqlite_page_repo(pool.clone());
+
+        let job_id = job_repo
+            .create("https://example.com", &JobSettings::default())
+            .await
+            .unwrap();
+
+        let page = Page {
+            id: "".to_string(),
+            job_id: job_id.clone(),
+            url: "https://example.com/".to_string(),
+            depth: 0,
+            status_code: Some(200),
+            content_type: None,
+            title: Some("Home".to_string()),
+            meta_description: None,
+            canonical_url: None,
+            robots_meta: None,
+            word_count: Some(100),
+            load_time_ms: Some(500),
+            response_size_bytes: Some(1024),
+            has_viewport: true,
+            has_structured_data: false,
+            crawled_at: Utc::now(),
+            extracted_data: std::collections::HashMap::new(),
+        };
+
+        page_repo.insert(&page).await.unwrap();
+        // No Lighthouse data inserted — fallback path.
+
+        let results_repo = sqlite_results_repo(pool.clone());
+        let result: CompleteAnalysisResponse = results_repo
+            .get_complete_result(&job_id)
+            .await
+            .unwrap()
+            .into();
+
+        // Zero issues → calculate_seo_score returns 100.
+        assert_eq!(
+            result.summary.seo_score, 100,
+            "without Lighthouse data and no issues, seo_score should be 100 (issue-formula fallback)"
         );
     }
 }
