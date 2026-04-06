@@ -151,21 +151,6 @@ impl AiService {
         self.settings_repo.set_setting("ai_source", source).await
     }
 
-    // === Prompt Configuration ===
-
-    /// Get the current prompt configuration
-    /// Note: This is a stub that will be fully implemented in Phase 3
-    pub async fn get_prompt_config(&self) -> Result<PromptConfig> {
-        // TODO: Load from settings
-        Ok(PromptConfig::default())
-    }
-
-    /// Update the prompt configuration
-    /// Note: This is a stub that will be fully implemented in Phase 3
-    pub async fn set_prompt_config(&self, _config: &PromptConfig) -> Result<()> {
-        // TODO: Save to settings
-        Ok(())
-    }
 }
 
 #[cfg(test)]

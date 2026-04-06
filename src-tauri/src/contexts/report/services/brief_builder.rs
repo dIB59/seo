@@ -21,6 +21,8 @@ pub fn phase1_diagnosis_prompt(
     sitemap: bool,
     robots: bool,
 ) -> String {
+    let sitemap = if sitemap { "yes" } else { "no" };
+    let robots  = if robots  { "yes" } else { "no" };
     format!(
         "{system_prompt}\n\n\
         TASK — DIAGNOSIS (max 3 sentences, max 80 words):\n\
@@ -31,16 +33,7 @@ pub fn phase1_diagnosis_prompt(
         Sitemap present: {sitemap}. Robots.txt present: {robots}.\n\n\
         Describe the site's current SEO health and the business risk of leaving \
         these issues unaddressed. Be specific — no generic filler.\n\
-        RESPONSE:",
-        system_prompt = system_prompt,
-        url = url,
-        score = score,
-        grade = grade,
-        pages = pages,
-        critical = critical,
-        warnings = warnings,
-        sitemap = if sitemap { "yes" } else { "no" },
-        robots  = if robots  { "yes" } else { "no" },
+        RESPONSE:"
     )
 }
 
@@ -65,14 +58,7 @@ pub fn phase2_issue_prompt(
         Fix effort: {fix_effort}\n\
         Fix: {recommendation}\n\n\
         Write what this issue is costing the site and what the team must do first.\n\
-        RESPONSE:",
-        system_prompt    = system_prompt,
-        name             = name,
-        description      = description,
-        pct              = pct,
-        business_impact  = business_impact,
-        fix_effort       = fix_effort,
-        recommendation   = recommendation,
+        RESPONSE:"
     )
 }
 
@@ -82,6 +68,7 @@ pub fn phase3_roadmap_prompt(
     pillars: &PillarScores,
     weakest: &str,
 ) -> String {
+    let (t, c, p, a) = (pillars.technical, pillars.content, pillars.performance, pillars.accessibility);
     format!(
         "{system_prompt}\n\n\
         TASK — ROADMAP & CALL TO ACTION (max 3 sentences, max 80 words):\n\
@@ -90,13 +77,7 @@ pub fn phase3_roadmap_prompt(
         Weakest pillar: {weakest}\n\n\
         Give a prioritised starting point. Tell the client exactly what to work \
         on first and why it will move the needle fastest.\n\
-        RESPONSE:",
-        system_prompt = system_prompt,
-        t       = pillars.technical,
-        c       = pillars.content,
-        p       = pillars.performance,
-        a       = pillars.accessibility,
-        weakest = weakest,
+        RESPONSE:"
     )
 }
 

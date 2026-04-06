@@ -44,24 +44,7 @@ export async function generateGeminiAnalysis(
     return Result.Err(AiError.MissingKey);
   }
 
-  const { analysis, summary, issues, pages } = result;
-
-  const insightsResult = await commands.getGeminiInsights({
-    analysis_id: analysis.id,
-    url: analysis.url,
-    seo_score: summary.seo_score,
-    pages_count: pages.length,
-    total_issues: summary.total_issues,
-    critical_issues: issues.filter((i: SeoIssue) => i.severity === "critical").length,
-    warning_issues: issues.filter((i: SeoIssue) => i.severity === "warning").length,
-    suggestion_issues: issues.filter((i: SeoIssue) => i.severity === "info").length,
-    top_issues: issues.slice(0, 10).map((i: SeoIssue) => `- ${i.title}`),
-    avg_load_time: summary.avg_load_time,
-    total_words: summary.total_words,
-    ssl_certificate: analysis.ssl_certificate,
-    sitemap_found: analysis.sitemap_found,
-    robots_txt_found: analysis.robots_txt_found,
-  });
+  const insightsResult = await commands.getGeminiInsights(buildInsightsPayload(result));
 
   if (insightsResult.status === "ok") {
     return Result.Ok(insightsResult.data);

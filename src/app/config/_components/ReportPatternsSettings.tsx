@@ -123,15 +123,9 @@ export function ReportPatternsSettings() {
   const [form, setForm] = useState<ReportPatternParams>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
 
-  function openCreate() {
-    setEditing(null);
-    setForm(EMPTY_FORM);
-    setDialogOpen(true);
-  }
-
-  function openEdit(p: ReportPattern) {
-    setEditing(p);
-    setForm({
+  function openDialog(p?: ReportPattern) {
+    setEditing(p ?? null);
+    setForm(p ? {
       name: p.name,
       description: p.description,
       category: p.category,
@@ -144,7 +138,7 @@ export function ReportPatternsSettings() {
       fixEffort: p.fixEffort,
       recommendation: p.recommendation,
       enabled: p.enabled,
-    });
+    } : EMPTY_FORM);
     setDialogOpen(true);
   }
 
@@ -201,7 +195,7 @@ export function ReportPatternsSettings() {
           Patterns are evaluated site-wide when generating a report. Built-in patterns can be
           disabled but not deleted. Custom patterns integrate with your extractors and custom checks.
         </p>
-        <Button size="sm" onClick={openCreate}>
+        <Button size="sm" onClick={() => openDialog()}>
           <Plus className="h-4 w-4 mr-1" />
           Add Pattern
         </Button>
@@ -267,7 +261,7 @@ export function ReportPatternsSettings() {
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7"
-                          onClick={() => openEdit(p)}
+                          onClick={() => openDialog(p)}
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>

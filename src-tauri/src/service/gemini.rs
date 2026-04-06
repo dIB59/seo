@@ -1,4 +1,4 @@
-use crate::service::prompt::{build_prompt_from_blocks, replace_prompt_vars, DEFAULT_PERSONA};
+use crate::service::prompt::{build_prompt_from_blocks, DEFAULT_PERSONA};
 use crate::service::spider::SpiderAgent;
 #[cfg(test)]
 use crate::service::spider::{ClientType, Spider};

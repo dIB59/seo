@@ -226,17 +226,11 @@ pub fn compute_pillar_scores(detected: &[DetectedPattern]) -> PillarScores {
     }
 
     let clamp = |v: f64| v.clamp(0.0, 100.0);
-    let t = clamp(technical);
-    let c = clamp(content);
-    let p = clamp(performance);
-    let a = clamp(accessibility);
-    let overall = (t + c + p + a) / 4.0;
+    let technical     = clamp(technical);
+    let content       = clamp(content);
+    let performance   = clamp(performance);
+    let accessibility = clamp(accessibility);
+    let overall = (technical + content + performance + accessibility) / 4.0;
 
-    PillarScores {
-        technical: t,
-        content: c,
-        performance: p,
-        accessibility: a,
-        overall,
-    }
+    PillarScores { technical, content, performance, accessibility, overall }
 }

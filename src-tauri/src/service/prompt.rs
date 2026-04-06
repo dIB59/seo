@@ -7,16 +7,8 @@
 
 use crate::service::gemini::{GeminiRequest, PromptBlock};
 
-// ── Default persona ───────────────────────────────────────────────────────────
-//
-// Single source of truth used by every AI backend: Gemini, the local inference
-// engine, and report brief phases.
-//
-// This is a fallback only — the user-configured persona (Settings → AI
-// Instructions) overrides it everywhere.  Because it is returned to the
-// frontend when no custom persona is saved, the user sees and can edit it
-// directly; there are no hidden defaults.
-
+// Fallback persona — returned to the frontend when no custom persona is saved,
+// so the user sees and can edit this text directly in Settings → AI Instructions.
 pub const DEFAULT_PERSONA: &str = "\
 You are a senior SEO consultant producing a professional audit report. \
 Your work transforms raw audit data into clear, directive, business-focused narrative.

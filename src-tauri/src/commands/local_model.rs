@@ -2,15 +2,7 @@ use tauri::{command, State};
 
 use crate::{contexts::local_model::ModelInfo, lifecycle::app_state::AppState};
 
-trait ResultExt<T> {
-    fn context(self, msg: &str) -> Result<T, String>;
-}
-
-impl<T, E: std::fmt::Display> ResultExt<T> for Result<T, E> {
-    fn context(self, msg: &str) -> Result<T, String> {
-        self.map_err(|e| format!("{}: {}", msg, e))
-    }
-}
+use super::ResultExt;
 
 #[command]
 #[specta::specta]

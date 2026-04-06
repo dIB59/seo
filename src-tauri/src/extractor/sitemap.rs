@@ -80,7 +80,6 @@ pub async fn extract_sitemap_urls(
 
 fn extract_url_from_sitemap(text: &str) -> Result<Vec<String>, Error> {
     let format: SitemapFormat = SitemapFormat::detect(text);
-    println!("{:?}", format);
     let urls = format.extract_urls(text);
     Ok(urls)
 }

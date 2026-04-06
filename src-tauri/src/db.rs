@@ -103,5 +103,3 @@ async fn dump_schema(pool: &SqlitePool, output_path: &std::path::Path) -> Result
     }
     Ok(())
 }
-#[cfg(test)]
-mod tests {}

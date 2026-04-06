@@ -71,13 +71,6 @@ impl Job {
         }
     }
 
-    /// Create a new job with custom settings.
-    pub fn with_settings(url: String, settings: JobSettings) -> Self {
-        let mut job = Self::new(url, settings.clone());
-        job.settings = settings;
-        job
-    }
-
     pub fn calculate_seo_score(&self) -> i64 {
         let total = self.summary.total_issues;
         if total == 0 {

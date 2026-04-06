@@ -46,18 +46,7 @@ async function saveFile(
       logger.log("Save cancelled by user");
     }
   } catch (error: unknown) {
-    // Check for common cancellation errors
-    const errorMessage = String(error);
-    const errorString = JSON.stringify(error, Object.getOwnPropertyNames(error));
-
-    if (
-      errorMessage.includes("cancelled") ||
-      errorMessage.includes("-999") ||
-      errorMessage.includes("NSURLErrorDomain") ||
-      errorMessage.includes("Operation couldn't be completed") ||
-      errorString.includes("-999") ||
-      (typeof error === "object" && error !== null && "code" in error && error.code === -999)
-    ) {
+    if (isCancellationError(error)) {
       toast.info("Save cancelled");
       logger.log("Save cancelled by user (caught error)");
       return;
@@ -68,6 +57,19 @@ async function saveFile(
     // Fallback to browser download if Tauri API fails
     fallbackDownload(content, defaultFilename);
   }
+}
+
+function isCancellationError(error: unknown): boolean {
+  const msg = String(error);
+  const json = JSON.stringify(error, Object.getOwnPropertyNames(error));
+  return (
+    msg.includes("cancelled") ||
+    msg.includes("-999") ||
+    msg.includes("NSURLErrorDomain") ||
+    msg.includes("Operation couldn't be completed") ||
+    json.includes("-999") ||
+    (typeof error === "object" && error !== null && "code" in error && (error as { code: unknown }).code === -999)
+  );
 }
 
 function fallbackDownload(content: string | Uint8Array<ArrayBuffer>, filename: string) {

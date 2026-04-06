@@ -38,8 +38,10 @@ impl ReportService {
 
     /// Generate a full report for the given job.
     pub async fn generate_report(&self, job_id: &str) -> Result<ReportData> {
-        let result   = self.results_repo.get_complete_result(job_id).await?;
-        let patterns = self.pattern_repo.list_enabled_patterns().await?;
+        let (result, patterns) = tokio::try_join!(
+            self.results_repo.get_complete_result(job_id),
+            self.pattern_repo.list_enabled_patterns(),
+        )?;
 
         let detected      = pattern_engine::evaluate_all(&patterns, &result);
         let pillar_scores = pattern_engine::compute_pillar_scores(&detected);
@@ -94,18 +96,9 @@ impl ReportService {
             _ => DEFAULT_PERSONA.to_string(),
         };
 
-        // Check whether a local model is active and downloaded.
-        let can_use_ai = if let Some(lm) = &self.local_model {
-            lm.get_active_model_id().await.ok().flatten().is_some()
-        } else {
-            false
-        };
-
-        if !can_use_ai {
+        let Some(lm) = &self.local_model else {
             return brief_builder::build_static_brief(job, detected, pillars);
-        }
-
-        let lm = self.local_model.as_ref().unwrap();
+        };
 
         let model_id = match lm.get_active_model_id().await {
             Ok(Some(id)) => id,

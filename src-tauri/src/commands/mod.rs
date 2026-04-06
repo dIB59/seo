@@ -1,5 +1,15 @@
 use tauri_specta::{collect_commands, Commands};
 
+pub(super) trait ResultExt<T> {
+    fn context(self, msg: &str) -> Result<T, String>;
+}
+
+impl<T, E: std::fmt::Display> ResultExt<T> for Result<T, E> {
+    fn context(self, msg: &str) -> Result<T, String> {
+        self.map_err(|e| format!("{}: {}", msg, e))
+    }
+}
+
 mod ai;
 pub mod analysis;
 mod extension;
@@ -8,7 +18,7 @@ mod local_model;
 mod report;
 
 pub fn register_commands() -> Commands<tauri::Wry> {
-    let s = collect_commands![
+    collect_commands![
         // AI commands
         ai::get_gemini_insights,
         ai::get_gemini_api_key,
@@ -64,6 +74,6 @@ pub fn register_commands() -> Commands<tauri::Wry> {
         report::toggle_report_pattern,
         report::delete_report_pattern,
         report::generate_report_data,
-    ];
-    s
+    ]
 }
+

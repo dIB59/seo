@@ -2,7 +2,7 @@ use crate::{
     contexts::{
         ai::{AiService, AiServiceFactory},
         analysis::{AnalysisService, AnalysisServiceFactory},
-        licensing::{LicenseTier, LicensingAgent, PermissionRequest, Policy},
+        licensing::{LicensingAgent, PermissionRequest, Policy},
         local_model::{LocalModelService, LocalModelServiceFactory},
         report::ReportService,
     },
