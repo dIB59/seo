@@ -3,6 +3,8 @@ use chrono::Utc;
 use sqlx::SqlitePool;
 
 use crate::contexts::analysis::{LighthouseData, NewHeading, NewImage, Page, PageInfo};
+use crate::repository::PageRepository as PageRepositoryTrait;
+use async_trait::async_trait;
 
 pub struct PageRepository {
     pool: SqlitePool,
@@ -12,8 +14,11 @@ impl PageRepository {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
+}
 
-    pub async fn insert(&self, page: &Page) -> Result<String> {
+#[async_trait]
+impl PageRepositoryTrait for PageRepository {
+    async fn insert(&self, page: &Page) -> Result<String> {
         let id = if page.id.is_empty() {
             uuid::Uuid::new_v4().to_string()
         } else {
@@ -81,7 +86,7 @@ impl PageRepository {
         Ok(row.id)
     }
 
-    pub async fn insert_batch(&self, pages: &[Page]) -> Result<()> {
+    async fn insert_batch(&self, pages: &[Page]) -> Result<()> {
         if pages.is_empty() {
             return Ok(());
         }
@@ -140,7 +145,7 @@ impl PageRepository {
         Ok(())
     }
 
-    pub async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<Page>> {
+    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<Page>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -188,7 +193,7 @@ impl PageRepository {
             .collect())
     }
 
-    pub async fn get_info_by_job_id(&self, job_id: &str) -> Result<Vec<PageInfo>> {
+    async fn get_info_by_job_id(&self, job_id: &str) -> Result<Vec<PageInfo>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -219,7 +224,7 @@ impl PageRepository {
             .collect())
     }
 
-    pub async fn get_by_id(&self, page_id: &str) -> Result<Page> {
+    async fn get_by_id(&self, page_id: &str) -> Result<Page> {
         let row = sqlx::query!(
             r#"
             SELECT 
@@ -261,7 +266,7 @@ impl PageRepository {
         })
     }
 
-    pub async fn replace_headings(&self, page_id: &str, headings: &[NewHeading]) -> Result<()> {
+    async fn replace_headings(&self, page_id: &str, headings: &[NewHeading]) -> Result<()> {
         sqlx::query!("DELETE FROM page_headings WHERE page_id = ?", page_id)
             .execute(&self.pool)
             .await
@@ -289,7 +294,7 @@ impl PageRepository {
         Ok(())
     }
 
-    pub async fn replace_images(&self, page_id: &str, images: &[NewImage]) -> Result<()> {
+    async fn replace_images(&self, page_id: &str, images: &[NewImage]) -> Result<()> {
         sqlx::query!("DELETE FROM page_images WHERE page_id = ?", page_id)
             .execute(&self.pool)
             .await
@@ -321,7 +326,7 @@ impl PageRepository {
         Ok(())
     }
 
-    pub async fn count_by_job_id(&self, job_id: &str) -> Result<i64> {
+    async fn count_by_job_id(&self, job_id: &str) -> Result<i64> {
         let row = sqlx::query!(
             "SELECT COUNT(*) as count FROM pages WHERE job_id = ?",
             job_id
@@ -333,7 +338,7 @@ impl PageRepository {
         Ok(row.count as i64)
     }
 
-    pub async fn insert_lighthouse(&self, data: &LighthouseData) -> Result<()> {
+    async fn insert_lighthouse(&self, data: &LighthouseData) -> Result<()> {
         let created_at = Utc::now().to_rfc3339();
         sqlx::query!(
             r#"
@@ -367,7 +372,7 @@ impl PageRepository {
         Ok(())
     }
 
-    pub async fn get_lighthouse_by_job_id(&self, job_id: &str) -> Result<Vec<LighthouseData>> {
+    async fn get_lighthouse_by_job_id(&self, job_id: &str) -> Result<Vec<LighthouseData>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -412,56 +417,3 @@ fn parse_datetime(s: &str) -> chrono::DateTime<Utc> {
         .unwrap_or_else(|_| Utc::now())
 }
 
-use crate::repository::PageRepository as PageRepositoryTrait;
-use async_trait::async_trait;
-
-#[async_trait]
-impl PageRepositoryTrait for PageRepository {
-    async fn insert(&self, page: &Page) -> Result<String> {
-        PageRepository::insert(self, page).await
-    }
-
-    async fn insert_batch(&self, pages: &[Page]) -> Result<()> {
-        PageRepository::insert_batch(self, pages).await
-    }
-
-    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<Page>> {
-        PageRepository::get_by_job_id(self, job_id).await
-    }
-
-    async fn get_info_by_job_id(&self, job_id: &str) -> Result<Vec<PageInfo>> {
-        PageRepository::get_info_by_job_id(self, job_id).await
-    }
-
-    async fn get_by_id(&self, page_id: &str) -> Result<Page> {
-        PageRepository::get_by_id(self, page_id).await
-    }
-
-    async fn replace_headings(
-        &self,
-        page_id: &str,
-        headings: &[NewHeading],
-    ) -> Result<()> {
-        PageRepository::replace_headings(self, page_id, headings).await
-    }
-
-    async fn replace_images(
-        &self,
-        page_id: &str,
-        images: &[NewImage],
-    ) -> Result<()> {
-        PageRepository::replace_images(self, page_id, images).await
-    }
-
-    async fn count_by_job_id(&self, job_id: &str) -> Result<i64> {
-        PageRepository::count_by_job_id(self, job_id).await
-    }
-
-    async fn insert_lighthouse(&self, data: &LighthouseData) -> Result<()> {
-        PageRepository::insert_lighthouse(self, data).await
-    }
-
-    async fn get_lighthouse_by_job_id(&self, job_id: &str) -> Result<Vec<LighthouseData>> {
-        PageRepository::get_lighthouse_by_job_id(self, job_id).await
-    }
-}
