@@ -7,6 +7,63 @@ use scraper::{Html, Selector};
 use std::sync::{Arc, OnceLock};
 use url::Url;
 
+/// Returns a cached `&'static Selector` for a literal CSS selector. The selector is
+/// parsed once on first use and reused thereafter — cheaper than re-parsing per call,
+/// and removes the per-check `static OnceLock` boilerplate.
+macro_rules! selector {
+    ($css:literal) => {{
+        static S: OnceLock<Selector> = OnceLock::new();
+        S.get_or_init(|| Selector::parse($css).expect("invalid CSS selector"))
+    }};
+}
+
+/// Builds a `CheckResult` for a "length must fall within `[min, max]`" check.
+/// Used by both title and meta-description checks, which previously duplicated
+/// the same 3-arm `if/else` and four `CheckResult` constructors each.
+fn length_bounded_check(
+    value: Option<String>,
+    label: &str,
+    min: usize,
+    max: usize,
+) -> CheckResult {
+    match value {
+        Some(v) if !v.is_empty() => {
+            let len = v.len();
+            let (passed, score, desc) = if len < min {
+                (
+                    false,
+                    Score::from(0.5),
+                    format!("{} too short ({} chars, recommend {}-{})", label, len, min, max),
+                )
+            } else if len > max {
+                (
+                    false,
+                    Score::from(0.7),
+                    format!("{} too long ({} chars, recommend {}-{})", label, len, min, max),
+                )
+            } else {
+                (
+                    true,
+                    Score::from(1.0),
+                    format!("{} length is good ({} chars)", label, len),
+                )
+            };
+            CheckResult {
+                passed,
+                value: Some(v),
+                score,
+                description: Some(desc),
+            }
+        }
+        _ => CheckResult {
+            passed: false,
+            value: None,
+            score: Score::from(0.0),
+            description: Some(format!("Missing {}", label.to_lowercase())),
+        },
+    }
+}
+
 pub struct LightAuditor {
     spider: Arc<dyn SpiderAgent>,
 }
@@ -54,107 +111,33 @@ impl LightAuditor {
     }
 
     fn check_title(&self, document: &Html) -> CheckResult {
-        static SELECTOR: OnceLock<Selector> = OnceLock::new();
-        let selector = SELECTOR.get_or_init(|| Selector::parse("title").unwrap());
-
         let title = document
-            .select(selector)
+            .select(selector!("title"))
             .next()
             .map(|el| el.text().collect::<String>().trim().to_string());
-
-        match title {
-            Some(t) if !t.is_empty() => {
-                let len = t.len();
-                let (passed, score, desc) = if len < 30 {
-                    (
-                        false,
-                        Score::from(0.5),
-                        format!("Title too short ({} chars, recommend 30-60)", len),
-                    )
-                } else if len > 60 {
-                    (
-                        false,
-                        Score::from(0.7),
-                        format!("Title too long ({} chars, recommend 30-60)", len),
-                    )
-                } else {
-                    (
-                        true,
-                        Score::from(1.0),
-                        format!("Title length is good ({} chars)", len),
-                    )
-                };
-                CheckResult {
-                    passed,
-                    value: Some(t),
-                    score,
-                    description: Some(desc),
-                }
-            }
-            _ => CheckResult {
-                passed: false,
-                value: None,
-                score: Score::from(0.0),
-                description: Some("Missing document title".to_string()),
-            },
+        let mut result = length_bounded_check(title, "Title", 30, 60);
+        if result.value.is_none() {
+            result.description = Some("Missing document title".to_string());
         }
+        result
     }
 
     fn check_meta_description(&self, document: &Html) -> CheckResult {
-        static SELECTOR: OnceLock<Selector> = OnceLock::new();
-        let selector =
-            SELECTOR.get_or_init(|| Selector::parse("meta[name='description']").unwrap());
-
         let description = document
-            .select(selector)
+            .select(selector!("meta[name='description']"))
             .next()
             .and_then(|el| el.value().attr("content"))
             .map(|s| s.trim().to_string());
-
-        match description {
-            Some(d) if !d.is_empty() => {
-                let len = d.len();
-                let (passed, score, desc) = if len < 70 {
-                    (
-                        false,
-                        Score::from(0.5),
-                        format!("Description too short ({} chars, recommend 70-160)", len),
-                    )
-                } else if len > 160 {
-                    (
-                        false,
-                        Score::from(0.7),
-                        format!("Description too long ({} chars, recommend 70-160)", len),
-                    )
-                } else {
-                    (
-                        true,
-                        Score::from(1.0),
-                        format!("Description length is good ({} chars)", len),
-                    )
-                };
-                CheckResult {
-                    passed,
-                    value: Some(d),
-                    score,
-                    description: Some(desc),
-                }
-            }
-            _ => CheckResult {
-                passed: false,
-                value: None,
-                score: Score::from(0.0),
-                description: Some("Missing meta description".to_string()),
-            },
+        let mut result = length_bounded_check(description, "Description", 70, 160);
+        if result.value.is_none() {
+            result.description = Some("Missing meta description".to_string());
         }
+        result
     }
 
     fn check_viewport(&self, document: &Html) -> CheckResult {
-        static SELECTOR: OnceLock<Selector> = OnceLock::new();
-        let selector = SELECTOR.get_or_init(|| Selector::parse("meta[name='viewport']").unwrap());
-
         let viewport = document
-            .select(selector)
+            .select(selector!("meta[name='viewport']"))
             .next()
             .and_then(|el| el.value().attr("content"))
             .map(|s| s.to_string());
@@ -182,11 +165,8 @@ impl LightAuditor {
     }
 
     fn check_canonical(&self, document: &Html, page_url: &Url) -> CheckResult {
-        static SELECTOR: OnceLock<Selector> = OnceLock::new();
-        let selector = SELECTOR.get_or_init(|| Selector::parse("link[rel='canonical']").unwrap());
-
         let canonical = document
-            .select(selector)
+            .select(selector!("link[rel='canonical']"))
             .next()
             .and_then(|el| el.value().attr("href"))
             .map(|s| s.to_string());
@@ -220,11 +200,7 @@ impl LightAuditor {
     }
 
     fn check_hreflang(&self, document: &Html) -> CheckResult {
-        static SELECTOR: OnceLock<Selector> = OnceLock::new();
-        let selector =
-            SELECTOR.get_or_init(|| Selector::parse("link[rel='alternate'][hreflang]").unwrap());
-
-        let count = document.select(selector).count();
+        let count = document.select(selector!("link[rel='alternate'][hreflang]")).count();
 
         if count > 0 {
             CheckResult {
@@ -250,13 +226,10 @@ impl LightAuditor {
     }
 
     fn check_crawlable_anchors(&self, document: &Html) -> CheckResult {
-        static SELECTOR: OnceLock<Selector> = OnceLock::new();
-        let selector = SELECTOR.get_or_init(|| Selector::parse("a[href]").unwrap());
-
         let mut total = 0;
         let mut uncrawlable = 0;
 
-        for anchor in document.select(selector) {
+        for anchor in document.select(selector!("a[href]")) {
             total += 1;
             let href = anchor.value().attr("href").unwrap_or("");
 
@@ -302,18 +275,12 @@ impl LightAuditor {
     }
 
     fn check_link_text(&self, document: &Html) -> CheckResult {
-        static SELECTOR: OnceLock<Selector> = OnceLock::new();
-        let selector = SELECTOR.get_or_init(|| Selector::parse("a[href]").unwrap());
-
         let mut total = 0;
         let mut poor_text = 0;
         let bad_texts = ["click here", "read more", "learn more", "here", "link"];
+        let img_selector = selector!("img");
 
-        // Selector for images inside anchors (used as fallback)
-        static IMG_SELECTOR: OnceLock<Selector> = OnceLock::new();
-        let img_selector = IMG_SELECTOR.get_or_init(|| Selector::parse("img").unwrap());
-
-        for anchor in document.select(selector) {
+        for anchor in document.select(selector!("a[href]")) {
             total += 1;
 
             // Primary: visible text inside the anchor
@@ -389,16 +356,13 @@ impl LightAuditor {
     }
 
     fn check_image_alt(&self, document: &Html) -> CheckResult {
-        static SELECTOR: OnceLock<Selector> = OnceLock::new();
-        let selector = SELECTOR.get_or_init(|| Selector::parse("img").unwrap());
-
         let mut total = 0;
         let mut missing_alt = 0;
 
-        for img in document.select(selector) {
+        for img in document.select(selector!("img")) {
             total += 1;
             let alt = img.value().attr("alt");
-            if alt.is_none() || alt.map(|a| a.trim().is_empty()).unwrap_or(true) {
+            if alt.map_or(true, |a| a.trim().is_empty()) {
                 missing_alt += 1;
             }
         }
@@ -429,11 +393,8 @@ impl LightAuditor {
     }
 
     fn check_is_crawlable(&self, document: &Html) -> CheckResult {
-        static SELECTOR: OnceLock<Selector> = OnceLock::new();
-        let selector = SELECTOR.get_or_init(|| Selector::parse("meta[name='robots']").unwrap());
-
         let robots = document
-            .select(selector)
+            .select(selector!("meta[name='robots']"))
             .next()
             .and_then(|el| el.value().attr("content"))
             .map(|s| s.to_lowercase());
