@@ -120,6 +120,22 @@ impl ReportService {
         let grade   = brief_builder::score_grade(seo_score);
         let weakest = brief_builder::weakest_pillar(pillars);
 
+        // Same priority slice the PDF report's "Where to Start" page uses,
+        // so phase 1 / phase 3 can refer to the issues the reader is about
+        // to encounter without invented numbers.
+        let priority_patterns: Vec<_> = detected
+            .iter()
+            .filter(|d| {
+                use crate::contexts::report::domain::PatternSeverity::*;
+                d.pattern.severity == Critical || d.pattern.severity == Warning
+            })
+            .take(3)
+            .collect();
+        let top_issue_names: Vec<String> = priority_patterns
+            .iter()
+            .map(|dp| dp.pattern.name.clone())
+            .collect();
+
         // ── Phase 1: Diagnosis ────────────────────────────────────────────────
         let p1 = brief_builder::phase1_diagnosis_prompt(
             &system_prompt,
@@ -131,22 +147,15 @@ impl ReportService {
             job.summary.warning_issues,
             job.sitemap_found,
             job.robots_txt_found,
+            pillars,
+            &top_issue_names,
         );
-        let diagnosis = self.infer(&model_path, p1, 200).await.unwrap_or_else(|e| {
+        let diagnosis = self.infer(&model_path, p1, 280).await.unwrap_or_else(|e| {
             tracing::warn!("[Report] Phase 1 failed: {e}");
             String::new()
         });
 
         // ── Phase 2: Priority actions (up to 3 critical/warning patterns) ────
-        let priority_patterns: Vec<_> = detected
-            .iter()
-            .filter(|d| {
-                use crate::contexts::report::domain::PatternSeverity::*;
-                d.pattern.severity == Critical || d.pattern.severity == Warning
-            })
-            .take(3)
-            .collect();
-
         let mut priority_sections = String::new();
         for dp in &priority_patterns {
             let pct = (dp.prevalence * 100.0).round() as u64;
@@ -155,11 +164,13 @@ impl ReportService {
                 &dp.pattern.name,
                 &dp.pattern.description,
                 pct,
+                dp.affected_pages,
+                dp.total_pages,
                 &format!("{:?}", dp.pattern.business_impact),
                 &format!("{:?}", dp.pattern.fix_effort),
                 &dp.pattern.recommendation,
             );
-            match self.infer(&model_path, p2, 150).await {
+            match self.infer(&model_path, p2, 200).await {
                 Ok(text) if !text.trim().is_empty() => {
                     priority_sections.push_str(&format!(
                         "**{}** ({}% of pages)\n{}\n\n",
@@ -172,8 +183,8 @@ impl ReportService {
         }
 
         // ── Phase 3: Roadmap / CTA ────────────────────────────────────────────
-        let p3 = brief_builder::phase3_roadmap_prompt(&system_prompt, pillars, weakest);
-        let roadmap = self.infer(&model_path, p3, 200).await.unwrap_or_else(|e| {
+        let p3 = brief_builder::phase3_roadmap_prompt(&system_prompt, pillars, weakest, &top_issue_names);
+        let roadmap = self.infer(&model_path, p3, 320).await.unwrap_or_else(|e| {
             tracing::warn!("[Report] Phase 3 failed: {e}");
             String::new()
         });

@@ -8,8 +8,30 @@ use crate::contexts::report::domain::{DetectedPattern, PatternSeverity, PillarSc
 // persona loaded from settings ("gemini_persona") — the same text that drives
 // Gemini and the local model for regular analysis.
 
-/// Phase 1 — Diagnosis: 2–3 sentences on the site's SEO health and the
-/// business risk of leaving issues unaddressed.
+/// Anti-hallucination ground rules prepended to every phase. Local
+/// models love to fabricate concrete numbers (organic impressions,
+/// dollar amounts, conversion lifts) when none are provided. We forbid
+/// every quantitative claim that isn't explicitly grounded in the data
+/// block we hand them.
+const GROUND_RULES: &str = "\
+STRICT RULES — read carefully before responding:
+1. Use ONLY the numbers, percentages and facts listed in the DATA block below.
+2. NEVER invent or estimate any of the following: organic impressions,
+   monthly traffic, click-through rates, conversion rates, revenue at risk,
+   dollar amounts, time-to-rank, ranking positions, competitor numbers, or
+   any statistic that is not present in the DATA block.
+3. If you do not have a number for something, describe it qualitatively
+   (\"a meaningful share\", \"the majority\", \"a small slice\") — do not
+   guess a figure.
+4. Do not refer to studies, benchmarks, or external sources.
+5. Stay specific to the site and the data given. No generic SEO platitudes.
+6. Write in clear, direct prose. No headings, no bullet points, no markdown
+   inside your response.
+";
+
+/// Phase 1 — Diagnosis: an evidence-based read on the site's current
+/// SEO health and what the issues mean for the business.
+#[allow(clippy::too_many_arguments)]
 pub fn phase1_diagnosis_prompt(
     system_prompt: &str,
     url: &str,
@@ -20,44 +42,74 @@ pub fn phase1_diagnosis_prompt(
     warnings: i64,
     sitemap: bool,
     robots: bool,
+    pillars: &PillarScores,
+    top_issue_names: &[String],
 ) -> String {
-    let sitemap = if sitemap { "yes" } else { "no" };
-    let robots  = if robots  { "yes" } else { "no" };
+    let sitemap = if sitemap { "present" } else { "missing" };
+    let robots  = if robots  { "present" } else { "missing" };
+    let top_list = if top_issue_names.is_empty() {
+        "(none flagged)".to_string()
+    } else {
+        top_issue_names
+            .iter()
+            .enumerate()
+            .map(|(i, n)| format!("  {}. {}", i + 1, n))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let (t, c, p, a) = (pillars.technical, pillars.content, pillars.performance, pillars.accessibility);
     format!(
         "{system_prompt}\n\n\
-        TASK — DIAGNOSIS (max 3 sentences, max 80 words):\n\
+        {GROUND_RULES}\n\
+        DATA:\n\
         Site: {url}\n\
-        SEO score: {score}/100 — {grade}\n\
+        Overall SEO score: {score}/100 ({grade})\n\
         Pages analysed: {pages}\n\
-        Issues found: {critical} critical, {warnings} warnings\n\
-        Sitemap present: {sitemap}. Robots.txt present: {robots}.\n\n\
-        Describe the site's current SEO health and the business risk of leaving \
-        these issues unaddressed. Be specific — no generic filler.\n\
+        Critical issues: {critical}\n\
+        Warning issues: {warnings}\n\
+        Sitemap: {sitemap}\n\
+        Robots.txt: {robots}\n\
+        Pillar scores — Technical {t:.0}, Content {c:.0}, Performance {p:.0}, Accessibility {a:.0} (out of 100)\n\
+        Top detected patterns:\n{top_list}\n\n\
+        TASK — DIAGNOSIS (3 to 4 sentences, ~110 words):\n\
+        Write a grounded read on this site's SEO health. Open by naming where it stands \
+        overall, then explain — using only the facts above — what the strongest pillar \
+        is doing right and which weak signals (sitemap, top patterns, weakest pillar) \
+        are most likely to hold the site back. Close with the qualitative business \
+        consequence of leaving these unaddressed. Be specific to this site.\n\
         RESPONSE:"
     )
 }
 
 /// Phase 2 — Issue narrative: called once per issue (max 3).
-/// Asks the model what the issue costs and what the team should do first.
+/// Explains what the issue actually means for visitors and search
+/// engines, and what the team should do first.
 pub fn phase2_issue_prompt(
     system_prompt: &str,
     name: &str,
     description: &str,
     pct: u64,
+    affected_pages: usize,
+    total_pages: usize,
     business_impact: &str,
     fix_effort: &str,
     recommendation: &str,
 ) -> String {
     format!(
         "{system_prompt}\n\n\
-        TASK — ISSUE NARRATIVE (max 2 sentences, max 60 words):\n\
+        {GROUND_RULES}\n\
+        DATA:\n\
         Issue: {name}\n\
         What it means: {description}\n\
-        Affects: {pct}% of pages\n\
-        Business impact: {business_impact}\n\
-        Fix effort: {fix_effort}\n\
-        Fix: {recommendation}\n\n\
-        Write what this issue is costing the site and what the team must do first.\n\
+        Affected pages: {affected_pages} of {total_pages} ({pct}%)\n\
+        Business impact rating: {business_impact}\n\
+        Fix effort rating: {fix_effort}\n\
+        Recommended fix: {recommendation}\n\n\
+        TASK — ISSUE NARRATIVE (2 to 3 sentences, ~75 words):\n\
+        Explain what this specific issue is doing to the site's search visibility \
+        and user experience — using ONLY the data above. Then say what the team \
+        should do first to start unblocking it. Do not invent traffic, revenue, \
+        conversion or ranking numbers.\n\
         RESPONSE:"
     )
 }
@@ -67,16 +119,34 @@ pub fn phase3_roadmap_prompt(
     system_prompt: &str,
     pillars: &PillarScores,
     weakest: &str,
+    top_issue_names: &[String],
 ) -> String {
     let (t, c, p, a) = (pillars.technical, pillars.content, pillars.performance, pillars.accessibility);
+    let top_list = if top_issue_names.is_empty() {
+        "(none flagged)".to_string()
+    } else {
+        top_issue_names
+            .iter()
+            .enumerate()
+            .map(|(i, n)| format!("  {}. {}", i + 1, n))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
     format!(
         "{system_prompt}\n\n\
-        TASK — ROADMAP & CALL TO ACTION (max 3 sentences, max 80 words):\n\
-        Pillar scores — Technical: {t:.0}/100, Content: {c:.0}/100, \
-        Performance: {p:.0}/100, Accessibility: {a:.0}/100\n\
-        Weakest pillar: {weakest}\n\n\
-        Give a prioritised starting point. Tell the client exactly what to work \
-        on first and why it will move the needle fastest.\n\
+        {GROUND_RULES}\n\
+        DATA:\n\
+        Pillar scores — Technical {t:.0}/100, Content {c:.0}/100, \
+        Performance {p:.0}/100, Accessibility {a:.0}/100\n\
+        Weakest pillar: {weakest}\n\
+        Top detected patterns to resolve:\n{top_list}\n\n\
+        TASK — ROADMAP (4 to 5 sentences, ~130 words):\n\
+        Lay out a sequenced 30-day plan in plain prose. Sentence 1: name the \
+        weakest pillar and why fixing it first moves the score most. \
+        Sentence 2 and 3: spell out the order to tackle the top patterns above \
+        — which to do this week, which next. Sentence 4: a measurable success \
+        signal the team should watch for in the next audit. Sentence 5 \
+        (optional): one closing call to action. No invented numbers.\n\
         RESPONSE:"
     )
 }
