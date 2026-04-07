@@ -1,12 +1,21 @@
-// Design tokens — professional, muted, monochromatic-first.
-// Accent colours are used only for score/severity indicators, never as fills.
+// Design tokens for the PDF report.
+//
+// Aligns with the SEO Insikt app: Geist Sans / Geist Mono, blue primary
+// accent (sRGB approximation of the app's `oklch(0.55 0.15 250)`), soft
+// rounded surfaces. Colour is reserved for score / severity / accent —
+// never used as a heavy fill.
 
 export const C = {
   // Page
   white: "#FFFFFF",
   pageBg: "#FFFFFF",
 
-  // Dark page frame (top bar on every page)
+  // Brand accent — derived from app primary `oklch(0.55 0.15 250)`
+  primary:     "#2F6FE6",
+  primarySoft: "#EAF1FD",
+  primaryDim:  "#5B86E0",   // section labels / kickers
+
+  // Dark page frame (top bar on interior pages)
   ink: "#111118",
   inkSurface: "#1C1C26",
   inkText: "#FFFFFF",
@@ -17,17 +26,18 @@ export const C = {
   secondary: "#4B5563",   // gray-600
   muted: "#6B7280",       // gray-500
   faint: "#9CA3AF",       // gray-400
-  hairline: "#9CA3AF",    // very light divider
+  hairline: "#9CA3AF",
 
   // Surfaces
-  surface: "#F9FAFB",     // gray-50
-  border: "#E5E7EB",      // gray-200
+  surface: "#F7F8FB",     // softer than gray-50
+  surfaceAlt: "#F1F3F8",  // for nested cards
+  border: "#E6E8EF",      // softer gray-200
 
-  // Severity — all intentionally muted/dark, never bright
-  critical: "#B91C1C",    // red-700
-  warning: "#B45309",     // amber-700
-  suggestion: "#6D28D9",  // violet-700
-  success: "#15803D",     // green-700
+  // Severity — muted, never bright
+  critical: "#B91C1C",
+  warning:  "#B45309",
+  suggestion: "#6D28D9",
+  success:  "#15803D",
 
   // Pillar bars — desaturated, readable
   pillarTechnical:    "#4B7DB8",
@@ -36,22 +46,27 @@ export const C = {
   pillarAccessibility:"#2D8A52",
 
   // Score colour thresholds
-  scoreGood:    "#15803D",
-  scoreWarn:    "#B45309",
-  scoreBad:     "#B91C1C",
+  scoreGood: "#15803D",
+  scoreWarn: "#B45309",
+  scoreBad:  "#B91C1C",
 } as const;
 
+// Font family names — registered in `generate.ts` via Font.register.
+// Inter for sans (Geist's GSUB ligatures collapse in react-pdf),
+// JetBrains Mono for monospace data.
 export const F = {
-  regular: "Helvetica",
-  bold:    "Helvetica-Bold",
-  italic:  "Helvetica-Oblique",
-  mono:    "Courier",
+  regular: "Inter",
+  medium:  "Inter-Medium",
+  bold:    "Inter-Bold",
+  italic:  "Inter",
+  mono:    "JetBrainsMono",
+  monoMed: "JetBrainsMono-Medium",
 } as const;
 
 // Spacing
 export const SP = {
-  page:    40,   // horizontal page margin
-  bar:     32,   // top bar height
+  page: 40,
+  bar:  32,
   gap: {
     xs:  3,
     sm:  6,
@@ -60,6 +75,7 @@ export const SP = {
     xl:  24,
     xxl: 36,
   },
+  radius: 6,
 } as const;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
