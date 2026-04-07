@@ -11,6 +11,8 @@ use crate::contexts::{
 };
 
 use super::{map_job_status, map_link_type, map_severity};
+use crate::repository::ResultsRepository as ResultsRepositoryTrait;
+use async_trait::async_trait;
 
 pub struct ResultsRepository {
     pool: SqlitePool,
@@ -20,8 +22,11 @@ impl ResultsRepository {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
+}
 
-    pub async fn get_complete_result(&self, job_id: &str) -> Result<CompleteJobResult> {
+#[async_trait]
+impl ResultsRepositoryTrait for ResultsRepository {
+    async fn get_complete_result(&self, job_id: &str) -> Result<CompleteJobResult> {
         let query_start = std::time::Instant::now();
 
         // 1. Get job (includes settings and summary)
@@ -81,7 +86,7 @@ impl ResultsRepository {
         })
     }
 
-    pub async fn get_job(&self, job_id: &str) -> Result<Job> {
+    async fn get_job(&self, job_id: &str) -> Result<Job> {
         let row = sqlx::query!(
             r#"
             SELECT 
@@ -130,7 +135,7 @@ impl ResultsRepository {
         })
     }
 
-    pub async fn get_pages(&self, job_id: &str) -> Result<Vec<Page>> {
+    async fn get_pages(&self, job_id: &str) -> Result<Vec<Page>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -178,7 +183,7 @@ impl ResultsRepository {
             .collect())
     }
 
-    pub async fn get_issues(&self, job_id: &str) -> Result<Vec<Issue>> {
+    async fn get_issues(&self, job_id: &str) -> Result<Vec<Issue>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -214,7 +219,7 @@ impl ResultsRepository {
             .collect())
     }
 
-    pub async fn get_links(&self, job_id: &str) -> Result<Vec<Link>> {
+    async fn get_links(&self, job_id: &str) -> Result<Vec<Link>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -243,7 +248,7 @@ impl ResultsRepository {
             .collect())
     }
 
-    pub async fn get_lighthouse(&self, job_id: &str) -> Result<Vec<LighthouseData>> {
+    async fn get_lighthouse(&self, job_id: &str) -> Result<Vec<LighthouseData>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -281,7 +286,7 @@ impl ResultsRepository {
             .collect())
     }
 
-    pub async fn get_headings(&self, job_id: &str) -> Result<Vec<Heading>> {
+    async fn get_headings(&self, job_id: &str) -> Result<Vec<Heading>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -309,7 +314,7 @@ impl ResultsRepository {
             .collect())
     }
 
-    pub async fn get_images(&self, job_id: &str) -> Result<Vec<Image>> {
+    async fn get_images(&self, job_id: &str) -> Result<Vec<Image>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -341,7 +346,7 @@ impl ResultsRepository {
             .collect())
     }
 
-    pub async fn get_ai_insights(&self, job_id: &str) -> Result<AiInsight> {
+    async fn get_ai_insights(&self, job_id: &str) -> Result<AiInsight> {
         let row = sqlx::query!(
             r#"
             SELECT 
@@ -368,7 +373,7 @@ impl ResultsRepository {
         })
     }
 
-    pub async fn save_ai_insights(
+    async fn save_ai_insights(
         &self,
         job_id: &str,
         summary: Option<&str>,
@@ -402,67 +407,6 @@ impl ResultsRepository {
         .context("Failed to save AI insights")?;
 
         Ok(())
-    }
-}
-
-use crate::repository::ResultsRepository as ResultsRepositoryTrait;
-use async_trait::async_trait;
-
-#[async_trait]
-impl ResultsRepositoryTrait for ResultsRepository {
-    async fn get_complete_result(&self, job_id: &str) -> Result<CompleteJobResult> {
-        ResultsRepository::get_complete_result(self, job_id).await
-    }
-
-    async fn get_job(&self, job_id: &str) -> Result<Job> {
-        ResultsRepository::get_job(self, job_id).await
-    }
-
-    async fn get_pages(&self, job_id: &str) -> Result<Vec<Page>> {
-        ResultsRepository::get_pages(self, job_id).await
-    }
-
-    async fn get_issues(&self, job_id: &str) -> Result<Vec<Issue>> {
-        ResultsRepository::get_issues(self, job_id).await
-    }
-
-    async fn get_links(&self, job_id: &str) -> Result<Vec<Link>> {
-        ResultsRepository::get_links(self, job_id).await
-    }
-
-    async fn get_lighthouse(&self, job_id: &str) -> Result<Vec<LighthouseData>> {
-        ResultsRepository::get_lighthouse(self, job_id).await
-    }
-
-    async fn get_headings(&self, job_id: &str) -> Result<Vec<Heading>> {
-        ResultsRepository::get_headings(self, job_id).await
-    }
-
-    async fn get_images(&self, job_id: &str) -> Result<Vec<Image>> {
-        ResultsRepository::get_images(self, job_id).await
-    }
-
-    async fn get_ai_insights(&self, job_id: &str) -> Result<AiInsight> {
-        ResultsRepository::get_ai_insights(self, job_id).await
-    }
-
-    async fn save_ai_insights(
-        &self,
-        job_id: &str,
-        summary: Option<&str>,
-        recommendations: Option<&str>,
-        raw_response: Option<&str>,
-        model: Option<&str>,
-    ) -> Result<()> {
-        ResultsRepository::save_ai_insights(
-            self,
-            job_id,
-            summary,
-            recommendations,
-            raw_response,
-            model,
-        )
-        .await
     }
 }
 
