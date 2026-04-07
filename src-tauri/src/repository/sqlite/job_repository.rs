@@ -19,11 +19,7 @@ impl JobRepository {
         let id = uuid::Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
 
-        let lighthouse_analysis = if settings.lighthouse_analysis {
-            1i32
-        } else {
-            0
-        };
+        let lighthouse_analysis = i32::from(settings.lighthouse_analysis);
 
         sqlx::query!(
             r#"
@@ -123,16 +119,18 @@ impl JobRepository {
 
         Ok(rows
             .into_iter()
-            .map(|row| JobInfo {
-                id: row.id,
-                url: row.url,
-                status: map_job_status(&row.status),
-                progress: row.progress,
-                total_pages: row.total_pages,
-                total_issues: row.total_issues,
-                created_at: parse_datetime(&row.created_at),
-                max_pages: row.max_pages,
-                lighthouse_analysis: row.lighthouse_analysis != 0,
+            .map(|row| {
+                make_job_info(
+                    row.id,
+                    row.url,
+                    &row.status,
+                    row.progress,
+                    row.total_pages,
+                    row.total_issues,
+                    &row.created_at,
+                    row.max_pages,
+                    row.lighthouse_analysis,
+                )
             })
             .collect())
     }
@@ -157,16 +155,18 @@ impl JobRepository {
 
         Ok(rows
             .into_iter()
-            .map(|row| JobInfo {
-                id: row.id,
-                url: row.url,
-                status: map_job_status(&row.status),
-                progress: row.progress,
-                total_pages: row.total_pages,
-                total_issues: row.total_issues,
-                created_at: parse_datetime(&row.created_at),
-                max_pages: row.max_pages,
-                lighthouse_analysis: row.lighthouse_analysis != 0,
+            .map(|row| {
+                make_job_info(
+                    row.id,
+                    row.url,
+                    &row.status,
+                    row.progress,
+                    row.total_pages,
+                    row.total_issues,
+                    &row.created_at,
+                    row.max_pages,
+                    row.lighthouse_analysis,
+                )
             })
             .collect())
     }
@@ -178,9 +178,7 @@ impl JobRepository {
         url_filter: Option<String>,
         status_filter: Option<String>,
     ) -> Result<(Vec<JobInfo>, i64)> {
-        let url_pattern = url_filter
-            .map(|f| format!("%{}%", f))
-            .unwrap_or_else(|| "%".to_string());
+        let url_pattern = url_filter.map_or_else(|| "%".to_string(), |f| format!("%{}%", f));
         let status_pattern = status_filter.unwrap_or_else(|| "%".to_string());
 
         let rows = sqlx::query!(
@@ -208,16 +206,18 @@ impl JobRepository {
 
         let items = rows
             .into_iter()
-            .map(|row| JobInfo {
-                id: row.id,
-                url: row.url,
-                status: map_job_status(&row.status),
-                progress: row.progress,
-                total_pages: row.total_pages,
-                total_issues: row.total_issues,
-                created_at: parse_datetime(&row.created_at),
-                max_pages: row.max_pages,
-                lighthouse_analysis: row.lighthouse_analysis != 0,
+            .map(|row| {
+                make_job_info(
+                    row.id,
+                    row.url,
+                    &row.status,
+                    row.progress,
+                    row.total_pages,
+                    row.total_issues,
+                    &row.created_at,
+                    row.max_pages,
+                    row.lighthouse_analysis,
+                )
             })
             .collect();
 
@@ -294,8 +294,8 @@ impl JobRepository {
         sitemap_found: bool,
         robots_txt_found: bool,
     ) -> Result<()> {
-        let sitemap = if sitemap_found { 1 } else { 0 };
-        let robots = if robots_txt_found { 1 } else { 0 };
+        let sitemap = i32::from(sitemap_found);
+        let robots = i32::from(robots_txt_found);
 
         sqlx::query!(
             r#"
@@ -404,6 +404,31 @@ fn parse_datetime(s: &str) -> chrono::DateTime<Utc> {
     chrono::DateTime::parse_from_rfc3339(s)
         .map(|dt| dt.with_timezone(&Utc))
         .unwrap_or_else(|_| Utc::now())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn make_job_info(
+    id: String,
+    url: String,
+    status: &str,
+    progress: f64,
+    total_pages: i64,
+    total_issues: i64,
+    created_at: &str,
+    max_pages: i64,
+    lighthouse_analysis: i64,
+) -> JobInfo {
+    JobInfo {
+        id,
+        url,
+        status: map_job_status(status),
+        progress,
+        total_pages,
+        total_issues,
+        created_at: parse_datetime(created_at),
+        max_pages,
+        lighthouse_analysis: lighthouse_analysis != 0,
+    }
 }
 
 // Implement the abstract repository trait using the concrete sqlite repository
