@@ -3,6 +3,29 @@ use sqlx::SqlitePool;
 
 use super::map_link_type;
 use crate::contexts::analysis::{Link, NewLink};
+use crate::repository::LinkRepository as LinkRepositoryTrait;
+use async_trait::async_trait;
+
+#[allow(clippy::too_many_arguments)]
+fn make_link(
+    id: i64,
+    job_id: String,
+    source_page_id: String,
+    target_url: String,
+    link_text: Option<String>,
+    link_type: &str,
+    status_code: Option<i64>,
+) -> Link {
+    Link {
+        id: id.to_string(),
+        job_id,
+        source_page_id,
+        target_url,
+        link_text,
+        link_type: map_link_type(link_type),
+        status_code,
+    }
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct LinkCounts {
@@ -31,8 +54,11 @@ impl LinkRepository {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
+}
 
-    pub async fn insert_batch(&self, links: &[NewLink]) -> Result<()> {
+#[async_trait]
+impl LinkRepositoryTrait for LinkRepository {
+    async fn insert_batch(&self, links: &[NewLink]) -> Result<()> {
         if links.is_empty() {
             return Ok(());
         }
@@ -66,7 +92,7 @@ impl LinkRepository {
         Ok(())
     }
 
-    pub async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<Link>> {
+    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<Link>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -83,19 +109,21 @@ impl LinkRepository {
 
         Ok(rows
             .into_iter()
-            .map(|row| Link {
-                id: row.id.to_string(),
-                job_id: row.job_id,
-                source_page_id: row.source_page_id,
-                target_url: row.target_url,
-                link_text: row.link_text,
-                link_type: map_link_type(row.link_type.as_str()),
-                status_code: row.status_code,
+            .map(|row| {
+                make_link(
+                    row.id,
+                    row.job_id,
+                    row.source_page_id,
+                    row.target_url,
+                    row.link_text,
+                    row.link_type.as_str(),
+                    row.status_code,
+                )
             })
             .collect())
     }
 
-    pub async fn get_outgoing(&self, source_page_id: &str) -> Result<Vec<Link>> {
+    async fn get_outgoing(&self, source_page_id: &str) -> Result<Vec<Link>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -112,19 +140,21 @@ impl LinkRepository {
 
         Ok(rows
             .into_iter()
-            .map(|row| Link {
-                id: row.id.to_string(),
-                job_id: row.job_id,
-                source_page_id: row.source_page_id,
-                target_url: row.target_url,
-                link_text: row.link_text,
-                link_type: map_link_type(row.link_type.as_str()),
-                status_code: row.status_code,
+            .map(|row| {
+                make_link(
+                    row.id,
+                    row.job_id,
+                    row.source_page_id,
+                    row.target_url,
+                    row.link_text,
+                    row.link_type.as_str(),
+                    row.status_code,
+                )
             })
             .collect())
     }
 
-    pub async fn get_incoming(&self, target_page_id: &str) -> Result<Vec<Link>> {
+    async fn get_incoming(&self, target_page_id: &str) -> Result<Vec<Link>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -141,19 +171,21 @@ impl LinkRepository {
 
         Ok(rows
             .into_iter()
-            .map(|row| Link {
-                id: row.id.to_string(),
-                job_id: row.job_id,
-                source_page_id: row.source_page_id,
-                target_url: row.target_url,
-                link_text: row.link_text,
-                link_type: map_link_type(row.link_type.as_str()),
-                status_code: row.status_code,
+            .map(|row| {
+                make_link(
+                    row.id,
+                    row.job_id,
+                    row.source_page_id,
+                    row.target_url,
+                    row.link_text,
+                    row.link_type.as_str(),
+                    row.status_code,
+                )
             })
             .collect())
     }
 
-    pub async fn get_broken(&self, job_id: &str) -> Result<Vec<Link>> {
+    async fn get_broken(&self, job_id: &str) -> Result<Vec<Link>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -170,19 +202,21 @@ impl LinkRepository {
 
         Ok(rows
             .into_iter()
-            .map(|row| Link {
-                id: row.id.to_string(),
-                job_id: row.job_id,
-                source_page_id: row.source_page_id,
-                target_url: row.target_url,
-                link_text: row.link_text,
-                link_type: map_link_type(row.link_type.as_str()),
-                status_code: row.status_code,
+            .map(|row| {
+                make_link(
+                    row.id,
+                    row.job_id,
+                    row.source_page_id,
+                    row.target_url,
+                    row.link_text,
+                    row.link_type.as_str(),
+                    row.status_code,
+                )
             })
             .collect())
     }
 
-    pub async fn count_by_type(&self, job_id: &str) -> Result<LinkCounts> {
+    async fn count_by_type(&self, job_id: &str) -> Result<LinkCounts> {
         let row = sqlx::query!(
             r#"
             SELECT 
@@ -205,7 +239,7 @@ impl LinkRepository {
         })
     }
 
-    pub async fn get_external_domains(&self, job_id: &str) -> Result<Vec<ExternalDomain>> {
+    async fn get_external_domains(&self, job_id: &str) -> Result<Vec<ExternalDomain>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -232,7 +266,7 @@ impl LinkRepository {
             .collect())
     }
 
-    pub async fn update_status_codes(&self, updates: &[(i64, i64)]) -> Result<()> {
+    async fn update_status_codes(&self, updates: &[(i64, i64)]) -> Result<()> {
         if updates.is_empty() {
             return Ok(());
         }
@@ -254,40 +288,3 @@ impl LinkRepository {
     }
 }
 
-use crate::repository::LinkRepository as LinkRepositoryTrait;
-use async_trait::async_trait;
-
-#[async_trait]
-impl LinkRepositoryTrait for LinkRepository {
-    async fn insert_batch(&self, links: &[NewLink]) -> Result<()> {
-        LinkRepository::insert_batch(self, links).await
-    }
-
-    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<Link>> {
-        LinkRepository::get_by_job_id(self, job_id).await
-    }
-
-    async fn get_outgoing(&self, source_page_id: &str) -> Result<Vec<Link>> {
-        LinkRepository::get_outgoing(self, source_page_id).await
-    }
-
-    async fn get_incoming(&self, target_page_id: &str) -> Result<Vec<Link>> {
-        LinkRepository::get_incoming(self, target_page_id).await
-    }
-
-    async fn get_broken(&self, job_id: &str) -> Result<Vec<Link>> {
-        LinkRepository::get_broken(self, job_id).await
-    }
-
-    async fn count_by_type(&self, job_id: &str) -> Result<LinkCounts> {
-        LinkRepository::count_by_type(self, job_id).await
-    }
-
-    async fn get_external_domains(&self, job_id: &str) -> Result<Vec<ExternalDomain>> {
-        LinkRepository::get_external_domains(self, job_id).await
-    }
-
-    async fn update_status_codes(&self, updates: &[(i64, i64)]) -> Result<()> {
-        LinkRepository::update_status_codes(self, updates).await
-    }
-}
