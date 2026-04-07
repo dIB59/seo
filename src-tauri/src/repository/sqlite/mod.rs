@@ -5,6 +5,7 @@ mod job_repository;
 mod link_repository;
 mod page_queue_repository;
 mod page_repository;
+mod report_repository;
 mod results_repository;
 mod settings_repository;
 
@@ -15,6 +16,7 @@ pub use job_repository::JobRepository;
 pub use link_repository::{ExternalDomain, LinkCounts, LinkRepository};
 pub use page_queue_repository::PageQueueRepository;
 pub use page_repository::PageRepository;
+pub use report_repository::SqliteReportPatternRepository;
 pub use results_repository::ResultsRepository;
 pub use settings_repository::SettingsRepository;
 

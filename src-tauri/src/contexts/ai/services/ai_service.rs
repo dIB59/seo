@@ -140,21 +140,17 @@ impl AiService {
         Ok(val.map(|v| v != "false").unwrap_or(true))
     }
 
-    // === Prompt Configuration ===
-
-    /// Get the current prompt configuration
-    /// Note: This is a stub that will be fully implemented in Phase 3
-    pub async fn get_prompt_config(&self) -> Result<PromptConfig> {
-        // TODO: Load from settings
-        Ok(PromptConfig::default())
+    /// Get the active AI source ("gemini" | "local"). Defaults to "gemini".
+    pub async fn get_ai_source(&self) -> Result<String> {
+        let val = self.settings_repo.get_setting("ai_source").await?;
+        Ok(val.unwrap_or_else(|| "gemini".to_string()))
     }
 
-    /// Update the prompt configuration
-    /// Note: This is a stub that will be fully implemented in Phase 3
-    pub async fn set_prompt_config(&self, _config: &PromptConfig) -> Result<()> {
-        // TODO: Save to settings
-        Ok(())
+    /// Set the active AI source ("gemini" | "local").
+    pub async fn set_ai_source(&self, source: &str) -> Result<()> {
+        self.settings_repo.set_setting("ai_source", source).await
     }
+
 }
 
 #[cfg(test)]

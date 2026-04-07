@@ -1,8 +1,25 @@
-use crate::contexts::licensing::{LicenseTier, LicenseStatus, Policy};
+use crate::contexts::licensing::{LicenseTier, Policy};
 use crate::error::CommandError;
 use crate::lifecycle::app_state::AppState;
 use crate::service::hardware::HardwareService;
 use tauri::State;
+
+fn read_policy(state: &AppState) -> Policy {
+    state.permissions.read().map(|p| p.clone()).unwrap_or_default()
+}
+
+async fn do_activate(key: &str, state: &AppState) -> Result<Policy, CommandError> {
+    let status = state
+        .licensing_context
+        .activate_with_key(key)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to activate license: {}", e);
+            CommandError::from(e)
+        })?;
+    state.update_from_status(status);
+    Ok(read_policy(state))
+}
 
 #[tauri::command]
 #[specta::specta]
@@ -10,18 +27,7 @@ pub async fn activate_license(
     license_key: String,
     state: State<'_, AppState>,
 ) -> Result<Policy, CommandError> {
-    // Use the new context service (Strangler Fig pattern)
-    let status = state
-        .licensing_context
-        .activate_with_key(&license_key)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to activate license: {}", e);
-            CommandError::from(e)
-        })?;
-
-    state.update_from_status(status);
-    Ok(state.permissions.read().map(|p| p.clone()).unwrap_or_default())
+    do_activate(&license_key, &state).await
 }
 
 #[tauri::command]
@@ -30,33 +36,19 @@ pub async fn activate_with_key(
     key: String,
     state: State<'_, AppState>,
 ) -> Result<Policy, CommandError> {
-    let status = state
-        .licensing_context
-        .activate_with_key(&key)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to activate license: {}", e);
-            CommandError::from(e)
-        })?;
-
-    state.update_from_status(status);
-    Ok(state.permissions.read().map(|p| p.clone()).unwrap_or_default())
+    do_activate(&key, &state).await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_user_policy(
-    state: State<'_, AppState>,
-) -> Result<Policy, CommandError> {
-    // Return the policy from AppState
-    Ok(state.permissions.read().map(|p| p.clone()).unwrap_or_default())
+pub async fn get_user_policy(state: State<'_, AppState>) -> Result<Policy, CommandError> {
+    Ok(read_policy(&state))
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn get_license_tier(state: State<'_, AppState>) -> Result<LicenseTier, CommandError> {
-    // Return the tier from the current policy
-    Ok(state.permissions.read().map(|p| p.tier).unwrap_or_default())
+    Ok(read_policy(&state).tier)
 }
 
 #[tauri::command]
@@ -100,6 +92,14 @@ mod tests {
                 body: String::new(),
                 url: String::new(),
             })
+        }
+        async fn stream_get(&self, _url: &str) -> anyhow::Result<crate::service::spider::StreamResponse> {
+            use crate::service::spider::MockSpider as Ms;
+            let ms = Ms { html_response: String::new(), generic_response: crate::service::spider::SpiderResponse { status: 200, body: String::new(), url: String::new() } };
+            ms.stream_get(_url).await
+        }
+        async fn stream_get_range(&self, _url: &str, _start_byte: u64) -> anyhow::Result<crate::service::spider::StreamResponse> {
+            self.stream_get(_url).await
         }
     }
 
@@ -148,7 +148,35 @@ mod tests {
             licensing_context: licensing_service,
             analysis_context,
             ai_context,
+            local_model_context: {
+                struct NilEmitter;
+                impl crate::service::local_model::DownloadEmitter for NilEmitter {
+                    fn emit(&self, _: crate::service::local_model::ModelDownloadEvent) {}
+                }
+                Arc::new(crate::contexts::local_model::LocalModelService::new(
+                    settings_repo.clone(),
+                    std::path::PathBuf::from("/tmp"),
+                    Arc::new(crate::service::local_model::ModelDownloader::new(
+                        Arc::new(crate::service::spider::MockSpider {
+                            html_response: String::new(),
+                            generic_response: crate::service::spider::SpiderResponse {
+                                status: 200,
+                                body: String::new(),
+                                url: String::new(),
+                            },
+                        }),
+                        Arc::new(NilEmitter),
+                    )),
+                    Arc::new(crate::service::local_model::LlamaInferenceEngine::new()),
+                ))
+            },
             extension_repo: crate::repository::sqlite_extension_repo(pool.clone()),
+            report_pattern_repo: crate::repository::sqlite_report_pattern_repo(pool.clone()),
+            report_context: crate::contexts::report::ReportService::new(
+                crate::repository::sqlite_report_pattern_repo(pool.clone()),
+                results_repo.clone(),
+                settings_repo.clone(),
+            ),
         };
 
         mock_builder()

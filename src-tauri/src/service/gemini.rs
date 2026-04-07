@@ -1,3 +1,4 @@
+use crate::service::prompt::{build_prompt_from_blocks, DEFAULT_PERSONA};
 use crate::service::spider::SpiderAgent;
 #[cfg(test)]
 use crate::service::spider::{ClientType, Spider};
@@ -57,45 +58,19 @@ pub async fn generate_gemini_analysis(
         }
     };
 
-    // Get persona from database
+    // Load persona — single source of truth via shared module.
     let persona = match settings_repo.get_setting("gemini_persona").await? {
         Some(p) if !p.is_empty() => p,
-        _ => "You are an expert SEO consultant. Your tone is professional, encouraging, and data-driven.".to_string(),
+        _ => DEFAULT_PERSONA.to_string(),
     };
 
-    // Get prompt blocks from database
     let blocks_json = settings_repo
         .get_setting("gemini_prompt_blocks")
         .await?
         .unwrap_or_else(|| "[]".to_string());
-
     let blocks: Vec<PromptBlock> = serde_json::from_str(&blocks_json).unwrap_or_default();
 
-    // Helper closure for variable substitution is replaced by public helper
-
-    // Build the requirements/data part of the prompt by processing blocks
-    let mut requirements_parts = Vec::new();
-    for block in blocks {
-        let processed_content = replace_prompt_vars(&block.content, &request);
-        requirements_parts.push(processed_content);
-    }
-
-    // If no blocks specificed (e.g. migration failed or empty), fallback to sensible default (legacy behavior support)
-    if requirements_parts.is_empty() {
-        requirements_parts.push(format!(
-            "Website: {}\nSEO Score: {}/100",
-            request.url, request.seo_score
-        ));
-    }
-
-    let requirements_text = requirements_parts.join("\n\n");
-    let persona_text = replace_prompt_vars(&persona, &request);
-
-    // Assemble the final prompt
-    let prompt = format!(
-        "{}\n\nAnalyze the following SEO audit results:\n\n{}",
-        persona_text, requirements_text
-    );
+    let prompt = build_prompt_from_blocks(&persona, &blocks, &request);
 
     // Prepare API request
     let base = api_base_url
@@ -139,38 +114,12 @@ pub async fn generate_gemini_analysis(
     Ok(text)
 }
 
-fn bool_to_yes_no(value: bool) -> &'static str {
-    if value { "Yes" } else { "No" }
-}
-
-pub fn replace_prompt_vars(text: &str, request: &GeminiRequest) -> String {
-    let replacements: &[(&str, String)] = &[
-        ("{url}", request.url.clone()),
-        ("{score}", request.seo_score.to_string()),
-        ("{pages_count}", request.pages_count.to_string()),
-        ("{total_issues}", request.total_issues.to_string()),
-        ("{critical_issues}", request.critical_issues.to_string()),
-        ("{warning_issues}", request.warning_issues.to_string()),
-        ("{suggestion_issues}", request.suggestion_issues.to_string()),
-        ("{top_issues}", request.top_issues.join("\n")),
-        ("{avg_load_time}", format!("{:.2}", request.avg_load_time)),
-        ("{total_words}", request.total_words.to_string()),
-        ("{ssl_certificate}", bool_to_yes_no(request.ssl_certificate).to_string()),
-        ("{sitemap_found}", bool_to_yes_no(request.sitemap_found).to_string()),
-        ("{robots_txt_found}", bool_to_yes_no(request.robots_txt_found).to_string()),
-    ];
-
-    replacements
-        .iter()
-        .fold(text.to_string(), |result, (pattern, replacement)| {
-            result.replace(pattern, replacement)
-        })
-}
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::repository::sqlite_settings_repo;
+    use crate::service::prompt::replace_prompt_vars;
 
     #[test]
     fn test_replace_prompt_vars() {

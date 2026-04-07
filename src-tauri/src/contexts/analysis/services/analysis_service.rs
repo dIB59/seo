@@ -124,13 +124,6 @@ impl AnalysisService {
         }
     }
 
-    /// Start analysis for a job (delegates to JobProcessor)
-    /// Note: This is a stub that will be implemented in Phase 3
-    pub async fn start_analysis(&self, _job_id: &str) -> Result<()> {
-        // TODO: Implement in Phase 3 - will delegate to JobCoordinator
-        Ok(())
-    }
-
     /// Get the current progress of an analysis
     pub async fn get_progress(&self, job_id: &str) -> Result<AnalysisProgress> {
         let job = self.job_repo.get_by_id(job_id).await?;
@@ -172,13 +165,6 @@ impl AnalysisService {
         results_repo.get_pages(job_id).await
     }
 
-    /// Get detailed information about a specific page
-    /// Note: This is a stub that will be implemented in Phase 3
-    pub async fn get_page_details(&self, _page_id: &str) -> Result<PageDetails> {
-        // TODO: Implement in Phase 3
-        anyhow::bail!("Not implemented yet")
-    }
-
     // === Issue Access ===
 
     /// Get all issues for a job
@@ -188,16 +174,6 @@ impl AnalysisService {
         results_repo.get_issues(job_id).await
     }
 
-    /// Get issues filtered by severity
-    /// Note: This is a stub that will be implemented in Phase 3
-    pub async fn get_issues_by_severity(
-        &self,
-        _job_id: &str,
-        _severity: IssueSeverity,
-    ) -> Result<Vec<Issue>> {
-        // TODO: Implement in Phase 3
-        Ok(vec![])
-    }
 }
 
 #[cfg(test)]

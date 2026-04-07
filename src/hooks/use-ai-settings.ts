@@ -30,7 +30,7 @@ async function fetchAiSettings() {
 
   return {
     apiKey: keyRes.isOk() ? keyRes.unwrap() || "" : "",
-    persona: personaRes.isOk() ? personaRes.unwrap() || "" : "",
+    persona: personaRes.isOk() ? personaRes.unwrap() : "",
     aiEnabled: enabledRes.isOk() ? enabledRes.unwrap() : true,
     blocks,
   };

@@ -2,17 +2,18 @@
 import pkg from "@/package.json";
 
 import { useRouter } from "next/navigation";
-import { LayoutDashboard, Bot, Key, CreditCard, Palette, ChevronLeft, Puzzle, Code2 } from "lucide-react";
+import { LayoutDashboard, Bot, Key, CreditCard, Palette, ChevronLeft, Puzzle, Code2, FileBarChart2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 
 export const SIDEBAR_ITEMS = [
-  { id: "general", label: "General & API", icon: Key },
-  { id: "persona", label: "AI Persona", icon: Bot },
+  { id: "ai", label: "AI Settings", icon: Bot },
+  { id: "persona", label: "AI Instructions", icon: Key },
   { id: "prompt", label: "Prompt Builder", icon: LayoutDashboard },
   { id: "licensing", label: "Licensing", icon: CreditCard },
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "custom-checks", label: "Custom Checks", icon: Puzzle },
   { id: "custom-extractors", label: "Custom Extractors", icon: Code2 },
+  { id: "report-patterns", label: "Report Patterns", icon: FileBarChart2 },
 ];
 
 interface ConfigSidebarProps {

@@ -9,12 +9,15 @@ pub fn init_logging() {
             tracing_subscriber::EnvFilter::default()
                 .add_directive("sqlx=warn".parse().unwrap())
                 .add_directive("app=debug".parse().unwrap())
+                .add_directive("llama_cpp_2=warn".parse().unwrap())
                 .add_directive("info".parse().unwrap()),
         )
         .compact()
         .with_target(false)
         .with_ansi(true)
         .init();
+
+    llama_cpp_2::send_logs_to_tracing(llama_cpp_2::LogOptions::default().with_logs_enabled(true));
 }
 
 pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
