@@ -252,6 +252,17 @@ fn count_images_without_alt(images: &[ImageElement]) -> i64 {
         .count() as i64
 }
 
+/// Splits an optional `LighthouseData` into its (seo_audits, performance_metrics) pair,
+/// defaulting both to `None` when no Lighthouse data exists.
+fn split_lighthouse(
+    lh_data: Option<&LighthouseData>,
+) -> (Option<serde_json::Value>, Option<serde_json::Value>) {
+    match lh_data {
+        Some(lh) => lh.interpret_raw(),
+        None => (None, None),
+    }
+}
+
 impl CompleteAnalysisResponse {
     fn assemble_page(
         page: Page,
@@ -266,8 +277,7 @@ impl CompleteAnalysisResponse {
             || page.is_mobile_friendly_heuristic();
         let has_structured_data =
             page.has_structured_data || lh_data.is_some_and(|lh| lh.has_structured_data());
-        let (lighthouse_seo_audits, lighthouse_performance_metrics) =
-            lh_data.map(|lh| lh.interpret_raw()).unwrap_or((None, None));
+        let (lighthouse_seo_audits, lighthouse_performance_metrics) = split_lighthouse(lh_data);
         let (internal_links, external_links) = count_links_by_type(&detailed_links);
 
         PageAnalysisData {
@@ -311,9 +321,31 @@ impl From<CompleteJobResult> for CompleteAnalysisResponse {
         let headings = result.headings;
         let images = result.images;
 
-        let page_url_by_id: HashMap<String, String> = pages
-            .iter()
-            .map(|p| (p.id.clone(), p.url.clone()))
+        // Borrow page urls — pages is consumed below, so the lookup map cannot outlive
+        // this scope, which is exactly when issue assembly happens.
+        let page_url_by_id: HashMap<&str, &str> =
+            pages.iter().map(|p| (p.id.as_str(), p.url.as_str())).collect();
+
+        let assembled_issues: Vec<SeoIssue> = issues
+            .into_iter()
+            .map(|issue| {
+                let page_id = issue.page_id.unwrap_or_default();
+                let page_url = page_url_by_id
+                    .get(page_id.as_str())
+                    .map(|s| s.to_string())
+                    .unwrap_or_default();
+                let details = issue.details;
+                SeoIssue {
+                    page_url,
+                    page_id,
+                    severity: issue.severity,
+                    title: issue.issue_type,
+                    description: issue.message,
+                    element: details.clone(),
+                    recommendation: details.unwrap_or_default(),
+                    line_number: None,
+                }
+            })
             .collect();
 
         let mut links_by_page: HashMap<String, Vec<LinkDetail>> = HashMap::new();
@@ -348,23 +380,6 @@ impl From<CompleteJobResult> for CompleteAnalysisResponse {
                     images_by_page.remove(&page_id).unwrap_or_default(),
                     extracted_data,
                 )
-            })
-            .collect();
-
-        let assembled_issues: Vec<SeoIssue> = issues
-            .into_iter()
-            .map(|issue| {
-                let page_id = issue.page_id.unwrap_or_default();
-                SeoIssue {
-                    page_url: page_url_by_id.get(&page_id).cloned().unwrap_or_default(),
-                    page_id,
-                    severity: issue.severity,
-                    title: issue.issue_type,
-                    description: issue.message,
-                    element: issue.details.clone(),
-                    recommendation: issue.details.unwrap_or_default(),
-                    line_number: None,
-                }
             })
             .collect();
 
