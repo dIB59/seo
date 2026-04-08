@@ -332,35 +332,36 @@ impl From<CompleteJobResult> for CompleteAnalysisResponse {
                 let page_id = issue.page_id.unwrap_or_default();
                 let page_url = page_url_by_id
                     .get(page_id.as_str())
-                    .map(|s| s.to_string())
+                    .map(|s| (*s).to_string())
                     .unwrap_or_default();
-                let details = issue.details;
                 SeoIssue {
                     page_url,
                     page_id,
                     severity: issue.severity,
                     title: issue.issue_type,
                     description: issue.message,
-                    element: details.clone(),
-                    recommendation: details.unwrap_or_default(),
+                    element: issue.details.clone(),
+                    recommendation: issue.details.unwrap_or_default(),
                     line_number: None,
                 }
             })
             .collect();
 
-        let mut links_by_page: HashMap<String, Vec<LinkDetail>> = HashMap::new();
-        let mut headings_by_page: HashMap<String, Vec<HeadingElement>> = HashMap::new();
-        let mut images_by_page: HashMap<String, Vec<ImageElement>> = HashMap::new();
+        fn group_by<T, U, K>(items: Vec<T>, key: impl Fn(&T) -> K, convert: impl Fn(T) -> U) -> HashMap<K, Vec<U>>
+        where
+            K: std::hash::Hash + Eq,
+        {
+            let mut map: HashMap<K, Vec<U>> = HashMap::new();
+            for item in items {
+                let k = key(&item);
+                map.entry(k).or_default().push(convert(item));
+            }
+            map
+        }
 
-        for link in links {
-            links_by_page.entry(link.source_page_id.clone()).or_default().push(link.into());
-        }
-        for heading in headings {
-            headings_by_page.entry(heading.page_id.clone()).or_default().push(heading.into());
-        }
-        for image in images {
-            images_by_page.entry(image.page_id.clone()).or_default().push(image.into());
-        }
+        let mut links_by_page = group_by(links, |l| l.source_page_id.clone(), LinkDetail::from);
+        let mut headings_by_page = group_by(headings, |h| h.page_id.clone(), HeadingElement::from);
+        let mut images_by_page = group_by(images, |i| i.page_id.clone(), ImageElement::from);
 
         let lighthouse_by_page: HashMap<String, LighthouseData> = lighthouse
             .into_iter()
