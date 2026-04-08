@@ -4,6 +4,8 @@ use sqlx::SqlitePool;
 
 use super::map_job_status;
 use crate::contexts::{Job, JobInfo, JobSettings, JobStatus, JobSummary};
+use crate::repository::JobRepository as JobRepositoryTrait;
+use async_trait::async_trait;
 use std::str::FromStr;
 
 pub struct JobRepository {
@@ -14,8 +16,11 @@ impl JobRepository {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
+}
 
-    pub async fn create(&self, url: &str, settings: &JobSettings) -> Result<String> {
+#[async_trait]
+impl JobRepositoryTrait for JobRepository {
+    async fn create(&self, url: &str, settings: &JobSettings) -> Result<String> {
         let id = uuid::Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
 
@@ -51,7 +56,7 @@ impl JobRepository {
         Ok(id)
     }
 
-    pub async fn get_by_id(&self, job_id: &str) -> Result<Job> {
+    async fn get_by_id(&self, job_id: &str) -> Result<Job> {
         let row = sqlx::query!(
             r#"
             SELECT 
@@ -102,7 +107,7 @@ impl JobRepository {
         })
     }
 
-    pub async fn get_all(&self) -> Result<Vec<JobInfo>> {
+    async fn get_all(&self) -> Result<Vec<JobInfo>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -135,7 +140,7 @@ impl JobRepository {
             .collect())
     }
 
-    pub async fn get_paginated(&self, limit: i64, offset: i64) -> Result<Vec<JobInfo>> {
+    async fn get_paginated(&self, limit: i64, offset: i64) -> Result<Vec<JobInfo>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -171,7 +176,7 @@ impl JobRepository {
             .collect())
     }
 
-    pub async fn get_paginated_with_total(
+    async fn get_paginated_with_total(
         &self,
         limit: i64,
         offset: i64,
@@ -224,7 +229,7 @@ impl JobRepository {
         Ok((items, total))
     }
 
-    pub async fn count(&self) -> Result<i64> {
+    async fn count(&self) -> Result<i64> {
         let row = sqlx::query!("SELECT COUNT(*) as count FROM jobs")
             .fetch_one(&self.pool)
             .await
@@ -233,7 +238,7 @@ impl JobRepository {
         Ok(row.count as i64)
     }
 
-    pub async fn get_active(&self) -> Result<Vec<Job>> {
+    async fn get_pending(&self) -> Result<Vec<Job>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -288,7 +293,7 @@ impl JobRepository {
             .collect())
     }
 
-    pub async fn update_resources(
+    async fn update_resources(
         &self,
         job_id: &str,
         sitemap_found: bool,
@@ -314,7 +319,7 @@ impl JobRepository {
         Ok(())
     }
 
-    pub async fn update_status(&self, job_id: &str, status: JobStatus) -> Result<()> {
+    async fn update_status(&self, job_id: &str, status: JobStatus) -> Result<()> {
         let status_str = status.as_str();
         let completed_at = if status.is_terminal() {
             Some(Utc::now().to_rfc3339())
@@ -340,7 +345,7 @@ impl JobRepository {
         Ok(())
     }
 
-    pub async fn update_progress(&self, job_id: &str, progress: f64) -> Result<()> {
+    async fn update_progress(&self, job_id: &str, progress: f64) -> Result<()> {
         sqlx::query!(
             r#"
             UPDATE jobs 
@@ -357,7 +362,7 @@ impl JobRepository {
         Ok(())
     }
 
-    pub async fn set_error(&self, job_id: &str, error: &str) -> Result<()> {
+    async fn set_error(&self, job_id: &str, error: &str) -> Result<()> {
         let now = Utc::now().to_rfc3339();
 
         sqlx::query!(
@@ -377,7 +382,7 @@ impl JobRepository {
         Ok(())
     }
 
-    pub async fn delete(&self, job_id: &str) -> Result<()> {
+    async fn delete(&self, job_id: &str) -> Result<()> {
         sqlx::query!("DELETE FROM jobs WHERE id = ?", job_id)
             .execute(&self.pool)
             .await
@@ -431,74 +436,3 @@ fn make_job_info(
     }
 }
 
-// Implement the abstract repository trait using the concrete sqlite repository
-use crate::repository::JobRepository as JobRepositoryTrait;
-use async_trait::async_trait;
-
-#[async_trait]
-impl JobRepositoryTrait for JobRepository {
-    async fn create(&self, url: &str, settings: &JobSettings) -> Result<String> {
-        // Call the inherent method
-        JobRepository::create(self, url, settings).await
-    }
-
-    async fn get_by_id(&self, id: &str) -> Result<Job> {
-        JobRepository::get_by_id(self, id).await
-    }
-
-    async fn get_all(&self) -> Result<Vec<JobInfo>> {
-        JobRepository::get_all(self).await
-    }
-
-    async fn get_paginated(&self, limit: i64, offset: i64) -> Result<Vec<JobInfo>> {
-        JobRepository::get_paginated(self, limit, offset).await
-    }
-
-    async fn get_paginated_with_total(
-        &self,
-        limit: i64,
-        offset: i64,
-        url_filter: Option<String>,
-        status_filter: Option<String>,
-    ) -> Result<(Vec<JobInfo>, i64)> {
-        JobRepository::get_paginated_with_total(self, limit, offset, url_filter, status_filter)
-            .await
-    }
-
-    async fn get_pending(&self) -> Result<Vec<Job>> {
-        JobRepository::get_active(self).await
-    }
-
-    async fn get_running_jobs_id(&self) -> Result<Vec<String>> {
-        JobRepository::get_running_jobs_id(self).await
-    }
-
-    async fn update_status(&self, job_id: &str, status: JobStatus) -> Result<()> {
-        JobRepository::update_status(self, job_id, status).await
-    }
-
-    async fn update_progress(&self, id: &str, progress: f64) -> Result<()> {
-        JobRepository::update_progress(self, id, progress).await
-    }
-
-    async fn update_resources(
-        &self,
-        id: &str,
-        sitemap_found: bool,
-        robots_txt_found: bool,
-    ) -> Result<()> {
-        JobRepository::update_resources(self, id, sitemap_found, robots_txt_found).await
-    }
-
-    async fn set_error(&self, job_id: &str, error: &str) -> Result<()> {
-        JobRepository::set_error(self, job_id, error).await
-    }
-
-    async fn count(&self) -> Result<i64> {
-        JobRepository::count(self).await
-    }
-
-    async fn delete(&self, job_id: &str) -> Result<()> {
-        JobRepository::delete(self, job_id).await
-    }
-}
