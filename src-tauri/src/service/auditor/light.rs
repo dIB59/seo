@@ -64,6 +64,15 @@ fn length_bounded_check(
     }
 }
 
+/// Returns the value of `attr` on the first element matching `sel`, trimmed.
+fn first_attr(document: &Html, sel: &Selector, attr: &str) -> Option<String> {
+    document
+        .select(sel)
+        .next()
+        .and_then(|el| el.value().attr(attr))
+        .map(|s| s.trim().to_string())
+}
+
 pub struct LightAuditor {
     spider: Arc<dyn SpiderAgent>,
 }
@@ -123,11 +132,7 @@ impl LightAuditor {
     }
 
     fn check_meta_description(&self, document: &Html) -> CheckResult {
-        let description = document
-            .select(selector!("meta[name='description']"))
-            .next()
-            .and_then(|el| el.value().attr("content"))
-            .map(|s| s.trim().to_string());
+        let description = first_attr(document, selector!("meta[name='description']"), "content");
         let mut result = length_bounded_check(description, "Description", 70, 160);
         if result.value.is_none() {
             result.description = Some("Missing meta description".to_string());
@@ -136,11 +141,7 @@ impl LightAuditor {
     }
 
     fn check_viewport(&self, document: &Html) -> CheckResult {
-        let viewport = document
-            .select(selector!("meta[name='viewport']"))
-            .next()
-            .and_then(|el| el.value().attr("content"))
-            .map(|s| s.to_string());
+        let viewport = first_attr(document, selector!("meta[name='viewport']"), "content");
 
         match viewport {
             Some(v) if v.contains("width=device-width") => CheckResult {
@@ -165,11 +166,7 @@ impl LightAuditor {
     }
 
     fn check_canonical(&self, document: &Html, page_url: &Url) -> CheckResult {
-        let canonical = document
-            .select(selector!("link[rel='canonical']"))
-            .next()
-            .and_then(|el| el.value().attr("href"))
-            .map(|s| s.to_string());
+        let canonical = first_attr(document, selector!("link[rel='canonical']"), "href");
 
         match canonical {
             Some(c) if !c.is_empty() => {
@@ -393,10 +390,7 @@ impl LightAuditor {
     }
 
     fn check_is_crawlable(&self, document: &Html) -> CheckResult {
-        let robots = document
-            .select(selector!("meta[name='robots']"))
-            .next()
-            .and_then(|el| el.value().attr("content"))
+        let robots = first_attr(document, selector!("meta[name='robots']"), "content")
             .map(|s| s.to_lowercase());
 
         match robots {
