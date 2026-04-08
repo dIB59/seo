@@ -19,6 +19,31 @@ impl SqliteExtensionRepository {
     }
 }
 
+fn check_from_params(id: String, p: &CustomCheckParams) -> CustomCheck {
+    CustomCheck {
+        id,
+        name: p.name.clone(),
+        severity: p.severity.clone(),
+        field: p.field.clone(),
+        operator: p.operator.clone(),
+        threshold: p.threshold.clone(),
+        message_template: p.message_template.clone(),
+        enabled: p.enabled,
+    }
+}
+
+fn extractor_from_params(id: String, p: &CustomExtractorParams) -> CustomExtractor {
+    CustomExtractor {
+        id,
+        name: p.name.clone(),
+        key: p.key.clone(),
+        selector: p.selector.clone(),
+        attribute: p.attribute.clone(),
+        multiple: p.multiple,
+        enabled: p.enabled,
+    }
+}
+
 #[async_trait]
 impl ExtensionRepository for SqliteExtensionRepository {
     // --- CustomCheck CRUD ---
@@ -27,7 +52,7 @@ impl ExtensionRepository for SqliteExtensionRepository {
         let id = uuid::Uuid::new_v4().to_string();
         let severity = params.severity.as_str();
         let operator = params.operator.to_string();
-        let enabled = params.enabled as i64;
+        let enabled = i64::from(params.enabled);
 
         sqlx::query(
             "INSERT INTO custom_checks (id, name, severity, field, operator, threshold, message_template, enabled)
@@ -45,16 +70,7 @@ impl ExtensionRepository for SqliteExtensionRepository {
         .await
         .context("Failed to insert custom_check")?;
 
-        Ok(CustomCheck {
-            id,
-            name: params.name.clone(),
-            severity: params.severity.clone(),
-            field: params.field.clone(),
-            operator: params.operator.clone(),
-            threshold: params.threshold.clone(),
-            message_template: params.message_template.clone(),
-            enabled: params.enabled,
-        })
+        Ok(check_from_params(id, params))
     }
 
     async fn list_checks(&self) -> Result<Vec<CustomCheck>> {
@@ -85,7 +101,7 @@ impl ExtensionRepository for SqliteExtensionRepository {
     async fn update_check(&self, id: &str, params: &CustomCheckParams) -> Result<CustomCheck> {
         let severity = params.severity.as_str();
         let operator = params.operator.to_string();
-        let enabled = params.enabled as i64;
+        let enabled = i64::from(params.enabled);
 
         let rows_affected = sqlx::query(
             "UPDATE custom_checks
@@ -110,16 +126,7 @@ impl ExtensionRepository for SqliteExtensionRepository {
             return Err(anyhow::anyhow!("custom_check not found: {}", id));
         }
 
-        Ok(CustomCheck {
-            id: id.to_string(),
-            name: params.name.clone(),
-            severity: params.severity.clone(),
-            field: params.field.clone(),
-            operator: params.operator.clone(),
-            threshold: params.threshold.clone(),
-            message_template: params.message_template.clone(),
-            enabled: params.enabled,
-        })
+        Ok(check_from_params(id.to_string(), params))
     }
 
     async fn delete_check(&self, id: &str) -> Result<()> {
@@ -153,8 +160,8 @@ impl ExtensionRepository for SqliteExtensionRepository {
 
     async fn create_extractor(&self, params: &CustomExtractorParams) -> Result<CustomExtractor> {
         let id = uuid::Uuid::new_v4().to_string();
-        let multiple = params.multiple as i64;
-        let enabled = params.enabled as i64;
+        let multiple = i64::from(params.multiple);
+        let enabled = i64::from(params.enabled);
 
         sqlx::query(
             "INSERT INTO custom_extractors (id, name, key, selector, attribute, multiple, enabled)
@@ -171,15 +178,7 @@ impl ExtensionRepository for SqliteExtensionRepository {
         .await
         .context("Failed to insert custom_extractor")?;
 
-        Ok(CustomExtractor {
-            id,
-            name: params.name.clone(),
-            key: params.key.clone(),
-            selector: params.selector.clone(),
-            attribute: params.attribute.clone(),
-            multiple: params.multiple,
-            enabled: params.enabled,
-        })
+        Ok(extractor_from_params(id, params))
     }
 
     async fn list_extractors(&self) -> Result<Vec<CustomExtractor>> {
@@ -212,8 +211,8 @@ impl ExtensionRepository for SqliteExtensionRepository {
         id: &str,
         params: &CustomExtractorParams,
     ) -> Result<CustomExtractor> {
-        let multiple = params.multiple as i64;
-        let enabled = params.enabled as i64;
+        let multiple = i64::from(params.multiple);
+        let enabled = i64::from(params.enabled);
 
         let rows_affected = sqlx::query(
             "UPDATE custom_extractors
@@ -237,15 +236,7 @@ impl ExtensionRepository for SqliteExtensionRepository {
             return Err(anyhow::anyhow!("custom_extractor not found: {}", id));
         }
 
-        Ok(CustomExtractor {
-            id: id.to_string(),
-            name: params.name.clone(),
-            key: params.key.clone(),
-            selector: params.selector.clone(),
-            attribute: params.attribute.clone(),
-            multiple: params.multiple,
-            enabled: params.enabled,
-        })
+        Ok(extractor_from_params(id.to_string(), params))
     }
 
     async fn delete_extractor(&self, id: &str) -> Result<()> {
