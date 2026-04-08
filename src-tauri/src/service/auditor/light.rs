@@ -64,6 +64,36 @@ fn length_bounded_check(
     }
 }
 
+/// Builds a `CheckResult` for a "good vs bad out of total" style check. Used by
+/// the anchor/link-text/image-alt checks, which all share the same empty/ratio/
+/// description shape.
+fn ratio_check(
+    total: usize,
+    bad: usize,
+    value_suffix: &str,
+    bad_desc: String,
+    good_desc: &str,
+    empty_value: Option<&str>,
+    empty_desc: &str,
+) -> CheckResult {
+    if total == 0 {
+        return CheckResult {
+            passed: true,
+            value: empty_value.map(str::to_string),
+            score: Score::from(1.0),
+            description: Some(empty_desc.to_string()),
+        };
+    }
+    let good = total - bad;
+    let passed = bad == 0;
+    CheckResult {
+        passed,
+        value: Some(format!("{}/{} {}", good, total, value_suffix)),
+        score: Score::from(good as f64 / total as f64),
+        description: Some(if passed { good_desc.to_string() } else { bad_desc }),
+    }
+}
+
 /// Returns the value of `attr` on the first element matching `sel`, trimmed.
 fn first_attr(document: &Html, sel: &Selector, attr: &str) -> Option<String> {
     document
@@ -239,36 +269,15 @@ impl LightAuditor {
             }
         }
 
-        if total == 0 {
-            return CheckResult {
-                passed: true,
-                value: Some("0 links".to_string()),
-                score: Score::from(1.0),
-                description: Some("No links found on page".to_string()),
-            };
-        }
-
-        let crawlable_pct = ((total - uncrawlable) as f64 / total as f64) * 100.0;
-        let passed = uncrawlable == 0;
-        let score = if passed {
-            Score::from(1.0)
-        } else {
-            Score::from(crawlable_pct / 100.0)
-        };
-
-        CheckResult {
-            passed,
-            value: Some(format!("{}/{} crawlable", total - uncrawlable, total)),
-            score,
-            description: Some(if uncrawlable > 0 {
-                format!(
-                    "{} links are not crawlable (javascript: or empty href)",
-                    uncrawlable
-                )
-            } else {
-                "All links are crawlable".to_string()
-            }),
-        }
+        ratio_check(
+            total,
+            uncrawlable,
+            "crawlable",
+            format!("{} links are not crawlable (javascript: or empty href)", uncrawlable),
+            "All links are crawlable",
+            Some("0 links"),
+            "No links found on page",
+        )
     }
 
     fn check_link_text(&self, document: &Html) -> CheckResult {
@@ -328,28 +337,15 @@ impl LightAuditor {
             }
         }
 
-        if total == 0 {
-            return CheckResult {
-                passed: true,
-                score: Score::from(1.0),
-                value: None,
-                description: Some("No links found".to_string()),
-            };
-        }
-
-        let good_pct = ((total - poor_text) as f64 / total as f64) * 100.0;
-        let passed = poor_text == 0;
-
-        CheckResult {
-            passed,
-            value: Some(format!("{}/{} with good text", total - poor_text, total)),
-            score: Score::from(good_pct / 100.0),
-            description: Some(if poor_text > 0 {
-                format!("{} links have generic/empty text", poor_text)
-            } else {
-                "All links have descriptive text".to_string()
-            }),
-        }
+        ratio_check(
+            total,
+            poor_text,
+            "with good text",
+            format!("{} links have generic/empty text", poor_text),
+            "All links have descriptive text",
+            None,
+            "No links found",
+        )
     }
 
     fn check_image_alt(&self, document: &Html) -> CheckResult {
@@ -364,29 +360,15 @@ impl LightAuditor {
             }
         }
 
-        if total == 0 {
-            return CheckResult {
-                passed: true,
-                score: Score::from(1.0),
-                value: Some("0 images".to_string()),
-                description: Some("No images found on page".to_string()),
-            };
-        }
-
-        let with_alt = total - missing_alt;
-        let score = Score::from(with_alt as f64 / total as f64);
-        let passed = missing_alt == 0;
-
-        CheckResult {
-            passed,
-            value: Some(format!("{}/{} with alt", with_alt, total)),
-            score,
-            description: Some(if missing_alt > 0 {
-                format!("{} images missing alt attribute", missing_alt)
-            } else {
-                "All images have alt attributes".to_string()
-            }),
-        }
+        ratio_check(
+            total,
+            missing_alt,
+            "with alt",
+            format!("{} images missing alt attribute", missing_alt),
+            "All images have alt attributes",
+            Some("0 images"),
+            "No images found on page",
+        )
     }
 
     fn check_is_crawlable(&self, document: &Html) -> CheckResult {
