@@ -14,6 +14,25 @@ impl PageQueueRepository {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
+
+    async fn count_with_status(&self, job_id: &str, status: Option<&str>) -> Result<i64> {
+        let (sql, bind_status) = match status {
+            Some(_) => (
+                "SELECT COUNT(*) as count FROM page_queue WHERE job_id = ? AND status = ?",
+                true,
+            ),
+            None => (
+                "SELECT COUNT(*) as count FROM page_queue WHERE job_id = ?",
+                false,
+            ),
+        };
+        let mut q = sqlx::query(sql).bind(job_id);
+        if bind_status {
+            q = q.bind(status.unwrap());
+        }
+        let row = q.fetch_one(&self.pool).await?;
+        Ok(row.get::<i64, _>("count"))
+    }
 }
 
 #[async_trait]
@@ -207,54 +226,15 @@ impl PageQueueRepositoryTrait for PageQueueRepository {
     }
 
     async fn count_pending(&self, job_id: &str) -> Result<i64> {
-        let pending = "pending";
-
-        let result = sqlx::query(
-            r#"
-            SELECT COUNT(*) as count
-            FROM page_queue
-            WHERE job_id = ? AND status = ?
-            "#,
-        )
-        .bind(job_id)
-        .bind(pending)
-        .fetch_one(&self.pool)
-        .await?;
-
-        Ok(result.get::<i64, _>("count"))
+        self.count_with_status(job_id, Some("pending")).await
     }
 
     async fn count_completed(&self, job_id: &str) -> Result<i64> {
-        let completed = "completed";
-
-        let result = sqlx::query(
-            r#"
-            SELECT COUNT(*) as count
-            FROM page_queue
-            WHERE job_id = ? AND status = ?
-            "#,
-        )
-        .bind(job_id)
-        .bind(completed)
-        .fetch_one(&self.pool)
-        .await?;
-
-        Ok(result.get::<i64, _>("count"))
+        self.count_with_status(job_id, Some("completed")).await
     }
 
     async fn count_total(&self, job_id: &str) -> Result<i64> {
-        let result = sqlx::query(
-            r#"
-            SELECT COUNT(*) as count
-            FROM page_queue
-            WHERE job_id = ?
-            "#,
-        )
-        .bind(job_id)
-        .fetch_one(&self.pool)
-        .await?;
-
-        Ok(result.get::<i64, _>("count"))
+        self.count_with_status(job_id, None).await
     }
 
     async fn delete_by_job_id(&self, job_id: &str) -> Result<()> {
