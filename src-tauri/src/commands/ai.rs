@@ -5,15 +5,7 @@ use crate::{
     service::GeminiRequest,
 };
 
-trait ResultExt<T> {
-    fn context(self, msg: &str) -> Result<T, String>;
-}
-
-impl<T, E: std::fmt::Display> ResultExt<T> for Result<T, E> {
-    fn context(self, msg: &str) -> Result<T, String> {
-        self.map_err(|e| format!("{}: {}", msg, e))
-    }
-}
+use super::ResultExt;
 
 #[command]
 #[specta::specta]
@@ -29,6 +21,18 @@ pub async fn get_gemini_insights(
 #[specta::specta]
 pub async fn get_gemini_enabled(app_state: State<'_, AppState>) -> Result<bool, String> {
     app_state.ai_context.is_enabled().await.context("Failed to check AI settings")
+}
+
+#[command]
+#[specta::specta]
+pub async fn get_ai_source(app_state: State<'_, AppState>) -> Result<String, String> {
+    app_state.ai_context.get_ai_source().await.context("Failed to get AI source")
+}
+
+#[command]
+#[specta::specta]
+pub async fn set_ai_source(source: String, app_state: State<'_, AppState>) -> Result<(), String> {
+    app_state.ai_context.set_ai_source(&source).await.context("Failed to set AI source")
 }
 
 #[command]
@@ -57,8 +61,12 @@ pub async fn set_gemini_api_key(
 
 #[command]
 #[specta::specta]
-pub async fn get_gemini_persona(app_state: State<'_, AppState>) -> Result<Option<String>, String> {
-    app_state.ai_context.get_persona().await.context("Failed to get persona")
+pub async fn get_gemini_persona(app_state: State<'_, AppState>) -> Result<String, String> {
+    let stored = app_state.ai_context.get_persona().await.context("Failed to get persona")?;
+    Ok(match stored {
+        Some(p) if !p.trim().is_empty() => p,
+        _ => crate::service::prompt::DEFAULT_PERSONA.to_string(),
+    })
 }
 
 #[command]
@@ -156,6 +164,14 @@ mod tests {
                 url: String::new(),
             })
         }
+        async fn stream_get(&self, _url: &str) -> anyhow::Result<crate::service::spider::StreamResponse> {
+            use crate::service::spider::MockSpider as Ms;
+            let ms = Ms { html_response: String::new(), generic_response: crate::service::spider::SpiderResponse { status: 200, body: String::new(), url: String::new() } };
+            ms.stream_get(_url).await
+        }
+        async fn stream_get_range(&self, _url: &str, _start_byte: u64) -> anyhow::Result<crate::service::spider::StreamResponse> {
+            self.stream_get(_url).await
+        }
     }
 
     struct NilEmitter;
@@ -203,7 +219,35 @@ mod tests {
             licensing_context: licensing_service,
             analysis_context,
             ai_context,
+            local_model_context: {
+                struct NilEmitter;
+                impl crate::service::local_model::DownloadEmitter for NilEmitter {
+                    fn emit(&self, _: crate::service::local_model::ModelDownloadEvent) {}
+                }
+                Arc::new(crate::contexts::local_model::LocalModelService::new(
+                    settings_repo.clone(),
+                    std::path::PathBuf::from("/tmp"),
+                    Arc::new(crate::service::local_model::ModelDownloader::new(
+                        Arc::new(crate::service::spider::MockSpider {
+                            html_response: String::new(),
+                            generic_response: crate::service::spider::SpiderResponse {
+                                status: 200,
+                                body: String::new(),
+                                url: String::new(),
+                            },
+                        }),
+                        Arc::new(NilEmitter),
+                    )),
+                    Arc::new(crate::service::local_model::LlamaInferenceEngine::new()),
+                ))
+            },
             extension_repo: crate::repository::sqlite_extension_repo(pool.clone()),
+            report_pattern_repo: crate::repository::sqlite_report_pattern_repo(pool.clone()),
+            report_context: crate::contexts::report::ReportService::new(
+                crate::repository::sqlite_report_pattern_repo(pool.clone()),
+                results_repo.clone(),
+                settings_repo.clone(),
+            ),
         };
 
         mock_builder()

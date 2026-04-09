@@ -8,8 +8,9 @@ import { SiteHealthCard } from "./molecules/SiteHealthCard";
 import { PageDetailModal } from "./organisms/PageDetailModal";
 import { IssuesAccordion } from "./organisms/IssuesAccordion";
 import { AnalysisHeader } from "./organisms/AnalysisHeader";
-import { Network, Activity, AlertTriangle, FileText } from "lucide-react";
+import { Network, Activity, AlertTriangle, FileText, Bot } from "lucide-react";
 import { OverviewTab } from "./molecules/OverviewTab";
+import { AiInsightsTab } from "./molecules/AiInsightsTab";
 import GraphView from "@/src/app/analysis/_components/graph-view/GraphView";
 import type { CompleteAnalysisResponse, PageAnalysisData } from "@/src/api/analysis";
 
@@ -71,6 +72,13 @@ export function AnalysisDashboard({
                 <Activity className="h-4 w-4" />
                 Overview
               </TabsTrigger>
+              <TabsTrigger
+                value="ai-insights"
+                className="gap-2 px-4 py-2 data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all duration-300 hover:bg-muted/20 hover:text-foreground"
+              >
+                <Bot className="h-4 w-4" />
+                AI Insights
+              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -95,6 +103,9 @@ export function AnalysisDashboard({
             </TabsContent>
             <TabsContent value="overview" className="mt-0">
               <OverviewTab issues={data.issues} pages={data.pages} />
+            </TabsContent>
+            <TabsContent value="ai-insights" className="mt-0">
+              <AiInsightsTab data={data} />
             </TabsContent>
           </div>
         </Tabs>

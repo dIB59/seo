@@ -5,16 +5,14 @@
 
 use app::{
     contexts::analysis::Page,
-    contexts::extension::{CustomExtractorParams, IssueSeverity},
+    contexts::extension::CustomExtractorParams,
     extractor::data_extractor::{ExtractorConfig, ExtractorRegistry},
     extractor::data_extractor::selector::SelectorExtractor,
-    repository::{sqlite_extension_repo, sqlite_page_repo, ExtensionRepository},
+    repository::{sqlite_extension_repo, sqlite_page_repo},
 };
 use chrono::Utc;
 use serde_json::Value;
 use sqlx::SqlitePool;
-use std::sync::Arc;
-
 async fn setup_db() -> SqlitePool {
     let pool = sqlx::sqlite::SqlitePoolOptions::new()
         .max_connections(1)

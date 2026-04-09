@@ -1,6 +1,3 @@
-use std::process::Command;
-
-use anyhow::Context;
 use tauri::{command, State};
 
 use crate::{
@@ -18,7 +15,7 @@ pub async fn list_custom_checks(
         .extension_repo
         .list_checks()
         .await
-        .map_err(|e| CommandError::from(e))
+        .map_err(CommandError::from)
 }
 
 #[command]
@@ -31,7 +28,7 @@ pub async fn create_custom_check(
         .extension_repo
         .create_check(&params)
         .await
-        .map_err(|e| CommandError::from(e))
+        .map_err(CommandError::from)
 }
 
 #[command]
@@ -45,7 +42,7 @@ pub async fn update_custom_check(
         .extension_repo
         .update_check(&id, &params)
         .await
-        .map_err(|e| CommandError::from(e))
+        .map_err(CommandError::from)
 }
 
 #[command]
@@ -58,7 +55,7 @@ pub async fn delete_custom_check(
         .extension_repo
         .delete_check(&id)
         .await
-        .map_err(|e| CommandError::from(e))
+        .map_err(CommandError::from)
 }
 
 // --- Custom Extractors ---
@@ -72,7 +69,7 @@ pub async fn list_custom_extractors(
         .extension_repo
         .list_extractors()
         .await
-        .map_err(|e| CommandError::from(e))
+        .map_err(CommandError::from)
 }
 
 #[command]
@@ -85,7 +82,7 @@ pub async fn create_custom_extractor(
         .extension_repo
         .create_extractor(&params)
         .await
-        .map_err(|e| CommandError::from(e))
+        .map_err(CommandError::from)
 }
 
 #[command]
@@ -99,7 +96,7 @@ pub async fn update_custom_extractor(
         .extension_repo
         .update_extractor(&id, &params)
         .await
-        .map_err(|e| CommandError::from(e))
+        .map_err(CommandError::from)
 }
 
 #[command]
@@ -112,5 +109,5 @@ pub async fn delete_custom_extractor(
         .extension_repo
         .delete_extractor(&id)
         .await
-        .map_err(|e| CommandError::from(e))
+        .map_err(CommandError::from)
 }

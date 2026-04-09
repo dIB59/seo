@@ -6,6 +6,7 @@ use crate::contexts::{
         NewPageQueueItem, Page, PageInfo, PageQueueItem, PageQueueStatus,
     },
     extension::{CustomCheck, CustomCheckParams, CustomExtractor, CustomExtractorParams},
+    report::{ReportPattern, ReportPatternParams},
 };
 use anyhow::Result;
 use async_trait::async_trait;
@@ -47,6 +48,10 @@ pub fn sqlite_page_queue_repo(pool: sqlx::SqlitePool) -> Arc<dyn PageQueueReposi
 
 pub fn sqlite_extension_repo(pool: sqlx::SqlitePool) -> Arc<dyn ExtensionRepository> {
     Arc::new(sqlite::SqliteExtensionRepository::new(pool))
+}
+
+pub fn sqlite_report_pattern_repo(pool: sqlx::SqlitePool) -> Arc<dyn ReportPatternRepository> {
+    Arc::new(sqlite::SqliteReportPatternRepository::new(pool))
 }
 
 pub use sqlite::{ExternalDomain, IssueCounts, IssueGroup, LinkCounts};
@@ -229,4 +234,15 @@ pub trait ExtensionRepository: Send + Sync {
     ) -> Result<CustomExtractor>;
     async fn delete_extractor(&self, id: &str) -> Result<()>;
     async fn list_enabled_extractors(&self) -> Result<Vec<CustomExtractor>>;
+}
+
+#[async_trait]
+pub trait ReportPatternRepository: Send + Sync {
+    async fn list_patterns(&self) -> Result<Vec<ReportPattern>>;
+    async fn list_enabled_patterns(&self) -> Result<Vec<ReportPattern>>;
+    async fn get_pattern(&self, id: &str) -> Result<ReportPattern>;
+    async fn create_pattern(&self, params: &ReportPatternParams) -> Result<ReportPattern>;
+    async fn update_pattern(&self, id: &str, params: &ReportPatternParams) -> Result<ReportPattern>;
+    async fn toggle_pattern(&self, id: &str, enabled: bool) -> Result<()>;
+    async fn delete_pattern(&self, id: &str) -> Result<()>;
 }

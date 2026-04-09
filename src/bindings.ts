@@ -29,7 +29,7 @@ async setGeminiApiKey(apiKey: string) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async getGeminiPersona() : Promise<Result<string | null, string>> {
+async getGeminiPersona() : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_gemini_persona") };
 } catch (e) {
@@ -104,6 +104,22 @@ async getGeminiEnabled() : Promise<Result<boolean, string>> {
 async setGeminiEnabled(enabled: boolean) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("set_gemini_enabled", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getAiSource() : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_ai_source") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async setAiSource(source: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_ai_source", { source }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -213,6 +229,62 @@ async getMachineId() : Promise<Result<string, CommandError>> {
     else return { status: "error", error: e  as any };
 }
 },
+async listLocalModels() : Promise<Result<ModelInfo[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_local_models") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async downloadLocalModel(modelId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("download_local_model", { modelId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cancelModelDownload(modelId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cancel_model_download", { modelId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteLocalModel(modelId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_local_model", { modelId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getActiveLocalModel() : Promise<Result<string | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_active_local_model") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async setActiveLocalModel(modelId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_active_local_model", { modelId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async generateLocalInsights(request: GeminiRequest) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("generate_local_insights", { request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async listCustomChecks() : Promise<Result<CustomCheck[], CommandError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("list_custom_checks") };
@@ -276,6 +348,54 @@ async deleteCustomExtractor(id: string) : Promise<Result<null, CommandError>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async listReportPatterns() : Promise<Result<ReportPattern[], CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_report_patterns") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async createReportPattern(params: ReportPatternParams) : Promise<Result<ReportPattern, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("create_report_pattern", { params }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async updateReportPattern(id: string, params: ReportPatternParams) : Promise<Result<ReportPattern, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_report_pattern", { id, params }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async toggleReportPattern(id: string, enabled: boolean) : Promise<Result<null, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("toggle_report_pattern", { id, enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteReportPattern(id: string) : Promise<Result<null, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_report_pattern", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async generateReportData(jobId: string) : Promise<Result<ReportData, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("generate_report_data", { jobId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -283,8 +403,10 @@ async deleteCustomExtractor(id: string) : Promise<Result<null, CommandError>> {
 
 
 export const events = __makeEvents__<{
+modelDownloadEvent: ModelDownloadEvent,
 progressEvent: ProgressEvent
 }>({
+modelDownloadEvent: "model-download-event",
 progressEvent: "progress-event"
 })
 
@@ -302,6 +424,7 @@ export type AnalysisProgress = { job_id: string; url: string; job_status: JobSta
 export type AnalysisResults = { id: string; url: string; status: JobStatus; progress: number; total_pages: number; analyzed_pages: number; started_at: string | null; completed_at: string | null; sitemap_found: boolean; robots_txt_found: boolean; ssl_certificate: boolean; created_at: string }
 export type AnalysisSettingsRequest = { max_pages: number; include_subdomains: boolean; check_images: boolean; mobile_analysis: boolean; lighthouse_analysis: boolean; delay_between_requests: number }
 export type AnalysisSummary = { analysis_id: string; seo_score: number; avg_load_time: number; total_words: number; total_issues: number }
+export type BusinessImpact = "high" | "medium" | "low"
 /**
  * Wrapper for errors returned from Tauri commands.
  * This type is serializable and can be sent to the frontend.
@@ -340,7 +463,24 @@ key: string; selector: string; attribute: string | null; multiple: boolean; enab
  * Parameters for creating or updating a custom extractor.
  */
 export type CustomExtractorParams = { name: string; key: string; selector: string; attribute: string | null; multiple: boolean; enabled: boolean }
+/**
+ * A pattern that fired during analysis of a specific job.
+ */
+export type DetectedPattern = { pattern: ReportPattern; 
+/**
+ * Fraction of pages where the condition holds (0.0–1.0).
+ */
+prevalence: number; affectedPages: number; totalPages: number; 
+/**
+ * priority = severity_weight × impact_weight × prevalence × effort_multiplier
+ */
+priorityScore: number; 
+/**
+ * Up to 5 representative affected URLs.
+ */
+sampleUrls: string[] }
 export type Feature = "LinkAnalysis" | "GraphView" | "ExportReports"
+export type FixEffort = "low" | "medium" | "high"
 export type GeminiRequest = { analysis_id: string; url: string; seo_score: number; pages_count: number; total_issues: number; critical_issues: number; warning_issues: number; suggestion_issues: number; top_issues: string[]; avg_load_time: number; total_words: number; ssl_certificate: boolean; sitemap_found: boolean; robots_txt_found: boolean }
 export type HeadingElement = { tag: string; text: string }
 export type ImageElement = { src: string; alt: string | null }
@@ -354,15 +494,42 @@ export type LicenseTier = "Free" | "Premium"
 export type LinkDetail = { href: string; text: string; link_type: LinkType; is_broken: boolean; status_code: number | null }
 export type LinkType = "internal" | "subdomain" | "external" | "resource"
 /**
+ * Per-model download progress event emitted to the frontend.
+ */
+export type ModelDownloadEvent = { modelId: string; status: ModelDownloadStatus; downloadedBytes: number; totalBytes: number; 
+/**
+ * 0.0–1.0, or -1.0 when total size is unknown.
+ */
+progress: number }
+export type ModelDownloadStatus = "downloading" | "completed" | "failed" | "cancelled"
+/**
+ * Runtime state of a model: registry metadata + whether it's on disk.
+ */
+export type ModelInfo = ({ id: string; name: string; description: string; 
+/**
+ * "small" | "medium" | "large"
+ */
+tier: string; size_bytes: number; download_url: string; filename: string; sha256: string }) & { is_downloaded: boolean; is_active: boolean; 
+/**
+ * `true` when a partial `.tmp` file exists — the download can be resumed.
+ */
+has_partial: boolean }
+/**
  * Condition operator for a custom check.
  */
-export type Operator = "missing" | "lt" | "gt" | "contains" | "not_contains"
+export type Operator = "missing" | "present" | "eq" | "lt" | "gt" | "contains" | "not_contains"
 export type PageAnalysisData = { analysis_id: string; url: string; title: string | null; meta_description: string | null; meta_keywords: string | null; canonical_url: string | null; word_count: number; image_count: number; images_without_alt: number; internal_links: number; external_links: number; load_time: number; status_code: number | null; content_size: number; mobile_friendly: boolean; has_structured_data: boolean; lighthouse_performance: number | null; lighthouse_accessibility: number | null; lighthouse_best_practices: number | null; lighthouse_seo: number | null; lighthouse_seo_audits: JsonValue | null; lighthouse_performance_metrics: JsonValue | null; images: ImageElement[]; detailed_links: LinkDetail[]; headings: HeadingElement[]; 
 /**
  * Extracted data from custom extractors (key-value pairs)
  */
 extracted_data: Partial<{ [key in string]: JsonValue }> }
 export type PaginatedJobsResponse = { items: AnalysisProgress[]; total: number }
+export type PatternCategory = "technical" | "content" | "performance" | "accessibility"
+export type PatternSeverity = "critical" | "warning" | "suggestion"
+/**
+ * Per-pillar health scores (0–100) and an overall average.
+ */
+export type PillarScores = { technical: number; content: number; performance: number; accessibility: number; overall: number }
 export type Policy = { tier: LicenseTier; max_pages: number; enabled_features: Feature[]; 
 /**
  * True when the installed build is newer than the license's update window.
@@ -370,6 +537,40 @@ export type Policy = { tier: LicenseTier; max_pages: number; enabled_features: F
  */
 updates_expired: boolean }
 export type ProgressEvent = { event: "analysis"; job_id: string; progress: number; pages_analyzed: number; total_pages: number } | { event: "discovery"; job_id: string; count: number; total_pages: number }
+/**
+ * The full output of the report engine — ready for frontend rendering / PDF export.
+ */
+export type ReportData = { jobId: string; url: string; seoScore: number; totalPages: number; totalIssues: number; criticalIssues: number; warningIssues: number; sitemapFound: boolean; robotsTxtFound: boolean; pillarScores: PillarScores; 
+/**
+ * Patterns sorted by `priority_score` descending.
+ */
+detectedPatterns: DetectedPattern[]; 
+/**
+ * Structured narrative summary for AI consumption or direct PDF inclusion.
+ */
+aiBrief: string }
+/**
+ * A rule that, when matched against site-wide page data, indicates an SEO problem.
+ */
+export type ReportPattern = { id: string; name: string; description: string; category: PatternCategory; severity: PatternSeverity; 
+/**
+ * Page field to evaluate. Built-in fields: `meta_description`, `title`, `word_count`,
+ * `load_time_ms`, `status_code`, `has_viewport`, `has_structured_data`, `canonical_url`,
+ * `h1_count`. Custom extractor fields use `extracted:<key>`.
+ */
+field: string; operator: Operator; threshold: string | null; 
+/**
+ * Minimum fraction of pages (0.0–1.0) that must match before the pattern is "detected".
+ */
+minPrevalence: number; businessImpact: BusinessImpact; fixEffort: FixEffort; recommendation: string; 
+/**
+ * Seeded patterns cannot be deleted, only disabled.
+ */
+isBuiltin: boolean; enabled: boolean }
+/**
+ * Parameters for creating or updating a user-defined pattern.
+ */
+export type ReportPatternParams = { name: string; description: string; category: PatternCategory; severity: PatternSeverity; field: string; operator: Operator; threshold: string | null; minPrevalence: number; businessImpact: BusinessImpact; fixEffort: FixEffort; recommendation: string; enabled: boolean }
 export type SeoIssue = { page_id: string; severity: IssueSeverity; title: string; description: string; page_url: string; element: string | null; recommendation: string; line_number: number | null }
 
 /** tauri-specta globals **/

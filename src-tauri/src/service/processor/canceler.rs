@@ -21,13 +21,10 @@ impl JobCanceler {
     }
 
     pub fn cancel(&self, job_id: &str) {
-        if let Some(token) = self.cancel_map.get(job_id) {
-            token.cancel();
-        } else {
-            let token = CancellationToken::new();
-            token.cancel();
-            self.cancel_map.insert(job_id.to_string(), token);
-        }
+        self.cancel_map
+            .entry(job_id.to_string())
+            .or_insert_with(CancellationToken::new)
+            .cancel();
     }
 
     pub fn is_cancelled(&self, job_id: &str) -> bool {

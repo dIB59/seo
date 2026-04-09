@@ -5,6 +5,8 @@ pub mod ai;
 pub mod analysis;
 pub mod extension;
 pub mod licensing;
+pub mod local_model;
+pub mod report;
 
 #[allow(unused_imports)]
 pub(crate) use crate::contexts::analysis::{

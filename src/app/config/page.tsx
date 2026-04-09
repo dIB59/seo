@@ -9,9 +9,7 @@ import { toast } from "sonner";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
   set_gemini_persona,
-  set_gemini_enabled,
   set_gemini_prompt_blocks,
-  set_gemini_api_key,
 } from "@/src/api/ai";
 
 import { useAiSettings } from "@/src/hooks/use-ai-settings";
@@ -19,13 +17,14 @@ import type { PromptBlock } from "@/src/lib/types";
 
 // Components
 import { ConfigSidebar, SIDEBAR_ITEMS } from "./_components/ConfigSidebar";
-import { GeneralSettings } from "./_components/GeneralSettings";
+import { AiSettings } from "./_components/AiSettings";
 import { PersonaSettings } from "./_components/PersonaSettings";
 import { PromptBuilder } from "./_components/PromptBuilder";
 import { LicensingSection } from "./_components/LicensingSection";
 import { ThemeSettings } from "./_components/ThemeSettings";
 import { CustomChecksSettings } from "./_components/CustomChecksSettings";
 import { ExtractorsSettings } from "./_components/ExtractorsSettings";
+import { ReportPatternsSettings } from "./_components/ReportPatternsSettings";
 
 function ContentSkeleton() {
   return (
@@ -48,7 +47,10 @@ function ContentSkeleton() {
 
 export default function ConfigPage() {
   const [activeSection, setActiveSection] = useState("general");
-  const { settings, isLoading: isSwrLoading, mutate } = useAiSettings();
+  const { settings: rawSettings, isLoading: isSwrLoading, mutate: rawMutate } = useAiSettings();
+  // Narrow to just what ConfigContent needs
+  const settings = rawSettings ? { persona: rawSettings.persona, blocks: rawSettings.blocks } : undefined;
+  const mutate = rawMutate as unknown as (data?: { persona: string; blocks: PromptBlock[] }, options?: { revalidate: boolean }) => Promise<{ persona: string; blocks: PromptBlock[] } | undefined>;
 
   const isInitialLoad = isSwrLoading && !settings;
 
@@ -77,10 +79,8 @@ export default function ConfigPage() {
   );
 }
 
-interface AiSettings {
-  apiKey: string;
+interface PageSettings {
   persona: string;
-  aiEnabled: boolean;
   blocks: PromptBlock[];
 }
 
@@ -89,48 +89,37 @@ function ConfigContent({
   mutate,
   activeSection,
 }: {
-  settings: AiSettings | undefined;
-  mutate: (data?: AiSettings, options?: { revalidate: boolean }) => Promise<AiSettings | undefined>;
+  settings: PageSettings | undefined;
+  mutate: (data?: PageSettings, options?: { revalidate: boolean }) => Promise<PageSettings | undefined>;
   activeSection: string;
 }) {
   const [isLoading, setIsLoading] = useState(false);
-  const [apiKey, setApiKey] = useState(settings?.apiKey || "");
   const [persona, setPersona] = useState(settings?.persona || "");
-  const [aiEnabled, setAiEnabled] = useState(settings?.aiEnabled ?? true);
   const [blocks, setBlocks] = useState<PromptBlock[]>(settings?.blocks || []);
 
-  const handleSaveGeneral = useCallback(async () => {
+  const handleSavePersona = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [keyRes, personaRes, enabledRes] = await Promise.all([
-        set_gemini_api_key(apiKey),
-        set_gemini_persona(persona),
-        set_gemini_enabled(aiEnabled),
-      ]);
-
-      if (keyRes.isOk() && personaRes.isOk() && enabledRes.isOk()) {
-        if (settings) {
-          mutate({ ...settings, apiKey, persona, aiEnabled }, { revalidate: false });
-        }
-        toast.success("Settings saved successfully");
+      const res = await set_gemini_persona(persona);
+      if (res.isOk()) {
+        if (settings) mutate({ ...settings, persona }, { revalidate: false });
+        toast.success("Persona saved");
       } else {
-        toast.error("Failed to save some settings");
+        toast.error("Failed to save persona");
       }
     } catch {
       toast.error("An error occurred while saving");
     } finally {
       setIsLoading(false);
     }
-  }, [apiKey, persona, aiEnabled, mutate, settings]);
+  }, [persona, mutate, settings]);
 
   const handleSavePrompt = useCallback(async () => {
     setIsLoading(true);
     try {
       const res = await set_gemini_prompt_blocks(JSON.stringify(blocks));
       if (res.isOk()) {
-        if (settings) {
-          mutate({ ...settings, blocks }, { revalidate: false });
-        }
+        if (settings) mutate({ ...settings, blocks }, { revalidate: false });
         toast.success("Prompt layout saved");
       } else {
         toast.error("Failed to save layout");
@@ -142,22 +131,17 @@ function ConfigContent({
     }
   }, [blocks, mutate, settings]);
 
-  // Keyboard Shortcut
+  // ⌘S / Ctrl+S shortcut
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
-        e.preventDefault();
-        if (activeSection === "general" || activeSection === "persona") {
-          handleSaveGeneral();
-        } else if (activeSection === "prompt") {
-          handleSavePrompt();
-        }
-      }
+    const handler = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key !== "s") return;
+      e.preventDefault();
+      if (activeSection === "persona") handleSavePersona();
+      else if (activeSection === "prompt") handleSavePrompt();
     };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeSection, handleSaveGeneral, handleSavePrompt]);
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [activeSection, handleSavePersona, handleSavePrompt]);
 
   return (
     <>
@@ -171,10 +155,10 @@ function ConfigContent({
             Manage your system configuration and AI preferences.
           </p>
         </div>
-        {(activeSection === "general" || activeSection === "persona") && (
-          <Button onClick={handleSaveGeneral} disabled={isLoading}>
+        {activeSection === "persona" && (
+          <Button onClick={handleSavePersona} disabled={isLoading}>
             <Save className="h-4 w-4 mr-2" />
-            Save Changes
+            Save
           </Button>
         )}
         {activeSection === "prompt" && (
@@ -189,24 +173,16 @@ function ConfigContent({
 
       {/* Content Sections */}
       <div className="space-y-6">
-        {activeSection === "general" && (
-          <GeneralSettings
-            apiKey={apiKey}
-            setApiKey={setApiKey}
-            aiEnabled={aiEnabled}
-            setAiEnabled={setAiEnabled}
-          />
-        )}
-
+        {activeSection === "ai" && <AiSettings />}
         {activeSection === "persona" && (
           <PersonaSettings persona={persona} setPersona={setPersona} />
         )}
-
         {activeSection === "prompt" && <PromptBuilder blocks={blocks} setBlocks={setBlocks} />}
         {activeSection === "licensing" && <LicensingSection />}
         {activeSection === "appearance" && <ThemeSettings />}
         {activeSection === "custom-checks" && <CustomChecksSettings />}
         {activeSection === "custom-extractors" && <ExtractorsSettings />}
+        {activeSection === "report-patterns" && <ReportPatternsSettings />}
       </div>
     </>
   );

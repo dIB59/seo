@@ -10,8 +10,6 @@ pub async fn set_up_test_db_with_prod_data() -> SqlitePool {
         .run(&pool)
         .await
         .expect("Failed to run migrations");
-
-    // Apply performance pragmas (same as production)
     pool
 }
 
@@ -19,32 +17,23 @@ pub async fn set_up_test_db_with_prod_data() -> SqlitePool {
 /// Use this when the database is already migrated (e.g., for V2 schema benchmarks)
 /// and the migration files reference old schema tables that no longer exist.
 pub async fn connect_test_db_no_migrate() -> SqlitePool {
-    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+    sqlx::sqlite::SqlitePoolOptions::new()
         .max_connections(5)
         .connect("sqlite:src/test_utils/test.db")
         .await
-        .expect("Failed to connect");
-
-    // Apply performance pragmas (same as production)
-    pool
+        .expect("Failed to connect")
 }
 
 /// Connects to the V1 test database (old schema) for comparison benchmarks.
-/// This database has the original schema: analysis_jobs, analysis_results,
-/// page_analysis, seo_issues, page_edge tables.
 pub async fn connect_test_db_v1() -> SqlitePool {
-    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+    sqlx::sqlite::SqlitePoolOptions::new()
         .max_connections(5)
         .connect("sqlite:src/test_utils/test_v1.db")
         .await
-        .expect("Failed to connect to V1 test database");
-
-    // Apply performance pragmas (same as production)
-    pool
+        .expect("Failed to connect to V1 test database")
 }
 
-/// Creates an in-memory database for benchmark write operations
-/// Uses the same pragmas as production for realistic measurements
+/// Creates an in-memory database for benchmark write operations.
 pub async fn set_up_benchmark_db() -> SqlitePool {
     let pool = sqlx::sqlite::SqlitePoolOptions::new()
         .max_connections(1)
@@ -55,9 +44,6 @@ pub async fn set_up_benchmark_db() -> SqlitePool {
         .run(&pool)
         .await
         .expect("Failed to run migrations");
-
-    // Apply performance pragmas (same as production, except WAL which doesn't work with :memory:)
-
     pool
 }
 
