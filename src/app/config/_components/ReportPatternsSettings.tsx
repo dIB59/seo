@@ -1,7 +1,5 @@
 "use client";
 
-import { useState } from "react";
-import useSWR from "swr";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -23,59 +21,24 @@ import {
   type ReportPattern,
   type ReportPatternParams,
 } from "@/src/api/report";
+import { useCrudState } from "@/src/hooks/use-crud-state";
 import { ReportPatternDialog } from "./ReportPatternDialog";
 import { ReportPatternRow } from "./ReportPatternRow";
 
 export function ReportPatternsSettings() {
-  const { data: patterns = [], mutate } = useSWR("report-patterns", listReportPatterns);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<ReportPattern | null>(null);
-  const [saving, setSaving] = useState(false);
-
-  function openCreate() {
-    setEditing(null);
-    setDialogOpen(true);
-  }
-
-  function openEdit(p: ReportPattern) {
-    setEditing(p);
-    setDialogOpen(true);
-  }
-
-  async function handleSave(form: ReportPatternParams) {
-    setSaving(true);
-    try {
-      if (editing) {
-        const updated = await updateReportPattern(editing.id, form);
-        mutate((prev = []) => prev.map((p) => (p.id === editing.id ? updated : p)), false);
-        toast.success("Pattern updated");
-      } else {
-        const created = await createReportPattern(form);
-        mutate((prev = []) => [...prev, created], false);
-        toast.success("Pattern created");
-      }
-      setDialogOpen(false);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to save pattern");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleDelete(id: string) {
-    try {
-      await deleteReportPattern(id);
-      mutate((prev = []) => prev.filter((p) => p.id !== id), false);
-      toast.success("Pattern deleted");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to delete pattern");
-    }
-  }
+  const crud = useCrudState<ReportPattern, ReportPatternParams>({
+    swrKey: "report-patterns",
+    fetcher: listReportPatterns,
+    onCreate: createReportPattern,
+    onUpdate: updateReportPattern,
+    onDelete: deleteReportPattern,
+    entityName: "Pattern",
+  });
 
   async function handleToggle(p: ReportPattern) {
     try {
       await toggleReportPattern(p.id, !p.enabled);
-      mutate(
+      crud.mutate(
         (prev = []) => prev.map((x) => (x.id === p.id ? { ...x, enabled: !x.enabled } : x)),
         false,
       );
@@ -91,13 +54,13 @@ export function ReportPatternsSettings() {
           Patterns are evaluated site-wide when generating a report. Built-in patterns can be
           disabled but not deleted. Custom patterns integrate with your extractors and custom checks.
         </p>
-        <Button size="sm" onClick={openCreate}>
+        <Button size="sm" onClick={crud.openCreate}>
           <Plus className="h-4 w-4 mr-1" />
           Add Pattern
         </Button>
       </div>
 
-      {patterns.length === 0 ? (
+      {crud.items.length === 0 ? (
         <p className="text-sm text-muted-foreground py-8 text-center">No patterns configured.</p>
       ) : (
         <Table>
@@ -113,12 +76,12 @@ export function ReportPatternsSettings() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {patterns.map((p) => (
+            {crud.items.map((p) => (
               <ReportPatternRow
                 key={p.id}
                 pattern={p}
-                onEdit={openEdit}
-                onDelete={handleDelete}
+                onEdit={crud.openEdit}
+                onDelete={crud.handleDelete}
                 onToggle={handleToggle}
               />
             ))}
@@ -127,11 +90,11 @@ export function ReportPatternsSettings() {
       )}
 
       <ReportPatternDialog
-        open={dialogOpen}
-        editing={editing}
-        saving={saving}
-        onOpenChange={setDialogOpen}
-        onSave={handleSave}
+        open={crud.dialogOpen}
+        editing={crud.editing}
+        saving={crud.saving}
+        onOpenChange={crud.setDialogOpen}
+        onSave={crud.handleSave}
         onValidationError={(msg) => toast.error(msg)}
       />
     </div>
