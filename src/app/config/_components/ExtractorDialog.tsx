@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useFormSync } from "@/src/hooks/use-form-sync";
 import { Check, ChevronDown, ChevronUp, Sparkles, X } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
@@ -57,14 +58,8 @@ export function ExtractorDialog({
   onSave,
   onValidationError,
 }: ExtractorDialogProps) {
-  const [form, setForm] = useState<CustomExtractorParams>(EMPTY_PARAMS);
+  const [form, setForm] = useFormSync(open, editing, EMPTY_PARAMS, paramsFrom);
   const [presetsOpen, setPresetsOpen] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    setForm(editing ? paramsFrom(editing) : EMPTY_PARAMS);
-    setPresetsOpen(false);
-  }, [open, editing]);
 
   function applyPreset(preset: Preset) {
     setForm({
