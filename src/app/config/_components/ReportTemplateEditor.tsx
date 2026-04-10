@@ -73,8 +73,8 @@ function makeSectionOfType(kind: string): TemplateSection {
       return {
         kind: "patternSummary",
         filter: { kind: "topN", n: 3 },
-        perPatternTemplate: "**{pattern.name}** — {pattern.pct}% of pages. {pattern.recommendation}",
-        emptyTemplate: "No patterns detected.",
+        per_pattern_template: "**{pattern.name}** — {pattern.pct}% of pages. {pattern.recommendation}",
+        empty_template: "No patterns detected.",
       };
     case "conditional":
       return {

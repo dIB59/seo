@@ -13,7 +13,7 @@ import type { Tag } from "@/src/api/extension";
 import { useExtractorTags } from "@/src/hooks/use-extractor-tags";
 
 function sourceLabel(tag: Tag): string {
-  if (tag.source.kind === "extractor") return tag.source.extractorName;
+  if (tag.source.kind === "extractor") return tag.source.extractor_name;
   return "Built-in";
 }
 

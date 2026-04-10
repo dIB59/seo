@@ -94,9 +94,9 @@ export function TemplateSectionEditor({
             <Label className="text-[10px]">Per-pattern template</Label>
             <Textarea
               className="text-sm min-h-[40px]"
-              value={section.perPatternTemplate}
+              value={section.per_pattern_template}
               onChange={(e) =>
-                onChange({ ...section, perPatternTemplate: e.target.value })
+                onChange({ ...section, per_pattern_template: e.target.value })
               }
             />
           </div>
@@ -104,11 +104,11 @@ export function TemplateSectionEditor({
             <Label className="text-[10px]">Empty template (when no patterns match)</Label>
             <Input
               className="h-8 text-sm"
-              value={section.emptyTemplate ?? ""}
+              value={section.empty_template ?? ""}
               onChange={(e) =>
                 onChange({
                   ...section,
-                  emptyTemplate: e.target.value || null,
+                  empty_template: e.target.value || null,
                 })
               }
             />
