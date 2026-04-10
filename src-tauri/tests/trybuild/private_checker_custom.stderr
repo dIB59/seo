@@ -1,0 +1,11 @@
+error[E0603]: module `custom` is private
+ --> tests/trybuild/private_checker_custom.rs:3:19
+  |
+3 | use app::checker::custom::CustomCheckAdapter;
+  |                   ^^^^^^ private module
+  |
+note: the module `custom` is defined here
+ --> src/checker/mod.rs
+  |
+  | pub(crate) mod custom;
+  | ^^^^^^^^^^^^^^^^^^^^^

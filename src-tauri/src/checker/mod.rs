@@ -1,5 +1,5 @@
 pub mod builtin;
-pub mod custom;
+pub(crate) mod custom;
 
 use crate::contexts::analysis::{IssueSeverity, NewIssue, Page};
 use crate::service::auditor::SeoAuditDetails;

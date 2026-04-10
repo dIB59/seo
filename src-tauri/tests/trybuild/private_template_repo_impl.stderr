@@ -1,0 +1,11 @@
+error[E0603]: module `template_repository` is private
+ --> tests/trybuild/private_template_repo_impl.rs:3:30
+  |
+3 | use app::repository::sqlite::template_repository::ReportTemplateRepository;
+  |                              ^^^^^^^^^^^^^^^^^^^ private module
+  |
+note: the module `template_repository` is defined here
+ --> src/repository/sqlite/mod.rs
+  |
+  | mod template_repository;
+  | ^^^^^^^^^^^^^^^^^^^^^^^
