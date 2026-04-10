@@ -349,6 +349,23 @@ async deleteCustomExtractor(id: string) : Promise<Result<null, CommandError>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Return the full tag catalog so the frontend can render tag pickers
+ * / autocomplete in the custom-check editor, template editor, and the
+ * Settings → Tags panel.
+ * 
+ * `scope` is optional: when present the result is filtered to tags
+ * valid in that authoring surface (e.g. `CheckField`). When absent
+ * every tag is returned.
+ */
+async listTags(scope: TagScope | null) : Promise<Result<Tag[], CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_tags", { scope }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async listReportPatterns() : Promise<Result<ReportPattern[], CommandError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("list_report_patterns") };
@@ -396,6 +413,54 @@ async generateReportData(jobId: string) : Promise<Result<ReportData, CommandErro
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async listReportTemplates() : Promise<Result<ReportTemplate[], CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_report_templates") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getReportTemplate(id: string) : Promise<Result<ReportTemplate, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_report_template", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async createReportTemplate(template: ReportTemplate) : Promise<Result<null, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("create_report_template", { template }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async updateReportTemplate(template: ReportTemplate) : Promise<Result<null, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_report_template", { template }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async setActiveReportTemplate(id: string) : Promise<Result<null, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_active_report_template", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteReportTemplate(id: string) : Promise<Result<null, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_report_template", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -432,6 +497,63 @@ export type BusinessImpact = "high" | "medium" | "low"
 export type CommandError = string
 export type CompleteAnalysisResponse = { analysis: AnalysisResults; pages: PageAnalysisData[]; issues: SeoIssue[]; summary: AnalysisSummary }
 /**
+ * Runtime condition evaluated against the render context.
+ */
+export type Condition = 
+/**
+ * True if at least one detected pattern has the given id.
+ */
+{ op: "patternFired"; pattern_id: string } | 
+/**
+ * True if at least one detected pattern matches the filter.
+ */
+{ op: "anyPatternMatches"; filter: PatternFilter } | 
+/**
+ * True if the job's SEO score is strictly less than `value`.
+ */
+{ op: "scoreLt"; value: number } | 
+/**
+ * True if the job's critical issue count is strictly greater than `value`.
+ */
+{ op: "criticalIssuesGt"; value: number } | 
+/**
+ * True if the sitemap was NOT found during discovery. Shorthand
+ * for the "action required: submit a sitemap" brief section.
+ */
+{ op: "sitemapMissing" } | 
+/**
+ * True if the robots.txt was NOT found during discovery.
+ */
+{ op: "robotsMissing" } | 
+/**
+ * True if the named tag has a non-empty aggregated value across
+ * the crawled pages. The `tag` field is the bare extractor name
+ * (e.g. `"og_image"`, not `"tag:og_image"`).
+ */
+{ op: "tagPresent"; tag: string } | 
+/**
+ * True if the named tag is absent or has no value across all pages.
+ */
+{ op: "tagMissing"; tag: string } | 
+/**
+ * True if the named tag's aggregated value contains the given
+ * substring. Useful for "if any page has og_image containing
+ * 'placeholder'…" style conditions.
+ */
+{ op: "tagContains"; tag: string; value: string } | 
+/**
+ * Logical AND of all children (empty list → true).
+ */
+{ op: "all"; children: Condition[] } | 
+/**
+ * Logical OR of all children (empty list → false).
+ */
+{ op: "any"; children: Condition[] } | 
+/**
+ * Logical NOT.
+ */
+{ op: "not"; inner: Condition }
+/**
  * A user-defined check that inspects extracted page data and produces an issue.
  */
 export type CustomCheck = { id: string; name: string; severity: IssueSeverity; 
@@ -452,17 +574,26 @@ message_template: string; enabled: boolean }
  */
 export type CustomCheckParams = { name: string; severity: IssueSeverity; field: string; operator: Operator; threshold: string | null; message_template: string; enabled: boolean }
 /**
- * A user-defined CSS-selector extractor that populates extracted_data.
+ * A user-defined CSS-selector extractor that populates `page.extracted_data`.
+ * 
+ * `tag` (formerly `key`) is the symbol the consultant references from
+ * custom checks, report templates, and AI prompts. A tag defined here
+ * becomes reachable as:
+ * - `tag:<tag>` in a `CustomCheck` or `ReportPattern` `field`.
+ * - `{tag.<tag>}` in a `CustomCheck.message_template` (chunk 3).
+ * - `{tag.<tag>}` in report template text and AI prompt blocks (chunk 4).
  */
 export type CustomExtractor = { id: string; name: string; 
 /**
- * Key written into `page.extracted_data`.
+ * The user-defined tag this extractor publishes into
+ * `page.extracted_data`. Must be unique across all extractors —
+ * the DB column has a `UNIQUE` constraint.
  */
-key: string; selector: string; attribute: string | null; multiple: boolean; enabled: boolean }
+tag: string; selector: string; attribute: string | null; multiple: boolean; enabled: boolean }
 /**
  * Parameters for creating or updating a custom extractor.
  */
-export type CustomExtractorParams = { name: string; key: string; selector: string; attribute: string | null; multiple: boolean; enabled: boolean }
+export type CustomExtractorParams = { name: string; tag: string; selector: string; attribute: string | null; multiple: boolean; enabled: boolean }
 /**
  * A pattern that fired during analysis of a specific job.
  */
@@ -481,7 +612,48 @@ priorityScore: number;
 sampleUrls: string[] }
 export type Feature = "LinkAnalysis" | "GraphView" | "ExportReports"
 export type FixEffort = "low" | "medium" | "high"
-export type GeminiRequest = { analysis_id: string; url: string; seo_score: number; pages_count: number; total_issues: number; critical_issues: number; warning_issues: number; suggestion_issues: number; top_issues: string[]; avg_load_time: number; total_words: number; ssl_certificate: boolean; sitemap_found: boolean; robots_txt_found: boolean }
+export type GeminiRequest = { analysis_id: string; url: string; seo_score: number; pages_count: number; total_issues: number; critical_issues: number; warning_issues: number; suggestion_issues: number; 
+/**
+ * Top issue titles (legacy — kept for backwards compat with
+ * custom prompt blocks that reference `{top_issues}`).
+ */
+top_issues: string[]; avg_load_time: number; total_words: number; ssl_certificate: boolean; sitemap_found: boolean; robots_txt_found: boolean; 
+/**
+ * Per-issue detail lines: "severity | title | page_url | description".
+ * Top 15 issues sorted by severity. Gives the AI enough signal to
+ * write issue-specific recommendations instead of generic advice.
+ */
+issue_details?: string[]; 
+/**
+ * Per-page summary lines: "url | title | status | load_time_ms | issue_count".
+ * Top 10 pages by issue count. Lets the AI identify the worst
+ * offenders and reference specific URLs.
+ */
+page_summaries?: string[]; 
+/**
+ * Count of pages missing a meta description.
+ */
+missing_meta_count?: number; 
+/**
+ * Count of pages with load time > 3000ms.
+ */
+slow_pages_count?: number; 
+/**
+ * Count of pages returning HTTP 4xx/5xx.
+ */
+error_pages_count?: number; 
+/**
+ * Site-level aggregated tag values from custom extractors. Each
+ * key is the extractor tag name (e.g. `"og_image"`), each value
+ * is a comma-separated list of distinct extracted values across
+ * all pages (capped at 5). `{tag.og_image}` in a prompt block
+ * resolves against this map.
+ * 
+ * `#[serde(default)]` so existing frontend calls that don't
+ * populate this field still deserialize correctly with an empty
+ * map — zero breaking change for the wire format.
+ */
+tag_values?: Partial<{ [key in string]: string }> }
 export type HeadingElement = { tag: string; text: string }
 export type ImageElement = { src: string; alt: string | null }
 export type IssueSeverity = "critical" | "warning" | "info"
@@ -505,15 +677,19 @@ export type ModelDownloadStatus = "downloading" | "completed" | "failed" | "canc
 /**
  * Runtime state of a model: registry metadata + whether it's on disk.
  */
-export type ModelInfo = ({ id: string; name: string; description: string; 
-/**
- * "small" | "medium" | "large"
- */
-tier: string; size_bytes: number; download_url: string; filename: string; sha256: string }) & { is_downloaded: boolean; is_active: boolean; 
+export type ModelInfo = ({ id: string; name: string; description: string; tier: ModelTier; size_bytes: number; download_url: string; filename: string; sha256: string }) & { is_downloaded: boolean; is_active: boolean; 
 /**
  * `true` when a partial `.tmp` file exists — the download can be resumed.
  */
 has_partial: boolean }
+/**
+ * Quality / hardware tier for a curated model.
+ * 
+ * Replaces the previous `tier: String` field. The enum has a stable
+ * `serde(rename_all = "lowercase")` representation, so the wire format
+ * (`"small"` | `"medium"` | `"large"`) is unchanged.
+ */
+export type ModelTier = "small" | "medium" | "large"
 /**
  * Condition operator for a custom check.
  */
@@ -525,9 +701,42 @@ export type PageAnalysisData = { analysis_id: string; url: string; title: string
 extracted_data: Partial<{ [key in string]: JsonValue }> }
 export type PaginatedJobsResponse = { items: AnalysisProgress[]; total: number }
 export type PatternCategory = "technical" | "content" | "performance" | "accessibility"
+/**
+ * Filter applied to the detected-pattern list before iterating. Used by
+ * [`TemplateSection::PatternSummary`](super::TemplateSection::PatternSummary)
+ * and by [`Condition::AnyPatternMatches`].
+ */
+export type PatternFilter = 
+/**
+ * Every detected pattern.
+ */
+{ kind: "all" } | 
+/**
+ * Only patterns with exactly this severity.
+ */
+{ kind: "bySeverity"; severity: PatternSeverity } | 
+/**
+ * Only patterns in this category.
+ */
+{ kind: "byCategory"; category: PatternCategory } | 
+/**
+ * Top N patterns by `priority_score` (already the sort order of
+ * `detected_patterns`, so this is just a take).
+ */
+{ kind: "topN"; n: number } | 
+/**
+ * Patterns whose prevalence is at least `min_prevalence` (0.0..=1.0).
+ */
+{ kind: "minPrevalence"; min_prevalence: number }
 export type PatternSeverity = "critical" | "warning" | "suggestion"
 /**
  * Per-pillar health scores (0–100) and an overall average.
+ * 
+ * Fields are private — construct via [`PillarScores::new`] or
+ * [`PillarScores::from_pillars`] and read via the typed accessors.
+ * The `overall` average is derived in the constructor so the
+ * invariant `overall == mean(technical, content, performance,
+ * accessibility)` is enforced once at construction time.
  */
 export type PillarScores = { technical: number; content: number; performance: number; accessibility: number; overall: number }
 export type Policy = { tier: LicenseTier; max_pages: number; enabled_features: Feature[]; 
@@ -556,7 +765,7 @@ export type ReportPattern = { id: string; name: string; description: string; cat
 /**
  * Page field to evaluate. Built-in fields: `meta_description`, `title`, `word_count`,
  * `load_time_ms`, `status_code`, `has_viewport`, `has_structured_data`, `canonical_url`,
- * `h1_count`. Custom extractor fields use `extracted:<key>`.
+ * `h1_count`. Custom extractor tags use `tag:<tag>`.
  */
 field: string; operator: Operator; threshold: string | null; 
 /**
@@ -571,7 +780,191 @@ isBuiltin: boolean; enabled: boolean }
  * Parameters for creating or updating a user-defined pattern.
  */
 export type ReportPatternParams = { name: string; description: string; category: PatternCategory; severity: PatternSeverity; field: string; operator: Operator; threshold: string | null; minPrevalence: number; businessImpact: BusinessImpact; fixEffort: FixEffort; recommendation: string; enabled: boolean }
+/**
+ * A named, reorderable report template authored by the consultant.
+ */
+export type ReportTemplate = { id: string; name: string; 
+/**
+ * Builtin templates (the "Default" one seeded at migration time)
+ * cannot be deleted, only disabled. Mirrors `ReportPattern.is_builtin`.
+ */
+isBuiltin: boolean; sections: TemplateSection[]; 
+/**
+ * Which custom extractor tags this template includes in `{tag_summary}`
+ * and makes available as `{tag.X}` variables. The user picks these in
+ * the template editor from the live tag registry.
+ * 
+ * Empty list = include ALL tags (backwards compat + sensible default).
+ * Non-empty = only these tag names (e.g. `["og_image", "author"]`).
+ */
+selectedTags?: string[] }
 export type SeoIssue = { page_id: string; severity: IssueSeverity; title: string; description: string; page_url: string; element: string | null; recommendation: string; line_number: number | null }
+/**
+ * A named symbol the consultant can reference when authoring a custom
+ * check, a report template, or an AI prompt. `name` is exactly what
+ * the user types.
+ */
+export type Tag = { 
+/**
+ * The literal string the user references this tag with. For
+ * built-in page fields this is the bare field name (`"title"`,
+ * `"word_count"`). For custom-extractor tags it's the prefixed
+ * form (`"tag:og_image"`) that can be dropped directly into a
+ * check `field` dropdown.
+ */
+name: string; 
+/**
+ * Human-readable label for the editor UI.
+ */
+label: string; 
+/**
+ * One-line description shown next to the tag in the picker.
+ */
+description: string; 
+/**
+ * The data type the tag resolves to. Drives operator
+ * compatibility in the custom-check editor — e.g. an operator
+ * like `Lt` only makes sense on `Number` tags.
+ */
+dataType: TagDataType; 
+/**
+ * Where the tag comes from. The editor uses this to group tags
+ * visually ("Built-in" / "Your Extractors" / etc.).
+ */
+source: TagSource; 
+/**
+ * Which authoring surfaces this tag is valid in. A tag may appear
+ * in more than one — e.g. `{critical_issues}` is valid in both a
+ * template text block and a template conditional.
+ */
+scopes: TagScope[]; 
+/**
+ * An example value the editor can display in a tooltip to show
+ * what the tag resolves to in practice. `None` means "no
+ * representative example available".
+ */
+example: string | null }
+/**
+ * The underlying data type a tag resolves to. Used by the editor to
+ * suggest compatible operators and to format the example value.
+ */
+export type TagDataType = 
+/**
+ * A free-form text value. Compatible with `eq`, `contains`,
+ * `not_contains`, `present`, `missing`.
+ */
+"text" | 
+/**
+ * An integer or float. Compatible with `eq`, `lt`, `gt`,
+ * `present`, `missing`.
+ */
+"number" | 
+/**
+ * A true/false flag. Compatible with `eq`, `present`, `missing`.
+ */
+"bool" | 
+/**
+ * A list of values (e.g. hreflang returns multiple codes).
+ * Compatible with `present`, `missing`, `contains`.
+ */
+"list"
+/**
+ * An authoring surface where a tag can be referenced. The editor
+ * filters the tag picker to the scopes that match the current field.
+ */
+export type TagScope = 
+/**
+ * The `field` dropdown on a custom check or report pattern.
+ * Only tags that can be *evaluated* against a page belong here.
+ */
+"checkField" | 
+/**
+ * The `message_template` on a custom check — string substitution
+ * into an issue message. Resolves per-page when the check fires.
+ */
+"checkMessage" | 
+/**
+ * A text block inside a report template. Resolves at render
+ * time, site-level scope.
+ */
+"templateText" | 
+/**
+ * A conditional wrapper inside a report template. Only tags that
+ * carry boolean or numeric semantics belong here.
+ */
+"templateCondition" | 
+/**
+ * An AI prompt block. Same resolution semantics as
+ * `TemplateText`.
+ */
+"aiPrompt"
+/**
+ * Where a tag originates. The enum is deliberately open-ended — future
+ * chunks add new variants (pattern IDs, issue-type literals, client
+ * branding fields) without breaking existing call sites.
+ */
+export type TagSource = 
+/**
+ * Hardcoded page or site field known to the analyzer — e.g.
+ * `title`, `word_count`, `critical_issues`.
+ */
+{ kind: "builtin" } | 
+/**
+ * A user-defined custom extractor. `extractor_id` is the UUID of
+ * the `custom_extractors` row; `extractor_name` is the
+ * human-readable name the user gave it.
+ */
+{ kind: "extractor"; extractor_id: string; extractor_name: string }
+/**
+ * One section of a report. Each variant is self-contained — the render
+ * pipeline walks the section list and produces fragments independently
+ * per section, so adding a new section kind is purely additive.
+ * 
+ * Serde uses an internally-tagged `{ "kind": "text", ... }` representation
+ * so the JSON on disk stays readable.
+ */
+export type TemplateSection = 
+/**
+ * A markdown heading. `level` is 1..=6.
+ */
+{ kind: "heading"; level: number; text: string } | 
+/**
+ * Static prose with variable substitution.
+ * 
+ * The template is a single string which may contain `{url}`,
+ * `{score}`, `{critical_issues}`, etc. — anything supported by
+ * `service::prompt::replace_prompt_vars` plus the new pattern
+ * variables (`{top_patterns}`, `{detected_patterns_count}`).
+ */
+{ kind: "text"; template: string } | 
+/**
+ * An LLM prompt the renderer should expand asynchronously.
+ * 
+ * Chunk 1 just emits an `AiPrompt(String)` fragment; chunk 7 wires
+ * it to the actual AI backends. The prompt is variable-substituted
+ * before being handed to the LLM, so consultants can parameterize
+ * their prompts per audit.
+ */
+{ kind: "ai"; label: string; prompt: string } | 
+/**
+ * "For each detected pattern matching `filter`, render
+ * `per_pattern_template` with that pattern's fields in scope."
+ * 
+ * Per-pattern substitution adds `{pattern.name}`, `{pattern.pct}`,
+ * `{pattern.affected_pages}`, `{pattern.recommendation}`,
+ * `{pattern.category}`, `{pattern.severity}` on top of the
+ * context-level variables.
+ */
+{ kind: "patternSummary"; filter: PatternFilter; per_pattern_template: string; empty_template: string | null } | 
+/**
+ * Wrap a list of child sections in a runtime condition. Children
+ * are only rendered when the condition evaluates to true.
+ */
+{ kind: "conditional"; when: Condition; children: TemplateSection[] } | 
+/**
+ * Horizontal divider. Renders as a markdown `---`.
+ */
+{ kind: "divider" }
 
 /** tauri-specta globals **/
 

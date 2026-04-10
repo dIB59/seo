@@ -162,11 +162,14 @@ impl StreamResponse {
     }
 }
 
+/// Boxed future that resolves to the next chunk in a streamed response.
+/// Aliased so the trait signature stays readable (clippy::type_complexity).
+type ChunkFuture<'a> =
+    Pin<Box<dyn std::future::Future<Output = Result<Option<Vec<u8>>>> + Send + 'a>>;
+
 // Object-safe async chunk iterator — keeps rquest types private to this module.
 trait ChunkStream: Send {
-    fn next_chunk<'a>(
-        &'a mut self,
-    ) -> Pin<Box<dyn std::future::Future<Output = Result<Option<Vec<u8>>>> + Send + 'a>>;
+    fn next_chunk<'a>(&'a mut self) -> ChunkFuture<'a>;
 }
 
 struct RquestChunker(rquest::Response);

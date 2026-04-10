@@ -57,12 +57,23 @@ impl AnalysisService {
     /// Create a new analysis job
     pub async fn create_job(&self, url: &str, settings: &JobSettings) -> Result<JobId> {
         let id = self.job_repo.create(url, settings).await?;
-        Ok(id)
+        Ok(JobId::from(id))
     }
 
-    /// Get a job by its ID
+    /// Get a job by its ID.
     pub async fn get_job(&self, id: &str) -> Result<Job> {
-        self.job_repo.get_by_id(id).await
+        Ok(self.job_repo.get_by_id(id).await?)
+    }
+
+    /// Get a job by its ID, wrapped in the typestate dispatch enum.
+    ///
+    /// Prefer this in new code: callers can match on the specific
+    /// lifecycle stage and the compiler enforces exhaustive handling.
+    /// Existing call sites that just need a `Job` continue to use
+    /// [`get_job`](Self::get_job).
+    pub async fn get_job_state(&self, id: &str) -> Result<crate::contexts::analysis::AnyJob> {
+        let job = self.job_repo.get_by_id(id).await?;
+        Ok(crate::contexts::analysis::AnyJob::from(job))
     }
 
     /// Cancel a running job
@@ -75,34 +86,57 @@ impl AnalysisService {
         Ok(())
     }
 
+    /// Typestate-aware cancellation. Loads the job, dispatches on its
+    /// runtime state via [`AnyJob`], and refuses to cancel if the job
+    /// is already in a terminal state (`Completed`, `Failed`, or
+    /// previously `Cancelled`). The original [`cancel_job`] is a silent
+    /// no-op in those cases — this version makes the precondition
+    /// explicit at the boundary so the caller can surface a clear
+    /// error.
+    pub async fn cancel_job_typed(&self, id: &str) -> Result<()> {
+        let any = self.get_job_state(id).await?;
+        if any.is_terminal() {
+            return Err(anyhow::anyhow!(
+                "cannot cancel job {id}: already {}",
+                any.stage_name()
+            ));
+        }
+        // Pending/Discovery/Processing → cancel via the existing path.
+        self.cancel_job(id).await
+    }
+
     /// List jobs with optional filtering
     pub async fn list_jobs(&self, filter: JobFilter) -> Result<Vec<JobInfo>> {
         let limit = filter.limit.unwrap_or(100);
         let offset = filter.offset.unwrap_or(0);
-        
-        let (jobs, _total) = self.job_repo
-            .get_paginated_with_total(
-                limit,
-                offset,
-                filter.url_contains.clone(),
-                filter.status.map(|s| s.as_str().to_string()),
-            )
-            .await?;
-        
+        let pagination = crate::contexts::analysis::Pagination::new(limit, offset)?;
+
+        let mut query = crate::contexts::analysis::JobPageQuery::new(pagination);
+        if let Some(url) = filter.url_contains.clone() {
+            query = query.with_url_filter(url);
+        }
+        if let Some(status) = filter.status {
+            query = query.with_status(status.as_str());
+        }
+
+        let (jobs, _total) = self.job_repo.get_paginated_with_total(query).await?;
         Ok(jobs)
     }
 
     /// Get all jobs
     pub async fn get_all_jobs(&self) -> Result<Vec<JobInfo>> {
-        self.job_repo.get_all().await
+        Ok(self.job_repo.get_all().await?)
     }
 
     /// Get paginated jobs
     pub async fn get_paginated_jobs(&self, limit: i64, offset: i64) -> Result<Vec<JobInfo>> {
-        self.job_repo.get_paginated(limit, offset).await
+        Ok(self.job_repo.get_paginated(limit, offset).await?)
     }
 
-    /// Get paginated jobs with total count and filters
+    /// Get paginated jobs with total count and filters.
+    ///
+    /// The (limit, offset, url_filter, status_filter) tuple is bundled into
+    /// a validated `JobPageQuery` before hitting the repository layer.
     pub async fn get_paginated_jobs_with_total(
         &self,
         limit: i64,
@@ -110,9 +144,15 @@ impl AnalysisService {
         url_filter: Option<String>,
         status_filter: Option<String>,
     ) -> Result<(Vec<JobInfo>, i64)> {
-        self.job_repo
-            .get_paginated_with_total(limit, offset, url_filter, status_filter)
-            .await
+        let pagination = crate::contexts::analysis::Pagination::new(limit, offset)?;
+        let mut query = crate::contexts::analysis::JobPageQuery::new(pagination);
+        if let Some(url) = url_filter {
+            query = query.with_url_filter(url);
+        }
+        if let Some(status) = status_filter {
+            query = query.with_status(status);
+        }
+        Ok(self.job_repo.get_paginated_with_total(query).await?)
     }
 
     // === Analysis Execution ===
@@ -153,7 +193,7 @@ impl AnalysisService {
     pub async fn get_complete_result(&self, job_id: &str) -> Result<CompleteJobResult> {
         let results_repo = self.results_repo.as_ref()
             .ok_or_else(|| anyhow::anyhow!("ResultsRepository not configured"))?;
-        results_repo.get_complete_result(job_id).await
+        Ok(results_repo.get_complete_result(job_id).await?)
     }
 
     // === Page Access ===
@@ -162,7 +202,7 @@ impl AnalysisService {
     pub async fn get_pages(&self, job_id: &str) -> Result<Vec<Page>> {
         let results_repo = self.results_repo.as_ref()
             .ok_or_else(|| anyhow::anyhow!("ResultsRepository not configured"))?;
-        results_repo.get_pages(job_id).await
+        Ok(results_repo.get_pages(job_id).await?)
     }
 
     // === Issue Access ===
@@ -171,7 +211,7 @@ impl AnalysisService {
     pub async fn get_issues(&self, job_id: &str) -> Result<Vec<Issue>> {
         let results_repo = self.results_repo.as_ref()
             .ok_or_else(|| anyhow::anyhow!("ResultsRepository not configured"))?;
-        results_repo.get_issues(job_id).await
+        Ok(results_repo.get_issues(job_id).await?)
     }
 
 }

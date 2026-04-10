@@ -122,9 +122,13 @@ mod tests {
     async fn updates_expired_key_still_activates() {
         let pool = setup_test_db().await;
         let service = MockLicensingService::new(sqlite_settings_repo(pool));
+        // 2 days, not 1: see service.rs::activate_with_updates_expired_key
+        // for why — BUILD_DATE is compile-day midnight UTC and a 1-day
+        // delta lands later in the BUILD_DATE day for tests run the
+        // day after compile.
         let key = service.generate_license_key(
             LicenseTier::Premium,
-            Some(chrono::Utc::now() - chrono::Duration::days(1)),
+            Some(chrono::Utc::now() - chrono::Duration::days(2)),
         );
         let status = service.activate_with_key(&key).await.unwrap();
         assert_eq!(status, LicenseStatus::UpdatesExpired(LicenseTier::Premium));

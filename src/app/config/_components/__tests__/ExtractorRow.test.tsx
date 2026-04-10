@@ -9,7 +9,7 @@ import type { CustomExtractor } from "@/src/api/extension";
 const extractor: CustomExtractor = {
   id: "id-1",
   name: "Canonical",
-  key: "canonical",
+  tag: "canonical",
   selector: "link[rel='canonical']",
   attribute: "href",
   multiple: false,
@@ -35,10 +35,12 @@ function renderRow(overrides: Partial<Parameters<typeof ExtractorRow>[0]> = {}) 
 }
 
 describe("ExtractorRow", () => {
-  it("renders extractor name, key, and selector", () => {
+  it("renders extractor name, tag, and selector", () => {
     renderRow();
     expect(screen.getByText("Canonical")).toBeInTheDocument();
-    expect(screen.getByText("canonical")).toBeInTheDocument();
+    // The row now prefixes the tag with `tag:` so it reads the same
+    // way it's referenced in custom checks and templates.
+    expect(screen.getByText("tag:canonical")).toBeInTheDocument();
     expect(screen.getByText("link[rel='canonical']")).toBeInTheDocument();
     expect(screen.getByText("@href")).toBeInTheDocument();
   });

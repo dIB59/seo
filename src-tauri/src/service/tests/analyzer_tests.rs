@@ -27,20 +27,55 @@ impl MockPageRepo {
 
 #[async_trait]
 impl PageRepository for MockPageRepo {
-    async fn insert(&self, page: &Page) -> Result<String> {
+    async fn insert(&self, page: &Page) -> crate::repository::RepositoryResult<String> {
         let mut guard = self.inserted_pages.lock().unwrap();
         guard.push(page.clone());
         Ok(page.id.clone())
     }
-    async fn insert_batch(&self, _: &[Page]) -> Result<()> { Ok(()) }
-    async fn get_by_job_id(&self, _: &str) -> Result<Vec<Page>> { Ok(vec![]) }
-    async fn get_info_by_job_id(&self, _: &str) -> Result<Vec<PageInfo>> { Ok(vec![]) }
-    async fn get_by_id(&self, _: &str) -> Result<Page> { Err(anyhow::anyhow!("not impl")) }
-    async fn replace_headings(&self, _: &str, _: &[NewHeading]) -> Result<()> { Ok(()) }
-    async fn replace_images(&self, _: &str, _: &[NewImage]) -> Result<()> { Ok(()) }
-    async fn count_by_job_id(&self, _: &str) -> Result<i64> { Ok(0) }
-    async fn insert_lighthouse(&self, _: &LighthouseData) -> Result<()> { Ok(()) }
-    async fn get_lighthouse_by_job_id(&self, _: &str) -> Result<Vec<LighthouseData>> { Ok(vec![]) }
+    async fn insert_batch(&self, _: &[Page]) -> crate::repository::RepositoryResult<()> {
+        Ok(())
+    }
+    async fn get_by_job_id(&self, _: &str) -> crate::repository::RepositoryResult<Vec<Page>> {
+        Ok(vec![])
+    }
+    async fn get_info_by_job_id(
+        &self,
+        _: &str,
+    ) -> crate::repository::RepositoryResult<Vec<PageInfo>> {
+        Ok(vec![])
+    }
+    async fn get_by_id(&self, id: &str) -> crate::repository::RepositoryResult<Page> {
+        Err(crate::repository::RepositoryError::not_found("page", id))
+    }
+    async fn replace_headings(
+        &self,
+        _: &str,
+        _: &[NewHeading],
+    ) -> crate::repository::RepositoryResult<()> {
+        Ok(())
+    }
+    async fn replace_images(
+        &self,
+        _: &str,
+        _: &[NewImage],
+    ) -> crate::repository::RepositoryResult<()> {
+        Ok(())
+    }
+    async fn count_by_job_id(&self, _: &str) -> crate::repository::RepositoryResult<i64> {
+        Ok(0)
+    }
+    async fn insert_lighthouse(
+        &self,
+        _: &LighthouseData,
+    ) -> crate::repository::RepositoryResult<()> {
+        Ok(())
+    }
+    async fn get_lighthouse_by_job_id(
+        &self,
+        _: &str,
+    ) -> crate::repository::RepositoryResult<Vec<LighthouseData>> {
+        Ok(vec![])
+    }
 }
 
 struct MockIssueRepo {
@@ -55,16 +90,38 @@ impl MockIssueRepo {
 
 #[async_trait]
 impl IssueRepository for MockIssueRepo {
-    async fn insert_batch(&self, issues: &[NewIssue]) -> Result<()> {
+    async fn insert_batch(&self, issues: &[NewIssue]) -> crate::repository::RepositoryResult<()> {
         self.inserted_issues.lock().unwrap().extend_from_slice(issues);
         Ok(())
     }
-    async fn get_by_job_id(&self, _: &str) -> Result<Vec<Issue>> { Ok(vec![]) }
-    async fn get_by_page_id(&self, _: &str) -> Result<Vec<Issue>> { Ok(vec![]) }
-    async fn get_by_job_and_severity(&self, _: &str, _: IssueSeverity) -> Result<Vec<Issue>> { Ok(vec![]) }
-    async fn count_by_severity(&self, _: &str) -> Result<crate::repository::IssueCounts> { Ok(Default::default()) }
-    async fn count_by_job_id(&self, _: &str) -> Result<i64> { Ok(0) }
-    async fn get_grouped_by_type(&self, _: &str) -> Result<Vec<crate::repository::IssueGroup>> { Ok(vec![]) }
+    async fn get_by_job_id(&self, _: &str) -> crate::repository::RepositoryResult<Vec<Issue>> {
+        Ok(vec![])
+    }
+    async fn get_by_page_id(&self, _: &str) -> crate::repository::RepositoryResult<Vec<Issue>> {
+        Ok(vec![])
+    }
+    async fn get_by_job_and_severity(
+        &self,
+        _: &str,
+        _: IssueSeverity,
+    ) -> crate::repository::RepositoryResult<Vec<Issue>> {
+        Ok(vec![])
+    }
+    async fn count_by_severity(
+        &self,
+        _: &str,
+    ) -> crate::repository::RepositoryResult<crate::repository::IssueCounts> {
+        Ok(Default::default())
+    }
+    async fn count_by_job_id(&self, _: &str) -> crate::repository::RepositoryResult<i64> {
+        Ok(0)
+    }
+    async fn get_grouped_by_type(
+        &self,
+        _: &str,
+    ) -> crate::repository::RepositoryResult<Vec<crate::repository::IssueGroup>> {
+        Ok(vec![])
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -138,7 +195,7 @@ async fn analyze_page_insert_and_issue_generation() {
     let auditor: Arc<dyn Auditor + Send + Sync> = Arc::new(MockAuditor);
 
     let (result, new_urls) = analyzer
-        .analyze_page("https://example.com", "job-1", 0, &auditor)
+        .analyze_page("https://example.com", "job-1", crate::contexts::analysis::Depth::root(), &auditor)
         .await
         .expect("analysis should succeed");
 
@@ -162,13 +219,13 @@ async fn analyze_page_populates_extracted_data() {
     // Build a registry with two extractors
     let mut registry = ExtractorRegistry::new();
     registry.register(Box::new(SelectorExtractor::new(ExtractorConfig {
-        key: "og_title".into(),
+        tag: "og_title".into(),
         selector: "meta[property='og:title']".into(),
         attribute: Some("content".into()),
         multiple: false,
     })));
     registry.register(Box::new(SelectorExtractor::new(ExtractorConfig {
-        key: "hreflang".into(),
+        tag: "hreflang".into(),
         selector: "link[rel='alternate'][hreflang]".into(),
         attribute: Some("hreflang".into()),
         multiple: true,
@@ -183,7 +240,7 @@ async fn analyze_page_populates_extracted_data() {
     let auditor: Arc<dyn Auditor + Send + Sync> = Arc::new(MockAuditorWithExtractableContent);
 
     analyzer
-        .analyze_page("https://example.com", "job-extractor", 0, &auditor)
+        .analyze_page("https://example.com", "job-extractor", crate::contexts::analysis::Depth::root(), &auditor)
         .await
         .expect("analysis should succeed");
 

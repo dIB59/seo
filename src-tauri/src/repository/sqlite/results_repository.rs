@@ -1,17 +1,18 @@
-use anyhow::{Context, Result};
 use chrono::Utc;
 use sqlx::SqlitePool;
 
 use crate::contexts::{
     ai::AiInsight,
     analysis::{
-        CompleteJobResult, Heading, Image, Issue, Job, JobSettings, JobSummary,
+        CompleteJobResult, Heading, Image, Issue, Job,
         LighthouseData, Link, Page,
     },
 };
 
-use super::{map_job_status, map_link_type, map_severity};
-use crate::repository::ResultsRepository as ResultsRepositoryTrait;
+use super::{map_link_type, map_severity};
+use crate::repository::{
+    RepositoryError, RepositoryResult, ResultsRepository as ResultsRepositoryTrait,
+};
 use async_trait::async_trait;
 
 pub struct ResultsRepository {
@@ -26,7 +27,7 @@ impl ResultsRepository {
 
 #[async_trait]
 impl ResultsRepositoryTrait for ResultsRepository {
-    async fn get_complete_result(&self, job_id: &str) -> Result<CompleteJobResult> {
+    async fn get_complete_result(&self, job_id: &str) -> RepositoryResult<CompleteJobResult> {
         let query_start = std::time::Instant::now();
 
         // 1. Get job (includes settings and summary)
@@ -86,7 +87,7 @@ impl ResultsRepositoryTrait for ResultsRepository {
         })
     }
 
-    async fn get_job(&self, job_id: &str) -> Result<Job> {
+    async fn get_job(&self, job_id: &str) -> RepositoryResult<Job> {
         let row = sqlx::query!(
             r#"
             SELECT 
@@ -103,39 +104,15 @@ impl ResultsRepositoryTrait for ResultsRepository {
         )
         .fetch_one(&self.pool)
         .await
-        .context("Failed to fetch job")?;
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => RepositoryError::not_found("job", job_id),
+            other => RepositoryError::from(other),
+        })?;
 
-        Ok(Job {
-            id: row.id,
-            url: row.url,
-            status: map_job_status(row.status.as_str()),
-            created_at: parse_datetime(row.created_at.as_str()),
-            updated_at: parse_datetime(row.updated_at.as_str()),
-            completed_at: row.completed_at.as_deref().map(parse_datetime),
-            settings: JobSettings {
-                max_pages: row.max_pages,
-                include_subdomains: row.include_subdomains != 0,
-                check_images: true,
-                mobile_analysis: false,
-                lighthouse_analysis: row.lighthouse_analysis != 0,
-                delay_between_requests: row.rate_limit_ms,
-            },
-            summary: JobSummary {
-                total_pages: row.total_pages,
-                pages_crawled: row.pages_crawled,
-                total_issues: row.total_issues,
-                critical_issues: row.critical_issues,
-                warning_issues: row.warning_issues,
-                info_issues: row.info_issues,
-            },
-            progress: row.progress,
-            error_message: row.error_message,
-            sitemap_found: row.sitemap_found,
-            robots_txt_found: row.robots_txt_found,
-        })
+        Ok(super::job_from_row!(row))
     }
 
-    async fn get_pages(&self, job_id: &str) -> Result<Vec<Page>> {
+    async fn get_pages(&self, job_id: &str) -> RepositoryResult<Vec<Page>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -151,50 +128,29 @@ impl ResultsRepositoryTrait for ResultsRepository {
         )
         .fetch_all(&self.pool)
         .await
-        .context("Failed to fetch pages")?;
+        .map_err(RepositoryError::from)?;
 
         Ok(rows
             .into_iter()
             .map(|row| {
-                // Parse extracted_data JSON
-                let extracted_data: std::collections::HashMap<String, serde_json::Value> = 
-                    serde_json::from_str(&row.extracted_data).unwrap_or_default();
-                    
-                Page {
-                    id: row.id,
-                    job_id: row.job_id,
-                    url: row.url,
-                    depth: row.depth,
-                    status_code: row.status_code,
-                    content_type: row.content_type,
-                    title: row.title,
-                    meta_description: row.meta_description,
-                    canonical_url: row.canonical_url,
-                    robots_meta: row.robots_meta,
-                    word_count: row.word_count,
-                    load_time_ms: row.load_time_ms,
-                    response_size_bytes: row.response_size_bytes,
-                    has_viewport: row.has_viewport != 0,
-                    has_structured_data: row.has_structured_data != 0,
-                    crawled_at: parse_datetime(row.crawled_at.as_str()),
-                    extracted_data,
-                }
+                let extracted_data = super::decode_extracted_data(&row.extracted_data);
+                super::page_from_row!(row, extracted_data)
             })
             .collect())
     }
 
-    async fn get_issues(&self, job_id: &str) -> Result<Vec<Issue>> {
+    async fn get_issues(&self, job_id: &str) -> RepositoryResult<Vec<Issue>> {
         let rows = sqlx::query!(
             r#"
-            SELECT 
-                id, job_id, page_id, type as issue_type, severity, message, details, created_at
+            SELECT
+                id as "id!", job_id, page_id, type as issue_type, severity, message, details, created_at
             FROM issues
             WHERE job_id = ?
-            ORDER BY 
-                CASE severity 
-                    WHEN 'critical' THEN 1 
-                    WHEN 'warning' THEN 2 
-                    ELSE 3 
+            ORDER BY
+                CASE severity
+                    WHEN 'critical' THEN 1
+                    WHEN 'warning' THEN 2
+                    ELSE 3
                 END,
                 type ASC
             "#,
@@ -202,12 +158,12 @@ impl ResultsRepositoryTrait for ResultsRepository {
         )
         .fetch_all(&self.pool)
         .await
-        .context("Failed to fetch issues")?;
+        .map_err(RepositoryError::from)?;
 
         Ok(rows
             .into_iter()
             .map(|row| Issue {
-                id: row.id.expect("msg"),
+                id: row.id,
                 job_id: row.job_id,
                 page_id: row.page_id,
                 issue_type: row.issue_type,
@@ -219,7 +175,7 @@ impl ResultsRepositoryTrait for ResultsRepository {
             .collect())
     }
 
-    async fn get_links(&self, job_id: &str) -> Result<Vec<Link>> {
+    async fn get_links(&self, job_id: &str) -> RepositoryResult<Vec<Link>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -232,7 +188,7 @@ impl ResultsRepositoryTrait for ResultsRepository {
         )
         .fetch_all(&self.pool)
         .await
-        .context("Failed to fetch links")?;
+        .map_err(RepositoryError::from)?;
 
         Ok(rows
             .into_iter()
@@ -248,7 +204,7 @@ impl ResultsRepositoryTrait for ResultsRepository {
             .collect())
     }
 
-    async fn get_lighthouse(&self, job_id: &str) -> Result<Vec<LighthouseData>> {
+    async fn get_lighthouse(&self, job_id: &str) -> RepositoryResult<Vec<LighthouseData>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -265,32 +221,19 @@ impl ResultsRepositoryTrait for ResultsRepository {
         )
         .fetch_all(&self.pool)
         .await
-        .context("Failed to fetch lighthouse data")?;
+        .map_err(RepositoryError::from)?;
 
         Ok(rows
             .into_iter()
-            .map(|row| LighthouseData {
-                page_id: row.page_id,
-                performance_score: row.performance_score,
-                accessibility_score: row.accessibility_score,
-                best_practices_score: row.best_practices_score,
-                seo_score: row.seo_score,
-                first_contentful_paint_ms: row.first_contentful_paint_ms,
-                largest_contentful_paint_ms: row.largest_contentful_paint_ms,
-                total_blocking_time_ms: row.total_blocking_time_ms,
-                cumulative_layout_shift: row.cumulative_layout_shift,
-                speed_index: row.speed_index,
-                time_to_interactive_ms: row.time_to_interactive_ms,
-                raw_json: row.raw_json,
-            })
+            .map(|row| super::lighthouse_data_from_row!(row))
             .collect())
     }
 
-    async fn get_headings(&self, job_id: &str) -> Result<Vec<Heading>> {
+    async fn get_headings(&self, job_id: &str) -> RepositoryResult<Vec<Heading>> {
         let rows = sqlx::query!(
             r#"
-            SELECT 
-                ph.id, ph.page_id, ph.level, ph.text, ph.position
+            SELECT
+                ph.id as "id!", ph.page_id, ph.level, ph.text, ph.position
             FROM page_headings ph
             JOIN pages p ON p.id = ph.page_id
             WHERE p.job_id = ?
@@ -300,12 +243,12 @@ impl ResultsRepositoryTrait for ResultsRepository {
         )
         .fetch_all(&self.pool)
         .await
-        .context("Failed to fetch headings")?;
+        .map_err(RepositoryError::from)?;
 
         Ok(rows
             .into_iter()
             .map(|row| Heading {
-                id: row.id.expect("Must exist"),
+                id: row.id,
                 page_id: row.page_id,
                 level: row.level,
                 text: row.text,
@@ -314,11 +257,11 @@ impl ResultsRepositoryTrait for ResultsRepository {
             .collect())
     }
 
-    async fn get_images(&self, job_id: &str) -> Result<Vec<Image>> {
+    async fn get_images(&self, job_id: &str) -> RepositoryResult<Vec<Image>> {
         let rows = sqlx::query!(
             r#"
-            SELECT 
-                pi.id, pi.page_id, pi.src, pi.alt, pi.width, pi.height,
+            SELECT
+                pi.id as "id!", pi.page_id, pi.src, pi.alt, pi.width, pi.height,
                 pi.loading, pi.is_decorative
             FROM page_images pi
             JOIN pages p ON p.id = pi.page_id
@@ -329,12 +272,12 @@ impl ResultsRepositoryTrait for ResultsRepository {
         )
         .fetch_all(&self.pool)
         .await
-        .context("Failed to fetch images")?;
+        .map_err(RepositoryError::from)?;
 
         Ok(rows
             .into_iter()
             .map(|row| Image {
-                id: row.id.expect("Must exist"),
+                id: row.id,
                 page_id: row.page_id,
                 src: row.src,
                 alt: row.alt,
@@ -346,11 +289,11 @@ impl ResultsRepositoryTrait for ResultsRepository {
             .collect())
     }
 
-    async fn get_ai_insights(&self, job_id: &str) -> Result<AiInsight> {
+    async fn get_ai_insights(&self, job_id: &str) -> RepositoryResult<AiInsight> {
         let row = sqlx::query!(
             r#"
-            SELECT 
-                id, job_id, summary, recommendations, raw_response,
+            SELECT
+                id as "id!", job_id, summary, recommendations, raw_response,
                 model, created_at, updated_at
             FROM ai_insights
             WHERE job_id = ?
@@ -359,10 +302,13 @@ impl ResultsRepositoryTrait for ResultsRepository {
         )
         .fetch_one(&self.pool)
         .await
-        .context("Failed to fetch AI insights")?;
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => RepositoryError::not_found("ai_insights", job_id),
+            other => RepositoryError::from(other),
+        })?;
 
         Ok(AiInsight {
-            id: row.id.expect("Must Exist"),
+            id: row.id,
             job_id: row.job_id,
             summary: row.summary,
             recommendations: row.recommendations,
@@ -380,7 +326,7 @@ impl ResultsRepositoryTrait for ResultsRepository {
         recommendations: Option<&str>,
         raw_response: Option<&str>,
         model: Option<&str>,
-    ) -> Result<()> {
+    ) -> RepositoryResult<()> {
         let now = Utc::now().to_rfc3339();
 
         sqlx::query!(
@@ -404,14 +350,10 @@ impl ResultsRepositoryTrait for ResultsRepository {
         )
         .execute(&self.pool)
         .await
-        .context("Failed to save AI insights")?;
+        .map_err(RepositoryError::from)?;
 
         Ok(())
     }
 }
 
-fn parse_datetime(s: &str) -> chrono::DateTime<Utc> {
-    chrono::DateTime::parse_from_rfc3339(s)
-        .map(|dt| dt.with_timezone(&Utc))
-        .unwrap_or_else(|_| Utc::now())
-}
+use super::parse_datetime;

@@ -1,4 +1,5 @@
 pub mod builtin;
+pub mod custom;
 
 use crate::contexts::analysis::{IssueSeverity, NewIssue, Page};
 use crate::service::auditor::SeoAuditDetails;
@@ -112,7 +113,7 @@ mod tests {
             id: "p1".into(),
             job_id: "j1".into(),
             url: "https://example.com".into(),
-            depth: 0,
+            depth: crate::contexts::analysis::Depth::root(),
             status_code: Some(200),
             content_type: None,
             title: Some("A Good SEO Title That Is Long Enough".into()),
@@ -171,6 +172,6 @@ mod tests {
     #[test]
     fn with_defaults_loads_builtin_checks() {
         let registry = CheckerRegistry::with_defaults();
-        assert!(registry.len() > 0);
+        assert!(!registry.is_empty());
     }
 }

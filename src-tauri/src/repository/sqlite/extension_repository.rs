@@ -1,4 +1,3 @@
-use anyhow::{Context, Result};
 use async_trait::async_trait;
 use sqlx::SqlitePool;
 use std::str::FromStr;
@@ -7,7 +6,7 @@ use crate::contexts::analysis::IssueSeverity;
 use crate::contexts::extension::{
     CustomCheck, CustomCheckParams, CustomExtractor, CustomExtractorParams, Operator,
 };
-use crate::repository::ExtensionRepository;
+use crate::repository::{ExtensionRepository, RepositoryError, RepositoryResult};
 
 pub struct SqliteExtensionRepository {
     pool: SqlitePool,
@@ -19,11 +18,13 @@ impl SqliteExtensionRepository {
     }
 }
 
+use super::require_affected;
+
 fn check_from_params(id: String, p: &CustomCheckParams) -> CustomCheck {
     CustomCheck {
         id,
         name: p.name.clone(),
-        severity: p.severity.clone(),
+        severity: p.severity,
         field: p.field.clone(),
         operator: p.operator.clone(),
         threshold: p.threshold.clone(),
@@ -36,7 +37,7 @@ fn extractor_from_params(id: String, p: &CustomExtractorParams) -> CustomExtract
     CustomExtractor {
         id,
         name: p.name.clone(),
-        key: p.key.clone(),
+        tag: p.tag.clone(),
         selector: p.selector.clone(),
         attribute: p.attribute.clone(),
         multiple: p.multiple,
@@ -48,7 +49,7 @@ fn extractor_from_params(id: String, p: &CustomExtractorParams) -> CustomExtract
 impl ExtensionRepository for SqliteExtensionRepository {
     // --- CustomCheck CRUD ---
 
-    async fn create_check(&self, params: &CustomCheckParams) -> Result<CustomCheck> {
+    async fn create_check(&self, params: &CustomCheckParams) -> RepositoryResult<CustomCheck> {
         let id = uuid::Uuid::new_v4().to_string();
         let severity = params.severity.as_str();
         let operator = params.operator.to_string();
@@ -60,32 +61,30 @@ impl ExtensionRepository for SqliteExtensionRepository {
         )
         .bind(&id)
         .bind(&params.name)
-        .bind(&severity)
+        .bind(severity)
         .bind(&params.field)
         .bind(&operator)
         .bind(&params.threshold)
         .bind(&params.message_template)
         .bind(enabled)
         .execute(&self.pool)
-        .await
-        .context("Failed to insert custom_check")?;
+        .await?;
 
         Ok(check_from_params(id, params))
     }
 
-    async fn list_checks(&self) -> Result<Vec<CustomCheck>> {
+    async fn list_checks(&self) -> RepositoryResult<Vec<CustomCheck>> {
         let rows = sqlx::query_as::<_, CheckRow>(
             "SELECT id, name, severity, field, operator, threshold, message_template, enabled
              FROM custom_checks ORDER BY created_at ASC",
         )
         .fetch_all(&self.pool)
-        .await
-        .context("Failed to list custom_checks")?;
+        .await?;
 
         rows.into_iter().map(CheckRow::into_domain).collect()
     }
 
-    async fn get_check(&self, id: &str) -> Result<CustomCheck> {
+    async fn get_check(&self, id: &str) -> RepositoryResult<CustomCheck> {
         let row = sqlx::query_as::<_, CheckRow>(
             "SELECT id, name, severity, field, operator, threshold, message_template, enabled
              FROM custom_checks WHERE id = ?",
@@ -93,12 +92,19 @@ impl ExtensionRepository for SqliteExtensionRepository {
         .bind(id)
         .fetch_one(&self.pool)
         .await
-        .context("custom_check not found")?;
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => RepositoryError::not_found("custom_check", id),
+            other => RepositoryError::from(other),
+        })?;
 
         row.into_domain()
     }
 
-    async fn update_check(&self, id: &str, params: &CustomCheckParams) -> Result<CustomCheck> {
+    async fn update_check(
+        &self,
+        id: &str,
+        params: &CustomCheckParams,
+    ) -> RepositoryResult<CustomCheck> {
         let severity = params.severity.as_str();
         let operator = params.operator.to_string();
         let enabled = i64::from(params.enabled);
@@ -110,7 +116,7 @@ impl ExtensionRepository for SqliteExtensionRepository {
              WHERE id = ?",
         )
         .bind(&params.name)
-        .bind(&severity)
+        .bind(severity)
         .bind(&params.field)
         .bind(&operator)
         .bind(&params.threshold)
@@ -118,90 +124,84 @@ impl ExtensionRepository for SqliteExtensionRepository {
         .bind(enabled)
         .bind(id)
         .execute(&self.pool)
-        .await
-        .context("Failed to update custom_check")?
+        .await?
         .rows_affected();
 
-        if rows_affected == 0 {
-            return Err(anyhow::anyhow!("custom_check not found: {}", id));
-        }
-
+        require_affected(rows_affected, "custom_check", id)?;
         Ok(check_from_params(id.to_string(), params))
     }
 
-    async fn delete_check(&self, id: &str) -> Result<()> {
+    async fn delete_check(&self, id: &str) -> RepositoryResult<()> {
         let rows_affected = sqlx::query("DELETE FROM custom_checks WHERE id = ?")
             .bind(id)
             .execute(&self.pool)
-            .await
-            .context("Failed to delete custom_check")?
+            .await?
             .rows_affected();
 
-        if rows_affected == 0 {
-            return Err(anyhow::anyhow!("custom_check not found: {}", id));
-        }
-
-        Ok(())
+        require_affected(rows_affected, "custom_check", id)
     }
 
-    async fn list_enabled_checks(&self) -> Result<Vec<CustomCheck>> {
+    async fn list_enabled_checks(&self) -> RepositoryResult<Vec<CustomCheck>> {
         let rows = sqlx::query_as::<_, CheckRow>(
             "SELECT id, name, severity, field, operator, threshold, message_template, enabled
              FROM custom_checks WHERE enabled = 1 ORDER BY created_at ASC",
         )
         .fetch_all(&self.pool)
-        .await
-        .context("Failed to list enabled custom_checks")?;
+        .await?;
 
         rows.into_iter().map(CheckRow::into_domain).collect()
     }
 
     // --- CustomExtractor CRUD ---
 
-    async fn create_extractor(&self, params: &CustomExtractorParams) -> Result<CustomExtractor> {
+    async fn create_extractor(
+        &self,
+        params: &CustomExtractorParams,
+    ) -> RepositoryResult<CustomExtractor> {
         let id = uuid::Uuid::new_v4().to_string();
         let multiple = i64::from(params.multiple);
         let enabled = i64::from(params.enabled);
 
         sqlx::query(
-            "INSERT INTO custom_extractors (id, name, key, selector, attribute, multiple, enabled)
+            "INSERT INTO custom_extractors (id, name, tag, selector, attribute, multiple, enabled)
              VALUES (?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&id)
         .bind(&params.name)
-        .bind(&params.key)
+        .bind(&params.tag)
         .bind(&params.selector)
         .bind(&params.attribute)
         .bind(multiple)
         .bind(enabled)
         .execute(&self.pool)
-        .await
-        .context("Failed to insert custom_extractor")?;
+        .await?;
 
         Ok(extractor_from_params(id, params))
     }
 
-    async fn list_extractors(&self) -> Result<Vec<CustomExtractor>> {
+    async fn list_extractors(&self) -> RepositoryResult<Vec<CustomExtractor>> {
         let rows = sqlx::query_as::<_, ExtractorRow>(
-            "SELECT id, name, key, selector, attribute, multiple, enabled
+            "SELECT id, name, tag, selector, attribute, multiple, enabled
              FROM custom_extractors ORDER BY created_at ASC",
         )
         .fetch_all(&self.pool)
-        .await
-        .context("Failed to list custom_extractors")?;
+        .await?;
 
         Ok(rows.into_iter().map(ExtractorRow::into_domain).collect())
     }
 
-    async fn get_extractor(&self, id: &str) -> Result<CustomExtractor> {
+    async fn get_extractor(&self, id: &str) -> RepositoryResult<CustomExtractor> {
         let row = sqlx::query_as::<_, ExtractorRow>(
-            "SELECT id, name, key, selector, attribute, multiple, enabled
+            "SELECT id, name, tag, selector, attribute, multiple, enabled
              FROM custom_extractors WHERE id = ?",
         )
         .bind(id)
         .fetch_one(&self.pool)
         .await
-        .context("custom_extractor not found")?;
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => RepositoryError::not_found("custom_extractor", id),
+            other => RepositoryError::from(other),
+        })?;
 
         Ok(row.into_domain())
     }
@@ -210,58 +210,48 @@ impl ExtensionRepository for SqliteExtensionRepository {
         &self,
         id: &str,
         params: &CustomExtractorParams,
-    ) -> Result<CustomExtractor> {
+    ) -> RepositoryResult<CustomExtractor> {
         let multiple = i64::from(params.multiple);
         let enabled = i64::from(params.enabled);
 
         let rows_affected = sqlx::query(
             "UPDATE custom_extractors
-             SET name = ?, key = ?, selector = ?, attribute = ?, multiple = ?, enabled = ?,
+             SET name = ?, tag = ?, selector = ?, attribute = ?, multiple = ?, enabled = ?,
                  updated_at = datetime('now')
              WHERE id = ?",
         )
         .bind(&params.name)
-        .bind(&params.key)
+        .bind(&params.tag)
         .bind(&params.selector)
         .bind(&params.attribute)
         .bind(multiple)
         .bind(enabled)
         .bind(id)
         .execute(&self.pool)
-        .await
-        .context("Failed to update custom_extractor")?
+        .await?
         .rows_affected();
 
-        if rows_affected == 0 {
-            return Err(anyhow::anyhow!("custom_extractor not found: {}", id));
-        }
-
+        require_affected(rows_affected, "custom_extractor", id)?;
         Ok(extractor_from_params(id.to_string(), params))
     }
 
-    async fn delete_extractor(&self, id: &str) -> Result<()> {
+    async fn delete_extractor(&self, id: &str) -> RepositoryResult<()> {
         let rows_affected = sqlx::query("DELETE FROM custom_extractors WHERE id = ?")
             .bind(id)
             .execute(&self.pool)
-            .await
-            .context("Failed to delete custom_extractor")?
+            .await?
             .rows_affected();
 
-        if rows_affected == 0 {
-            return Err(anyhow::anyhow!("custom_extractor not found: {}", id));
-        }
-
-        Ok(())
+        require_affected(rows_affected, "custom_extractor", id)
     }
 
-    async fn list_enabled_extractors(&self) -> Result<Vec<CustomExtractor>> {
+    async fn list_enabled_extractors(&self) -> RepositoryResult<Vec<CustomExtractor>> {
         let rows = sqlx::query_as::<_, ExtractorRow>(
-            "SELECT id, name, key, selector, attribute, multiple, enabled
+            "SELECT id, name, tag, selector, attribute, multiple, enabled
              FROM custom_extractors WHERE enabled = 1 ORDER BY created_at ASC",
         )
         .fetch_all(&self.pool)
-        .await
-        .context("Failed to list enabled custom_extractors")?;
+        .await?;
 
         Ok(rows.into_iter().map(ExtractorRow::into_domain).collect())
     }
@@ -282,15 +272,20 @@ struct CheckRow {
 }
 
 impl CheckRow {
-    fn into_domain(self) -> Result<CustomCheck> {
+    fn into_domain(self) -> RepositoryResult<CustomCheck> {
         Ok(CustomCheck {
             id: self.id,
             name: self.name,
-            severity: IssueSeverity::from_str(&self.severity)
-                .map_err(|_| anyhow::anyhow!("Invalid severity in custom_check row: {}", self.severity))?,
+            severity: IssueSeverity::from_str(&self.severity).map_err(|e| {
+                // `e` carries the offending string via the typed
+                // ParseIssueSeverityError; surface it instead of
+                // re-formatting from `self.severity`.
+                RepositoryError::decode("custom_check", format!("invalid severity: {e}"))
+            })?,
             field: self.field,
-            operator: Operator::from_str(&self.operator)
-                .context("Invalid operator in custom_check row")?,
+            operator: Operator::from_str(&self.operator).map_err(|e| {
+                RepositoryError::decode("custom_check", format!("invalid operator: {e}"))
+            })?,
             threshold: self.threshold,
             message_template: self.message_template,
             enabled: self.enabled != 0,
@@ -302,7 +297,7 @@ impl CheckRow {
 struct ExtractorRow {
     id: String,
     name: String,
-    key: String,
+    tag: String,
     selector: String,
     attribute: Option<String>,
     multiple: i64,
@@ -314,7 +309,7 @@ impl ExtractorRow {
         CustomExtractor {
             id: self.id,
             name: self.name,
-            key: self.key,
+            tag: self.tag,
             selector: self.selector,
             attribute: self.attribute,
             multiple: self.multiple != 0,

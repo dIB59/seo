@@ -1,10 +1,10 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT \n                pi.id, pi.page_id, pi.src, pi.alt, pi.width, pi.height,\n                pi.loading, pi.is_decorative\n            FROM page_images pi\n            JOIN pages p ON p.id = pi.page_id\n            WHERE p.job_id = ?\n            ORDER BY pi.page_id, pi.id\n            ",
+  "query": "\n            SELECT\n                pi.id as \"id!\", pi.page_id, pi.src, pi.alt, pi.width, pi.height,\n                pi.loading, pi.is_decorative\n            FROM page_images pi\n            JOIN pages p ON p.id = pi.page_id\n            WHERE p.job_id = ?\n            ORDER BY pi.page_id, pi.id\n            ",
   "describe": {
     "columns": [
       {
-        "name": "id",
+        "name": "id!",
         "ordinal": 0,
         "type_info": "Int64"
       },
@@ -58,5 +58,5 @@
       false
     ]
   },
-  "hash": "207ccd5970304c614aec66c0d50bc5f482089c5c30a8a8dec0ad4a2e05769766"
+  "hash": "2f5c76b358e8af4d5c916a10c0fb8c7fa61ea10124d5b7aba5ba7f32d16d7627"
 }

@@ -25,6 +25,8 @@ import { ThemeSettings } from "./_components/ThemeSettings";
 import { CustomChecksSettings } from "./_components/CustomChecksSettings";
 import { ExtractorsSettings } from "./_components/ExtractorsSettings";
 import { ReportPatternsSettings } from "./_components/ReportPatternsSettings";
+import { TagsSettings } from "./_components/TagsSettings";
+import { ReportBuilder } from "./_components/ReportBuilder";
 
 function ContentSkeleton() {
   return (
@@ -46,7 +48,7 @@ function ContentSkeleton() {
 }
 
 export default function ConfigPage() {
-  const [activeSection, setActiveSection] = useState("general");
+  const [activeSection, setActiveSection] = useState("report-builder");
   const { settings: rawSettings, isLoading: isSwrLoading, mutate: rawMutate } = useAiSettings();
   // Narrow to just what ConfigContent needs
   const settings = rawSettings ? { persona: rawSettings.persona, blocks: rawSettings.blocks } : undefined;
@@ -61,7 +63,7 @@ export default function ConfigPage() {
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto bg-background/50">
-          <div className="max-w-3xl mx-auto p-8 space-y-8">
+          <div className="max-w-6xl mx-auto p-8 space-y-8">
             {isInitialLoad ? (
               <ContentSkeleton />
             ) : (
@@ -136,7 +138,7 @@ function ConfigContent({
     const handler = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.key !== "s") return;
       e.preventDefault();
-      if (activeSection === "persona") handleSavePersona();
+      if (activeSection === "report-builder") handleSavePersona();
       else if (activeSection === "prompt") handleSavePrompt();
     };
     window.addEventListener("keydown", handler);
@@ -155,12 +157,6 @@ function ConfigContent({
             Manage your system configuration and AI preferences.
           </p>
         </div>
-        {activeSection === "persona" && (
-          <Button onClick={handleSavePersona} disabled={isLoading}>
-            <Save className="h-4 w-4 mr-2" />
-            Save
-          </Button>
-        )}
         {activeSection === "prompt" && (
           <Button onClick={handleSavePrompt} disabled={isLoading}>
             <Save className="h-4 w-4 mr-2" />
@@ -173,16 +169,16 @@ function ConfigContent({
 
       {/* Content Sections */}
       <div className="space-y-6">
-        {activeSection === "ai" && <AiSettings />}
-        {activeSection === "persona" && (
-          <PersonaSettings persona={persona} setPersona={setPersona} />
+        {activeSection === "report-builder" && (
+          <ReportBuilder persona={persona} setPersona={setPersona} />
         )}
+        {activeSection === "ai" && <AiSettings />}
         {activeSection === "prompt" && <PromptBuilder blocks={blocks} setBlocks={setBlocks} />}
-        {activeSection === "licensing" && <LicensingSection />}
-        {activeSection === "appearance" && <ThemeSettings />}
         {activeSection === "custom-checks" && <CustomChecksSettings />}
         {activeSection === "custom-extractors" && <ExtractorsSettings />}
-        {activeSection === "report-patterns" && <ReportPatternsSettings />}
+        {activeSection === "tags" && <TagsSettings />}
+        {activeSection === "licensing" && <LicensingSection />}
+        {activeSection === "appearance" && <ThemeSettings />}
       </div>
     </>
   );

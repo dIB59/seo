@@ -56,7 +56,7 @@ mod tests {
     fn make_page(word_count: Option<i64>, load_time_ms: Option<i64>) -> Page {
         Page {
             id: "p1".into(), job_id: "j1".into(),
-            url: "https://example.com".into(), depth: 0,
+            url: "https://example.com".into(), depth: crate::contexts::analysis::Depth::root(),
             status_code: Some(200), content_type: None,
             title: None, meta_description: None, canonical_url: None,
             robots_meta: None, word_count, load_time_ms,

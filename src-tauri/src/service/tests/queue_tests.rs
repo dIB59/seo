@@ -1,10 +1,9 @@
 use async_trait::async_trait;
 use std::sync::Arc;
 
-use crate::contexts::{Job, JobInfo, JobSettings, JobStatus};
+use crate::contexts::{Job, JobId, JobInfo, JobSettings, JobStatus};
 use crate::repository::JobRepository;
 use crate::service::processor::JobQueue;
-use anyhow::Result;
 
 struct MockJobRepo {
     next: Option<Job>,
@@ -18,61 +17,83 @@ impl MockJobRepo {
 
 #[async_trait]
 impl JobRepository for MockJobRepo {
-    async fn create(&self, _url: &str, _settings: &JobSettings) -> Result<String> {
-        Err(anyhow::anyhow!("not implemented"))
+    async fn create(
+        &self,
+        _url: &str,
+        _settings: &JobSettings,
+    ) -> crate::repository::RepositoryResult<String> {
+        Err(crate::repository::RepositoryError::not_found("job", "mock"))
     }
 
-    async fn get_by_id(&self, _id: &str) -> Result<Job> {
-        Err(anyhow::anyhow!("not implemented"))
+    async fn get_by_id(&self, _id: &str) -> crate::repository::RepositoryResult<Job> {
+        Err(crate::repository::RepositoryError::not_found("job", "mock"))
     }
 
-    async fn get_all(&self) -> Result<Vec<JobInfo>> {
+    async fn get_all(&self) -> crate::repository::RepositoryResult<Vec<JobInfo>> {
         Ok(vec![])
     }
 
-    async fn get_paginated(&self, _limit: i64, _offset: i64) -> Result<Vec<JobInfo>> {
+    async fn get_paginated(
+        &self,
+        _limit: i64,
+        _offset: i64,
+    ) -> crate::repository::RepositoryResult<Vec<JobInfo>> {
         Ok(vec![])
     }
 
     async fn get_paginated_with_total(
         &self,
-        _limit: i64,
-        _offset: i64,
-        _url_filter: Option<String>,
-        _status_filter: Option<String>,
-    ) -> Result<(Vec<JobInfo>, i64)> {
+        _query: crate::contexts::analysis::JobPageQuery,
+    ) -> crate::repository::RepositoryResult<(Vec<JobInfo>, i64)> {
         Ok((vec![], 0))
     }
 
-    async fn get_pending(&self) -> Result<Vec<Job>> {
+    async fn get_pending(&self) -> crate::repository::RepositoryResult<Vec<Job>> {
         Ok(self.next.clone().into_iter().collect())
     }
 
-    async fn get_running_jobs_id(&self) -> Result<Vec<String>> {
+    async fn get_running_jobs_id(&self) -> crate::repository::RepositoryResult<Vec<String>> {
         Ok(vec![])
     }
 
-    async fn update_status(&self, _job_id: &str, _status: JobStatus) -> Result<()> {
+    async fn update_status(
+        &self,
+        _job_id: &str,
+        _status: JobStatus,
+    ) -> crate::repository::RepositoryResult<()> {
         Ok(())
     }
 
-    async fn update_progress(&self, _id: &str, _progress: f64) -> Result<()> {
+    async fn update_progress(
+        &self,
+        _id: &str,
+        _progress: f64,
+    ) -> crate::repository::RepositoryResult<()> {
         Ok(())
     }
 
-    async fn update_resources(&self, _id: &str, _sitemap: bool, _robots: bool) -> Result<()> {
+    async fn update_resources(
+        &self,
+        _id: &str,
+        _sitemap: bool,
+        _robots: bool,
+    ) -> crate::repository::RepositoryResult<()> {
         Ok(())
     }
 
-    async fn set_error(&self, _job_id: &str, _error: &str) -> Result<()> {
+    async fn set_error(
+        &self,
+        _job_id: &str,
+        _error: &str,
+    ) -> crate::repository::RepositoryResult<()> {
         Ok(())
     }
 
-    async fn count(&self) -> Result<i64> {
+    async fn count(&self) -> crate::repository::RepositoryResult<i64> {
         Ok(0)
     }
 
-    async fn delete(&self, _job_id: &str) -> Result<()> {
+    async fn delete(&self, _job_id: &str) -> crate::repository::RepositoryResult<()> {
         Ok(())
     }
 }
@@ -80,7 +101,7 @@ impl JobRepository for MockJobRepo {
 #[tokio::test]
 async fn fetch_next_job_returns_mocked_job() {
     let job = Job {
-        id: "job-123".to_string(),
+        id: JobId::from("job-123"),
         url: "https://example.com".to_string(),
         status: JobStatus::Pending,
         created_at: chrono::Utc::now(),
@@ -108,7 +129,7 @@ async fn fetch_next_job_returns_mocked_job() {
 #[tokio::test]
 async fn notify_new_job_dispatches_pending_jobs_to_channel() {
     let job = Job {
-        id: "job-456".to_string(),
+        id: JobId::from("job-456"),
         url: "https://test.example.com".to_string(),
         status: JobStatus::Pending,
         created_at: chrono::Utc::now(),
@@ -149,7 +170,7 @@ async fn notify_new_job_dispatches_pending_jobs_to_channel() {
 #[tokio::test]
 async fn dispatch_pending_jobs_sends_to_channel() {
     let job = Job {
-        id: "job-789".to_string(),
+        id: JobId::from("job-789"),
         url: "https://dispatch.example.com".to_string(),
         status: JobStatus::Pending,
         created_at: chrono::Utc::now(),
@@ -197,7 +218,7 @@ async fn dispatch_pending_jobs_sends_to_channel() {
 #[tokio::test]
 async fn regression_notify_new_job_dispatches_to_channel() {
     let job = Job {
-        id: "regression-job-002".to_string(),
+        id: JobId::from("regression-job-002"),
         url: "https://regression.example.com".to_string(),
         status: JobStatus::Pending,
         created_at: chrono::Utc::now(),

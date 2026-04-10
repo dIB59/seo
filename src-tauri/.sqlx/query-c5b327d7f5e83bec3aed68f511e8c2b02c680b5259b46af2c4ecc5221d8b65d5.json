@@ -1,10 +1,10 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT \n                id, job_id, page_id, type as issue_type, severity, message, details, created_at\n            FROM issues\n            WHERE job_id = ?\n            ORDER BY \n                CASE severity \n                    WHEN 'critical' THEN 1 \n                    WHEN 'warning' THEN 2 \n                    ELSE 3 \n                END,\n                type ASC\n            ",
+  "query": "\n            SELECT\n                id as \"id!\", job_id, page_id, type as issue_type, severity, message, details, created_at\n            FROM issues\n            WHERE job_id = ?\n            ORDER BY\n                CASE severity\n                    WHEN 'critical' THEN 1\n                    WHEN 'warning' THEN 2\n                    ELSE 3\n                END,\n                type ASC\n            ",
   "describe": {
     "columns": [
       {
-        "name": "id",
+        "name": "id!",
         "ordinal": 0,
         "type_info": "Int64"
       },
@@ -58,5 +58,5 @@
       false
     ]
   },
-  "hash": "a287c9765c50f390680f4fea692b15ec12600659cacc9998a923dd96cc37ac09"
+  "hash": "c5b327d7f5e83bec3aed68f511e8c2b02c680b5259b46af2c4ecc5221d8b65d5"
 }

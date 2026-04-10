@@ -4,8 +4,8 @@
 
 use app::{
     contexts::analysis::{
-        IssueSeverity, JobSettings, JobStatus, LinkType, NewIssue, NewLink, NewPageQueueItem,
-        Page, PageQueueStatus,
+        IssueSeverity, JobPageQuery, JobSettings, JobStatus, LinkType, NewIssue, NewLink,
+        NewPageQueueItem, Page, Pagination, PageQueueStatus,
     },
     repository::sqlite_job_repo,
 };
@@ -121,7 +121,7 @@ async fn test_get_all_jobs() {
     assert_eq!(jobs.len(), 3, "Should have 3 jobs");
     
     // Verify job IDs are correct (most recent first due to ORDER BY)
-    let job_ids: Vec<_> = jobs.iter().map(|j| j.id.clone()).collect();
+    let job_ids: Vec<String> = jobs.iter().map(|j| j.id().as_str().to_string()).collect();
     assert!(job_ids.contains(&job_id1));
     assert!(job_ids.contains(&job_id2));
     assert!(job_ids.contains(&job_id3));
@@ -313,8 +313,9 @@ async fn test_get_paginated_with_filters() {
         .expect("Failed to update status");
 
     // Filter by URL containing "example"
+    let q = JobPageQuery::new(Pagination::new(10, 0).unwrap()).with_url_filter("example");
     let (jobs, total) = repo
-        .get_paginated_with_total(10, 0, Some("example".to_string()), None)
+        .get_paginated_with_total(q)
         .await
         .expect("Failed to get paginated jobs with filter");
 
@@ -322,14 +323,15 @@ async fn test_get_paginated_with_filters() {
     assert_eq!(jobs.len(), 2);
 
     // Filter by status "completed"
+    let q = JobPageQuery::new(Pagination::new(10, 0).unwrap()).with_status("completed");
     let (jobs, total) = repo
-        .get_paginated_with_total(10, 0, None, Some("completed".to_string()))
+        .get_paginated_with_total(q)
         .await
         .expect("Failed to get paginated jobs with status filter");
 
     assert_eq!(total, 1, "Should have 1 completed job");
     assert_eq!(jobs.len(), 1);
-    assert_eq!(jobs[0].id, _job_id1);
+    assert_eq!(jobs[0].id().as_str(), _job_id1);
 }
 
 #[tokio::test]
@@ -348,14 +350,14 @@ async fn test_multiple_jobs_same_domain() {
     // Filter for example.com jobs
     let example_jobs: Vec<_> = jobs
         .iter()
-        .filter(|j| j.url.contains("example.com"))
+        .filter(|j| j.url().contains("example.com"))
         .collect();
 
     assert_eq!(example_jobs.len(), 3, "Should have 3 jobs for example.com");
 
     // Verify each job has correct settings
     for job in &example_jobs {
-        let full_job = repo.get_by_id(&job.id).await.expect("Failed to get job");
+        let full_job = repo.get_by_id(job.id()).await.expect("Failed to get job");
         assert!(full_job.url.contains("example.com"));
     }
 }
@@ -482,9 +484,11 @@ async fn test_page_queue_repository() {
     let job_id = create_job(&pool, "https://example.com/").await;
 
     // Test insert page queue items
-    let item1 = NewPageQueueItem::new(&job_id, "https://example.com/page1", 0);
-    let item2 = NewPageQueueItem::new(&job_id, "https://example.com/page2", 1);
-    let item3 = NewPageQueueItem::new(&job_id, "https://example.com/page3", 1);
+    let d0 = app::contexts::analysis::Depth::root();
+    let d1 = app::contexts::analysis::Depth::new(1).unwrap();
+    let item1 = NewPageQueueItem::new(&job_id, "https://example.com/page1", d0);
+    let item2 = NewPageQueueItem::new(&job_id, "https://example.com/page2", d1);
+    let item3 = NewPageQueueItem::new(&job_id, "https://example.com/page3", d1);
 
     repo.insert_batch(&[item1, item2, item3])
         .await
@@ -542,7 +546,11 @@ async fn test_page_queue_mark_failed() {
     let job_id = create_job(&pool, "https://example.com/").await;
 
     // Insert and claim a page
-    let item = NewPageQueueItem::new(&job_id, "https://example.com/page1", 0);
+    let item = NewPageQueueItem::new(
+        &job_id,
+        "https://example.com/page1",
+        app::contexts::analysis::Depth::root(),
+    );
     repo.insert(&item).await.expect("Failed to insert");
 
     let claimed = repo.claim_next_pending(&job_id).await.expect("Failed to claim");
@@ -640,7 +648,7 @@ async fn test_link_repository() {
         id: "page-1".to_string(),
         job_id: job_id.clone(),
         url: "https://example.com/".to_string(),
-        depth: 0,
+        depth: app::contexts::analysis::Depth::root(),
         status_code: Some(200),
         content_type: Some("text/html".to_string()),
         title: Some("Example".to_string()),

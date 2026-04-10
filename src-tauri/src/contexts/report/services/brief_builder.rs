@@ -29,6 +29,22 @@ STRICT RULES — read carefully before responding:
    inside your response.
 ";
 
+/// Format a numbered list of issue names for inclusion in a prompt's
+/// DATA block. Returns `"(none flagged)"` for the empty case so the
+/// prompt template never has to handle a missing list. Centralized so
+/// the phase-1 and phase-3 prompts agree on the line shape.
+fn format_top_issue_list(top_issue_names: &[String]) -> String {
+    if top_issue_names.is_empty() {
+        return "(none flagged)".to_string();
+    }
+    top_issue_names
+        .iter()
+        .enumerate()
+        .map(|(i, n)| format!("  {}. {}", i + 1, n))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// Phase 1 — Diagnosis: an evidence-based read on the site's current
 /// SEO health and what the issues mean for the business.
 #[allow(clippy::too_many_arguments)]
@@ -47,17 +63,8 @@ pub fn phase1_diagnosis_prompt(
 ) -> String {
     let sitemap = if sitemap { "present" } else { "missing" };
     let robots  = if robots  { "present" } else { "missing" };
-    let top_list = if top_issue_names.is_empty() {
-        "(none flagged)".to_string()
-    } else {
-        top_issue_names
-            .iter()
-            .enumerate()
-            .map(|(i, n)| format!("  {}. {}", i + 1, n))
-            .collect::<Vec<_>>()
-            .join("\n")
-    };
-    let (t, c, p, a) = (pillars.technical, pillars.content, pillars.performance, pillars.accessibility);
+    let top_list = format_top_issue_list(top_issue_names);
+    let (t, c, p, a) = (pillars.technical(), pillars.content(), pillars.performance(), pillars.accessibility());
     format!(
         "{system_prompt}\n\n\
         {GROUND_RULES}\n\
@@ -82,19 +89,35 @@ pub fn phase1_diagnosis_prompt(
 }
 
 /// Phase 2 — Issue narrative: called once per issue (max 3).
+/// Bundle of every value [`phase2_issue_prompt`] needs. Replaces the
+/// previous 9-arg positional signature so adding a new field is
+/// non-breaking and call sites are self-documenting.
+pub struct Phase2IssueArgs<'a> {
+    pub system_prompt: &'a str,
+    pub name: &'a str,
+    pub description: &'a str,
+    pub pct: u64,
+    pub affected_pages: usize,
+    pub total_pages: usize,
+    pub business_impact: &'a str,
+    pub fix_effort: &'a str,
+    pub recommendation: &'a str,
+}
+
 /// Explains what the issue actually means for visitors and search
 /// engines, and what the team should do first.
-pub fn phase2_issue_prompt(
-    system_prompt: &str,
-    name: &str,
-    description: &str,
-    pct: u64,
-    affected_pages: usize,
-    total_pages: usize,
-    business_impact: &str,
-    fix_effort: &str,
-    recommendation: &str,
-) -> String {
+pub fn phase2_issue_prompt(args: Phase2IssueArgs<'_>) -> String {
+    let Phase2IssueArgs {
+        system_prompt,
+        name,
+        description,
+        pct,
+        affected_pages,
+        total_pages,
+        business_impact,
+        fix_effort,
+        recommendation,
+    } = args;
     format!(
         "{system_prompt}\n\n\
         {GROUND_RULES}\n\
@@ -121,17 +144,8 @@ pub fn phase3_roadmap_prompt(
     weakest: &str,
     top_issue_names: &[String],
 ) -> String {
-    let (t, c, p, a) = (pillars.technical, pillars.content, pillars.performance, pillars.accessibility);
-    let top_list = if top_issue_names.is_empty() {
-        "(none flagged)".to_string()
-    } else {
-        top_issue_names
-            .iter()
-            .enumerate()
-            .map(|(i, n)| format!("  {}. {}", i + 1, n))
-            .collect::<Vec<_>>()
-            .join("\n")
-    };
+    let (t, c, p, a) = (pillars.technical(), pillars.content(), pillars.performance(), pillars.accessibility());
+    let top_list = format_top_issue_list(top_issue_names);
     format!(
         "{system_prompt}\n\n\
         {GROUND_RULES}\n\
@@ -164,9 +178,9 @@ pub fn build_static_brief(
     let mut out = String::new();
 
     out.push_str("## Diagnosis\n\n");
-    let critical = job.summary.critical_issues;
-    let warnings = job.summary.warning_issues;
-    let pages    = job.summary.total_pages;
+    let critical = job.summary.critical_issues();
+    let warnings = job.summary.warning_issues();
+    let pages    = job.summary.total_pages();
     out.push_str(&format!(
         "This audit covered {pages} page(s) and surfaced {critical} critical \
         issue(s) and {warnings} warning(s). Critical issues block search engines \
@@ -198,7 +212,7 @@ pub fn build_static_brief(
     out.push_str(&format!(
         "- Technical: {:.0}/100\n- Content: {:.0}/100\n\
         - Performance: {:.0}/100\n- Accessibility: {:.0}/100\n\n",
-        pillars.technical, pillars.content, pillars.performance, pillars.accessibility,
+        pillars.technical(), pillars.content(), pillars.performance(), pillars.accessibility(),
     ));
 
     let weakest = weakest_pillar(pillars);
@@ -233,14 +247,330 @@ pub fn score_grade(n: i64) -> &'static str {
 /// Returns the name of the pillar with the lowest score.
 pub fn weakest_pillar(p: &PillarScores) -> &'static str {
     let scores = [
-        ("Technical",     p.technical),
-        ("Content",       p.content),
-        ("Performance",   p.performance),
-        ("Accessibility", p.accessibility),
+        ("Technical",     p.technical()),
+        ("Content",       p.content()),
+        ("Performance",   p.performance()),
+        ("Accessibility", p.accessibility()),
     ];
     scores
         .iter()
-        .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+        .min_by(|a, b| a.1.total_cmp(&b.1))
         .map(|(name, _)| *name)
         .unwrap_or("Technical")
+}
+
+#[cfg(test)]
+mod tests {
+    //! Characterization tests for the report brief builder. Pinning the
+    //! grade thresholds, weakest-pillar selection, and the static
+    //! fallback brief structure that ships when no local model is
+    //! configured. Also smoke-tests the LLM prompt builders to catch
+    //! accidental template breakage.
+
+    use super::*;
+    use crate::contexts::analysis::{Job, JobId, JobSettings, JobStatus, JobSummary};
+    use crate::contexts::report::domain::{
+        BusinessImpact, DetectedPattern, FixEffort, PatternCategory, PatternSeverity, ReportPattern,
+    };
+    use crate::contexts::extension::Operator;
+    use chrono::Utc;
+
+    fn make_pillars(t: f64, c: f64, p: f64, a: f64) -> PillarScores {
+        // Use from_pillars so the test fixture exercises the same
+        // overall-derivation path as production code.
+        PillarScores::from_pillars(t, c, p, a)
+    }
+
+    fn make_pattern(severity: PatternSeverity, name: &str, recommendation: &str) -> ReportPattern {
+        ReportPattern {
+            id: "p".into(),
+            name: name.into(),
+            description: "d".into(),
+            category: PatternCategory::Content,
+            severity,
+            field: "title".into(),
+            operator: Operator::Missing,
+            threshold: None,
+            min_prevalence: 0.0,
+            business_impact: BusinessImpact::Medium,
+            fix_effort: FixEffort::Medium,
+            recommendation: recommendation.into(),
+            is_builtin: false,
+            enabled: true,
+        }
+    }
+
+    fn make_detected(severity: PatternSeverity, name: &str, prevalence: f64) -> DetectedPattern {
+        DetectedPattern {
+            pattern: make_pattern(severity, name, "fix this"),
+            prevalence,
+            affected_pages: 1,
+            total_pages: 1,
+            priority_score: 0.0,
+            sample_urls: vec![],
+        }
+    }
+
+    fn make_job(critical: i64, warnings: i64, pages: i64, sitemap_found: bool) -> Job {
+        Job {
+            id: JobId::from("j"),
+            url: "https://example.com".into(),
+            status: JobStatus::Completed,
+            settings: JobSettings::default(),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            completed_at: Some(Utc::now()),
+            summary: JobSummary::new(pages, pages, critical + warnings, critical, warnings, 0),
+            progress: 100.0,
+            error_message: None,
+            sitemap_found,
+            robots_txt_found: true,
+        }
+    }
+
+    // ── score_grade ──────────────────────────────────────────────────────
+
+    #[test]
+    fn score_grade_thresholds() {
+        // Pinning the exact bands.
+        assert_eq!(score_grade(100), "Excellent");
+        assert_eq!(score_grade(90), "Excellent");
+        assert_eq!(score_grade(89), "Good");
+        assert_eq!(score_grade(70), "Good");
+        assert_eq!(score_grade(69), "Needs Attention");
+        assert_eq!(score_grade(50), "Needs Attention");
+        assert_eq!(score_grade(49), "Poor");
+        assert_eq!(score_grade(30), "Poor");
+        assert_eq!(score_grade(29), "Critical");
+        assert_eq!(score_grade(0), "Critical");
+    }
+
+    #[test]
+    fn score_grade_handles_negative() {
+        // Out of normal range — pinning that it doesn't panic.
+        assert_eq!(score_grade(-50), "Critical");
+    }
+
+    // ── weakest_pillar ───────────────────────────────────────────────────
+
+    #[test]
+    fn weakest_pillar_picks_lowest_score() {
+        let p = make_pillars(80.0, 90.0, 60.0, 75.0);
+        assert_eq!(weakest_pillar(&p), "Performance");
+    }
+
+    #[test]
+    fn weakest_pillar_picks_first_on_tie() {
+        // All equal — order matters: Technical comes first in the
+        // declared array, so it wins ties.
+        let p = make_pillars(50.0, 50.0, 50.0, 50.0);
+        assert_eq!(weakest_pillar(&p), "Technical");
+    }
+
+    #[test]
+    fn weakest_pillar_handles_perfect_scores() {
+        let p = make_pillars(100.0, 100.0, 100.0, 100.0);
+        // Tie at the top — first in the declared order wins.
+        assert_eq!(weakest_pillar(&p), "Technical");
+    }
+
+    #[test]
+    fn weakest_pillar_handles_accessibility_lowest() {
+        let p = make_pillars(80.0, 80.0, 80.0, 30.0);
+        assert_eq!(weakest_pillar(&p), "Accessibility");
+    }
+
+    // ── build_static_brief ───────────────────────────────────────────────
+
+    #[test]
+    fn static_brief_includes_diagnosis_pillar_health_and_next_steps() {
+        let job = make_job(2, 5, 50, true);
+        let pillars = make_pillars(80.0, 70.0, 60.0, 90.0);
+        let brief = build_static_brief(&job, &[], &pillars);
+        assert!(brief.contains("## Diagnosis"));
+        assert!(brief.contains("## Pillar Health"));
+        assert!(brief.contains("## Next Steps"));
+        // Numbers come from the job summary.
+        assert!(brief.contains("50 page"));
+        assert!(brief.contains("2 critical"));
+        assert!(brief.contains("5 warning"));
+    }
+
+    #[test]
+    fn static_brief_lists_pillar_scores_with_zero_decimals() {
+        let job = make_job(0, 0, 10, true);
+        let pillars = make_pillars(85.5, 70.0, 60.0, 90.0);
+        let brief = build_static_brief(&job, &[], &pillars);
+        // Format: "- Technical: 86/100" — rounds to integer via {:.0}
+        assert!(brief.contains("Technical: 86/100"));
+        assert!(brief.contains("Content: 70/100"));
+        assert!(brief.contains("Performance: 60/100"));
+        assert!(brief.contains("Accessibility: 90/100"));
+    }
+
+    #[test]
+    fn static_brief_includes_priority_actions_for_critical_and_warning_only() {
+        let job = make_job(0, 0, 10, true);
+        let pillars = make_pillars(80.0, 80.0, 80.0, 80.0);
+        let detected = vec![
+            make_detected(PatternSeverity::Critical, "Crit One", 0.8),
+            make_detected(PatternSeverity::Warning, "Warn Two", 0.6),
+            make_detected(PatternSeverity::Suggestion, "Suggest Three", 0.5),
+        ];
+        let brief = build_static_brief(&job, &detected, &pillars);
+        assert!(brief.contains("## Priority Actions"));
+        assert!(brief.contains("Crit One"));
+        assert!(brief.contains("80% of pages"));
+        assert!(brief.contains("Warn Two"));
+        assert!(brief.contains("60% of pages"));
+        // Suggestions are filtered out.
+        assert!(!brief.contains("Suggest Three"));
+    }
+
+    #[test]
+    fn static_brief_caps_priority_actions_at_three() {
+        let job = make_job(0, 0, 10, true);
+        let pillars = make_pillars(80.0, 80.0, 80.0, 80.0);
+        let detected = vec![
+            make_detected(PatternSeverity::Critical, "C1", 0.9),
+            make_detected(PatternSeverity::Critical, "C2", 0.8),
+            make_detected(PatternSeverity::Critical, "C3", 0.7),
+            make_detected(PatternSeverity::Critical, "C4", 0.6),
+            make_detected(PatternSeverity::Critical, "C5", 0.5),
+        ];
+        let brief = build_static_brief(&job, &detected, &pillars);
+        assert!(brief.contains("C1"));
+        assert!(brief.contains("C2"));
+        assert!(brief.contains("C3"));
+        assert!(!brief.contains("C4"));
+        assert!(!brief.contains("C5"));
+    }
+
+    #[test]
+    fn static_brief_omits_priority_actions_section_when_no_detected() {
+        let job = make_job(0, 0, 10, true);
+        let pillars = make_pillars(80.0, 80.0, 80.0, 80.0);
+        let brief = build_static_brief(&job, &[], &pillars);
+        assert!(!brief.contains("## Priority Actions"));
+    }
+
+    #[test]
+    fn static_brief_appends_sitemap_action_when_missing() {
+        let job = make_job(0, 0, 10, false); // sitemap_found=false
+        let pillars = make_pillars(80.0, 80.0, 80.0, 80.0);
+        let brief = build_static_brief(&job, &[], &pillars);
+        assert!(brief.contains("Action required"));
+        assert!(brief.contains("sitemap"));
+    }
+
+    #[test]
+    fn static_brief_does_not_append_sitemap_action_when_present() {
+        let job = make_job(0, 0, 10, true); // sitemap_found=true
+        let pillars = make_pillars(80.0, 80.0, 80.0, 80.0);
+        let brief = build_static_brief(&job, &[], &pillars);
+        assert!(!brief.contains("Action required"));
+    }
+
+    #[test]
+    fn static_brief_next_steps_names_weakest_pillar() {
+        let job = make_job(0, 0, 10, true);
+        let pillars = make_pillars(90.0, 90.0, 30.0, 90.0); // Performance weakest
+        let brief = build_static_brief(&job, &[], &pillars);
+        assert!(brief.contains("**Performance**"));
+    }
+
+    // ── Phase prompt smoke tests ─────────────────────────────────────────
+
+    #[test]
+    fn phase1_diagnosis_prompt_embeds_data_block() {
+        let pillars = make_pillars(80.0, 70.0, 60.0, 90.0);
+        let prompt = phase1_diagnosis_prompt(
+            "PERSONA",
+            "https://example.com",
+            65,
+            "Needs Attention",
+            42,
+            3,
+            7,
+            true,
+            false,
+            &pillars,
+            &["missing meta".to_string(), "slow load".to_string()],
+        );
+        assert!(prompt.starts_with("PERSONA"));
+        assert!(prompt.contains("Site: https://example.com"));
+        assert!(prompt.contains("Overall SEO score: 65/100 (Needs Attention)"));
+        assert!(prompt.contains("Pages analysed: 42"));
+        assert!(prompt.contains("Critical issues: 3"));
+        assert!(prompt.contains("Warning issues: 7"));
+        assert!(prompt.contains("Sitemap: present"));
+        assert!(prompt.contains("Robots.txt: missing"));
+        assert!(prompt.contains("Technical 80"));
+        assert!(prompt.contains("missing meta"));
+        assert!(prompt.contains("slow load"));
+    }
+
+    #[test]
+    fn phase1_diagnosis_prompt_renders_none_flagged_when_top_issues_empty() {
+        let pillars = make_pillars(50.0, 50.0, 50.0, 50.0);
+        let prompt = phase1_diagnosis_prompt(
+            "P",
+            "https://x.test",
+            50,
+            "Needs Attention",
+            10,
+            0,
+            0,
+            true,
+            true,
+            &pillars,
+            &[],
+        );
+        assert!(prompt.contains("(none flagged)"));
+    }
+
+    #[test]
+    fn phase2_issue_prompt_embeds_all_args() {
+        let prompt = phase2_issue_prompt(Phase2IssueArgs {
+            system_prompt: "P",
+            name: "Missing Title",
+            description: "no <title> tag",
+            pct: 67,
+            affected_pages: 4,
+            total_pages: 6,
+            business_impact: "High",
+            fix_effort: "Low",
+            recommendation: "add <title> tags",
+        });
+        assert!(prompt.contains("Issue: Missing Title"));
+        assert!(prompt.contains("What it means: no <title> tag"));
+        assert!(prompt.contains("Affected pages: 4 of 6 (67%)"));
+        assert!(prompt.contains("Business impact rating: High"));
+        assert!(prompt.contains("Fix effort rating: Low"));
+        assert!(prompt.contains("Recommended fix: add <title> tags"));
+    }
+
+    #[test]
+    fn ground_rules_constant_is_present_in_phase_prompts() {
+        // Pin that the anti-hallucination rules ship inside the prompt.
+        let pillars = make_pillars(80.0, 80.0, 80.0, 80.0);
+        let p1 = phase1_diagnosis_prompt(
+            "P", "https://x.test", 80, "Good", 10, 0, 0, true, true, &pillars, &[],
+        );
+        assert!(p1.contains("STRICT RULES"));
+        assert!(p1.contains("NEVER invent or estimate"));
+
+        let p2 = phase2_issue_prompt(Phase2IssueArgs {
+            system_prompt: "P",
+            name: "X",
+            description: "Y",
+            pct: 50,
+            affected_pages: 1,
+            total_pages: 2,
+            business_impact: "Low",
+            fix_effort: "Low",
+            recommendation: "Z",
+        });
+        assert!(p2.contains("STRICT RULES"));
+    }
 }

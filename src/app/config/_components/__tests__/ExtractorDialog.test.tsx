@@ -12,7 +12,7 @@ import type { CustomExtractor } from "@/src/api/extension";
 const sampleExtractor: CustomExtractor = {
   id: "id-1",
   name: "OG Image",
-  key: "og_image",
+  tag: "og_image",
   selector: "meta[property='og:image']",
   attribute: "content",
   multiple: false,
@@ -38,7 +38,7 @@ describe("ExtractorDialog", () => {
     );
 
     await user.type(screen.getByLabelText(/^Name$/), "Title");
-    await user.type(screen.getByLabelText(/^Key/), "title");
+    await user.type(screen.getByLabelText(/^Tag/), "title");
     await user.type(screen.getByLabelText(/CSS Selector/), "title");
 
     await user.click(screen.getByRole("button", { name: /Create/ }));
@@ -47,7 +47,7 @@ describe("ExtractorDialog", () => {
     expect(onSave).toHaveBeenCalledTimes(1);
     expect(onSave.mock.calls[0][0]).toMatchObject({
       name: "Title",
-      key: "title",
+      tag: "title",
       selector: "title",
       enabled: true,
       multiple: false,
@@ -73,7 +73,7 @@ describe("ExtractorDialog", () => {
 
     expect(onSave).not.toHaveBeenCalled();
     expect(onValidationError).toHaveBeenCalledWith(
-      "Name, key, and selector are required",
+      "Name, tag, and selector are required",
     );
   });
 
@@ -90,7 +90,7 @@ describe("ExtractorDialog", () => {
     );
 
     expect(screen.getByLabelText(/^Name$/)).toHaveValue("OG Image");
-    expect(screen.getByLabelText(/^Key/)).toHaveValue("og_image");
+    expect(screen.getByLabelText(/^Tag/)).toHaveValue("og_image");
     expect(screen.getByLabelText(/CSS Selector/)).toHaveValue(
       "meta[property='og:image']",
     );

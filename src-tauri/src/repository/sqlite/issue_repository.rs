@@ -1,14 +1,32 @@
-use anyhow::{Context, Result};
 use chrono::Utc;
 use sqlx::SqlitePool;
 
 use super::map_severity;
 use crate::contexts::analysis::{Issue, IssueSeverity, NewIssue};
-use crate::repository::IssueRepository as IssueRepositoryTrait;
+use crate::repository::{IssueRepository as IssueRepositoryTrait, RepositoryResult};
 use async_trait::async_trait;
 
+/// Project a sqlx anonymous issue row through [`make_issue`]. Three call
+/// sites in this module (`get_by_job_id`, `get_by_page_id`,
+/// `get_by_job_and_severity`) all built the same 8-positional projection
+/// — same rationale as `job_from_row!` / `page_from_row!`.
+macro_rules! issue_from_row {
+    ($row:expr) => {{
+        let row = $row;
+        $crate::repository::sqlite::issue_repository::make_issue(
+            row.id,
+            row.job_id,
+            row.page_id,
+            row.issue_type,
+            row.severity.as_str(),
+            row.message,
+            row.details,
+            row.created_at.as_str(),
+        )
+    }};
+}
 #[allow(clippy::too_many_arguments)]
-fn make_issue(
+pub(super) fn make_issue(
     id: i64,
     job_id: String,
     page_id: Option<String>,
@@ -63,7 +81,7 @@ impl IssueRepository {
 
 #[async_trait]
 impl IssueRepositoryTrait for IssueRepository {
-    async fn insert_batch(&self, issues: &[NewIssue]) -> Result<()> {
+    async fn insert_batch(&self, issues: &[NewIssue]) -> RepositoryResult<()> {
         if issues.is_empty() {
             return Ok(());
         }
@@ -97,7 +115,7 @@ impl IssueRepositoryTrait for IssueRepository {
         Ok(())
     }
 
-    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<Issue>> {
+    async fn get_by_job_id(&self, job_id: &str) -> RepositoryResult<Vec<Issue>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -115,27 +133,15 @@ impl IssueRepositoryTrait for IssueRepository {
             job_id
         )
         .fetch_all(&self.pool)
-        .await
-        .context("Failed to fetch issues for job")?;
+        .await?;
 
         Ok(rows
             .into_iter()
-            .map(|row| {
-                make_issue(
-                    row.id,
-                    row.job_id,
-                    row.page_id,
-                    row.issue_type,
-                    row.severity.as_str(),
-                    row.message,
-                    row.details,
-                    row.created_at.as_str(),
-                )
-            })
+            .map(|row| issue_from_row!(row))
             .collect())
     }
 
-    async fn get_by_page_id(&self, page_id: &str) -> Result<Vec<Issue>> {
+    async fn get_by_page_id(&self, page_id: &str) -> RepositoryResult<Vec<Issue>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -152,23 +158,11 @@ impl IssueRepositoryTrait for IssueRepository {
             page_id
         )
         .fetch_all(&self.pool)
-        .await
-        .context("Failed to fetch issues for page")?;
+        .await?;
 
         Ok(rows
             .into_iter()
-            .map(|row| {
-                make_issue(
-                    row.id,
-                    row.job_id,
-                    row.page_id,
-                    row.issue_type,
-                    row.severity.as_str(),
-                    row.message,
-                    row.details,
-                    row.created_at.as_str(),
-                )
-            })
+            .map(|row| issue_from_row!(row))
             .collect())
     }
 
@@ -176,7 +170,7 @@ impl IssueRepositoryTrait for IssueRepository {
         &self,
         job_id: &str,
         severity: IssueSeverity,
-    ) -> Result<Vec<Issue>> {
+    ) -> RepositoryResult<Vec<Issue>> {
         let severity_str = severity.as_str();
         let rows = sqlx::query!(
             r#"
@@ -190,27 +184,15 @@ impl IssueRepositoryTrait for IssueRepository {
             severity_str
         )
         .fetch_all(&self.pool)
-        .await
-        .context("Failed to fetch issues by severity")?;
+        .await?;
 
         Ok(rows
             .into_iter()
-            .map(|row| {
-                make_issue(
-                    row.id,
-                    row.job_id,
-                    row.page_id,
-                    row.issue_type,
-                    row.severity.as_str(),
-                    row.message,
-                    row.details,
-                    row.created_at.as_str(),
-                )
-            })
+            .map(|row| issue_from_row!(row))
             .collect())
     }
 
-    async fn count_by_severity(&self, job_id: &str) -> Result<IssueCounts> {
+    async fn count_by_severity(&self, job_id: &str) -> RepositoryResult<IssueCounts> {
         let row = sqlx::query!(
             r#"
             SELECT 
@@ -223,8 +205,7 @@ impl IssueRepositoryTrait for IssueRepository {
             job_id
         )
         .fetch_one(&self.pool)
-        .await
-        .context("Failed to count issues")?;
+        .await?;
 
         Ok(IssueCounts {
             critical: row.critical.unwrap_or(0) as i64,
@@ -233,19 +214,18 @@ impl IssueRepositoryTrait for IssueRepository {
         })
     }
 
-    async fn count_by_job_id(&self, job_id: &str) -> Result<i64> {
+    async fn count_by_job_id(&self, job_id: &str) -> RepositoryResult<i64> {
         let row = sqlx::query!(
             "SELECT COUNT(*) as count FROM issues WHERE job_id = ?",
             job_id
         )
         .fetch_one(&self.pool)
-        .await
-        .context("Failed to count issues")?;
+        .await?;
 
         Ok(row.count as i64)
     }
 
-    async fn get_grouped_by_type(&self, job_id: &str) -> Result<Vec<IssueGroup>> {
+    async fn get_grouped_by_type(&self, job_id: &str) -> RepositoryResult<Vec<IssueGroup>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -267,8 +247,7 @@ impl IssueRepositoryTrait for IssueRepository {
             job_id
         )
         .fetch_all(&self.pool)
-        .await
-        .context("Failed to get grouped issues")?;
+        .await?;
 
         Ok(rows
             .into_iter()
@@ -285,9 +264,5 @@ impl IssueRepositoryTrait for IssueRepository {
     }
 }
 
-fn parse_datetime(s: &str) -> chrono::DateTime<Utc> {
-    chrono::DateTime::parse_from_rfc3339(s)
-        .map(|dt| dt.with_timezone(&Utc))
-        .unwrap_or_else(|_| Utc::now())
-}
+use super::parse_datetime;
 

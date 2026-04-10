@@ -175,4 +175,100 @@ mod tests {
         assert!(premium_policy.check(PermissionRequest::AnalyzePages(100000)));
         assert!(!premium_policy.check(PermissionRequest::AnalyzePages(100001)));
     }
+
+    #[test]
+    fn analyze_pages_zero_is_allowed() {
+        // Edge case: 0 ≤ max_pages on every tier — pinning that
+        // requesting "0 pages" is a no-op, not an error.
+        let free = Policy::new(LicenseTier::Free);
+        assert!(free.check(PermissionRequest::AnalyzePages(0)));
+        let premium = Policy::new(LicenseTier::Premium);
+        assert!(premium.check(PermissionRequest::AnalyzePages(0)));
+    }
+
+    #[test]
+    fn license_tier_default_is_free() {
+        // The Default impl drives the cold-start state of the licensing
+        // system. Pinning that an uninitialised app is on Free, not
+        // Premium.
+        assert_eq!(LicenseTier::default(), LicenseTier::Free);
+    }
+
+    #[test]
+    fn tier_policy_check_delegates_to_get_policy() {
+        // The trait method should produce the same answer as the
+        // policy. Pinning the trait↔value-object equivalence.
+        let free = LicenseTier::Free;
+        let premium = LicenseTier::Premium;
+        assert_eq!(
+            free.check(PermissionRequest::AnalyzePages(1)),
+            free.get_policy().check(PermissionRequest::AnalyzePages(1))
+        );
+        assert_eq!(
+            premium.check(PermissionRequest::UseFeature(Feature::LinkAnalysis)),
+            premium
+                .get_policy()
+                .check(PermissionRequest::UseFeature(Feature::LinkAnalysis))
+        );
+    }
+
+    #[test]
+    fn from_status_active_premium_returns_premium_policy_with_updates_not_expired() {
+        use crate::contexts::licensing::domain::license::LicenseStatus;
+        let policy = Policy::from_status(LicenseStatus::Active(LicenseTier::Premium));
+        assert_eq!(policy.tier, LicenseTier::Premium);
+        assert_eq!(policy.max_pages, 100_000);
+        assert!(!policy.updates_expired);
+    }
+
+    #[test]
+    fn from_status_active_free_returns_free_policy_with_updates_not_expired() {
+        use crate::contexts::licensing::domain::license::LicenseStatus;
+        let policy = Policy::from_status(LicenseStatus::Active(LicenseTier::Free));
+        assert_eq!(policy.tier, LicenseTier::Free);
+        assert_eq!(policy.max_pages, 1);
+        assert!(!policy.updates_expired);
+    }
+
+    #[test]
+    fn from_status_updates_expired_premium_keeps_premium_policy_but_flags_renewal() {
+        // Critical pinning: an updates-expired license keeps the user
+        // on their paid tier (max_pages, features) but flags the
+        // updates_expired bit so the UI surfaces a renewal banner.
+        // The tests on service::licensing depend on this contract.
+        use crate::contexts::licensing::domain::license::LicenseStatus;
+        let policy = Policy::from_status(LicenseStatus::UpdatesExpired(LicenseTier::Premium));
+        assert_eq!(policy.tier, LicenseTier::Premium);
+        assert_eq!(policy.max_pages, 100_000);
+        assert!(policy.enabled_features.contains(&Feature::LinkAnalysis));
+        assert!(policy.updates_expired, "renewal flag must be set");
+    }
+
+    #[test]
+    fn from_status_updates_expired_free_still_free() {
+        // Updates-expired Free → still Free (no upgrade by accident)
+        use crate::contexts::licensing::domain::license::LicenseStatus;
+        let policy = Policy::from_status(LicenseStatus::UpdatesExpired(LicenseTier::Free));
+        assert_eq!(policy.tier, LicenseTier::Free);
+        assert!(policy.updates_expired);
+    }
+
+    #[test]
+    fn permission_request_is_hashable_for_use_in_sets() {
+        // PermissionRequest derives Hash + Eq — pin the trait derives
+        // by actually using them.
+        let mut set = HashSet::new();
+        set.insert(PermissionRequest::AnalyzePages(10));
+        set.insert(PermissionRequest::AnalyzePages(10));
+        set.insert(PermissionRequest::UseFeature(Feature::LinkAnalysis));
+        assert_eq!(set.len(), 2);
+    }
+
+    #[test]
+    fn feature_serde_round_trip() {
+        // Wire format pinning for the frontend bindings.
+        let json = serde_json::to_string(&Feature::LinkAnalysis).unwrap();
+        let parsed: Feature = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, Feature::LinkAnalysis);
+    }
 }

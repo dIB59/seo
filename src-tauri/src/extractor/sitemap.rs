@@ -67,7 +67,13 @@ pub async fn extract_sitemap_urls(
     start_url: Url,
     spider: Arc<dyn SpiderAgent>,
 ) -> Result<Vec<String>, Error> {
-    let site_map = start_url.join(SITE_MAP_PATH).expect("Unable join URL");
+    // `sitemap.xml` is a constant relative path, so the join is in
+    // practice infallible — but propagating instead of panicking is
+    // cheap and means a malformed `start_url` surfaces as a typed error
+    // rather than killing the discovery worker.
+    let site_map = start_url
+        .join(SITE_MAP_PATH)
+        .with_context(|| format!("invalid sitemap URL from base {start_url}"))?;
     let response = spider
         .get(site_map.as_str())
         .await
@@ -147,5 +153,95 @@ https://www.google.com/intl/am/gmail/about/policy/"#;
         println!("{}", urls.first().expect("MISSING"));
         assert_eq!(urls.len(), 1);
         assert!(urls.contains(&"https://test.com".to_string()));
+    }
+
+    #[test]
+    fn extract_urlset_format_with_xmlns() {
+        // Real-world urlset sitemap with the standard sitemap.org
+        // namespace declaration. Pinning that the namespace doesn't
+        // throw the parser off.
+        let text = r#"<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+        <loc>https://example.com/page1</loc>
+        <lastmod>2024-01-01</lastmod>
+        <changefreq>weekly</changefreq>
+    </url>
+    <url>
+        <loc>https://example.com/page2</loc>
+    </url>
+</urlset>"#;
+        let urls = extract_url_from_sitemap(text).unwrap();
+        assert_eq!(urls.len(), 2);
+        assert!(urls.contains(&"https://example.com/page1".to_string()));
+        assert!(urls.contains(&"https://example.com/page2".to_string()));
+    }
+
+    #[test]
+    fn extract_xml_ignores_non_loc_text_content() {
+        // The parser should only emit text that's inside a <loc> tag,
+        // not text floating between tags.
+        let text = r#"<urlset>
+            <url>
+                <loc>https://example.com/keep-me</loc>
+                <lastmod>this is not a url</lastmod>
+                <priority>0.8</priority>
+            </url>
+        </urlset>"#;
+        let urls = extract_url_from_sitemap(text).unwrap();
+        assert_eq!(urls.len(), 1);
+        assert_eq!(urls[0], "https://example.com/keep-me");
+    }
+
+    #[test]
+    fn extract_xml_format_handles_multiple_locs() {
+        // Many entries — pin that the in_loc_tag flag resets correctly
+        // between urls so each <loc> is captured exactly once.
+        let text = r#"<urlset>
+            <url><loc>https://a.test</loc></url>
+            <url><loc>https://b.test</loc></url>
+            <url><loc>https://c.test</loc></url>
+            <url><loc>https://d.test</loc></url>
+        </urlset>"#;
+        let urls = extract_url_from_sitemap(text).unwrap();
+        assert_eq!(urls.len(), 4);
+    }
+
+    #[test]
+    fn extract_plain_text_skips_invalid_urls() {
+        // The plain-text branch uses Url::parse to filter out
+        // non-URL tokens. Pin that contract.
+        let text = "https://valid.com not-a-url 123 https://other.com";
+        let urls = extract_url_from_sitemap(text).unwrap();
+        assert_eq!(urls.len(), 2);
+        assert!(urls.contains(&"https://valid.com/".to_string()));
+        assert!(urls.contains(&"https://other.com/".to_string()));
+    }
+
+    #[test]
+    fn extract_plain_text_handles_various_whitespace() {
+        // Newlines, tabs, multiple spaces — split_whitespace handles
+        // them all. Pin so a future tokenizer change is deliberate.
+        let text = "https://a.com\nhttps://b.com\thttps://c.com   https://d.com";
+        let urls = extract_url_from_sitemap(text).unwrap();
+        assert_eq!(urls.len(), 4);
+    }
+
+    #[test]
+    fn detect_format_chooses_xml_when_loc_tag_present() {
+        // Pin the heuristic — even one <loc> tag is enough to switch
+        // to XML mode. The plain-text branch would otherwise try to
+        // parse <loc> as a URL token and fail.
+        let text = "junk <loc>https://x.test</loc> junk";
+        assert!(matches!(SitemapFormat::detect(text), SitemapFormat::Xml));
+    }
+
+    #[test]
+    fn detect_format_falls_back_to_plain_text_for_url_only_content() {
+        let text = "https://example.com/sitemap.xml";
+        assert!(matches!(
+            SitemapFormat::detect(text),
+            SitemapFormat::PlainText
+        ));
     }
 }

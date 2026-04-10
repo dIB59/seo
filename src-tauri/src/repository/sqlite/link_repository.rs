@@ -1,13 +1,30 @@
-use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 
 use super::map_link_type;
 use crate::contexts::analysis::{Link, NewLink};
-use crate::repository::LinkRepository as LinkRepositoryTrait;
+use crate::repository::{LinkRepository as LinkRepositoryTrait, RepositoryResult};
 use async_trait::async_trait;
 
+/// Project a sqlx anonymous link row through [`make_link`]. Three call
+/// sites in this module (`get_by_job_id`, `get_outgoing`, `get_incoming`)
+/// all build the same 7-positional projection — same rationale as
+/// `issue_from_row!`.
+macro_rules! link_from_row {
+    ($row:expr) => {{
+        let row = $row;
+        $crate::repository::sqlite::link_repository::make_link(
+            row.id,
+            row.job_id,
+            row.source_page_id,
+            row.target_url,
+            row.link_text,
+            row.link_type.as_str(),
+            row.status_code,
+        )
+    }};
+}
 #[allow(clippy::too_many_arguments)]
-fn make_link(
+pub(super) fn make_link(
     id: i64,
     job_id: String,
     source_page_id: String,
@@ -58,7 +75,7 @@ impl LinkRepository {
 
 #[async_trait]
 impl LinkRepositoryTrait for LinkRepository {
-    async fn insert_batch(&self, links: &[NewLink]) -> Result<()> {
+    async fn insert_batch(&self, links: &[NewLink]) -> RepositoryResult<()> {
         if links.is_empty() {
             return Ok(());
         }
@@ -92,7 +109,7 @@ impl LinkRepositoryTrait for LinkRepository {
         Ok(())
     }
 
-    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<Link>> {
+    async fn get_by_job_id(&self, job_id: &str) -> RepositoryResult<Vec<Link>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -104,26 +121,15 @@ impl LinkRepositoryTrait for LinkRepository {
             job_id
         )
         .fetch_all(&self.pool)
-        .await
-        .context("Failed to fetch links for job")?;
+        .await?;
 
         Ok(rows
             .into_iter()
-            .map(|row| {
-                make_link(
-                    row.id,
-                    row.job_id,
-                    row.source_page_id,
-                    row.target_url,
-                    row.link_text,
-                    row.link_type.as_str(),
-                    row.status_code,
-                )
-            })
+            .map(|row| link_from_row!(row))
             .collect())
     }
 
-    async fn get_outgoing(&self, source_page_id: &str) -> Result<Vec<Link>> {
+    async fn get_outgoing(&self, source_page_id: &str) -> RepositoryResult<Vec<Link>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -135,26 +141,15 @@ impl LinkRepositoryTrait for LinkRepository {
             source_page_id
         )
         .fetch_all(&self.pool)
-        .await
-        .context("Failed to fetch outgoing links")?;
+        .await?;
 
         Ok(rows
             .into_iter()
-            .map(|row| {
-                make_link(
-                    row.id,
-                    row.job_id,
-                    row.source_page_id,
-                    row.target_url,
-                    row.link_text,
-                    row.link_type.as_str(),
-                    row.status_code,
-                )
-            })
+            .map(|row| link_from_row!(row))
             .collect())
     }
 
-    async fn get_incoming(&self, target_page_id: &str) -> Result<Vec<Link>> {
+    async fn get_incoming(&self, target_page_id: &str) -> RepositoryResult<Vec<Link>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -166,26 +161,15 @@ impl LinkRepositoryTrait for LinkRepository {
             target_page_id
         )
         .fetch_all(&self.pool)
-        .await
-        .context("Failed to fetch incoming links")?;
+        .await?;
 
         Ok(rows
             .into_iter()
-            .map(|row| {
-                make_link(
-                    row.id,
-                    row.job_id,
-                    row.source_page_id,
-                    row.target_url,
-                    row.link_text,
-                    row.link_type.as_str(),
-                    row.status_code,
-                )
-            })
+            .map(|row| link_from_row!(row))
             .collect())
     }
 
-    async fn get_broken(&self, job_id: &str) -> Result<Vec<Link>> {
+    async fn get_broken(&self, job_id: &str) -> RepositoryResult<Vec<Link>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -197,26 +181,15 @@ impl LinkRepositoryTrait for LinkRepository {
             job_id
         )
         .fetch_all(&self.pool)
-        .await
-        .context("Failed to fetch broken links")?;
+        .await?;
 
         Ok(rows
             .into_iter()
-            .map(|row| {
-                make_link(
-                    row.id,
-                    row.job_id,
-                    row.source_page_id,
-                    row.target_url,
-                    row.link_text,
-                    row.link_type.as_str(),
-                    row.status_code,
-                )
-            })
+            .map(|row| link_from_row!(row))
             .collect())
     }
 
-    async fn count_by_type(&self, job_id: &str) -> Result<LinkCounts> {
+    async fn count_by_type(&self, job_id: &str) -> RepositoryResult<LinkCounts> {
         let row = sqlx::query!(
             r#"
             SELECT 
@@ -229,8 +202,7 @@ impl LinkRepositoryTrait for LinkRepository {
             job_id
         )
         .fetch_one(&self.pool)
-        .await
-        .context("Failed to count links")?;
+        .await?;
 
         Ok(LinkCounts {
             internal: row.internal.unwrap_or(0) as i64,
@@ -239,7 +211,7 @@ impl LinkRepositoryTrait for LinkRepository {
         })
     }
 
-    async fn get_external_domains(&self, job_id: &str) -> Result<Vec<ExternalDomain>> {
+    async fn get_external_domains(&self, job_id: &str) -> RepositoryResult<Vec<ExternalDomain>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -254,8 +226,7 @@ impl LinkRepositoryTrait for LinkRepository {
             job_id
         )
         .fetch_all(&self.pool)
-        .await
-        .context("Failed to get external domains")?;
+        .await?;
 
         Ok(rows
             .into_iter()
@@ -266,7 +237,7 @@ impl LinkRepositoryTrait for LinkRepository {
             .collect())
     }
 
-    async fn update_status_codes(&self, updates: &[(i64, i64)]) -> Result<()> {
+    async fn update_status_codes(&self, updates: &[(i64, i64)]) -> RepositoryResult<()> {
         if updates.is_empty() {
             return Ok(());
         }

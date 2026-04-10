@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import useSWR from "swr";
+import { listTags } from "@/src/api/extension";
 import { Check, X } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
@@ -71,6 +73,7 @@ export function CustomCheckDialog({
   onValidationError,
 }: CustomCheckDialogProps) {
   const [form, setForm] = useState<CustomCheckParams>(EMPTY_PARAMS);
+  const { data: tags = [] } = useSWR("tags-checkField", () => listTags("checkField"));
 
   useEffect(() => {
     if (!open) return;
@@ -126,16 +129,25 @@ export function CustomCheckDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label htmlFor="chk-field">Field</Label>
-              <Input
-                id="chk-field"
-                placeholder="og_image"
+              <Label>Field</Label>
+              <Select
                 value={form.field}
-                onChange={(e) => setForm((f) => ({ ...f, field: e.target.value }))}
-              />
-              <p className="text-xs text-muted-foreground">
-                Key from extracted_data or built-in page field
-              </p>
+                onValueChange={(v) => setForm((f) => ({ ...f, field: v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a field…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tags.map((t) => (
+                    <SelectItem key={t.name} value={t.name}>
+                      <span className="flex items-center gap-2">
+                        <code className="text-xs">{t.name}</code>
+                        <span className="text-xs text-muted-foreground">{t.label}</span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label>Operator</Label>

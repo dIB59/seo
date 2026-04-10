@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use crate::repository::RepositoryResult;
 use async_trait::async_trait;
 use sqlx::SqlitePool;
 
@@ -12,20 +12,30 @@ impl SettingsRepository {
         Self { pool }
     }
 
-    fn canonical_key(key: &str) -> &str {
-        match key {
-            "google_api_key" | "gemini_api_key" => "google_api_key",
-            "gemini_enabled" => "gemini_enabled",
-            "gemini_persona" => "gemini_persona",
-            "gemini_requirements" => "gemini_requirements",
-            "gemini_context_options" => "gemini_context_options",
-            "gemini_prompt_blocks" => "gemini_prompt_blocks",
-            other => other,
-        }
+    /// Upsert a `(key, value)` row into the `app_kv_settings` KV store.
+    /// Centralized so the "no column for this key" path and the
+    /// "structured INSERT failed because the column doesn't exist yet"
+    /// fallback path share one INSERT body — previously the same upsert
+    /// was hand-written in two places and could drift on the
+    /// `updated_at = datetime('now')` clause.
+    async fn upsert_kv(&self, key: &str, value: &str) -> RepositoryResult<()> {
+        sqlx::query(
+            "INSERT INTO app_kv_settings (key, value) VALUES (?, ?)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')",
+        )
+        .bind(key)
+        .bind(value)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
 
     /// Returns the column name in the structured `settings` table for `k`, or
     /// `None` if the key belongs in the `app_kv_settings` KV store.
+    /// Note: both `gemini_api_key` and its alias `google_api_key` map to the
+    /// same column here, so the previous separate `canonical_key` aliasing
+    /// step is unnecessary — this map is the single source of truth for
+    /// alias resolution.
     fn column_for_key(k: &str) -> Option<&'static str> {
         match k {
             "openai_api_key"       => Some("openai_api_key"),
@@ -50,17 +60,15 @@ impl SettingsRepository {
 
 #[async_trait]
 impl crate::repository::SettingsRepository for SettingsRepository {
-    async fn get_setting(&self, key: &str) -> Result<Option<String>> {
-        let k = SettingsRepository::canonical_key(key);
-
-        let Some(column) = SettingsRepository::column_for_key(k) else {
-            return sqlx::query_scalar::<_, String>(
+    async fn get_setting(&self, key: &str) -> RepositoryResult<Option<String>> {
+        let Some(column) = SettingsRepository::column_for_key(key) else {
+            let v = sqlx::query_scalar::<_, String>(
                 "SELECT value FROM app_kv_settings WHERE key = ?",
             )
-            .bind(k)
+            .bind(key)
             .fetch_optional(&self.pool)
-            .await
-            .context("Failed to get setting from app_kv_settings");
+            .await?;
+            return Ok(v);
         };
 
         let query = format!("SELECT {} FROM settings WHERE id = 1", column);
@@ -76,41 +84,27 @@ impl crate::repository::SettingsRepository for SettingsRepository {
             // No row at id=1 yet.
             Ok(None) => Ok(None),
             Err(e) => {
-                let e_msg = e.to_string();
-                let msg_lower = e_msg.to_lowercase();
+                let msg_lower = e.to_string().to_lowercase();
                 if msg_lower.contains("no such column") || msg_lower.contains("no column named") {
                     // Fallback to KV store for columns not yet in the structured table
-                    return sqlx::query_scalar::<_, String>(
+                    let v = sqlx::query_scalar::<_, String>(
                         "SELECT value FROM app_kv_settings WHERE key = ?",
                     )
-                    .bind(k)
+                    .bind(key)
                     .fetch_optional(&self.pool)
-                    .await
-                    .context(format!("Failed to get setting from app_kv_settings after structured failure (structured error: {})", e_msg));
+                    .await?;
+                    return Ok(v);
                 }
-                Err(e).context(format!(
-                    "Failed to get setting from structured settings table. Inner error: {}",
-                    e_msg
-                ))
+                Err(e.into())
             }
         }
     }
 
-    async fn set_setting(&self, key: &str, value: &str) -> Result<()> {
-        let k = SettingsRepository::canonical_key(key);
-        tracing::debug!("Updating setting: {} (canonical: {})", key, k);
+    async fn set_setting(&self, key: &str, value: &str) -> RepositoryResult<()> {
+        tracing::debug!("Updating setting: {}", key);
 
-        let Some(column) = SettingsRepository::column_for_key(k) else {
-            return sqlx::query(
-                "INSERT INTO app_kv_settings (key, value) VALUES (?, ?)
-                 ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')",
-            )
-            .bind(k)
-            .bind(value)
-            .execute(&self.pool)
-            .await
-            .map(|_| ())
-            .context(format!("Failed to set setting '{}' in app_kv_settings", key));
+        let Some(column) = SettingsRepository::column_for_key(key) else {
+            return self.upsert_kv(key, value).await;
         };
 
         let query = format!(
@@ -131,28 +125,15 @@ impl crate::repository::SettingsRepository for SettingsRepository {
                 Ok(())
             }
             Err(e) => {
-                let e_msg = e.to_string();
-                let msg_lower = e_msg.to_lowercase();
+                let msg_lower = e.to_string().to_lowercase();
                 if msg_lower.contains("no such column")
                     || msg_lower.contains("no column named")
                     || msg_lower.contains("check constraint failed")
                 {
                     // Fallback to KV store for columns not yet in the structured table
-                    return sqlx::query(
-                        "INSERT INTO app_kv_settings (key, value) VALUES (?, ?)
-                         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')",
-                    )
-                    .bind(k)
-                    .bind(value)
-                    .execute(&self.pool)
-                    .await
-                    .map(|_| ())
-                    .context(format!("Failed to set setting '{}' in app_kv_settings after structured failure (structured error: {})", key, e_msg));
+                    return self.upsert_kv(key, value).await;
                 }
-                Err(e).context(format!(
-                    "Failed to set setting '{}' in structured settings table. Inner error: {}",
-                    key, e_msg
-                ))
+                Err(e.into())
             }
         }
     }

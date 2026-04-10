@@ -221,11 +221,7 @@ impl ModelDownloader {
     }
 
     fn emit(&self, model_id: &str, status: ModelDownloadStatus, downloaded: u64, total: u64) {
-        let progress = if total > 0 {
-            downloaded as f64 / total as f64
-        } else {
-            -1.0
-        };
+        let progress = compute_progress(downloaded, total);
 
         self.emitter.emit(ModelDownloadEvent {
             model_id: model_id.to_string(),
@@ -234,5 +230,175 @@ impl ModelDownloader {
             total_bytes: total,
             progress,
         });
+    }
+}
+
+/// Compute the download progress as a fraction in `[0.0, 1.0]`, or
+/// `-1.0` when `total` is unknown (Content-Length header missing).
+/// Extracted from `ModelDownloader::emit` so it can be unit-tested
+/// without spinning up a real downloader.
+pub(crate) fn compute_progress(downloaded: u64, total: u64) -> f64 {
+    if total > 0 {
+        downloaded as f64 / total as f64
+    } else {
+        -1.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! Characterization tests for `ModelDownloadEvent` and the progress
+    //! calculation. Both ship to the frontend via tauri-specta::Event,
+    //! so the wire format and the special-case -1.0 sentinel are
+    //! observable contracts.
+
+    use super::*;
+
+    // ── compute_progress ─────────────────────────────────────────────────
+
+    #[test]
+    fn progress_zero_when_nothing_downloaded() {
+        assert_eq!(compute_progress(0, 100), 0.0);
+    }
+
+    #[test]
+    fn progress_full_when_all_downloaded() {
+        assert_eq!(compute_progress(100, 100), 1.0);
+    }
+
+    #[test]
+    fn progress_half_for_50_percent() {
+        assert_eq!(compute_progress(50, 100), 0.5);
+    }
+
+    #[test]
+    fn progress_returns_negative_one_sentinel_when_total_is_zero() {
+        // Pin the unknown-size sentinel: when Content-Length is
+        // missing, the downloader passes total=0 and the UI relies on
+        // the -1.0 marker to render an indeterminate spinner instead
+        // of a 0% bar.
+        assert_eq!(compute_progress(123, 0), -1.0);
+        assert_eq!(compute_progress(0, 0), -1.0);
+    }
+
+    #[test]
+    fn progress_handles_downloaded_greater_than_total() {
+        // Edge case: server sends more bytes than declared. We don't
+        // clamp; the value just goes above 1.0. Pin so a future
+        // "clamp to 1.0" change is deliberate.
+        assert_eq!(compute_progress(200, 100), 2.0);
+    }
+
+    #[test]
+    fn progress_handles_large_byte_counts() {
+        // Multi-gigabyte models — pin that the f64 division doesn't
+        // lose precision in the realistic range.
+        let p = compute_progress(2_500_000_000, 5_000_000_000);
+        assert!((p - 0.5).abs() < 1e-9);
+    }
+
+    // ── ModelDownloadStatus serde ────────────────────────────────────────
+
+    #[test]
+    fn status_serializes_with_snake_case() {
+        // Wire format pinned for the frontend bindings.
+        assert_eq!(
+            serde_json::to_string(&ModelDownloadStatus::Downloading).unwrap(),
+            "\"downloading\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ModelDownloadStatus::Completed).unwrap(),
+            "\"completed\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ModelDownloadStatus::Failed).unwrap(),
+            "\"failed\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ModelDownloadStatus::Cancelled).unwrap(),
+            "\"cancelled\""
+        );
+    }
+
+    #[test]
+    fn status_deserializes_from_snake_case() {
+        let s: ModelDownloadStatus = serde_json::from_str("\"downloading\"").unwrap();
+        assert!(matches!(s, ModelDownloadStatus::Downloading));
+    }
+
+    // ── ModelDownloadEvent serde ─────────────────────────────────────────
+
+    #[test]
+    fn event_serializes_with_camel_case_field_names() {
+        // The struct uses serde(rename_all = "camelCase") because the
+        // frontend reads modelId / downloadedBytes / totalBytes /
+        // progress / status. Pinning the wire format.
+        let event = ModelDownloadEvent {
+            model_id: "phi-4".to_string(),
+            status: ModelDownloadStatus::Downloading,
+            downloaded_bytes: 500,
+            total_bytes: 1000,
+            progress: 0.5,
+        };
+        let json = serde_json::to_value(&event).unwrap();
+        assert_eq!(json["modelId"], "phi-4");
+        assert_eq!(json["downloadedBytes"], 500);
+        assert_eq!(json["totalBytes"], 1000);
+        assert_eq!(json["progress"], 0.5);
+        assert_eq!(json["status"], "downloading");
+    }
+
+    #[test]
+    fn event_round_trips_through_serde() {
+        let original = ModelDownloadEvent {
+            model_id: "qwen2.5-7b".to_string(),
+            status: ModelDownloadStatus::Completed,
+            downloaded_bytes: 4_680_000_000,
+            total_bytes: 4_680_000_000,
+            progress: 1.0,
+        };
+        let json = serde_json::to_string(&original).unwrap();
+        let parsed: ModelDownloadEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.model_id, original.model_id);
+        assert_eq!(parsed.downloaded_bytes, original.downloaded_bytes);
+        assert!((parsed.progress - original.progress).abs() < 1e-9);
+    }
+
+    // ── DownloadEmitter test stub ────────────────────────────────────────
+
+    /// Capturing emitter useful for any future test that wants to
+    /// observe what events the downloader produces.
+    #[derive(Default)]
+    struct CapturingEmitter {
+        events: std::sync::Mutex<Vec<ModelDownloadEvent>>,
+    }
+
+    impl DownloadEmitter for CapturingEmitter {
+        fn emit(&self, event: ModelDownloadEvent) {
+            self.events.lock().unwrap().push(event);
+        }
+    }
+
+    #[test]
+    fn capturing_emitter_records_events_in_order() {
+        let emitter = CapturingEmitter::default();
+        emitter.emit(ModelDownloadEvent {
+            model_id: "m1".into(),
+            status: ModelDownloadStatus::Downloading,
+            downloaded_bytes: 0,
+            total_bytes: 100,
+            progress: 0.0,
+        });
+        emitter.emit(ModelDownloadEvent {
+            model_id: "m1".into(),
+            status: ModelDownloadStatus::Completed,
+            downloaded_bytes: 100,
+            total_bytes: 100,
+            progress: 1.0,
+        });
+        let events = emitter.events.lock().unwrap();
+        assert_eq!(events.len(), 2);
+        assert!(matches!(events[0].status, ModelDownloadStatus::Downloading));
+        assert!(matches!(events[1].status, ModelDownloadStatus::Completed));
     }
 }

@@ -1,3 +1,7 @@
+#[macro_use]
+pub mod html_selector;
+#[macro_use]
+pub mod macros;
 pub mod checker;
 pub mod commands;
 pub mod contexts;

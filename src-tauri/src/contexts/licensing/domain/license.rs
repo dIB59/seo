@@ -253,4 +253,132 @@ mod tests {
         };
         assert_eq!(data.tier_version_tuple(), (1, 2, 3));
     }
+
+    // ── encode_key / decode_key round-trip ───────────────────────────────
+    //
+    // The trait methods on `LicensingAgent` are object-safe via the
+    // `where Self: Sized` bound on these defaults. We can call them
+    // through any concrete impl; for testing we use a tiny zero-state
+    // stub.
+
+    struct StubAgent;
+    #[async_trait::async_trait]
+    impl LicensingAgent for StubAgent {
+        async fn load_license(&self) -> Result<LicenseStatus, AddonError> {
+            unimplemented!("not used in tests")
+        }
+        async fn activate_with_key(&self, _key: &str) -> Result<LicenseStatus, AddonError> {
+            unimplemented!("not used in tests")
+        }
+    }
+
+    #[test]
+    fn encode_decode_round_trip_preserves_signed_license() {
+        use rand::rngs::OsRng;
+        let signing_key = ed25519_dalek::SigningKey::generate(&mut OsRng);
+        let signed = make_signed_license(&signing_key, LicenseTier::Premium, None);
+
+        let encoded = StubAgent::encode_key(&signed);
+        assert!(encoded.starts_with(KEY_PREFIX));
+
+        let decoded = StubAgent::decode_key(&encoded).unwrap();
+        assert_eq!(decoded.data.key, signed.data.key);
+        assert_eq!(decoded.data.tier, signed.data.tier);
+        assert_eq!(decoded.signature, signed.signature);
+    }
+
+    #[test]
+    fn decode_key_strips_prefix_and_trims_whitespace() {
+        use rand::rngs::OsRng;
+        let signing_key = ed25519_dalek::SigningKey::generate(&mut OsRng);
+        let signed = make_signed_license(&signing_key, LicenseTier::Free, None);
+        let encoded = StubAgent::encode_key(&signed);
+
+        // Whitespace-padded version round-trips identically.
+        let padded = format!("  {encoded}  ");
+        let decoded = StubAgent::decode_key(&padded).unwrap();
+        assert_eq!(decoded.data.tier, LicenseTier::Free);
+    }
+
+    #[test]
+    fn decode_key_works_without_prefix() {
+        use rand::rngs::OsRng;
+        let signing_key = ed25519_dalek::SigningKey::generate(&mut OsRng);
+        let signed = make_signed_license(&signing_key, LicenseTier::Free, None);
+        let encoded = StubAgent::encode_key(&signed);
+        let bare = encoded.strip_prefix(KEY_PREFIX).unwrap();
+
+        // Strip-prefix returns Some, falls through unchanged. The decoder
+        // accepts both with and without the prefix — pinning that
+        // contract so a future "strict prefix" change is deliberate.
+        let decoded = StubAgent::decode_key(bare).unwrap();
+        assert_eq!(decoded.data.tier, LicenseTier::Free);
+    }
+
+    #[test]
+    fn decode_key_rejects_garbage() {
+        let result = StubAgent::decode_key("not-a-license-key");
+        assert!(matches!(result, Err(AddonError::InvalidLicenseKey)));
+    }
+
+    #[test]
+    fn decode_key_rejects_invalid_base64() {
+        let result = StubAgent::decode_key("SEOINSIKT-not!base64");
+        assert!(matches!(result, Err(AddonError::InvalidLicenseKey)));
+    }
+
+    #[test]
+    fn decode_key_rejects_valid_base64_with_invalid_json() {
+        // Base64 encodes successfully but the bytes aren't a SignedLicense.
+        let bad = format!(
+            "{KEY_PREFIX}{}",
+            base64::engine::general_purpose::URL_SAFE_NO_PAD.encode("not json at all")
+        );
+        let result = StubAgent::decode_key(&bad);
+        assert!(matches!(result, Err(AddonError::InvalidLicenseKey)));
+    }
+
+    #[test]
+    fn license_verifier_accepts_real_ed25519_public_keys() {
+        // Constructive test: a freshly-generated keypair's public bytes
+        // always make a valid LicenseVerifier. Pinning the happy path —
+        // a Phase 7 perf refactor of the verifier struct shouldn't lose
+        // it.
+        use rand::rngs::OsRng;
+        let signing_key = ed25519_dalek::SigningKey::generate(&mut OsRng);
+        let result = LicenseVerifier::new(signing_key.verifying_key().to_bytes());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn addon_error_display_includes_variant_message() {
+        let err = AddonError::InvalidSignature;
+        assert!(format!("{err}").contains("Invalid license signature"));
+        let err = AddonError::HardwareMismatch;
+        assert!(format!("{err}").contains("different machine"));
+        let err = AddonError::InvalidLicenseKey;
+        assert!(format!("{err}").contains("Invalid license key"));
+    }
+
+    #[test]
+    fn addon_error_serde_round_trip() {
+        // AddonError ships to the frontend via tauri-specta. Pin the
+        // serde wire format round-trip for a representative variant.
+        let err = AddonError::InvalidSignature;
+        let json = serde_json::to_string(&err).unwrap();
+        let parsed: AddonError = serde_json::from_str(&json).unwrap();
+        // The Type derives don't give PartialEq; compare via Display.
+        assert_eq!(format!("{err}"), format!("{parsed}"));
+    }
+
+    #[test]
+    fn signed_license_signature_is_hex() {
+        // make_signed_license uses hex::encode — pin that the produced
+        // signature is parseable hex (so verify() can decode it).
+        use rand::rngs::OsRng;
+        let signing_key = ed25519_dalek::SigningKey::generate(&mut OsRng);
+        let signed = make_signed_license(&signing_key, LicenseTier::Free, None);
+        let bytes = hex::decode(&signed.signature).unwrap();
+        assert_eq!(bytes.len(), 64); // Ed25519 signatures are 64 bytes
+    }
 }

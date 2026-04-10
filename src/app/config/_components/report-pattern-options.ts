@@ -40,15 +40,3 @@ export const EFFORT_OPTIONS: { value: FixEffort; label: string }[] = [
   { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
 ];
-
-export const BUILT_IN_FIELDS = [
-  "meta_description",
-  "title",
-  "canonical_url",
-  "word_count",
-  "load_time_ms",
-  "status_code",
-  "has_viewport",
-  "has_structured_data",
-  "h1_count",
-];

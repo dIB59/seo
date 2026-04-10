@@ -9,13 +9,24 @@ use super::{DataExtractor, ExtractorConfig};
 /// - Single mode: returns the first matching element's text or attribute as a JSON string.
 /// - Multiple mode: returns all matching elements as a JSON array of strings.
 /// - If no element matches, the key is omitted from the result (not inserted as null).
+///
+/// The CSS selector is parsed once at construction time and reused for
+/// every `extract` call. Previously the selector was re-parsed per page,
+/// which is wasted work in a multi-page crawl. An invalid selector is
+/// stored as `None` and silently produces an empty result, matching the
+/// previous fall-through behavior.
 pub struct SelectorExtractor {
     config: ExtractorConfig,
+    parsed_selector: Option<Selector>,
 }
 
 impl SelectorExtractor {
     pub fn new(config: ExtractorConfig) -> Self {
-        Self { config }
+        let parsed_selector = Selector::parse(&config.selector).ok();
+        Self {
+            config,
+            parsed_selector,
+        }
     }
 
     fn read_element(el: scraper::ElementRef, attribute: Option<&str>) -> Option<String> {
@@ -32,13 +43,12 @@ impl SelectorExtractor {
 
 impl DataExtractor for SelectorExtractor {
     fn id(&self) -> &str {
-        &self.config.key
+        &self.config.tag
     }
 
     fn extract(&self, html: &str) -> HashMap<String, Value> {
-        let selector = match Selector::parse(&self.config.selector) {
-            Ok(s) => s,
-            Err(_) => return HashMap::new(),
+        let Some(selector) = self.parsed_selector.as_ref() else {
+            return HashMap::new();
         };
 
         let document = Html::parse_document(html);
@@ -46,7 +56,7 @@ impl DataExtractor for SelectorExtractor {
 
         if self.config.multiple {
             let values: Vec<Value> = document
-                .select(&selector)
+                .select(selector)
                 .filter_map(|el| Self::read_element(el, attribute))
                 .map(Value::String)
                 .collect();
@@ -56,17 +66,17 @@ impl DataExtractor for SelectorExtractor {
             }
 
             let mut result = HashMap::new();
-            result.insert(self.config.key.clone(), Value::Array(values));
+            result.insert(self.config.tag.clone(), Value::Array(values));
             result
         } else {
             let value = document
-                .select(&selector)
+                .select(selector)
                 .find_map(|el| Self::read_element(el, attribute));
 
             match value {
                 Some(v) => {
                     let mut result = HashMap::new();
-                    result.insert(self.config.key.clone(), Value::String(v));
+                    result.insert(self.config.tag.clone(), Value::String(v));
                     result
                 }
                 None => HashMap::new(),

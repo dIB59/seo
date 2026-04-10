@@ -21,7 +21,7 @@ import { SelectorLivePreview } from "./SelectorLivePreview";
 
 export interface Preset {
   name: string;
-  key: string;
+  tag: string;
   selector: string;
   attribute: string | null;
   multiple: boolean;
@@ -33,7 +33,7 @@ export interface Preset {
 const PRESETS: Preset[] = [
   {
     name: "Hreflang Tags",
-    key: "hreflang",
+    tag: "hreflang",
     selector: "link[rel='alternate'][hreflang]",
     attribute: "hreflang",
     multiple: true,
@@ -43,7 +43,7 @@ const PRESETS: Preset[] = [
   },
   {
     name: "OG Image",
-    key: "og_image",
+    tag: "og_image",
     selector: "meta[property='og:image']",
     attribute: "content",
     multiple: false,
@@ -53,7 +53,7 @@ const PRESETS: Preset[] = [
   },
   {
     name: "OG Title",
-    key: "og_title",
+    tag: "og_title",
     selector: "meta[property='og:title']",
     attribute: "content",
     multiple: false,
@@ -63,7 +63,7 @@ const PRESETS: Preset[] = [
   },
   {
     name: "Canonical URL",
-    key: "canonical",
+    tag: "canonical",
     selector: "link[rel='canonical']",
     attribute: "href",
     multiple: false,
@@ -73,7 +73,7 @@ const PRESETS: Preset[] = [
   },
   {
     name: "JSON-LD Schema",
-    key: "schema_types",
+    tag: "schema_types",
     selector: "script[type='application/ld+json']",
     attribute: null,
     multiple: true,
@@ -83,7 +83,7 @@ const PRESETS: Preset[] = [
   },
   {
     name: "Robots Meta",
-    key: "robots_meta",
+    tag: "robots_meta",
     selector: "meta[name='robots']",
     attribute: "content",
     multiple: false,
@@ -93,7 +93,7 @@ const PRESETS: Preset[] = [
   },
   {
     name: "Author",
-    key: "author",
+    tag: "author",
     selector: "meta[name='author']",
     attribute: "content",
     multiple: false,
@@ -103,7 +103,7 @@ const PRESETS: Preset[] = [
   },
   {
     name: "H1 Heading",
-    key: "h1_text",
+    tag: "h1_text",
     selector: "h1",
     attribute: null,
     multiple: false,
@@ -115,7 +115,7 @@ const PRESETS: Preset[] = [
 
 const EMPTY_PARAMS: CustomExtractorParams = {
   name: "",
-  key: "",
+  tag: "",
   selector: "",
   attribute: null,
   multiple: false,
@@ -125,7 +125,7 @@ const EMPTY_PARAMS: CustomExtractorParams = {
 function paramsFrom(extractor: CustomExtractor): CustomExtractorParams {
   return {
     name: extractor.name,
-    key: extractor.key,
+    tag: extractor.tag,
     selector: extractor.selector,
     attribute: extractor.attribute,
     multiple: extractor.multiple,
@@ -162,7 +162,7 @@ export function ExtractorDialog({
   function applyPreset(preset: Preset) {
     setForm({
       name: preset.name,
-      key: preset.key,
+      tag: preset.tag,
       selector: preset.selector,
       attribute: preset.attribute,
       multiple: preset.multiple,
@@ -172,8 +172,8 @@ export function ExtractorDialog({
   }
 
   function handleSave() {
-    if (!form.name.trim() || !form.key.trim() || !form.selector.trim()) {
-      onValidationError("Name, key, and selector are required");
+    if (!form.name.trim() || !form.tag.trim() || !form.selector.trim()) {
+      onValidationError("Name, tag, and selector are required");
       return;
     }
     onSave(form);
@@ -207,7 +207,7 @@ export function ExtractorDialog({
             {presetsOpen && (
               <div className="border-t border-border/60 divide-y divide-border/40">
                 {PRESETS.map((preset) => (
-                  <PresetRow key={preset.key} preset={preset} onApply={applyPreset} />
+                  <PresetRow key={preset.tag} preset={preset} onApply={applyPreset} />
                 ))}
               </div>
             )}
@@ -226,17 +226,18 @@ export function ExtractorDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="ext-key">
-                Key{" "}
+              <Label htmlFor="ext-tag">
+                Tag{" "}
                 <span className="text-xs text-muted-foreground font-normal">
-                  — used in reports &amp; checks
+                  — reference in reports &amp; checks as{" "}
+                  <code className="text-[10px]">tag:{form.tag || "name"}</code>
                 </span>
               </Label>
               <Input
-                id="ext-key"
+                id="ext-tag"
                 placeholder="og_image"
-                value={form.key}
-                onChange={(e) => setForm((f) => ({ ...f, key: e.target.value }))}
+                value={form.tag}
+                onChange={(e) => setForm((f) => ({ ...f, tag: e.target.value }))}
               />
             </div>
           </div>

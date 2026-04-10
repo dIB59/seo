@@ -115,7 +115,18 @@ mod tests {
     #[tokio::test]
     async fn activate_with_updates_expired_key() {
         let (service, signing_key) = setup().await;
-        let key = make_key(&signing_key, LicenseTier::Premium, Some(chrono::Utc::now() - chrono::Duration::days(1)));
+        // Must use ≥ 2 days in the past, not 1: BUILD_DATE is the
+        // compile-day at midnight UTC. If we use `now() - 1 day` and
+        // the test runs the day after compile, expires_at lands at an
+        // afternoon time on the BUILD_DATE day, which is *later* than
+        // BUILD_DATE midnight — so the soft-expiry check returns
+        // Active. 2 days guarantees expires_at is strictly before
+        // BUILD_DATE midnight on any day the test runs.
+        let key = make_key(
+            &signing_key,
+            LicenseTier::Premium,
+            Some(chrono::Utc::now() - chrono::Duration::days(2)),
+        );
         let status = service.activate_with_key(&key).await.unwrap();
         assert_eq!(status, LicenseStatus::UpdatesExpired(LicenseTier::Premium));
     }

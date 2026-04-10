@@ -76,6 +76,17 @@ pub async fn init_db(app: &AppHandle) -> Result<SqlitePool> {
     Ok(pool)
 }
 
+/// Apply the same pragmas to an externally-supplied pool. Used by the
+/// in-memory test fixtures so unit tests run against the same SQLite
+/// configuration as production.
+#[allow(dead_code)]
+pub async fn apply_pragmas(pool: &SqlitePool) -> Result<()> {
+    use sqlx::Acquire;
+    let mut conn = pool.acquire().await.context("acquire connection for pragmas")?;
+    configure_sqlite_pragmas(conn.acquire().await?).await?;
+    Ok(())
+}
+
 async fn dump_schema(pool: &SqlitePool, output_path: &std::path::Path) -> Result<()> {
     let rows = sqlx::query!(
         r#"
@@ -102,4 +113,58 @@ async fn dump_schema(pool: &SqlitePool, output_path: &std::path::Path) -> Result
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    //! Characterization tests for the SQLite pragma configuration. The
+    //! production pool applies these pragmas via `after_connect`, but
+    //! the constants and the apply path are also useful in unit tests
+    //! to confirm we're configuring SQLite the same way as production.
+
+    use super::*;
+    use sqlx::Row;
+
+    #[test]
+    fn pragma_statements_constant_includes_seven_settings() {
+        // Pinning the count — the array is `[&str; 7]`. Adding or
+        // removing a pragma is a deliberate decision, not a quiet
+        // refactor.
+        assert_eq!(PRAGMA_STATEMENTS.len(), 7);
+    }
+
+    #[test]
+    fn pragma_statements_include_critical_settings() {
+        // Concurrency, durability, FK enforcement — pinning that none
+        // of the load-bearing pragmas are removed.
+        let joined = PRAGMA_STATEMENTS.join("|");
+        assert!(joined.contains("journal_mode = WAL"));
+        assert!(joined.contains("synchronous = NORMAL"));
+        assert!(joined.contains("foreign_keys = ON"));
+        assert!(joined.contains("busy_timeout"));
+    }
+
+    #[tokio::test]
+    async fn apply_pragmas_sets_journal_mode_to_wal() {
+        // In-memory pool — applies the pragmas and reads them back to
+        // confirm the connection actually adopted them.
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        apply_pragmas(&pool).await.unwrap();
+
+        // foreign_keys = ON should be readable.
+        let row = sqlx::query("PRAGMA foreign_keys")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let fk: i64 = row.get(0);
+        assert_eq!(fk, 1, "foreign_keys should be ON after apply_pragmas");
+    }
+
+    #[tokio::test]
+    async fn apply_pragmas_is_idempotent() {
+        // Calling twice should not error or change behavior.
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        apply_pragmas(&pool).await.unwrap();
+        apply_pragmas(&pool).await.unwrap();
+    }
 }

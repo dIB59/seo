@@ -1,12 +1,10 @@
-use anyhow::{Context, Result};
 use chrono::Utc;
 use sqlx::SqlitePool;
 
 use super::map_job_status;
-use crate::contexts::{Job, JobInfo, JobSettings, JobStatus, JobSummary};
+use crate::contexts::{Job, JobId, JobInfo, JobPageQuery, JobSettings, JobStatus, JobSummary};
 use crate::repository::JobRepository as JobRepositoryTrait;
 use async_trait::async_trait;
-use std::str::FromStr;
 
 pub struct JobRepository {
     pool: SqlitePool,
@@ -20,7 +18,11 @@ impl JobRepository {
 
 #[async_trait]
 impl JobRepositoryTrait for JobRepository {
-    async fn create(&self, url: &str, settings: &JobSettings) -> Result<String> {
+    async fn create(
+        &self,
+        url: &str,
+        settings: &JobSettings,
+    ) -> crate::repository::RepositoryResult<String> {
         let id = uuid::Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
 
@@ -49,14 +51,13 @@ impl JobRepositoryTrait for JobRepository {
             lighthouse_analysis,
         )
         .execute(&self.pool)
-        .await
-        .context("Failed to insert job")?;
+        .await?;
 
         tracing::info!("Created job {} for URL: {}", id, url);
         Ok(id)
     }
 
-    async fn get_by_id(&self, job_id: &str) -> Result<Job> {
+    async fn get_by_id(&self, job_id: &str) -> crate::repository::RepositoryResult<Job> {
         let row = sqlx::query!(
             r#"
             SELECT 
@@ -72,42 +73,12 @@ impl JobRepositoryTrait for JobRepository {
             job_id
         )
         .fetch_one(&self.pool)
-        .await
-        .context("Failed to fetch job")?;
+        .await?;
 
-        let status = JobStatus::from_str(&row.status).unwrap_or(JobStatus::Failed);
-
-        Ok(Job {
-            id: row.id,
-            url: row.url,
-            status,
-            created_at: parse_datetime(&row.created_at),
-            updated_at: parse_datetime(&row.updated_at),
-            completed_at: row.completed_at.as_deref().map(parse_datetime),
-            settings: JobSettings {
-                max_pages: row.max_pages,
-                include_subdomains: row.include_subdomains != 0,
-                check_images: true,
-                mobile_analysis: false,
-                lighthouse_analysis: row.lighthouse_analysis != 0,
-                delay_between_requests: row.rate_limit_ms,
-            },
-            summary: JobSummary {
-                total_pages: row.total_pages,
-                pages_crawled: row.pages_crawled,
-                total_issues: row.total_issues,
-                critical_issues: row.critical_issues,
-                warning_issues: row.warning_issues,
-                info_issues: row.info_issues,
-            },
-            progress: row.progress,
-            error_message: row.error_message,
-            sitemap_found: row.sitemap_found,
-            robots_txt_found: row.robots_txt_found,
-        })
+        Ok(super::job_from_row!(row))
     }
 
-    async fn get_all(&self) -> Result<Vec<JobInfo>> {
+    async fn get_all(&self) -> crate::repository::RepositoryResult<Vec<JobInfo>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -119,8 +90,7 @@ impl JobRepositoryTrait for JobRepository {
             "#
         )
         .fetch_all(&self.pool)
-        .await
-        .context("Failed to fetch jobs")?;
+        .await?;
 
         Ok(rows
             .into_iter()
@@ -140,7 +110,11 @@ impl JobRepositoryTrait for JobRepository {
             .collect())
     }
 
-    async fn get_paginated(&self, limit: i64, offset: i64) -> Result<Vec<JobInfo>> {
+    async fn get_paginated(
+        &self,
+        limit: i64,
+        offset: i64,
+    ) -> crate::repository::RepositoryResult<Vec<JobInfo>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -155,8 +129,7 @@ impl JobRepositoryTrait for JobRepository {
             offset
         )
         .fetch_all(&self.pool)
-        .await
-        .context("Failed to fetch paginated jobs")?;
+        .await?;
 
         Ok(rows
             .into_iter()
@@ -178,18 +151,19 @@ impl JobRepositoryTrait for JobRepository {
 
     async fn get_paginated_with_total(
         &self,
-        limit: i64,
-        offset: i64,
-        url_filter: Option<String>,
-        status_filter: Option<String>,
-    ) -> Result<(Vec<JobInfo>, i64)> {
-        let url_pattern = url_filter.map_or_else(|| "%".to_string(), |f| format!("%{}%", f));
-        let status_pattern = status_filter.unwrap_or_else(|| "%".to_string());
+        query: JobPageQuery,
+    ) -> crate::repository::RepositoryResult<(Vec<JobInfo>, i64)> {
+        let (pagination, url_contains, status) = query.into_parts();
+        let url_pattern = url_contains
+            .map_or_else(|| "%".to_string(), |f| format!("%{}%", f));
+        let status_pattern = status.unwrap_or_else(|| "%".to_string());
+        let limit = pagination.limit();
+        let offset = pagination.offset();
 
         let rows = sqlx::query!(
             r#"
-            SELECT 
-                id, url, status, progress, 
+            SELECT
+                id, url, status, progress,
                 total_pages, total_issues, created_at,
                 max_pages, lighthouse_analysis,
                 COUNT(*) OVER() as "total_count!"
@@ -204,8 +178,7 @@ impl JobRepositoryTrait for JobRepository {
             offset
         )
         .fetch_all(&self.pool)
-        .await
-        .context("Failed to fetch paginated jobs with total and filters")?;
+        .await?;
 
         let total = rows.first().map(|r| r.total_count).unwrap_or(0);
 
@@ -229,16 +202,14 @@ impl JobRepositoryTrait for JobRepository {
         Ok((items, total))
     }
 
-    async fn count(&self) -> Result<i64> {
+    async fn count(&self) -> crate::repository::RepositoryResult<i64> {
         let row = sqlx::query!("SELECT COUNT(*) as count FROM jobs")
             .fetch_one(&self.pool)
-            .await
-            .context("Failed to count jobs")?;
-
+            .await?; // sqlx::Error → RepositoryError via #[from]
         Ok(row.count as i64)
     }
 
-    async fn get_pending(&self) -> Result<Vec<Job>> {
+    async fn get_pending(&self) -> crate::repository::RepositoryResult<Vec<Job>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -254,43 +225,9 @@ impl JobRepositoryTrait for JobRepository {
             "#
         )
         .fetch_all(&self.pool)
-        .await
-        .context("Failed to fetch active jobs")?;
+        .await?;
 
-        Ok(rows
-            .into_iter()
-            .map(|row| {
-                let status = JobStatus::from_str(&row.status).unwrap_or(JobStatus::Failed);
-                Job {
-                    id: row.id,
-                    url: row.url,
-                    status,
-                    created_at: parse_datetime(&row.created_at),
-                    updated_at: parse_datetime(&row.updated_at),
-                    completed_at: row.completed_at.as_deref().map(parse_datetime),
-                    settings: JobSettings {
-                        max_pages: row.max_pages,
-                        include_subdomains: row.include_subdomains != 0,
-                        check_images: true,
-                        mobile_analysis: false,
-                        lighthouse_analysis: row.lighthouse_analysis != 0,
-                        delay_between_requests: row.rate_limit_ms,
-                    },
-                    summary: JobSummary {
-                        total_pages: row.total_pages,
-                        pages_crawled: row.pages_crawled,
-                        total_issues: row.total_issues,
-                        critical_issues: row.critical_issues,
-                        warning_issues: row.warning_issues,
-                        info_issues: row.info_issues,
-                    },
-                    progress: row.progress,
-                    error_message: row.error_message,
-                    sitemap_found: row.sitemap_found,
-                    robots_txt_found: row.robots_txt_found,
-                }
-            })
-            .collect())
+        Ok(rows.into_iter().map(|row| super::job_from_row!(row)).collect())
     }
 
     async fn update_resources(
@@ -298,13 +235,13 @@ impl JobRepositoryTrait for JobRepository {
         job_id: &str,
         sitemap_found: bool,
         robots_txt_found: bool,
-    ) -> Result<()> {
+    ) -> crate::repository::RepositoryResult<()> {
         let sitemap = i32::from(sitemap_found);
         let robots = i32::from(robots_txt_found);
 
         sqlx::query!(
             r#"
-            UPDATE jobs 
+            UPDATE jobs
             SET sitemap_found = ?1, robots_txt_found = ?2
             WHERE id = ?3
             "#,
@@ -313,13 +250,16 @@ impl JobRepositoryTrait for JobRepository {
             job_id,
         )
         .execute(&self.pool)
-        .await
-        .context("Failed to update job resources")?;
+        .await?;
 
         Ok(())
     }
 
-    async fn update_status(&self, job_id: &str, status: JobStatus) -> Result<()> {
+    async fn update_status(
+        &self,
+        job_id: &str,
+        status: JobStatus,
+    ) -> crate::repository::RepositoryResult<()> {
         let status_str = status.as_str();
         let completed_at = if status.is_terminal() {
             Some(Utc::now().to_rfc3339())
@@ -329,7 +269,7 @@ impl JobRepositoryTrait for JobRepository {
 
         sqlx::query!(
             r#"
-            UPDATE jobs 
+            UPDATE jobs
             SET status = ?1, completed_at = COALESCE(?2, completed_at)
             WHERE id = ?3
             "#,
@@ -338,17 +278,20 @@ impl JobRepositoryTrait for JobRepository {
             job_id,
         )
         .execute(&self.pool)
-        .await
-        .context("Failed to update job status")?;
+        .await?;
 
         tracing::info!("Updated job {} to status: {}", job_id, status);
         Ok(())
     }
 
-    async fn update_progress(&self, job_id: &str, progress: f64) -> Result<()> {
+    async fn update_progress(
+        &self,
+        job_id: &str,
+        progress: f64,
+    ) -> crate::repository::RepositoryResult<()> {
         sqlx::query!(
             r#"
-            UPDATE jobs 
+            UPDATE jobs
             SET progress = ?1
             WHERE id = ?2
             "#,
@@ -356,18 +299,21 @@ impl JobRepositoryTrait for JobRepository {
             job_id,
         )
         .execute(&self.pool)
-        .await
-        .context("Failed to update job progress")?;
+        .await?;
 
         Ok(())
     }
 
-    async fn set_error(&self, job_id: &str, error: &str) -> Result<()> {
+    async fn set_error(
+        &self,
+        job_id: &str,
+        error: &str,
+    ) -> crate::repository::RepositoryResult<()> {
         let now = Utc::now().to_rfc3339();
 
         sqlx::query!(
             r#"
-            UPDATE jobs 
+            UPDATE jobs
             SET status = 'failed', error_message = ?1, completed_at = ?2
             WHERE id = ?3
             "#,
@@ -376,40 +322,33 @@ impl JobRepositoryTrait for JobRepository {
             job_id,
         )
         .execute(&self.pool)
-        .await
-        .context("Failed to set job error")?;
+        .await?;
 
         Ok(())
     }
 
-    async fn delete(&self, job_id: &str) -> Result<()> {
+    async fn delete(&self, job_id: &str) -> crate::repository::RepositoryResult<()> {
         sqlx::query!("DELETE FROM jobs WHERE id = ?", job_id)
             .execute(&self.pool)
-            .await
-            .context("Failed to delete job")?;
+            .await?; // sqlx::Error → RepositoryError via #[from]
 
         tracing::info!("Deleted job {}", job_id);
         Ok(())
     }
 
-    async fn get_running_jobs_id(&self) -> Result<Vec<String>> {
+    async fn get_running_jobs_id(&self) -> crate::repository::RepositoryResult<Vec<String>> {
         let rows = sqlx::query!(
             r#"
             SELECT id FROM jobs WHERE status IN ('discovery', 'processing')
             "#
         )
         .fetch_all(&self.pool)
-        .await
-        .context("Failed to fetch running jobs")?;
+        .await?;
         Ok(rows.into_iter().map(|row| row.id).collect())
     }
 }
 
-fn parse_datetime(s: &str) -> chrono::DateTime<Utc> {
-    chrono::DateTime::parse_from_rfc3339(s)
-        .map(|dt| dt.with_timezone(&Utc))
-        .unwrap_or_else(|_| Utc::now())
-}
+use super::parse_datetime;
 
 #[allow(clippy::too_many_arguments)]
 fn make_job_info(
@@ -423,16 +362,57 @@ fn make_job_info(
     max_pages: i64,
     lighthouse_analysis: i64,
 ) -> JobInfo {
-    JobInfo {
-        id,
+    JobInfo::new(
+        JobId::from(id),
         url,
-        status: map_job_status(status),
+        map_job_status(status),
         progress,
         total_pages,
         total_issues,
-        created_at: parse_datetime(created_at),
+        parse_datetime(created_at),
         max_pages,
+        lighthouse_analysis != 0,
+    )
+}
+
+/// Build a [`JobSummary`] from the row's six count columns. Centralized
+/// so every Job decoder argues with the same constructor — adding a new
+/// counter (e.g. `noindex_issues`) becomes a one-place change.
+pub(super) fn decode_job_summary(
+    total_pages: i64,
+    pages_crawled: i64,
+    total_issues: i64,
+    critical_issues: i64,
+    warning_issues: i64,
+    info_issues: i64,
+) -> JobSummary {
+    JobSummary::new(
+        total_pages,
+        pages_crawled,
+        total_issues,
+        critical_issues,
+        warning_issues,
+        info_issues,
+    )
+}
+
+/// Build a [`JobSettings`] from the row's flat columns. Centralized so the
+/// `get_by_id`, `get_pending`, and `results_repository::get_complete_result`
+/// decoders agree on which booleans are hard-coded vs sourced from the row.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn decode_job_settings(
+    max_pages: i64,
+    include_subdomains: i64,
+    lighthouse_analysis: i64,
+    rate_limit_ms: i64,
+) -> JobSettings {
+    JobSettings {
+        max_pages,
+        include_subdomains: include_subdomains != 0,
+        check_images: true,
+        mobile_analysis: false,
         lighthouse_analysis: lighthouse_analysis != 0,
+        delay_between_requests: rate_limit_ms,
     }
 }
 

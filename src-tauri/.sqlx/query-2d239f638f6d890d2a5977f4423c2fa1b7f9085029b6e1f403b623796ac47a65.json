@@ -1,10 +1,10 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT \n                ph.id, ph.page_id, ph.level, ph.text, ph.position\n            FROM page_headings ph\n            JOIN pages p ON p.id = ph.page_id\n            WHERE p.job_id = ?\n            ORDER BY ph.page_id, ph.position\n            ",
+  "query": "\n            SELECT\n                ph.id as \"id!\", ph.page_id, ph.level, ph.text, ph.position\n            FROM page_headings ph\n            JOIN pages p ON p.id = ph.page_id\n            WHERE p.job_id = ?\n            ORDER BY ph.page_id, ph.position\n            ",
   "describe": {
     "columns": [
       {
-        "name": "id",
+        "name": "id!",
         "ordinal": 0,
         "type_info": "Int64"
       },
@@ -40,5 +40,5 @@
       false
     ]
   },
-  "hash": "66d907aac67bde4fdbce6fa99cfa8e87596d20ccf6f4f31ef0bd5244faef5065"
+  "hash": "2d239f638f6d890d2a5977f4423c2fa1b7f9085029b6e1f403b623796ac47a65"
 }

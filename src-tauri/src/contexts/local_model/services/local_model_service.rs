@@ -5,9 +5,9 @@ use anyhow::Result;
 
 use crate::contexts::local_model::domain::{ModelEntry, ModelInfo, MODEL_REGISTRY};
 use crate::repository::SettingsRepository;
-use crate::service::gemini::{GeminiRequest, PromptBlock};
+use crate::service::gemini::GeminiRequest;
 use crate::service::local_model::{InferenceEngine, InferenceRequest, ModelDownloader};
-use crate::service::prompt::{build_prompt_from_blocks, DEFAULT_PERSONA};
+use crate::service::prompt::{build_prompt_from_blocks, load_persona, load_prompt_blocks};
 
 const ACTIVE_MODEL_SETTING: &str = "local_model_active_id";
 
@@ -124,15 +124,8 @@ impl LocalModelService {
         let model_path = self.model_path(entry);
 
         // Load persona + blocks — same settings keys used by Gemini
-        let persona = match self.settings_repo.get_setting("gemini_persona").await? {
-            Some(p) if !p.is_empty() => p,
-            _ => DEFAULT_PERSONA.to_string(),
-        };
-        let blocks_json = self.settings_repo
-            .get_setting("gemini_prompt_blocks")
-            .await?
-            .unwrap_or_else(|| "[]".to_string());
-        let blocks: Vec<PromptBlock> = serde_json::from_str(&blocks_json).unwrap_or_default();
+        let persona = load_persona(self.settings_repo.as_ref()).await?;
+        let blocks = load_prompt_blocks(self.settings_repo.as_ref()).await?;
 
         let prompt = build_prompt_from_blocks(&persona, &blocks, request);
 

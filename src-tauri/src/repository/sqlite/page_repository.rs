@@ -1,10 +1,29 @@
-use anyhow::{Context, Result};
 use chrono::Utc;
 use sqlx::SqlitePool;
 
 use crate::contexts::analysis::{LighthouseData, NewHeading, NewImage, Page, PageInfo};
-use crate::repository::PageRepository as PageRepositoryTrait;
+use crate::repository::{PageRepository as PageRepositoryTrait, RepositoryError, RepositoryResult};
 use async_trait::async_trait;
+use super::decode_extracted_data;
+
+/// Use the page's existing id, or mint a fresh UUID if it's empty.
+/// Both `insert` and `insert_batch` need this logic.
+fn page_id_or_new(page: &Page) -> String {
+    if page.id.is_empty() {
+        uuid::Uuid::new_v4().to_string()
+    } else {
+        page.id.clone()
+    }
+}
+
+/// Serialize a page's `extracted_data` map to JSON for storage. Falls
+/// back to `"{}"` on serialization failure rather than failing the
+/// whole insert — the map is `HashMap<String, serde_json::Value>` so
+/// this practically can't fail, but the safety net is preserved from
+/// the original code and now lives in one place.
+fn encode_extracted_data(page: &Page) -> String {
+    serde_json::to_string(&page.extracted_data).unwrap_or_else(|_| "{}".to_string())
+}
 
 pub struct PageRepository {
     pool: SqlitePool,
@@ -18,17 +37,11 @@ impl PageRepository {
 
 #[async_trait]
 impl PageRepositoryTrait for PageRepository {
-    async fn insert(&self, page: &Page) -> Result<String> {
-        let id = if page.id.is_empty() {
-            uuid::Uuid::new_v4().to_string()
-        } else {
-            page.id.clone()
-        };
-
+    async fn insert(&self, page: &Page) -> RepositoryResult<String> {
+        let id = page_id_or_new(page);
         let crawled_at_str = page.crawled_at.to_rfc3339();
-        // Serialize extracted_data to JSON
-        let extracted_data_json = serde_json::to_string(&page.extracted_data)
-            .unwrap_or_else(|_| "{}".to_string());
+        let extracted_data_json = encode_extracted_data(page);
+        let depth_raw = page.depth.as_i64();
 
         let row = sqlx::query!(
             r#"
@@ -59,7 +72,7 @@ impl PageRepositoryTrait for PageRepository {
             id,
             page.job_id,
             page.url,
-            page.depth,
+            depth_raw,
             page.status_code,
             page.content_type,
             page.title,
@@ -75,18 +88,12 @@ impl PageRepositoryTrait for PageRepository {
             extracted_data_json
         )
         .fetch_one(&self.pool)
-        .await
-        .with_context(|| {
-            format!(
-                "Failed to upsert page (job_id={}, url={})",
-                page.job_id, page.url
-            )
-        })?;
+        .await?;
 
         Ok(row.id)
     }
 
-    async fn insert_batch(&self, pages: &[Page]) -> Result<()> {
+    async fn insert_batch(&self, pages: &[Page]) -> RepositoryResult<()> {
         if pages.is_empty() {
             return Ok(());
         }
@@ -106,19 +113,13 @@ impl PageRepositoryTrait for PageRepository {
             );
 
             qb.push_values(chunk, |mut b, page| {
-                let id = if page.id.is_empty() {
-                    uuid::Uuid::new_v4().to_string()
-                } else {
-                    page.id.clone()
-                };
-                // Serialize extracted_data to JSON
-                let extracted_data_json = serde_json::to_string(&page.extracted_data)
-                    .unwrap_or_else(|_| "{}".to_string());
-                
+                let id = page_id_or_new(page);
+                let extracted_data_json = encode_extracted_data(page);
+
                 b.push_bind(id)
                     .push_bind(&page.job_id)
                     .push_bind(&page.url)
-                    .push_bind(page.depth)
+                    .push_bind(page.depth.as_i64())
                     .push_bind(page.status_code)
                     .push_bind(&page.content_type)
                     .push_bind(&page.title)
@@ -134,10 +135,7 @@ impl PageRepositoryTrait for PageRepository {
                     .push_bind(extracted_data_json);
             });
 
-            qb.build()
-                .execute(&mut *tx)
-                .await
-                .context("Failed to batch insert pages")?;
+            qb.build().execute(&mut *tx).await?;
         }
 
         tx.commit().await?;
@@ -145,7 +143,7 @@ impl PageRepositoryTrait for PageRepository {
         Ok(())
     }
 
-    async fn get_by_job_id(&self, job_id: &str) -> Result<Vec<Page>> {
+    async fn get_by_job_id(&self, job_id: &str) -> RepositoryResult<Vec<Page>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -160,40 +158,18 @@ impl PageRepositoryTrait for PageRepository {
             job_id
         )
         .fetch_all(&self.pool)
-        .await
-        .context("Failed to fetch pages for job")?;
+        .await?;
 
         Ok(rows
             .into_iter()
             .map(|row| {
-                // Parse extracted_data JSON
-                let extracted_data: std::collections::HashMap<String, serde_json::Value> = 
-                    serde_json::from_str(&row.extracted_data).unwrap_or_default();
-                
-                Page {
-                    id: row.id,
-                    job_id: row.job_id,
-                    url: row.url,
-                    depth: row.depth,
-                    status_code: row.status_code,
-                    content_type: row.content_type,
-                    title: row.title,
-                    meta_description: row.meta_description,
-                    canonical_url: row.canonical_url,
-                    robots_meta: row.robots_meta,
-                    word_count: row.word_count,
-                    load_time_ms: row.load_time_ms,
-                    response_size_bytes: row.response_size_bytes,
-                    has_viewport: row.has_viewport != 0,
-                    has_structured_data: row.has_structured_data != 0,
-                    crawled_at: parse_datetime(row.crawled_at.as_str()),
-                    extracted_data,
-                }
+                let extracted_data = decode_extracted_data(&row.extracted_data);
+                super::page_from_row!(row, extracted_data)
             })
             .collect())
     }
 
-    async fn get_info_by_job_id(&self, job_id: &str) -> Result<Vec<PageInfo>> {
+    async fn get_info_by_job_id(&self, job_id: &str) -> RepositoryResult<Vec<PageInfo>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -208,8 +184,7 @@ impl PageRepositoryTrait for PageRepository {
             job_id
         )
         .fetch_all(&self.pool)
-        .await
-        .context("Failed to fetch page info for job")?;
+        .await?;
 
         Ok(rows
             .into_iter()
@@ -224,7 +199,7 @@ impl PageRepositoryTrait for PageRepository {
             .collect())
     }
 
-    async fn get_by_id(&self, page_id: &str) -> Result<Page> {
+    async fn get_by_id(&self, page_id: &str) -> RepositoryResult<Page> {
         let row = sqlx::query!(
             r#"
             SELECT 
@@ -239,38 +214,23 @@ impl PageRepositoryTrait for PageRepository {
         )
         .fetch_one(&self.pool)
         .await
-        .context("Failed to fetch page")?;
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => RepositoryError::not_found("page", page_id),
+            other => RepositoryError::from(other),
+        })?;
 
-        // Parse extracted_data JSON
-        let extracted_data: std::collections::HashMap<String, serde_json::Value> = 
-            serde_json::from_str(&row.extracted_data).unwrap_or_default();
-
-        Ok(Page {
-            id: row.id,
-            job_id: row.job_id,
-            url: row.url,
-            depth: row.depth,
-            status_code: row.status_code,
-            content_type: row.content_type,
-            title: row.title,
-            meta_description: row.meta_description,
-            canonical_url: row.canonical_url,
-            robots_meta: row.robots_meta,
-            word_count: row.word_count,
-            load_time_ms: row.load_time_ms,
-            response_size_bytes: row.response_size_bytes,
-            has_viewport: row.has_viewport != 0,
-            has_structured_data: row.has_structured_data != 0,
-            crawled_at: parse_datetime(row.crawled_at.as_str()),
-            extracted_data,
-        })
+        let extracted_data = decode_extracted_data(&row.extracted_data);
+        Ok(super::page_from_row!(row, extracted_data))
     }
 
-    async fn replace_headings(&self, page_id: &str, headings: &[NewHeading]) -> Result<()> {
+    async fn replace_headings(
+        &self,
+        page_id: &str,
+        headings: &[NewHeading],
+    ) -> RepositoryResult<()> {
         sqlx::query!("DELETE FROM page_headings WHERE page_id = ?", page_id)
             .execute(&self.pool)
-            .await
-            .context("Failed to clear page headings")?;
+            .await?;
 
         if headings.is_empty() {
             return Ok(());
@@ -286,19 +246,19 @@ impl PageRepositoryTrait for PageRepository {
                 .push_bind(h.position);
         });
 
-        qb.build()
-            .execute(&self.pool)
-            .await
-            .context("Failed to insert page headings")?;
+        qb.build().execute(&self.pool).await?;
 
         Ok(())
     }
 
-    async fn replace_images(&self, page_id: &str, images: &[NewImage]) -> Result<()> {
+    async fn replace_images(
+        &self,
+        page_id: &str,
+        images: &[NewImage],
+    ) -> RepositoryResult<()> {
         sqlx::query!("DELETE FROM page_images WHERE page_id = ?", page_id)
             .execute(&self.pool)
-            .await
-            .context("Failed to clear page images")?;
+            .await?;
 
         if images.is_empty() {
             return Ok(());
@@ -318,27 +278,23 @@ impl PageRepositoryTrait for PageRepository {
                 .push_bind(if i.is_decorative { 1 } else { 0 });
         });
 
-        qb.build()
-            .execute(&self.pool)
-            .await
-            .context("Failed to insert page images")?;
+        qb.build().execute(&self.pool).await?;
 
         Ok(())
     }
 
-    async fn count_by_job_id(&self, job_id: &str) -> Result<i64> {
+    async fn count_by_job_id(&self, job_id: &str) -> RepositoryResult<i64> {
         let row = sqlx::query!(
             "SELECT COUNT(*) as count FROM pages WHERE job_id = ?",
             job_id
         )
         .fetch_one(&self.pool)
-        .await
-        .context("Failed to count pages")?;
+        .await?;
 
         Ok(row.count as i64)
     }
 
-    async fn insert_lighthouse(&self, data: &LighthouseData) -> Result<()> {
+    async fn insert_lighthouse(&self, data: &LighthouseData) -> RepositoryResult<()> {
         let created_at = Utc::now().to_rfc3339();
         sqlx::query!(
             r#"
@@ -366,13 +322,15 @@ impl PageRepositoryTrait for PageRepository {
             created_at
         )
         .execute(&self.pool)
-        .await
-        .context("Failed to insert lighthouse data")?;
+        .await?;
 
         Ok(())
     }
 
-    async fn get_lighthouse_by_job_id(&self, job_id: &str) -> Result<Vec<LighthouseData>> {
+    async fn get_lighthouse_by_job_id(
+        &self,
+        job_id: &str,
+    ) -> RepositoryResult<Vec<LighthouseData>> {
         let rows = sqlx::query!(
             r#"
             SELECT 
@@ -388,32 +346,12 @@ impl PageRepositoryTrait for PageRepository {
             job_id
         )
         .fetch_all(&self.pool)
-        .await
-        .context("Failed to fetch lighthouse data")?;
+        .await?;
 
         Ok(rows
             .into_iter()
-            .map(|row| LighthouseData {
-                page_id: row.page_id,
-                performance_score: row.performance_score,
-                accessibility_score: row.accessibility_score,
-                best_practices_score: row.best_practices_score,
-                seo_score: row.seo_score,
-                first_contentful_paint_ms: row.first_contentful_paint_ms,
-                largest_contentful_paint_ms: row.largest_contentful_paint_ms,
-                total_blocking_time_ms: row.total_blocking_time_ms,
-                cumulative_layout_shift: row.cumulative_layout_shift,
-                speed_index: row.speed_index,
-                time_to_interactive_ms: row.time_to_interactive_ms,
-                raw_json: row.raw_json,
-            })
+            .map(|row| super::lighthouse_data_from_row!(row))
             .collect())
     }
-}
-
-fn parse_datetime(s: &str) -> chrono::DateTime<Utc> {
-    chrono::DateTime::parse_from_rfc3339(s)
-        .map(|dt| dt.with_timezone(&Utc))
-        .unwrap_or_else(|_| Utc::now())
 }
 

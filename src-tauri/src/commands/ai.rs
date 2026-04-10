@@ -243,10 +243,12 @@ mod tests {
             },
             extension_repo: crate::repository::sqlite_extension_repo(pool.clone()),
             report_pattern_repo: crate::repository::sqlite_report_pattern_repo(pool.clone()),
+            report_template_repo: crate::repository::sqlite_report_template_repo(pool.clone()),
             report_context: crate::contexts::report::ReportService::new(
                 crate::repository::sqlite_report_pattern_repo(pool.clone()),
                 results_repo.clone(),
                 settings_repo.clone(),
+                crate::repository::sqlite_report_template_repo(pool.clone()),
             ),
         };
 

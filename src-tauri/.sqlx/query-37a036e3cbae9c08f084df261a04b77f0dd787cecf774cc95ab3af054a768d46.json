@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            UPDATE jobs\n            SET sitemap_found = ?1, robots_txt_found = ?2\n            WHERE id = ?3\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "37a036e3cbae9c08f084df261a04b77f0dd787cecf774cc95ab3af054a768d46"
+}

@@ -21,7 +21,7 @@ export function ExtractorRow({ extractor, onEdit, onDelete, onToggleEnabled }: E
     <TableRow>
       <TableCell className="font-medium">{extractor.name}</TableCell>
       <TableCell>
-        <code className="text-xs bg-muted px-1 py-0.5 rounded">{extractor.key}</code>
+        <code className="text-xs bg-muted px-1 py-0.5 rounded">tag:{extractor.tag}</code>
       </TableCell>
       <TableCell>
         <code className="text-xs bg-muted px-1 py-0.5 rounded">{extractor.selector}</code>

@@ -1,14 +1,21 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import useSWR from "swr";
 import { useRouter } from "next/navigation";
+import { listen } from "@tauri-apps/api/event";
 import { getPaginatedJobs, cancelAnalysis } from "@/src/api/analysis";
 import { JobFilterBar } from "./JobFilterBar";
 import { JobList } from "../JobList";
 import { JobPagination } from "../molecules/JobPagination";
 
-const fetchJobsPaginated = ([, limit, offset, urlFilter, statusFilter]: [string, number, number, string?, string?]) =>
+const fetchJobsPaginated = ([, limit, offset, urlFilter, statusFilter]: [
+    string,
+    number,
+    number,
+    string?,
+    string?,
+]) =>
     getPaginatedJobs(limit, offset, urlFilter, statusFilter).then((res) => {
         return res.unwrap();
     });
@@ -29,38 +36,63 @@ export function JobHistory() {
         ["jobs-paginated", pageSize, offset, s_urlFilter, s_statusFilter],
         fetchJobsPaginated,
         {
-            refreshInterval: 5000,
             fallbackData: { items: [], total: 0 },
             onError: (err) => setError(err instanceof Error ? err.message : String(err)),
-        }
+        },
     );
 
     const { items: jobs, total } = paginatedData;
     const totalPages = Math.ceil(total / pageSize);
 
-    // Handlers
-    const handleViewResult = useCallback((jobId: string) => {
-        router.push(`/analysis?id=${jobId}`);
-    }, [router]);
+    // Refresh the job list when analysis/discovery events fire —
+    // replaces the old 5-second polling interval.
+    useEffect(() => {
+        let mounted = true;
+        const cleanups: (() => void)[] = [];
 
-    const handleCancel = useCallback(async (jobId: string) => {
-        const res = await cancelAnalysis(jobId);
-        res.match(
-            () => {
+        void (async () => {
+            const u1 = await listen("analysis:progress", () => {
+                if (mounted) void mutate();
+            });
+            const u2 = await listen("discovery:progress", () => {
+                if (mounted) void mutate();
+            });
+            cleanups.push(u1, u2);
+        })();
+
+        return () => {
+            mounted = false;
+            cleanups.forEach((fn) => fn());
+        };
+    }, [mutate]);
+
+    // Handlers
+    const handleViewResult = useCallback(
+        (jobId: string) => {
+            router.push(`/analysis?id=${jobId}`);
+        },
+        [router],
+    );
+
+    const handleCancel = useCallback(
+        async (jobId: string) => {
+            const res = await cancelAnalysis(jobId);
+            res.match(() => {
                 mutate();
                 setError(null);
-            },
-            setError,
-        );
-    }, [mutate]);
+            }, setError);
+        },
+        [mutate],
+    );
 
     return (
         <div className="flex-1 flex flex-col relative min-h-[500px]">
             {/* Technical Background Pattern */}
-            <div className="absolute inset-0 -z-10 opacity-[0.03]"
+            <div
+                className="absolute inset-0 -z-10 opacity-[0.03]"
                 style={{
-                    backgroundImage: 'radial-gradient(#000 1px, transparent 1px)',
-                    backgroundSize: '20px 20px'
+                    backgroundImage: "radial-gradient(#000 1px, transparent 1px)",
+                    backgroundSize: "20px 20px",
                 }}
             />
 
@@ -89,11 +121,7 @@ export function JobHistory() {
                         </div>
                     )}
 
-                    <JobList
-                        jobs={jobs}
-                        onViewResult={handleViewResult}
-                        onCancel={handleCancel}
-                    />
+                    <JobList jobs={jobs} onViewResult={handleViewResult} onCancel={handleCancel} />
                 </div>
             </div>
 

@@ -95,18 +95,25 @@ impl JobQueue {
         }
     }
 
+    /// Fetch the first pending job, or `Ok(None)` if the queue is empty.
+    /// Centralizes the "ask the repo, return the head" step shared by
+    /// `fetch_next_job` and `fetch_next_job_hybrid` so the two pollers
+    /// can't drift on which job they pick or how they clone it.
+    async fn first_pending(&self) -> Result<Option<Job>> {
+        let jobs = self.repo.get_pending().await?;
+        // In a real queue we'd lock or mark the row as processing here;
+        // for now the worker pool relies on `update_status` later in the
+        // pipeline to keep two workers from grabbing the same row.
+        Ok(jobs.into_iter().next())
+    }
+
     /// Fetch the next job using polling (legacy mode).
     /// This is kept for backward compatibility and fallback.
     pub async fn fetch_next_job(&self) -> Option<Job> {
         loop {
-            match self.repo.get_pending().await {
-                Ok(jobs) if !jobs.is_empty() => {
-                    // Return the first pending job
-                    // In a real queue, we might want to lock it or mark it as processing immediately
-                    // But for now we just return the first one found
-                    return Some(jobs[0].clone());
-                }
-                Ok(_) => {
+            match self.first_pending().await {
+                Ok(Some(job)) => return Some(job),
+                Ok(None) => {
                     tracing::trace!("No pending jobs, sleeping...");
                     sleep(JOB_POLL_INTERVAL).await;
                 }
@@ -142,15 +149,19 @@ impl JobQueue {
     /// This combines the best of both worlds - immediate response when
     /// jobs are created, with fallback polling for reliability.
     pub async fn fetch_next_job_hybrid(&mut self) -> Option<Job> {
+        // Borrow `repo` and `notification_rx` independently so the
+        // immutable repo call below doesn't conflict with the mutable
+        // receiver held across the `tokio::select!`.
+        let repo = self.repo.clone();
         let notification_rx = self.notification_rx.as_mut()?;
 
         loop {
-            // First, check if there are pending jobs
-            match self.repo.get_pending().await {
-                Ok(jobs) if !jobs.is_empty() => {
-                    return Some(jobs[0].clone());
-                }
-                Ok(_) => {
+            // First, check if there are pending jobs (inlined first_pending —
+            // can't call &self method here without colliding with the
+            // outstanding &mut borrow on notification_rx).
+            match repo.get_pending().await.map(|jobs| jobs.into_iter().next()) {
+                Ok(Some(job)) => return Some(job),
+                Ok(None) => {
                     // No jobs, wait for notification or timeout
                     tracing::trace!("No pending jobs, waiting for notification...");
                 }
@@ -173,20 +184,29 @@ impl JobQueue {
         }
     }
 
+    /// Single transition helper that the public `mark_*` shorthands route
+    /// through. The four-method surface is preserved (callers stay
+    /// readable: `job_queue.mark_processing(id)`) but the four identical
+    /// `update_status` bodies collapse into one.
+    async fn transition(&self, job_id: &str, status: JobStatus) -> Result<()> {
+        self.repo.update_status(job_id, status).await?;
+        Ok(())
+    }
+
     pub async fn mark_discovery(&self, job_id: &str) -> Result<()> {
-        self.repo.update_status(job_id, JobStatus::Discovery).await
+        self.transition(job_id, JobStatus::Discovery).await
     }
 
     pub async fn mark_processing(&self, job_id: &str) -> Result<()> {
-        self.repo.update_status(job_id, JobStatus::Processing).await
+        self.transition(job_id, JobStatus::Processing).await
     }
 
     pub async fn mark_completed(&self, job_id: &str) -> Result<()> {
-        self.repo.update_status(job_id, JobStatus::Completed).await
+        self.transition(job_id, JobStatus::Completed).await
     }
 
     pub async fn mark_cancelled(&self, job_id: &str) -> Result<()> {
-        self.repo.update_status(job_id, JobStatus::Cancelled).await
+        self.transition(job_id, JobStatus::Cancelled).await
     }
 
     pub async fn cancel_all_running_jobs(&self) -> Result<()> {
@@ -205,7 +225,8 @@ impl JobQueue {
     }
 
     pub async fn update_progress(&self, job_id: &str, progress: f64) -> Result<()> {
-        self.repo.update_progress(job_id, progress).await
+        self.repo.update_progress(job_id, progress).await?;
+        Ok(())
     }
 
     pub async fn update_resources(
@@ -216,7 +237,8 @@ impl JobQueue {
     ) -> Result<()> {
         self.repo
             .update_resources(job_id, sitemap_found, robots_txt_found)
-            .await
+            .await?;
+        Ok(())
     }
 }
 

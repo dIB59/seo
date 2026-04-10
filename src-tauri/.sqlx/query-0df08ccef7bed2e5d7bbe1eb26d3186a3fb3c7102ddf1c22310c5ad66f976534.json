@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT \n                id, url, status, progress, \n                total_pages, total_issues, created_at,\n                max_pages, lighthouse_analysis,\n                COUNT(*) OVER() as \"total_count!\"\n            FROM jobs\n            WHERE url LIKE ?1 AND status LIKE ?2\n            ORDER BY created_at DESC\n            LIMIT ?3 OFFSET ?4\n            ",
+  "query": "\n            SELECT\n                id, url, status, progress,\n                total_pages, total_issues, created_at,\n                max_pages, lighthouse_analysis,\n                COUNT(*) OVER() as \"total_count!\"\n            FROM jobs\n            WHERE url LIKE ?1 AND status LIKE ?2\n            ORDER BY created_at DESC\n            LIMIT ?3 OFFSET ?4\n            ",
   "describe": {
     "columns": [
       {
@@ -70,5 +70,5 @@
       false
     ]
   },
-  "hash": "71e9621fcb08b6e48cfd5410467118cce2e9f6019f7feb7d24d622812e51cee5"
+  "hash": "0df08ccef7bed2e5d7bbe1eb26d3186a3fb3c7102ddf1c22310c5ad66f976534"
 }

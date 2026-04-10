@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import useSWR from "swr";
+import { listTags } from "@/src/api/extension";
 import { Check, X } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
@@ -32,7 +34,6 @@ import type {
   PatternSeverity,
 } from "@/src/bindings";
 import {
-  BUILT_IN_FIELDS,
   CATEGORY_OPTIONS,
   EFFORT_OPTIONS,
   IMPACT_OPTIONS,
@@ -90,6 +91,7 @@ export function ReportPatternDialog({
   onValidationError,
 }: ReportPatternDialogProps) {
   const [form, setForm] = useState<ReportPatternParams>(EMPTY_FORM);
+  const { data: tags = [] } = useSWR("tags-checkField", () => listTags("checkField"));
 
   useEffect(() => {
     if (!open) return;
@@ -174,20 +176,24 @@ export function ReportPatternDialog({
 
           <div className="space-y-1.5">
             <Label>Field</Label>
-            <Input
-              list="field-suggestions"
-              placeholder="meta_description"
+            <Select
               value={form.field}
-              onChange={(e) => setForm((f) => ({ ...f, field: e.target.value }))}
-            />
-            <datalist id="field-suggestions">
-              {BUILT_IN_FIELDS.map((f) => (
-                <option key={f} value={f} />
-              ))}
-            </datalist>
-            <p className="text-xs text-muted-foreground">
-              Built-in field, <code>extracted:&lt;key&gt;</code>, or <code>issue:&lt;type&gt;</code>
-            </p>
+              onValueChange={(v) => setForm((f) => ({ ...f, field: v }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a field…" />
+              </SelectTrigger>
+              <SelectContent>
+                {tags.map((t) => (
+                  <SelectItem key={t.name} value={t.name}>
+                    <span className="flex items-center gap-2">
+                      <code className="text-xs">{t.name}</code>
+                      <span className="text-xs text-muted-foreground">{t.label}</span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-1.5">

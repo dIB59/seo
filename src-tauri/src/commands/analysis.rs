@@ -159,7 +159,9 @@ impl AnalysisSummary {
         let (total_load, load_count) = pages
             .iter()
             .filter(|p| p.load_time > 0.0)
-            .fold((0.0f64, 0usize), |(sum, cnt), p| (sum + p.load_time, cnt + 1));
+            .fold((0.0f64, 0usize), |(sum, cnt), p| {
+                (sum + p.load_time, cnt + 1)
+            });
 
         // Use Lighthouse SEO scores when available — they reflect the real score shown in
         // the UI. The issue-deduction formula saturates at 0 when there are many issues,
@@ -172,11 +174,11 @@ impl AnalysisSummary {
         };
 
         Self {
-            analysis_id: job.id.clone(),
+            analysis_id: job.id.as_str().to_string(),
             seo_score,
             avg_load_time: total_load / load_count.max(1) as f64,
             total_words: pages.iter().map(|p| p.word_count).sum(),
-            total_issues: job.summary.total_issues,
+            total_issues: job.summary.total_issues(),
         }
     }
 }
@@ -252,17 +254,6 @@ fn count_images_without_alt(images: &[ImageElement]) -> i64 {
         .count() as i64
 }
 
-/// Splits an optional `LighthouseData` into its (seo_audits, performance_metrics) pair,
-/// defaulting both to `None` when no Lighthouse data exists.
-fn split_lighthouse(
-    lh_data: Option<&LighthouseData>,
-) -> (Option<serde_json::Value>, Option<serde_json::Value>) {
-    match lh_data {
-        Some(lh) => lh.interpret_raw(),
-        None => (None, None),
-    }
-}
-
 impl CompleteAnalysisResponse {
     fn assemble_page(
         page: Page,
@@ -273,11 +264,16 @@ impl CompleteAnalysisResponse {
         extracted_data: std::collections::HashMap<String, serde_json::Value>,
     ) -> PageAnalysisData {
         let load_time = page.load_time_ms.unwrap_or(0) as f64 / 1000.0;
-        let mobile_friendly = lh_data.is_some_and(|lh| lh.is_mobile_friendly())
-            || page.is_mobile_friendly_heuristic();
-        let has_structured_data =
-            page.has_structured_data || lh_data.is_some_and(|lh| lh.has_structured_data());
-        let (lighthouse_seo_audits, lighthouse_performance_metrics) = split_lighthouse(lh_data);
+        // Parse `raw_json` exactly once per page via `interpret()` — the
+        // three fields derived from it (mobile_friendly, structured
+        // data, and the two extracted sub-values) previously caused
+        // three separate `serde_json::from_str` calls per page, i.e.
+        // ~3N parses on a full report. Now: N parses.
+        let lh_interpreted = lh_data.map(|lh| lh.interpret()).unwrap_or_default();
+        let mobile_friendly = lh_interpreted.mobile_friendly || page.is_mobile_friendly_heuristic();
+        let has_structured_data = page.has_structured_data || lh_interpreted.has_structured_data;
+        let lighthouse_seo_audits = lh_interpreted.seo_audits;
+        let lighthouse_performance_metrics = lh_interpreted.performance_metrics;
         let (internal_links, external_links) = count_links_by_type(&detailed_links);
 
         PageAnalysisData {
@@ -323,8 +319,10 @@ impl From<CompleteJobResult> for CompleteAnalysisResponse {
 
         // Borrow page urls — pages is consumed below, so the lookup map cannot outlive
         // this scope, which is exactly when issue assembly happens.
-        let page_url_by_id: HashMap<&str, &str> =
-            pages.iter().map(|p| (p.id.as_str(), p.url.as_str())).collect();
+        let page_url_by_id: HashMap<&str, &str> = pages
+            .iter()
+            .map(|p| (p.id.as_str(), p.url.as_str()))
+            .collect();
 
         let assembled_issues: Vec<SeoIssue> = issues
             .into_iter()
@@ -347,7 +345,11 @@ impl From<CompleteJobResult> for CompleteAnalysisResponse {
             })
             .collect();
 
-        fn group_by<T, U, K>(items: Vec<T>, key: impl Fn(&T) -> K, convert: impl Fn(T) -> U) -> HashMap<K, Vec<U>>
+        fn group_by<T, U, K>(
+            items: Vec<T>,
+            key: impl Fn(&T) -> K,
+            convert: impl Fn(T) -> U,
+        ) -> HashMap<K, Vec<U>>
         where
             K: std::hash::Hash + Eq,
         {
@@ -385,12 +387,12 @@ impl From<CompleteJobResult> for CompleteAnalysisResponse {
             .collect();
 
         let analysis = AnalysisResults {
-            id: job.id.clone(),
+            id: job.id.as_str().to_string(),
             url: job.url.clone(),
             status: job.status.clone(),
             progress: job.progress,
-            total_pages: job.summary.total_pages,
-            analyzed_pages: job.summary.pages_crawled,
+            total_pages: job.summary.total_pages(),
+            analyzed_pages: job.summary.pages_crawled(),
             started_at: Some(job.created_at.to_rfc3339()),
             completed_at: job.completed_at.map(|d| d.to_rfc3339()),
             sitemap_found: job.sitemap_found,
@@ -448,7 +450,7 @@ pub async fn start_analysis(
     tracing::debug!("Notified job processor of new job: {}", job_id);
 
     Ok(AnalysisJobResponse {
-        job_id,
+        job_id: job_id.into_string(),
         url,
         status: JobStatus::Pending,
     })
@@ -516,7 +518,7 @@ pub async fn get_paginated_jobs(
     status_filter: Option<String>,
     app_state: State<'_, AppState>,
 ) -> Result<PaginatedJobsResponse, CommandError> {
-    tracing::info!(
+    tracing::debug!(
         "Fetching paginated jobs (limit={}, offset={}, url_filter={:?}, status_filter={:?})",
         limit,
         offset,
@@ -586,7 +588,7 @@ mod tests {
             .expect("Failed to export typescript bindings");
     }
 
-    use crate::contexts::analysis::{JobSettings, LighthouseData, LinkType, NewLink, Page};
+    use crate::contexts::analysis::{Depth, JobSettings, LighthouseData, LinkType, NewLink, Page};
     use crate::repository::*;
     use crate::test_utils::fixtures;
     use chrono::Utc;
@@ -607,7 +609,7 @@ mod tests {
             id: "".to_string(),
             job_id: job_id.clone(),
             url: "https://example.com/page-1".to_string(),
-            depth: 0,
+            depth: Depth::root(),
             status_code: Some(200),
             content_type: None,
             title: Some("Page 1".to_string()),
@@ -680,7 +682,7 @@ mod tests {
             id: "".to_string(),
             job_id: job_id.clone(),
             url: "https://example.com/fast-page".to_string(),
-            depth: 0,
+            depth: Depth::root(),
             status_code: Some(200),
             content_type: None,
             title: Some("Fast Page".to_string()),
@@ -731,7 +733,7 @@ mod tests {
             id: "".to_string(),
             job_id: job_id.clone(),
             url: "https://example.com/page-a".to_string(),
-            depth: 0,
+            depth: Depth::root(),
             status_code: Some(200),
             content_type: None,
             title: Some("A".to_string()),
@@ -827,7 +829,7 @@ mod tests {
             id: "".to_string(),
             job_id: job_id.clone(),
             url: "https://example.com/".to_string(),
-            depth: 0,
+            depth: Depth::root(),
             status_code: Some(200),
             content_type: None,
             title: Some("Home".to_string()),
@@ -892,7 +894,7 @@ mod tests {
             id: "".to_string(),
             job_id: job_id.clone(),
             url: "https://example.com/".to_string(),
-            depth: 0,
+            depth: Depth::root(),
             status_code: Some(200),
             content_type: None,
             title: Some("Home".to_string()),
