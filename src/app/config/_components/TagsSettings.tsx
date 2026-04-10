@@ -1,6 +1,5 @@
 "use client";
 
-import useSWR from "swr";
 import { Badge } from "@/src/components/ui/badge";
 import {
   Table,
@@ -10,7 +9,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { listTags, type Tag } from "@/src/api/extension";
+import type { Tag } from "@/src/api/extension";
+import { useExtractorTags } from "@/src/hooks/use-extractor-tags";
 
 function sourceLabel(tag: Tag): string {
   if (tag.source.kind === "extractor") return tag.source.extractorName;
@@ -53,10 +53,7 @@ function scopeBadges(scopes: string[]) {
 }
 
 export function TagsSettings() {
-  const { data: tags = [] } = useSWR("tags", () => listTags());
-
-  const builtinTags = tags.filter((t) => t.source.kind === "builtin");
-  const extractorTags = tags.filter((t) => t.source.kind === "extractor");
+  const { extractorTags, builtinTags } = useExtractorTags();
 
   return (
     <div className="space-y-6">

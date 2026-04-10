@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import useSWR from "swr";
-import { listTags } from "@/src/api/extension";
+import { useState } from "react";
+import { useCheckFieldTags } from "@/src/hooks/use-check-field-tags";
+import { useFormSync } from "@/src/hooks/use-form-sync";
 import { Check, X } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
@@ -72,13 +72,8 @@ export function CustomCheckDialog({
   onSave,
   onValidationError,
 }: CustomCheckDialogProps) {
-  const [form, setForm] = useState<CustomCheckParams>(EMPTY_PARAMS);
-  const { data: tags = [] } = useSWR("tags-checkField", () => listTags("checkField"));
-
-  useEffect(() => {
-    if (!open) return;
-    setForm(editing ? paramsFrom(editing) : EMPTY_PARAMS);
-  }, [open, editing]);
+  const [form, setForm] = useFormSync(open, editing, EMPTY_PARAMS, paramsFrom);
+  const { tags } = useCheckFieldTags();
 
   const needsThreshold = form.operator !== "missing";
 

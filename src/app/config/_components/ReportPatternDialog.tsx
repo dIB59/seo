@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import useSWR from "swr";
-import { listTags } from "@/src/api/extension";
+import { useState } from "react";
+import { useCheckFieldTags } from "@/src/hooks/use-check-field-tags";
+import { useFormSync } from "@/src/hooks/use-form-sync";
 import { Check, X } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
@@ -90,13 +90,8 @@ export function ReportPatternDialog({
   onSave,
   onValidationError,
 }: ReportPatternDialogProps) {
-  const [form, setForm] = useState<ReportPatternParams>(EMPTY_FORM);
-  const { data: tags = [] } = useSWR("tags-checkField", () => listTags("checkField"));
-
-  useEffect(() => {
-    if (!open) return;
-    setForm(editing ? paramsFrom(editing) : EMPTY_FORM);
-  }, [open, editing]);
+  const [form, setForm] = useFormSync(open, editing, EMPTY_FORM, paramsFrom);
+  const { tags } = useCheckFieldTags();
 
   const needsThreshold =
     OPERATOR_OPTIONS.find((o) => o.value === form.operator)?.needsThreshold ?? false;

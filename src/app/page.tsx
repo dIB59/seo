@@ -8,6 +8,7 @@ import { startAnalysis } from "@/src/api/analysis";
 import type { AnalysisSettingsRequest } from "@/src/api/analysis";
 import { logger } from "@/src/lib/logger";
 import { UrlInputForm } from "@/src/app/_components/url-input/UrlInputForm";
+import { ErrorBoundary } from "@/src/components/ErrorBoundary";
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
@@ -35,6 +36,7 @@ export default function Home() {
   }, []);
 
   return (
+    <ErrorBoundary>
     <main className="min-h-screen p-6 max-w-5xl mx-auto flex flex-col">
       <HomeHeader
         isValidating={false} // Validation status is now managed inside JobHistory
@@ -55,5 +57,6 @@ export default function Home() {
 
       <JobHistory />
     </main>
+    </ErrorBoundary>
   );
 }

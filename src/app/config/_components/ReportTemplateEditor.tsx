@@ -19,6 +19,7 @@ import {
 } from "@/src/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
 
+import { useExtractorTags } from "@/src/hooks/use-extractor-tags";
 import {
   listReportTemplates,
   updateReportTemplate,
@@ -101,9 +102,7 @@ export function ReportTemplateEditor() {
   const [saving, setSaving] = useState(false);
   const [addType, setAddType] = useState<string>("text");
 
-  // Fetch extractor tags for the tag picker
-  const { data: allTags = [] } = useSWR("tags-all", () => listTags());
-  const extractorTags = allTags.filter((t) => t.source.kind === "extractor");
+  const { extractorTags } = useExtractorTags();
 
   // Sync when active template changes
   const activeId = active?.id;
@@ -477,9 +476,7 @@ function ConditionalEditor({
   section: Extract<TemplateSection, { kind: "conditional" }>;
   onChange: (s: TemplateSection) => void;
 }) {
-  // Fetch extractor tags for tag-aware condition dropdowns
-  const { data: allTags = [] } = useSWR("tags-all", () => listTags());
-  const extractorTags = allTags.filter((t) => t.source.kind === "extractor");
+  const { extractorTags } = useExtractorTags();
   const when = section.when as Record<string, unknown>;
   const currentOp = (when.op as string) ?? "sitemapMissing";
   const condDef = CONDITION_TYPES.find((c) => c.value === currentOp);

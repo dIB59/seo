@@ -27,6 +27,7 @@ import { ExtractorsSettings } from "./_components/ExtractorsSettings";
 import { ReportPatternsSettings } from "./_components/ReportPatternsSettings";
 import { TagsSettings } from "./_components/TagsSettings";
 import { ReportBuilder } from "./_components/ReportBuilder";
+import { ErrorBoundary } from "@/src/components/ErrorBoundary";
 
 function ContentSkeleton() {
   return (
@@ -67,12 +68,14 @@ export default function ConfigPage() {
             {isInitialLoad ? (
               <ContentSkeleton />
             ) : (
+              <ErrorBoundary>
               <ConfigContent
                 key={settings ? "loaded" : "loading"}
                 settings={settings}
                 mutate={mutate}
                 activeSection={activeSection}
               />
+              </ErrorBoundary>
             )}
           </div>
         </main>
