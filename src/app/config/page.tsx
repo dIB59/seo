@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Save } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Separator } from "@/src/components/ui/separator";
@@ -13,6 +13,7 @@ import {
 } from "@/src/api/ai";
 
 import { useAiSettings } from "@/src/hooks/use-ai-settings";
+import { useMutation } from "@/src/hooks/use-mutation";
 import type { PromptBlock } from "@/src/lib/types";
 
 // Components
@@ -98,55 +99,38 @@ function ConfigContent({
   mutate: (data?: PageSettings, options?: { revalidate: boolean }) => Promise<PageSettings | undefined>;
   activeSection: string;
 }) {
-  const [isLoading, setIsLoading] = useState(false);
   const [persona, setPersona] = useState(settings?.persona || "");
   const [blocks, setBlocks] = useState<PromptBlock[]>(settings?.blocks || []);
 
-  const handleSavePersona = useCallback(async () => {
-    setIsLoading(true);
-    try {
+  const savePersona = useMutation(
+    async () => {
       const res = await set_gemini_persona(persona);
-      if (res.isOk()) {
-        if (settings) mutate({ ...settings, persona }, { revalidate: false });
-        toast.success("Persona saved");
-      } else {
-        toast.error("Failed to save persona");
-      }
-    } catch {
-      toast.error("An error occurred while saving");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [persona, mutate, settings]);
+      if (res.isErr()) throw new Error("Failed to save persona");
+      if (settings) mutate({ ...settings, persona }, { revalidate: false });
+    },
+    { successMessage: "Persona saved" },
+  );
 
-  const handleSavePrompt = useCallback(async () => {
-    setIsLoading(true);
-    try {
+  const savePrompt = useMutation(
+    async () => {
       const res = await set_gemini_prompt_blocks(JSON.stringify(blocks));
-      if (res.isOk()) {
-        if (settings) mutate({ ...settings, blocks }, { revalidate: false });
-        toast.success("Prompt layout saved");
-      } else {
-        toast.error("Failed to save layout");
-      }
-    } catch {
-      toast.error("Error saving layout");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [blocks, mutate, settings]);
+      if (res.isErr()) throw new Error("Failed to save layout");
+      if (settings) mutate({ ...settings, blocks }, { revalidate: false });
+    },
+    { successMessage: "Prompt layout saved" },
+  );
 
   // ⌘S / Ctrl+S shortcut
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.key !== "s") return;
       e.preventDefault();
-      if (activeSection === "report-builder") handleSavePersona();
-      else if (activeSection === "prompt") handleSavePrompt();
+      if (activeSection === "report-builder") savePersona.execute();
+      else if (activeSection === "prompt") savePrompt.execute();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [activeSection, handleSavePersona, handleSavePrompt]);
+  }, [activeSection, savePersona, savePrompt]);
 
   return (
     <>
@@ -161,7 +145,7 @@ function ConfigContent({
           </p>
         </div>
         {activeSection === "prompt" && (
-          <Button onClick={handleSavePrompt} disabled={isLoading}>
+          <Button onClick={() => savePrompt.execute()} disabled={savePrompt.isLoading}>
             <Save className="h-4 w-4 mr-2" />
             Save Layout
           </Button>
