@@ -115,6 +115,19 @@ export async function set_gemini_context_options(options: string): Promise<Resul
   return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "");
 }
 
+export async function get_ai_source(): Promise<Result<AiSource, string>> {
+  const res = await commands.getAiSource();
+  if (res.status === "ok") {
+    return Result.Ok(res.data === "local" ? "local" : "gemini");
+  }
+  return Result.Err(res.error ?? "Failed to get AI source");
+}
+
+export async function set_ai_source(source: AiSource): Promise<Result<null, string>> {
+  const res = await commands.setAiSource(source);
+  return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "Failed to set AI source");
+}
+
 function buildInsightsPayload(result: CompleteAnalysisResponse) {
   const { analysis, summary, issues, pages } = result;
 

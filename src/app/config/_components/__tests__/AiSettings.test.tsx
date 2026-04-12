@@ -2,15 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-vi.mock("@/src/bindings", () => ({
-  commands: {
-    getAiSource: vi.fn(),
-    setAiSource: vi.fn(),
-    getGeminiApiKey: vi.fn(),
-  },
-}));
-
+// Mock the API layer (not raw commands — component now uses API functions)
 vi.mock("@/src/api/ai", () => ({
+  get_ai_source: vi.fn(),
+  set_ai_source: vi.fn(),
+  get_gemini_api_key: vi.fn(),
   set_gemini_api_key: vi.fn(),
 }));
 
@@ -22,16 +18,26 @@ vi.mock("../LocalModelSettings", () => ({
   LocalModelSettings: () => <div data-testid="local-model-settings">Local Model</div>,
 }));
 
-import { commands } from "@/src/bindings";
+import {
+  get_ai_source,
+  set_ai_source,
+  get_gemini_api_key,
+} from "@/src/api/ai";
 import { AiSettings } from "../AiSettings";
 
-const mocked = vi.mocked(commands);
+const mockedGetSource = vi.mocked(get_ai_source);
+const mockedSetSource = vi.mocked(set_ai_source);
+const mockedGetKey = vi.mocked(get_gemini_api_key);
+
+// Minimal Result-like objects
+const ok = <T,>(data: T) => ({ isOk: () => true, isErr: () => false, unwrap: () => data });
+const err = (msg: string) => ({ isOk: () => false, isErr: () => true, unwrapErr: () => msg });
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocked.getAiSource.mockResolvedValue({ status: "ok", data: "gemini" } as never);
-  mocked.getGeminiApiKey.mockResolvedValue({ status: "ok", data: "test-key" } as never);
-  mocked.setAiSource.mockResolvedValue({ status: "ok", data: null } as never);
+  mockedGetSource.mockResolvedValue(ok("gemini") as never);
+  mockedGetKey.mockResolvedValue(ok("test-key") as never);
+  mockedSetSource.mockResolvedValue(ok(null) as never);
 });
 
 describe("AiSettings", () => {
@@ -71,7 +77,7 @@ describe("AiSettings", () => {
     await user.click(screen.getByText("Local Model (On-device)"));
 
     await waitFor(() => {
-      expect(mocked.setAiSource).toHaveBeenCalledWith("local");
+      expect(mockedSetSource).toHaveBeenCalledWith("local");
       expect(screen.getByTestId("local-model-settings")).toBeInTheDocument();
     });
   });

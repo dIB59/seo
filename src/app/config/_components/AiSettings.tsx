@@ -9,11 +9,17 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { Separator } from "@/src/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/src/components/ui/tooltip";
-import { commands } from "@/src/bindings";
-import { set_gemini_api_key } from "@/src/api/ai";
+import {
+  get_ai_source,
+  set_ai_source,
+  get_gemini_api_key,
+  set_gemini_api_key,
+} from "@/src/api/ai";
 import { useMutation } from "@/src/hooks/use-mutation";
 import { LocalModelSettings } from "./LocalModelSettings";
 import type { AiSource } from "@/src/api/ai";
+// All Tauri command access now goes through src/api/ai — no direct
+// `commands.*` imports in this component.
 
 // ── Source picker ─────────────────────────────────────────────────────────────
 
@@ -68,14 +74,12 @@ export function AiSettings() {
   const [apiKey, setApiKey] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load current settings
+  // Load current settings via the API layer
   useEffect(() => {
-    Promise.all([commands.getAiSource(), commands.getGeminiApiKey()]).then(
+    Promise.all([get_ai_source(), get_gemini_api_key()]).then(
       ([sourceRes, keyRes]) => {
-        if (sourceRes.status === "ok") {
-          setSourceState(sourceRes.data === "local" ? "local" : "gemini");
-        }
-        if (keyRes.status === "ok") setApiKey(keyRes.data ?? "");
+        if (sourceRes.isOk()) setSourceState(sourceRes.unwrap());
+        if (keyRes.isOk()) setApiKey(keyRes.unwrap() ?? "");
         setIsLoading(false);
       },
     );
@@ -85,8 +89,8 @@ export function AiSettings() {
     async (next: AiSource) => {
       if (next === source) return;
       setSourceState(next);
-      const res = await commands.setAiSource(next);
-      if (res.status === "error") {
+      const res = await set_ai_source(next);
+      if (res.isErr()) {
         toast.error("Failed to save AI source");
         setSourceState(source); // rollback
       }
