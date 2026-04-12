@@ -467,6 +467,13 @@ async deleteReportTemplate(id: string) : Promise<Result<null, CommandError>> {
 /** user-defined events **/
 
 
+export const events = __makeEvents__<{
+modelDownloadEvent: ModelDownloadEvent,
+progressEvent: ProgressEvent
+}>({
+modelDownloadEvent: "model-download-event",
+progressEvent: "progress-event"
+})
 
 /** user-defined constants **/
 
@@ -659,6 +666,15 @@ export type LicenseTier = "Free" | "Premium"
 export type LinkDetail = { href: string; text: string; link_type: LinkType; is_broken: boolean; status_code: number | null }
 export type LinkType = "internal" | "subdomain" | "external" | "resource"
 /**
+ * Per-model download progress event emitted to the frontend.
+ */
+export type ModelDownloadEvent = { modelId: string; status: ModelDownloadStatus; downloadedBytes: number; totalBytes: number; 
+/**
+ * 0.0–1.0, or -1.0 when total size is unknown.
+ */
+progress: number }
+export type ModelDownloadStatus = "downloading" | "completed" | "failed" | "cancelled"
+/**
  * Runtime state of a model: registry metadata + whether it's on disk.
  */
 export type ModelInfo = ({ id: string; name: string; description: string; tier: ModelTier; size_bytes: number; download_url: string; filename: string; sha256: string }) & { is_downloaded: boolean; is_active: boolean; 
@@ -729,6 +745,7 @@ export type Policy = { tier: LicenseTier; max_pages: number; enabled_features: F
  * The app still works — this flag drives a renewal banner in the UI.
  */
 updates_expired: boolean }
+export type ProgressEvent = { event: "analysis"; job_id: string; progress: number; pages_analyzed: number; total_pages: number } | { event: "discovery"; job_id: string; count: number; total_pages: number }
 /**
  * The full output of the report engine — ready for frontend rendering / PDF export.
  */
