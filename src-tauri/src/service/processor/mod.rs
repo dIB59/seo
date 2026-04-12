@@ -326,10 +326,15 @@ impl WorkerContext {
             .await?;
 
         tracing::info!(
-            "Job {}: Inserted {} pages into page queue (with cached HTML)",
+            "Job {}: Discovery returned {} pages, queued {} (max_pages={})",
             job.id,
-            pages_to_queue.len()
+            pages_to_queue.len(),
+            pages_to_queue.len(),
+            max_pages,
         );
+        if pages_to_queue.is_empty() {
+            tracing::error!("Job {}: No pages to analyze — discovery returned nothing!", job.id);
+        }
 
         self.job_queue.mark_processing(&job.id).await?;
 
@@ -424,13 +429,22 @@ impl WorkerContext {
 
                 match analysis {
                     Ok((page_result, _new_urls)) => {
+                        let n_issues = page_result.issues.len();
+                        let n_links = page_result.links.len();
                         crawl_pages.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                        crawl_issues.fetch_add(page_result.issues.len(), std::sync::atomic::Ordering::Relaxed);
+                        crawl_issues.fetch_add(n_issues, std::sync::atomic::Ordering::Relaxed);
                         crawl_links.lock().await.extend(page_result.links);
                         let _ = page_queue_manager.mark_completed(&page_item.id).await;
+                        tracing::info!(
+                            "[ANALYSIS] OK: {} — {} issues, {} links",
+                            page_item.url, n_issues, n_links,
+                        );
                     }
                     Err(e) => {
-                        tracing::warn!("Failed to analyze {}: {:#}", page_item.url, e);
+                        tracing::error!(
+                            "[ANALYSIS] FAILED: {} — {:#}",
+                            page_item.url, e,
+                        );
                         let _ = page_queue_manager
                             .mark_failed(&page_item.id, &e.to_string())
                             .await;
@@ -452,7 +466,9 @@ impl WorkerContext {
 
         // Wait for all in-flight analysis tasks to complete
         for handle in handles {
-            let _ = handle.await;
+            if let Err(e) = handle.await {
+                tracing::error!("Analysis task panicked: {e}");
+            }
         }
 
         let crawl_result = CrawlResult {

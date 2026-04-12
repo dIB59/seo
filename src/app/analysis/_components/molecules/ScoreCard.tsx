@@ -10,9 +10,9 @@ export function ScoreCard({ pages, issues }: { pages: PageAnalysisData[]; issues
   const criticalCount = issues.filter((i) => i.severity === "critical").length;
   const warningCount = issues.filter((i) => i.severity === "warning").length;
   const suggestionCount = issues.filter((i) => i.severity === "info").length;
-  const averageScore = Math.round(
-    pages.reduce((acc, p) => acc + (p.lighthouse_seo || 0), 0) / pages.length,
-  );
+  const averageScore = pages.length > 0
+    ? Math.round(pages.reduce((acc, p) => acc + (p.lighthouse_seo || 0), 0) / pages.length)
+    : 0;
   return (
     <Card className="bg-card/40 backdrop-blur-sm border-white/5 shadow-sm overflow-hidden relative group">
       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
