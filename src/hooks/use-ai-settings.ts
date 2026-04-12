@@ -1,18 +1,18 @@
 import useSWR from "swr";
 import {
-  get_gemini_api_key,
-  get_gemini_persona,
-  get_gemini_enabled,
-  get_gemini_prompt_blocks,
+  getApiKey,
+  getPersona,
+  getAiEnabled,
+  getPromptBlocks,
 } from "@/src/api/ai";
 import type { PromptBlock } from "@/src/lib/types";
 
 async function fetchAiSettings() {
   const [keyRes, personaRes, enabledRes, blocksRes] = await Promise.all([
-    get_gemini_api_key(),
-    get_gemini_persona(),
-    get_gemini_enabled(),
-    get_gemini_prompt_blocks(),
+    getApiKey(),
+    getPersona(),
+    getAiEnabled(),
+    getPromptBlocks(),
   ]);
 
   let blocks: PromptBlock[] = [];

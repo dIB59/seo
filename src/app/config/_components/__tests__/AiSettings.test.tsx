@@ -4,10 +4,10 @@ import userEvent from "@testing-library/user-event";
 
 // Mock the API layer (not raw commands — component now uses API functions)
 vi.mock("@/src/api/ai", () => ({
-  get_ai_source: vi.fn(),
-  set_ai_source: vi.fn(),
-  get_gemini_api_key: vi.fn(),
-  set_gemini_api_key: vi.fn(),
+  getAiSource: vi.fn(),
+  setAiSource: vi.fn(),
+  getApiKey: vi.fn(),
+  setApiKey: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({
@@ -19,15 +19,15 @@ vi.mock("../LocalModelSettings", () => ({
 }));
 
 import {
-  get_ai_source,
-  set_ai_source,
-  get_gemini_api_key,
+  getAiSource,
+  setAiSource,
+  getApiKey,
 } from "@/src/api/ai";
 import { AiSettings } from "../AiSettings";
 
-const mockedGetSource = vi.mocked(get_ai_source);
-const mockedSetSource = vi.mocked(set_ai_source);
-const mockedGetKey = vi.mocked(get_gemini_api_key);
+const mockedGetSource = vi.mocked(getAiSource);
+const mockedSetSource = vi.mocked(setAiSource);
+const mockedGetKey = vi.mocked(getApiKey);
 
 // Minimal Result-like objects
 const ok = <T,>(data: T) => ({ isOk: () => true, isErr: () => false, unwrap: () => data });

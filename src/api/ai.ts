@@ -55,67 +55,67 @@ export async function generateGeminiAnalysis(
   return Result.Err(errorType);
 }
 
-export async function get_gemini_api_key(): Promise<Result<string | null, string>> {
+export async function getApiKey(): Promise<Result<string | null, string>> {
   const res = await commands.getGeminiApiKey();
   return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "");
 }
 
-export async function set_gemini_api_key(apiKey: string): Promise<Result<null, string>> {
+export async function setApiKey(apiKey: string): Promise<Result<null, string>> {
   const res = await commands.setGeminiApiKey(apiKey);
   return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "");
 }
 
-export async function get_gemini_persona(): Promise<Result<string, string>> {
+export async function getPersona(): Promise<Result<string, string>> {
   const res = await commands.getGeminiPersona();
   return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "");
 }
 
-export async function set_gemini_persona(persona: string): Promise<Result<null, string>> {
+export async function setPersona(persona: string): Promise<Result<null, string>> {
   const res = await commands.setGeminiPersona(persona);
   return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "");
 }
 
-export async function get_gemini_prompt_blocks(): Promise<Result<string | null, string>> {
+export async function getPromptBlocks(): Promise<Result<string | null, string>> {
   const res = await commands.getGeminiPromptBlocks();
   return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "");
 }
 
-export async function set_gemini_prompt_blocks(blocks: string): Promise<Result<null, string>> {
+export async function setPromptBlocks(blocks: string): Promise<Result<null, string>> {
   const res = await commands.setGeminiPromptBlocks(blocks);
   return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "");
 }
 
-export async function get_gemini_enabled(): Promise<Result<boolean, string>> {
+export async function getAiEnabled(): Promise<Result<boolean, string>> {
   const res = await commands.getGeminiEnabled();
   return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "");
 }
 
-export async function set_gemini_enabled(enabled: boolean): Promise<Result<null, string>> {
+export async function setAiEnabled(enabled: boolean): Promise<Result<null, string>> {
   const res = await commands.setGeminiEnabled(enabled);
   return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "");
 }
 
-export async function get_gemini_requirements(): Promise<Result<string | null, string>> {
+export async function getRequirements(): Promise<Result<string | null, string>> {
   const res = await commands.getGeminiRequirements();
   return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "");
 }
 
-export async function set_gemini_requirements(requirements: string): Promise<Result<null, string>> {
+export async function setRequirements(requirements: string): Promise<Result<null, string>> {
   const res = await commands.setGeminiRequirements(requirements);
   return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "");
 }
 
-export async function get_gemini_context_options(): Promise<Result<string | null, string>> {
+export async function getContextOptions(): Promise<Result<string | null, string>> {
   const res = await commands.getGeminiContextOptions();
   return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "");
 }
 
-export async function set_gemini_context_options(options: string): Promise<Result<null, string>> {
+export async function setContextOptions(options: string): Promise<Result<null, string>> {
   const res = await commands.setGeminiContextOptions(options);
   return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "");
 }
 
-export async function get_ai_source(): Promise<Result<AiSource, string>> {
+export async function getAiSource(): Promise<Result<AiSource, string>> {
   const res = await commands.getAiSource();
   if (res.status === "ok") {
     return Result.Ok(res.data === "local" ? "local" : "gemini");
@@ -123,7 +123,7 @@ export async function get_ai_source(): Promise<Result<AiSource, string>> {
   return Result.Err(res.error ?? "Failed to get AI source");
 }
 
-export async function set_ai_source(source: AiSource): Promise<Result<null, string>> {
+export async function setAiSource(source: AiSource): Promise<Result<null, string>> {
   const res = await commands.setAiSource(source);
   return res.status === "ok" ? Result.Ok(res.data) : Result.Err(res.error ?? "Failed to set AI source");
 }

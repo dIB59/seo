@@ -10,10 +10,10 @@ import { Label } from "@/src/components/ui/label";
 import { Separator } from "@/src/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/src/components/ui/tooltip";
 import {
-  get_ai_source,
-  set_ai_source,
-  get_gemini_api_key,
-  set_gemini_api_key,
+  getAiSource,
+  setAiSource,
+  getApiKey,
+  setApiKey,
 } from "@/src/api/ai";
 import { useMutation } from "@/src/hooks/use-mutation";
 import { LocalModelSettings } from "./LocalModelSettings";
@@ -76,7 +76,7 @@ export function AiSettings() {
 
   // Load current settings via the API layer
   useEffect(() => {
-    Promise.all([get_ai_source(), get_gemini_api_key()]).then(
+    Promise.all([getAiSource(), getApiKey()]).then(
       ([sourceRes, keyRes]) => {
         if (sourceRes.isOk()) setSourceState(sourceRes.unwrap());
         if (keyRes.isOk()) setApiKey(keyRes.unwrap() ?? "");
@@ -89,7 +89,7 @@ export function AiSettings() {
     async (next: AiSource) => {
       if (next === source) return;
       setSourceState(next);
-      const res = await set_ai_source(next);
+      const res = await setAiSource(next);
       if (res.isErr()) {
         toast.error("Failed to save AI source");
         setSourceState(source); // rollback
@@ -100,7 +100,7 @@ export function AiSettings() {
 
   const saveKey = useMutation(
     async (key: string) => {
-      const res = await set_gemini_api_key(key);
+      const res = await setApiKey(key);
       if (res.isErr()) throw new Error("Failed to save API key");
     },
     { successMessage: "API key saved" },

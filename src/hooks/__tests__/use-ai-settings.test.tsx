@@ -9,17 +9,17 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 vi.mock("@/src/api/ai", () => ({
-  get_gemini_api_key: vi.fn(),
-  get_gemini_persona: vi.fn(),
-  get_gemini_enabled: vi.fn(),
-  get_gemini_prompt_blocks: vi.fn(),
+  getApiKey: vi.fn(),
+  getPersona: vi.fn(),
+  getAiEnabled: vi.fn(),
+  getPromptBlocks: vi.fn(),
 }));
 
 import {
-  get_gemini_api_key,
-  get_gemini_persona,
-  get_gemini_enabled,
-  get_gemini_prompt_blocks,
+  getApiKey,
+  getPersona,
+  getAiEnabled,
+  getPromptBlocks,
 } from "@/src/api/ai";
 import { useAiSettings } from "@/src/hooks/use-ai-settings";
 
@@ -29,10 +29,10 @@ describe("useAiSettings", () => {
   });
 
   it("aggregates Ok responses into a settings object", async () => {
-    (get_gemini_api_key as ReturnType<typeof vi.fn>).mockResolvedValue(Result.Ok("k"));
-    (get_gemini_persona as ReturnType<typeof vi.fn>).mockResolvedValue(Result.Ok("p"));
-    (get_gemini_enabled as ReturnType<typeof vi.fn>).mockResolvedValue(Result.Ok(true));
-    (get_gemini_prompt_blocks as ReturnType<typeof vi.fn>).mockResolvedValue(
+    (getApiKey as ReturnType<typeof vi.fn>).mockResolvedValue(Result.Ok("k"));
+    (getPersona as ReturnType<typeof vi.fn>).mockResolvedValue(Result.Ok("p"));
+    (getAiEnabled as ReturnType<typeof vi.fn>).mockResolvedValue(Result.Ok(true));
+    (getPromptBlocks as ReturnType<typeof vi.fn>).mockResolvedValue(
       Result.Ok(JSON.stringify([{ id: "a", title: "t", content: "c" }])),
     );
 
@@ -48,10 +48,10 @@ describe("useAiSettings", () => {
   });
 
   it("falls back to safe defaults when calls Err", async () => {
-    (get_gemini_api_key as ReturnType<typeof vi.fn>).mockResolvedValue(Result.Err("x"));
-    (get_gemini_persona as ReturnType<typeof vi.fn>).mockResolvedValue(Result.Err("x"));
-    (get_gemini_enabled as ReturnType<typeof vi.fn>).mockResolvedValue(Result.Err("x"));
-    (get_gemini_prompt_blocks as ReturnType<typeof vi.fn>).mockResolvedValue(Result.Err("x"));
+    (getApiKey as ReturnType<typeof vi.fn>).mockResolvedValue(Result.Err("x"));
+    (getPersona as ReturnType<typeof vi.fn>).mockResolvedValue(Result.Err("x"));
+    (getAiEnabled as ReturnType<typeof vi.fn>).mockResolvedValue(Result.Err("x"));
+    (getPromptBlocks as ReturnType<typeof vi.fn>).mockResolvedValue(Result.Err("x"));
 
     const { result } = renderHook(() => useAiSettings(), { wrapper });
 

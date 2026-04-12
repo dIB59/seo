@@ -13,7 +13,7 @@ import {
 import { Input } from "@/src/components/ui/input"
 import { Label } from "@/src/components/ui/label"
 import { Button } from "@/src/components/ui/button"
-import { get_gemini_api_key, set_gemini_api_key } from "@/src/api/ai"
+import { getApiKey, setApiKey } from "@/src/api/ai"
 
 export function ApiKeyDialog() {
     const [open, setOpen] = useState(false)
@@ -34,7 +34,7 @@ export function ApiKeyDialog() {
 
     const loadExistingKey = async () => {
         try {
-            const keyRes = await get_gemini_api_key();
+            const keyRes = await getApiKey();
             const key = keyRes.unwrapOr("") // If error, just return empty string
             if (key && key.trim().length == 0) {
                 setApiKey(key)
@@ -52,7 +52,7 @@ export function ApiKeyDialog() {
 
         setIsLoading(true)
         try {
-            const res = await set_gemini_api_key(apiKey.trim())
+            const res = await setApiKey(apiKey.trim())
             res.expect("Failed to save API key")
             toast.success("API Key saved successfully")
             setOpen(false)

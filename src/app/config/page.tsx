@@ -8,8 +8,8 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { toast } from "sonner";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
-  set_gemini_persona,
-  set_gemini_prompt_blocks,
+  setPersona,
+  setPromptBlocks,
 } from "@/src/api/ai";
 
 import { useAiSettings } from "@/src/hooks/use-ai-settings";
@@ -104,7 +104,7 @@ function ConfigContent({
 
   const savePersona = useMutation(
     async () => {
-      const res = await set_gemini_persona(persona);
+      const res = await setPersona(persona);
       if (res.isErr()) throw new Error("Failed to save persona");
       if (settings) mutate({ ...settings, persona }, { revalidate: false });
     },
@@ -113,7 +113,7 @@ function ConfigContent({
 
   const savePrompt = useMutation(
     async () => {
-      const res = await set_gemini_prompt_blocks(JSON.stringify(blocks));
+      const res = await setPromptBlocks(JSON.stringify(blocks));
       if (res.isErr()) throw new Error("Failed to save layout");
       if (settings) mutate({ ...settings, blocks }, { revalidate: false });
     },

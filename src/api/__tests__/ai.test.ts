@@ -30,69 +30,69 @@ vi.mock("sonner", () => ({
 
 import { commands } from "@/src/bindings";
 import {
-  get_gemini_api_key,
-  set_gemini_api_key,
-  get_gemini_persona,
-  set_gemini_persona,
-  get_gemini_enabled,
-  set_gemini_enabled,
+  getApiKey,
+  setApiKey,
+  getPersona,
+  setPersona,
+  getAiEnabled,
+  setAiEnabled,
 } from "../ai";
 
 const mocked = vi.mocked(commands);
 beforeEach(() => vi.clearAllMocks());
 
-describe("get_gemini_api_key", () => {
+describe("getApiKey", () => {
   it("returns Ok with key on success", async () => {
     mocked.getGeminiApiKey.mockResolvedValue({ status: "ok", data: "AIza..." } as never);
-    const result = await get_gemini_api_key();
+    const result = await getApiKey();
     expect(result.isOk()).toBe(true);
     expect(result.unwrap()).toBe("AIza...");
   });
 
   it("returns Err on failure", async () => {
     mocked.getGeminiApiKey.mockResolvedValue({ status: "error", error: "Not found" } as never);
-    const result = await get_gemini_api_key();
+    const result = await getApiKey();
     expect(result.isErr()).toBe(true);
   });
 });
 
-describe("set_gemini_api_key", () => {
+describe("setApiKey", () => {
   it("returns Ok on success", async () => {
     mocked.setGeminiApiKey.mockResolvedValue({ status: "ok", data: null } as never);
-    const result = await set_gemini_api_key("new-key");
+    const result = await setApiKey("new-key");
     expect(result.isOk()).toBe(true);
     expect(mocked.setGeminiApiKey).toHaveBeenCalledWith("new-key");
   });
 });
 
-describe("get_gemini_persona", () => {
+describe("getPersona", () => {
   it("returns persona text", async () => {
     mocked.getGeminiPersona.mockResolvedValue({ status: "ok", data: "Be concise" } as never);
-    const result = await get_gemini_persona();
+    const result = await getPersona();
     expect(result.unwrap()).toBe("Be concise");
   });
 });
 
-describe("set_gemini_persona", () => {
+describe("setPersona", () => {
   it("saves persona", async () => {
     mocked.setGeminiPersona.mockResolvedValue({ status: "ok", data: null } as never);
-    const result = await set_gemini_persona("New persona");
+    const result = await setPersona("New persona");
     expect(result.isOk()).toBe(true);
   });
 });
 
-describe("get_gemini_enabled", () => {
+describe("getAiEnabled", () => {
   it("returns boolean", async () => {
     mocked.getGeminiEnabled.mockResolvedValue({ status: "ok", data: true } as never);
-    const result = await get_gemini_enabled();
+    const result = await getAiEnabled();
     expect(result.unwrap()).toBe(true);
   });
 });
 
-describe("set_gemini_enabled", () => {
+describe("setAiEnabled", () => {
   it("sets enabled state", async () => {
     mocked.setGeminiEnabled.mockResolvedValue({ status: "ok", data: null } as never);
-    const result = await set_gemini_enabled(false);
+    const result = await setAiEnabled(false);
     expect(result.isOk()).toBe(true);
     expect(mocked.setGeminiEnabled).toHaveBeenCalledWith(false);
   });

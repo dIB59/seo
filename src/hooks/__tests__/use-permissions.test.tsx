@@ -7,15 +7,15 @@ vi.mock("@/src/api/permissions", () => ({
   getUserPolicy: vi.fn(),
 }));
 vi.mock("@/src/api/licensing", () => ({
-  get_machine_id: vi.fn(),
+  getMachineId: vi.fn(),
 }));
 
 import { getUserPolicy } from "@/src/api/permissions";
-import { get_machine_id } from "@/src/api/licensing";
+import { getMachineId } from "@/src/api/licensing";
 import { usePermissions } from "../use-permissions";
 
 const mockedGetPolicy = vi.mocked(getUserPolicy);
-const mockedGetMachineId = vi.mocked(get_machine_id);
+const mockedGetMachineId = vi.mocked(getMachineId);
 
 function wrapper({ children }: { children: ReactNode }) {
   return (
