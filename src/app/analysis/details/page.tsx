@@ -5,6 +5,7 @@ import { useAnalysis } from "@/src/hooks/use-analysis";
 import { LoadingState, ErrorState } from "@/src/components/ui/page-states";
 import type { PageAnalysisData } from "@/src/api/analysis";
 import { PageDetailView } from "@/src/app/analysis/details/_components/PageDetailView";
+import { ErrorBoundary } from "@/src/components/ErrorBoundary";
 
 export default function PageDetailPage() {
   const searchParams = useSearchParams();
@@ -35,6 +36,7 @@ export default function PageDetailPage() {
   const page = pages[currentIndex];
 
   return (
+    <ErrorBoundary>
     <div className="container max-w-5xl mx-auto py-6 px-4">
       <PageDetailView
         page={page}
@@ -44,5 +46,6 @@ export default function PageDetailPage() {
         onNavigate={(newIndex) => router.push(`/analysis/details?id=${id}&index=${newIndex}`)}
       />
     </div>
+    </ErrorBoundary>
   );
 }
