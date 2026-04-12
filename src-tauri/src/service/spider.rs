@@ -48,19 +48,20 @@ impl Spider {
             ClientType::HeavyEmulation => Client::builder()
                 .timeout(Duration::from_secs(30))
                 .redirect(redirect)
+                .cert_verification(false)
                 .emulation(Emulation::Firefox136)
                 .build()
                 .context("Failed to build heavy impersonated rquest client")?,
             ClientType::Standard => Client::builder()
                 .timeout(Duration::from_secs(30))
                 .redirect(redirect)
+                .cert_verification(false)
                 .build()
                 .context("Failed to build standard rquest client")?,
             ClientType::Download => Client::builder()
-                // No request timeout — only a connection timeout.
-                // Model files are several GB; body reads can take many minutes.
                 .connect_timeout(Duration::from_secs(30))
                 .redirect(redirect)
+                .cert_verification(false)
                 .build()
                 .context("Failed to build download rquest client")?,
         };
