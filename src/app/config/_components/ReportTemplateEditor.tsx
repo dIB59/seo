@@ -17,6 +17,7 @@ import {
 import { Card, CardContent, CardHeader } from "@/src/components/ui/card";
 
 import { useExtractorTags } from "@/src/hooks/use-extractor-tags";
+import { useMutation } from "@/src/hooks/use-mutation";
 import {
   listReportTemplates,
   updateReportTemplate,
@@ -96,31 +97,22 @@ export function ReportTemplateEditor() {
   const [sections, setSections] = useState<TemplateSection[]>(active?.sections ?? []);
   const [selectedTags, setSelectedTags] = useState<string[]>(active?.selectedTags ?? []);
   const [dirty, setDirty] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [addType, setAddType] = useState<string>("text");
 
   const { extractorTags } = useExtractorTags();
 
-  // Sync when active template changes
-  const activeId = active?.id;
-  useState(() => {
-    if (active) setSections(active.sections);
-  });
-
-  async function handleSave() {
-    if (!active) return;
-    setSaving(true);
-    try {
-      const updated: ReportTemplate = { ...active, sections, selectedTags };
-      await updateReportTemplate(updated);
+  const saveTemplate = useMutation(
+    async (template: ReportTemplate) => {
+      await updateReportTemplate(template);
       await mutate();
       setDirty(false);
-      toast.success("Template saved");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to save template");
-    } finally {
-      setSaving(false);
-    }
+    },
+    { successMessage: "Template saved" },
+  );
+
+  function handleSave() {
+    if (!active) return;
+    saveTemplate.execute({ ...active, sections, selectedTags });
   }
 
   function addSection() {
@@ -165,9 +157,9 @@ export function ReportTemplateEditor() {
             </Badge>
           )}
         </div>
-        <Button onClick={handleSave} disabled={!dirty || saving} size="sm">
+        <Button onClick={handleSave} disabled={!dirty || saveTemplate.isLoading} size="sm">
           <Save className="h-3.5 w-3.5 mr-1.5" />
-          {saving ? "Saving…" : "Save Template"}
+          {saveTemplate.isLoading ? "Saving…" : "Save Template"}
         </Button>
       </div>
 

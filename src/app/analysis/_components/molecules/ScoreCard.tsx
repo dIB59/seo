@@ -32,19 +32,14 @@ export function ScoreCard({ pages, issues }: { pages: PageAnalysisData[]; issues
               <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
                 Overall Score
               </p>
-              <div className="flex items-baseline gap-2">
-                <h3
-                  className={cn(
-                    "text-4xl font-bold tracking-tighter font-mono",
-                    getScoreColor(averageScore),
-                  )}
-                >
-                  {averageScore}
-                </h3>
-                <span className="text-sm font-medium opacity-80">
-                  {getScoreLabel(averageScore)}
-                </span>
-              </div>
+              <h3
+                className={cn(
+                  "text-3xl font-bold tracking-tight",
+                  getScoreColor(averageScore),
+                )}
+              >
+                {getScoreLabel(averageScore)}
+              </h3>
             </div>
             <Separator className="bg-border/40" />
             <div className="pt-1">
