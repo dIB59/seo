@@ -63,7 +63,7 @@ impl Spider {
                 .redirect(redirect)
                 .cert_verification(false)
                 .build()
-                .context("Failed to build download rquest client")?,
+                .context("Failed to build download request client")?,
         };
 
         Ok(Self { client })
