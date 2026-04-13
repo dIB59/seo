@@ -6,4 +6,8 @@ fn main() {
     let build_date = chrono::Utc::now().format("%Y-%m-%d").to_string();
     println!("cargo:rustc-env=BUILD_DATE={build_date}");
     println!("cargo:rerun-if-changed=build.rs");
+    // Force build.rs to re-run on every build so BUILD_DATE stays
+    // current. Without this, cargo caches the env var and
+    // soft-expiry tests fail after the cached date drifts.
+    println!("cargo:rerun-if-changed=Cargo.toml");
 }
