@@ -1,414 +1,21 @@
-use std::collections::HashMap;
+mod assembly;
+mod dto;
+
+pub use dto::*;
 
 use anyhow::{Context, Result};
-use serde::{Deserialize, Serialize};
-use specta::Type;
 use tauri::State;
 use url::Url;
 
 use crate::{
     contexts::{
-        analysis::{
-            AnalysisProgress, CompleteJobResult, Heading, Image, Job, JobSettings, JobStatus,
-            LighthouseData, Link, LinkType, Page,
-        },
+        analysis::{AnalysisProgress, JobSettings, JobStatus},
         permissions::{Feature, PermissionRequest, Policy},
     },
     error::CommandError,
     lifecycle::app_state::AppState,
 };
 use addon_macros::addon_guard;
-
-#[derive(Debug, serde::Deserialize, serde::Serialize, specta::Type)]
-pub struct AnalysisSettingsRequest {
-    pub max_pages: i64,
-    pub include_subdomains: bool,
-    pub check_images: bool,
-    pub mobile_analysis: bool,
-    pub lighthouse_analysis: bool,
-    pub delay_between_requests: i64,
-}
-
-trait SettingsExt {
-    fn requested_page_count(&self) -> usize;
-}
-
-impl SettingsExt for Option<AnalysisSettingsRequest> {
-    fn requested_page_count(&self) -> usize {
-        self.as_ref()
-            .unwrap_or(&AnalysisSettingsRequest::default())
-            .max_pages as usize
-    }
-}
-
-impl Default for AnalysisSettingsRequest {
-    fn default() -> Self {
-        Self {
-            max_pages: 100,
-            include_subdomains: false,
-            check_images: true,
-            mobile_analysis: false,
-            lighthouse_analysis: false,
-            delay_between_requests: 50,
-        }
-    }
-}
-
-impl From<AnalysisSettingsRequest> for JobSettings {
-    fn from(req: AnalysisSettingsRequest) -> Self {
-        Self {
-            max_pages: req.max_pages,
-            include_subdomains: req.include_subdomains,
-            check_images: req.check_images,
-            mobile_analysis: req.mobile_analysis,
-            lighthouse_analysis: req.lighthouse_analysis,
-            delay_between_requests: req.delay_between_requests,
-        }
-    }
-}
-
-#[derive(Debug, serde::Serialize, Type)]
-pub struct AnalysisJobResponse {
-    pub job_id: String,
-    pub url: String,
-    pub status: JobStatus,
-}
-
-#[derive(Debug, serde::Serialize, Type)]
-pub struct PaginatedJobsResponse {
-    pub items: Vec<AnalysisProgress>,
-    pub total: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-pub struct HeadingElement {
-    pub tag: String,
-    pub text: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-pub struct ImageElement {
-    pub src: String,
-    pub alt: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-pub struct LinkDetail {
-    #[serde(rename = "href", alias = "url")]
-    pub url: String,
-    pub text: String,
-    pub link_type: LinkType,
-    pub is_broken: bool,
-    pub status_code: Option<i64>,
-}
-
-#[derive(Debug, Clone, Serialize, Type)]
-pub struct PageAnalysisData {
-    pub analysis_id: String,
-    pub url: String,
-    pub title: Option<String>,
-    pub meta_description: Option<String>,
-    pub meta_keywords: Option<String>,
-    pub canonical_url: Option<String>,
-    pub word_count: i64,
-    pub image_count: i64,
-    pub images_without_alt: i64,
-    pub internal_links: i64,
-    pub external_links: i64,
-    pub load_time: f64,
-    pub status_code: Option<i64>,
-    pub content_size: i64,
-    pub mobile_friendly: bool,
-    pub has_structured_data: bool,
-    pub lighthouse_performance: Option<f64>,
-    pub lighthouse_accessibility: Option<f64>,
-    pub lighthouse_best_practices: Option<f64>,
-    pub lighthouse_seo: Option<f64>,
-    pub lighthouse_seo_audits: Option<serde_json::Value>,
-    pub lighthouse_performance_metrics: Option<serde_json::Value>,
-    pub images: Vec<ImageElement>,
-    pub detailed_links: Vec<LinkDetail>,
-    pub headings: Vec<HeadingElement>,
-    /// Extracted data from custom extractors (key-value pairs)
-    pub extracted_data: std::collections::HashMap<String, serde_json::Value>,
-}
-
-#[derive(Debug, Clone, Serialize, Type)]
-pub struct SeoIssue {
-    pub page_id: String,
-    pub severity: crate::contexts::analysis::IssueSeverity,
-    pub title: String,
-    pub description: String,
-    pub page_url: String,
-    pub element: Option<String>,
-    pub recommendation: String,
-    pub line_number: Option<i32>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-pub struct AnalysisSummary {
-    pub analysis_id: String,
-    pub seo_score: i64,
-    pub avg_load_time: f64,
-    pub total_words: i64,
-    pub total_issues: i64,
-}
-
-impl AnalysisSummary {
-    fn compute(job: &Job, pages: &[PageAnalysisData]) -> Self {
-        let (total_load, load_count) = pages
-            .iter()
-            .filter(|p| p.load_time > 0.0)
-            .fold((0.0f64, 0usize), |(sum, cnt), p| {
-                (sum + p.load_time, cnt + 1)
-            });
-
-        // Use Lighthouse SEO scores when available — they reflect the real score shown in
-        // the UI. The issue-deduction formula saturates at 0 when there are many issues,
-        // so it does not match what the user sees.
-        let lh_scores: Vec<f64> = pages.iter().filter_map(|p| p.lighthouse_seo).collect();
-        let seo_score = if lh_scores.is_empty() {
-            job.calculate_seo_score()
-        } else {
-            (lh_scores.iter().sum::<f64>() / lh_scores.len() as f64).round() as i64
-        };
-
-        Self {
-            analysis_id: job.id.as_str().to_string(),
-            seo_score,
-            avg_load_time: total_load / load_count.max(1) as f64,
-            total_words: pages.iter().map(|p| p.word_count).sum(),
-            total_issues: job.summary.total_issues(),
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Type)]
-pub struct AnalysisResults {
-    pub id: String,
-    pub url: String,
-    pub status: JobStatus,
-    pub progress: f64,
-    pub total_pages: i64,
-    pub analyzed_pages: i64,
-    pub started_at: Option<String>,
-    pub completed_at: Option<String>,
-    pub sitemap_found: bool,
-    pub robots_txt_found: bool,
-    pub ssl_certificate: bool,
-    pub created_at: String,
-}
-
-#[derive(Debug, Serialize, Type)]
-pub struct CompleteAnalysisResponse {
-    pub analysis: AnalysisResults,
-    pub pages: Vec<PageAnalysisData>,
-    pub issues: Vec<SeoIssue>,
-    pub summary: AnalysisSummary,
-}
-
-impl From<Link> for LinkDetail {
-    fn from(link: Link) -> Self {
-        Self {
-            url: link.target_url,
-            text: link.link_text.unwrap_or_default(),
-            link_type: link.link_type,
-            is_broken: link.status_code.is_some_and(|c| c >= 400),
-            status_code: link.status_code,
-        }
-    }
-}
-
-impl From<Heading> for HeadingElement {
-    fn from(h: Heading) -> Self {
-        Self {
-            tag: format!("h{}", h.level),
-            text: h.text,
-        }
-    }
-}
-
-impl From<Image> for ImageElement {
-    fn from(img: Image) -> Self {
-        Self {
-            src: img.src,
-            alt: img.alt,
-        }
-    }
-}
-
-fn count_links_by_type(links: &[LinkDetail]) -> (i64, i64) {
-    links.iter().fold((0, 0), |(internal, external), link| {
-        if link.link_type == LinkType::Internal {
-            (internal + 1, external)
-        } else {
-            (internal, external + 1)
-        }
-    })
-}
-
-fn count_images_without_alt(images: &[ImageElement]) -> i64 {
-    images
-        .iter()
-        .filter(|img| img.alt.as_deref().unwrap_or("").is_empty())
-        .count() as i64
-}
-
-impl CompleteAnalysisResponse {
-    fn assemble_page(
-        page: Page,
-        lh_data: Option<&LighthouseData>,
-        detailed_links: Vec<LinkDetail>,
-        headings: Vec<HeadingElement>,
-        images: Vec<ImageElement>,
-        extracted_data: std::collections::HashMap<String, serde_json::Value>,
-    ) -> PageAnalysisData {
-        let load_time = page.load_time_ms.unwrap_or(0) as f64 / 1000.0;
-        // Parse `raw_json` exactly once per page via `interpret()` — the
-        // three fields derived from it (mobile_friendly, structured
-        // data, and the two extracted sub-values) previously caused
-        // three separate `serde_json::from_str` calls per page, i.e.
-        // ~3N parses on a full report. Now: N parses.
-        let lh_interpreted = lh_data.map(|lh| lh.interpret()).unwrap_or_default();
-        let mobile_friendly = lh_interpreted.mobile_friendly || page.is_mobile_friendly_heuristic();
-        let has_structured_data = page.has_structured_data || lh_interpreted.has_structured_data;
-        let lighthouse_seo_audits = lh_interpreted.seo_audits;
-        let lighthouse_performance_metrics = lh_interpreted.performance_metrics;
-        let (internal_links, external_links) = count_links_by_type(&detailed_links);
-
-        PageAnalysisData {
-            analysis_id: page.job_id,
-            url: page.url,
-            title: page.title,
-            meta_description: page.meta_description,
-            meta_keywords: None,
-            canonical_url: page.canonical_url,
-            word_count: page.word_count.unwrap_or(0),
-            image_count: images.len() as i64,
-            images_without_alt: count_images_without_alt(&images),
-            internal_links,
-            external_links,
-            load_time,
-            status_code: page.status_code,
-            content_size: page.response_size_bytes.unwrap_or(0),
-            mobile_friendly,
-            has_structured_data,
-            lighthouse_performance: lh_data.and_then(|lh| lh.performance_score),
-            lighthouse_accessibility: lh_data.and_then(|lh| lh.accessibility_score),
-            lighthouse_best_practices: lh_data.and_then(|lh| lh.best_practices_score),
-            lighthouse_seo: lh_data.and_then(|lh| lh.seo_score),
-            lighthouse_seo_audits,
-            lighthouse_performance_metrics,
-            images,
-            detailed_links,
-            headings,
-            extracted_data,
-        }
-    }
-}
-
-impl From<CompleteJobResult> for CompleteAnalysisResponse {
-    fn from(result: CompleteJobResult) -> Self {
-        let job = result.job;
-        let pages = result.pages;
-        let issues = result.issues;
-        let links = result.links;
-        let lighthouse = result.lighthouse;
-        let headings = result.headings;
-        let images = result.images;
-
-        // Borrow page urls — pages is consumed below, so the lookup map cannot outlive
-        // this scope, which is exactly when issue assembly happens.
-        let page_url_by_id: HashMap<&str, &str> = pages
-            .iter()
-            .map(|p| (p.id.as_str(), p.url.as_str()))
-            .collect();
-
-        let assembled_issues: Vec<SeoIssue> = issues
-            .into_iter()
-            .map(|issue| {
-                let page_id = issue.page_id.unwrap_or_default();
-                let page_url = page_url_by_id
-                    .get(page_id.as_str())
-                    .map(|s| (*s).to_string())
-                    .unwrap_or_default();
-                SeoIssue {
-                    page_url,
-                    page_id,
-                    severity: issue.severity,
-                    title: issue.issue_type,
-                    description: issue.message,
-                    element: issue.details.clone(),
-                    recommendation: issue.details.unwrap_or_default(),
-                    line_number: None,
-                }
-            })
-            .collect();
-
-        fn group_by<T, U, K>(
-            items: Vec<T>,
-            key: impl Fn(&T) -> K,
-            convert: impl Fn(T) -> U,
-        ) -> HashMap<K, Vec<U>>
-        where
-            K: std::hash::Hash + Eq,
-        {
-            let mut map: HashMap<K, Vec<U>> = HashMap::new();
-            for item in items {
-                let k = key(&item);
-                map.entry(k).or_default().push(convert(item));
-            }
-            map
-        }
-
-        let mut links_by_page = group_by(links, |l| l.source_page_id.clone(), LinkDetail::from);
-        let mut headings_by_page = group_by(headings, |h| h.page_id.clone(), HeadingElement::from);
-        let mut images_by_page = group_by(images, |i| i.page_id.clone(), ImageElement::from);
-
-        let lighthouse_by_page: HashMap<String, LighthouseData> = lighthouse
-            .into_iter()
-            .map(|l| (l.page_id.clone(), l))
-            .collect();
-
-        let assembled_pages: Vec<PageAnalysisData> = pages
-            .into_iter()
-            .map(|mut p| {
-                let page_id = p.id.clone();
-                let extracted_data = std::mem::take(&mut p.extracted_data);
-                Self::assemble_page(
-                    p,
-                    lighthouse_by_page.get(&page_id),
-                    links_by_page.remove(&page_id).unwrap_or_default(),
-                    headings_by_page.remove(&page_id).unwrap_or_default(),
-                    images_by_page.remove(&page_id).unwrap_or_default(),
-                    extracted_data,
-                )
-            })
-            .collect();
-
-        let analysis = AnalysisResults {
-            id: job.id.as_str().to_string(),
-            url: job.url.clone(),
-            status: job.status.clone(),
-            progress: job.progress,
-            total_pages: job.summary.total_pages(),
-            analyzed_pages: job.summary.pages_crawled(),
-            started_at: Some(job.created_at.to_rfc3339()),
-            completed_at: job.completed_at.map(|d| d.to_rfc3339()),
-            sitemap_found: job.sitemap_found,
-            robots_txt_found: job.robots_txt_found,
-            ssl_certificate: job.url.starts_with("https"),
-            created_at: job.created_at.to_rfc3339(),
-        };
-
-        CompleteAnalysisResponse {
-            summary: AnalysisSummary::compute(&job, &assembled_pages),
-            analysis,
-            pages: assembled_pages,
-            issues: assembled_issues,
-        }
-    }
-}
 
 const DANGEROUS_URL_CHARS: &[char] = &['&', ';', '|', '$', '>', '<', '`', '\\', '"', '\''];
 
@@ -809,11 +416,6 @@ mod tests {
         );
     }
 
-    // ── seo_score in AnalysisSummary ─────────────────────────────────────────
-
-    /// When Lighthouse data is present, the summary seo_score should be the
-    /// average of the per-page Lighthouse SEO scores, NOT the issue-deduction
-    /// formula (which returns 0 when there are many issues).
     #[tokio::test]
     async fn summary_seo_score_uses_lighthouse_when_available() {
         let pool = fixtures::setup_test_db().await;
@@ -847,7 +449,6 @@ mod tests {
 
         let page_id = page_repo.insert(&page).await.unwrap();
 
-        // Lighthouse reports 89 — this is what the user sees in the UI.
         let lh = LighthouseData {
             page_id: page_id.clone(),
             performance_score: None,
@@ -877,8 +478,6 @@ mod tests {
         );
     }
 
-    /// When no Lighthouse data exists, the summary seo_score falls back to the
-    /// issue-deduction formula.
     #[tokio::test]
     async fn summary_seo_score_falls_back_to_issue_formula_without_lighthouse() {
         let pool = fixtures::setup_test_db().await;
@@ -911,7 +510,6 @@ mod tests {
         };
 
         page_repo.insert(&page).await.unwrap();
-        // No Lighthouse data inserted — fallback path.
 
         let results_repo = sqlite_results_repo(pool.clone());
         let result: CompleteAnalysisResponse = results_repo
@@ -920,7 +518,6 @@ mod tests {
             .unwrap()
             .into();
 
-        // Zero issues → calculate_seo_score returns 100.
         assert_eq!(
             result.summary.seo_score, 100,
             "without Lighthouse data and no issues, seo_score should be 100 (issue-formula fallback)"
