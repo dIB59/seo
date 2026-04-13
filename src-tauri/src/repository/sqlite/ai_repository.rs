@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use crate::repository::RepositoryResult;
 use async_trait::async_trait;
 use sqlx::SqlitePool;
 
@@ -11,18 +11,20 @@ impl AiRepository {
         Self { pool }
     }
 
-    pub async fn get_ai_insights(&self, job_id: &str) -> Result<Option<String>> {
+    pub async fn get_ai_insights(&self, job_id: &str) -> RepositoryResult<Option<String>> {
         let result =
             sqlx::query_scalar::<_, String>("SELECT summary FROM ai_insights WHERE job_id = ?")
                 .bind(job_id)
                 .fetch_optional(&self.pool)
-                .await
-                .context("Failed to get ai insights from database")?;
-
+                .await?;
         Ok(result)
     }
 
-    pub async fn save_ai_insights(&self, job_id: &str, insights: &str) -> Result<()> {
+    pub async fn save_ai_insights(
+        &self,
+        job_id: &str,
+        insights: &str,
+    ) -> RepositoryResult<()> {
         sqlx::query!(
             "INSERT INTO ai_insights (job_id, summary, created_at, updated_at) VALUES (?, ?, datetime('now'), datetime('now'))
              ON CONFLICT(job_id) DO UPDATE SET summary = ?, updated_at = datetime('now')",
@@ -31,20 +33,18 @@ impl AiRepository {
             insights
         )
         .execute(&self.pool)
-        .await
-        .context("Failed to save ai insights to database")?;
-
+        .await?;
         Ok(())
     }
 }
 
 #[async_trait]
 impl crate::repository::AiRepository for AiRepository {
-    async fn get_ai_insights(&self, job_id: &str) -> Result<Option<String>> {
+    async fn get_ai_insights(&self, job_id: &str) -> RepositoryResult<Option<String>> {
         AiRepository::get_ai_insights(self, job_id).await
     }
 
-    async fn save_ai_insights(&self, job_id: &str, insights: &str) -> Result<()> {
+    async fn save_ai_insights(&self, job_id: &str, insights: &str) -> RepositoryResult<()> {
         AiRepository::save_ai_insights(self, job_id, insights).await
     }
 }

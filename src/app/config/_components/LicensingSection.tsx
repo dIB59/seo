@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { activate_license } from "@/src/api/licensing";
+import { activateLicense } from "@/src/api/licensing";
 import { usePermissions } from "@/src/hooks/use-permissions";
 
 // Sub-components
@@ -21,7 +21,7 @@ export function LicensingSection() {
     const handleActivate = async (key: string) => {
         setIsActivating(true);
         try {
-            const res = await activate_license(key);
+            const res = await activateLicense(key);
             if (res.isOk()) {
                 const newPolicy = res.unwrap();
                 mutate({ policy: newPolicy, machineId }, { revalidate: false });

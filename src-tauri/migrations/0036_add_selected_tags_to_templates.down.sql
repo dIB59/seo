@@ -1,0 +1,2 @@
+-- SQLite doesn't support DROP COLUMN before 3.35; recreate if needed.
+-- For dev purposes this is a no-op.

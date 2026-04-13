@@ -1,4 +1,4 @@
-use crate::contexts::report::{ReportData, ReportPattern, ReportPatternParams};
+use crate::contexts::report::{ReportData, ReportPattern, ReportPatternParams, ReportTemplate};
 use crate::error::CommandError;
 use crate::lifecycle::app_state::AppState;
 use tauri::State;
@@ -65,6 +65,85 @@ pub async fn delete_report_pattern(
     state
         .report_pattern_repo
         .delete_pattern(&id)
+        .await
+        .map_err(CommandError::from)
+}
+
+// ── Report Templates ─────────────────────────────────────────────────────────
+
+#[tauri::command]
+#[specta::specta]
+pub async fn list_report_templates(
+    state: State<'_, AppState>,
+) -> Result<Vec<ReportTemplate>, CommandError> {
+    state
+        .report_template_repo
+        .list_templates()
+        .await
+        .map_err(CommandError::from)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_report_template(
+    id: String,
+    state: State<'_, AppState>,
+) -> Result<ReportTemplate, CommandError> {
+    state
+        .report_template_repo
+        .get_template(&id)
+        .await
+        .map_err(CommandError::from)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn create_report_template(
+    template: ReportTemplate,
+    state: State<'_, AppState>,
+) -> Result<(), CommandError> {
+    state
+        .report_template_repo
+        .create_template(&template)
+        .await
+        .map_err(CommandError::from)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn update_report_template(
+    template: ReportTemplate,
+    state: State<'_, AppState>,
+) -> Result<(), CommandError> {
+    state
+        .report_template_repo
+        .update_template(&template)
+        .await
+        .map_err(CommandError::from)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn set_active_report_template(
+    id: String,
+    state: State<'_, AppState>,
+) -> Result<(), CommandError> {
+    state
+        .report_template_repo
+        .set_active_template(&id)
+        .await
+        .map_err(CommandError::from)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_report_template(
+    id: String,
+    state: State<'_, AppState>,
+) -> Result<(), CommandError> {
+    state
+        .report_template_repo
+        .delete_template(&id)
         .await
         .map_err(CommandError::from)
 }

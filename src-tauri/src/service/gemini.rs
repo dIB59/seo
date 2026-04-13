@@ -1,4 +1,4 @@
-use crate::service::prompt::{build_prompt_from_blocks, DEFAULT_PERSONA};
+use crate::service::prompt::{build_prompt_from_blocks, load_persona, load_prompt_blocks};
 use crate::service::spider::SpiderAgent;
 #[cfg(test)]
 use crate::service::spider::{ClientType, Spider};
@@ -18,7 +18,7 @@ pub struct PromptBlock {
 
 #[derive(Serialize, Deserialize, Clone, Type)]
 pub struct GeminiRequest {
-    pub analysis_id: String, // Added for caching
+    pub analysis_id: String,
     pub url: String,
     pub seo_score: i32,
     pub pages_count: i32,
@@ -26,12 +26,52 @@ pub struct GeminiRequest {
     pub critical_issues: i32,
     pub warning_issues: i32,
     pub suggestion_issues: i32,
+    /// Top issue titles (legacy — kept for backwards compat with
+    /// custom prompt blocks that reference `{top_issues}`).
     pub top_issues: Vec<String>,
     pub avg_load_time: f64,
     pub total_words: i32,
     pub ssl_certificate: bool,
     pub sitemap_found: bool,
     pub robots_txt_found: bool,
+
+    // ── Rich context (new) ──────────────────────────────────────────
+
+    /// Per-issue detail lines: "severity | title | page_url | description".
+    /// Top 15 issues sorted by severity. Gives the AI enough signal to
+    /// write issue-specific recommendations instead of generic advice.
+    #[serde(default)]
+    pub issue_details: Vec<String>,
+
+    /// Per-page summary lines: "url | title | status | load_time_ms | issue_count".
+    /// Top 10 pages by issue count. Lets the AI identify the worst
+    /// offenders and reference specific URLs.
+    #[serde(default)]
+    pub page_summaries: Vec<String>,
+
+    /// Count of pages missing a meta description.
+    #[serde(default)]
+    pub missing_meta_count: i32,
+
+    /// Count of pages with load time > 3000ms.
+    #[serde(default)]
+    pub slow_pages_count: i32,
+
+    /// Count of pages returning HTTP 4xx/5xx.
+    #[serde(default)]
+    pub error_pages_count: i32,
+
+    /// Site-level aggregated tag values from custom extractors. Each
+    /// key is the extractor tag name (e.g. `"og_image"`), each value
+    /// is a comma-separated list of distinct extracted values across
+    /// all pages (capped at 5). `{tag.og_image}` in a prompt block
+    /// resolves against this map.
+    ///
+    /// `#[serde(default)]` so existing frontend calls that don't
+    /// populate this field still deserialize correctly with an empty
+    /// map — zero breaking change for the wire format.
+    #[serde(default)]
+    pub tag_values: std::collections::HashMap<String, String>,
 }
 
 pub async fn generate_gemini_analysis(
@@ -58,17 +98,9 @@ pub async fn generate_gemini_analysis(
         }
     };
 
-    // Load persona — single source of truth via shared module.
-    let persona = match settings_repo.get_setting("gemini_persona").await? {
-        Some(p) if !p.is_empty() => p,
-        _ => DEFAULT_PERSONA.to_string(),
-    };
+    let persona = load_persona(settings_repo.as_ref()).await?;
 
-    let blocks_json = settings_repo
-        .get_setting("gemini_prompt_blocks")
-        .await?
-        .unwrap_or_else(|| "[]".to_string());
-    let blocks: Vec<PromptBlock> = serde_json::from_str(&blocks_json).unwrap_or_default();
+    let blocks = load_prompt_blocks(settings_repo.as_ref()).await?;
 
     let prompt = build_prompt_from_blocks(&persona, &blocks, &request);
 
@@ -138,6 +170,12 @@ mod tests {
             ssl_certificate: true,
             sitemap_found: false,
             robots_txt_found: true,
+            issue_details: vec![],
+            page_summaries: vec![],
+            missing_meta_count: 0,
+            slow_pages_count: 0,
+            error_pages_count: 0,
+            tag_values: Default::default(),
         };
 
         let template = "Analyze {url} with score {score}. Top issues:\n{top_issues}";

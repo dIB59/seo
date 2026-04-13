@@ -27,10 +27,17 @@ impl MockSettingsRepo {
 
 #[async_trait]
 impl SettingsRepository for MockSettingsRepo {
-    async fn get_setting(&self, key: &str) -> Result<Option<String>> {
+    async fn get_setting(
+        &self,
+        key: &str,
+    ) -> crate::repository::RepositoryResult<Option<String>> {
         Ok(self.store.read().unwrap().get(key).cloned())
     }
-    async fn set_setting(&self, key: &str, value: &str) -> Result<()> {
+    async fn set_setting(
+        &self,
+        key: &str,
+        value: &str,
+    ) -> crate::repository::RepositoryResult<()> {
         self.store.write().unwrap().insert(key.to_string(), value.to_string());
         Ok(())
     }
@@ -104,6 +111,12 @@ fn minimal_gemini_request() -> crate::service::GeminiRequest {
         ssl_certificate: true,
         sitemap_found: true,
         robots_txt_found: true,
+            issue_details: vec![],
+            page_summaries: vec![],
+            missing_meta_count: 0,
+            slow_pages_count: 0,
+            error_pages_count: 0,
+            tag_values: Default::default(),
     }
 }
 

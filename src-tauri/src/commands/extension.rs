@@ -3,7 +3,10 @@ use tauri::{command, State};
 use crate::{
     contexts::extension::{
         CustomCheck, CustomCheckParams, CustomExtractor, CustomExtractorParams,
-    }, error::CommandError, lifecycle::app_state::AppState
+    },
+    contexts::tags::{Tag, TagRegistry, TagScope},
+    error::CommandError,
+    lifecycle::app_state::AppState,
 };
 
 #[command]
@@ -56,6 +59,30 @@ pub async fn delete_custom_check(
         .delete_check(&id)
         .await
         .map_err(CommandError::from)
+}
+
+// --- Tags ---
+
+/// Return the full tag catalog so the frontend can render tag pickers
+/// / autocomplete in the custom-check editor, template editor, and the
+/// Settings → Tags panel.
+///
+/// `scope` is optional: when present the result is filtered to tags
+/// valid in that authoring surface (e.g. `CheckField`). When absent
+/// every tag is returned.
+#[command]
+#[specta::specta]
+pub async fn list_tags(
+    scope: Option<TagScope>,
+    app_state: State<'_, AppState>,
+) -> Result<Vec<Tag>, CommandError> {
+    let registry = TagRegistry::build(app_state.extension_repo.as_ref())
+        .await
+        .map_err(CommandError::from)?;
+    match scope {
+        Some(s) => Ok(registry.in_scope(s).into_iter().cloned().collect()),
+        None => Ok(registry.into_tags()),
+    }
 }
 
 // --- Custom Extractors ---

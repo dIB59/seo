@@ -9,7 +9,7 @@ pub fn init_logging() {
             tracing_subscriber::EnvFilter::default()
                 .add_directive("sqlx=warn".parse().unwrap())
                 .add_directive("app=debug".parse().unwrap())
-                .add_directive("llama_cpp_2=warn".parse().unwrap())
+                .add_directive("llama_cpp_2=off".parse().unwrap())
                 .add_directive("info".parse().unwrap()),
         )
         .compact()
@@ -17,7 +17,11 @@ pub fn init_logging() {
         .with_ansi(true)
         .init();
 
-    llama_cpp_2::send_logs_to_tracing(llama_cpp_2::LogOptions::default().with_logs_enabled(true));
+    // Disable llama.cpp's internal logging entirely — it's extremely
+    // verbose (model loading, sampling params, memory mapping…).
+    // Our own input/output logging in run_inference covers what
+    // matters for debugging.
+    llama_cpp_2::send_logs_to_tracing(llama_cpp_2::LogOptions::default().with_logs_enabled(false));
 }
 
 pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {

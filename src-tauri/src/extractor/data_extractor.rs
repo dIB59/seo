@@ -6,8 +6,9 @@ pub mod selector;
 /// Configuration for a single CSS-selector-based extractor.
 #[derive(Debug, Clone)]
 pub struct ExtractorConfig {
-    /// The key under which the result is stored in `extracted_data`.
-    pub key: String,
+    /// The tag under which the result is stored in `extracted_data`.
+    /// Matches `CustomExtractor.tag` for user-defined extractors.
+    pub tag: String,
     /// CSS selector to match elements.
     pub selector: String,
     /// HTML attribute to read. `None` means use the element's text content.
@@ -17,26 +18,26 @@ pub struct ExtractorConfig {
 }
 
 impl ExtractorConfig {
-    pub fn text(key: &str, selector: &str) -> Self {
-        Self { key: key.into(), selector: selector.into(), attribute: None, multiple: false }
+    pub fn text(tag: &str, selector: &str) -> Self {
+        Self { tag: tag.into(), selector: selector.into(), attribute: None, multiple: false }
     }
 
-    pub fn attr(key: &str, selector: &str, attribute: &str) -> Self {
+    pub fn attr(tag: &str, selector: &str, attribute: &str) -> Self {
         Self {
-            key: key.into(),
+            tag: tag.into(),
             selector: selector.into(),
             attribute: Some(attribute.into()),
             multiple: false,
         }
     }
 
-    pub fn multi_text(key: &str, selector: &str) -> Self {
-        Self { key: key.into(), selector: selector.into(), attribute: None, multiple: true }
+    pub fn multi_text(tag: &str, selector: &str) -> Self {
+        Self { tag: tag.into(), selector: selector.into(), attribute: None, multiple: true }
     }
 
-    pub fn multi_attr(key: &str, selector: &str, attribute: &str) -> Self {
+    pub fn multi_attr(tag: &str, selector: &str, attribute: &str) -> Self {
         Self {
-            key: key.into(),
+            tag: tag.into(),
             selector: selector.into(),
             attribute: Some(attribute.into()),
             multiple: true,
@@ -65,7 +66,7 @@ impl ExtractorRegistry {
         self.extractors.push(extractor);
     }
 
-    /// Run all extractors and merge results. Later extractors win on key conflicts.
+    /// Run all extractors and merge results. Later extractors win on tag conflicts.
     pub fn run(&self, html: &str) -> HashMap<String, Value> {
         let mut result = HashMap::new();
         for extractor in &self.extractors {
@@ -128,7 +129,7 @@ mod tests {
     }
 
     #[test]
-    fn later_extractor_wins_on_key_conflict() {
+    fn later_extractor_wins_on_tag_conflict() {
         let mut registry = ExtractorRegistry::new();
         registry.register(Box::new(SelectorExtractor::new(
             ExtractorConfig::text("heading", "h1"),
@@ -146,7 +147,7 @@ mod tests {
     #[test]
     fn extractor_config_text_constructor() {
         let cfg = ExtractorConfig::text("k", "h1");
-        assert_eq!(cfg.key, "k");
+        assert_eq!(cfg.tag, "k");
         assert_eq!(cfg.selector, "h1");
         assert!(cfg.attribute.is_none());
         assert!(!cfg.multiple);

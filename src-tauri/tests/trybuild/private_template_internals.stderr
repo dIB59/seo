@@ -1,0 +1,11 @@
+error[E0603]: module `engine` is private
+ --> tests/trybuild/private_template_internals.rs:3:38
+  |
+3 | use app::contexts::report::template::engine::context_variables;
+  |                                      ^^^^^^ private module
+  |
+note: the module `engine` is defined here
+ --> src/contexts/report/template/mod.rs
+  |
+  | mod engine;
+  | ^^^^^^^^^^

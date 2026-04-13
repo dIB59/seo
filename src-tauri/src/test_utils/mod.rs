@@ -161,7 +161,7 @@ pub mod generators {
                 let template = &issue_templates[i % issue_templates.len()];
                 SeoIssue {
                     page_id: page_id.to_string(),
-                    severity: template.0.clone(),
+                    severity: template.0,
                     title: template.1.to_string(),
                     description: template.2.to_string(),
                     page_url: page_url.to_string(),
@@ -210,6 +210,12 @@ pub mod fixtures {
             ssl_certificate: true,
             sitemap_found: true,
             robots_txt_found: true,
+            issue_details: vec![],
+            page_summaries: vec![],
+            missing_meta_count: 0,
+            slow_pages_count: 0,
+            error_pages_count: 0,
+            tag_values: Default::default(),
         }
     }
 

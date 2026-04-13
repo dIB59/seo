@@ -2,9 +2,18 @@
 fn bounded_context_public_surface_is_enforced() {
     let test_cases = trybuild::TestCases::new();
 
+    // ── Should pass: proper facade paths ────────────────────────────
     test_cases.pass("tests/trybuild/explicit_context_facade.rs");
+    test_cases.pass("tests/trybuild/explicit_tags_facade.rs");
+    test_cases.pass("tests/trybuild/explicit_template_facade.rs");
+
+    // ── Should fail: barrel re-exports / internal access ────────────
     test_cases.compile_fail("tests/trybuild/flat_context_barrel.rs");
     test_cases.compile_fail("tests/trybuild/private_analysis_domain.rs");
+    test_cases.compile_fail("tests/trybuild/private_tags_context.rs");
+    test_cases.compile_fail("tests/trybuild/private_template_internals.rs");
+    test_cases.compile_fail("tests/trybuild/private_checker_custom.rs");
+    test_cases.compile_fail("tests/trybuild/private_template_repo_impl.rs");
 }
 
 #[test]

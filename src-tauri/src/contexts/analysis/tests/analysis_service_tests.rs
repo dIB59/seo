@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use tokio::sync::RwLock;
 
 use crate::contexts::analysis::{
-    AnalysisService, Job, JobFilter, JobInfo, JobSettings, JobStatus, JobSummary,
+    AnalysisService, Job, JobFilter, JobId, JobInfo, JobSettings, JobStatus, JobSummary,
 };
 use crate::repository::JobRepository;
 
@@ -30,10 +30,14 @@ impl MockJobRepository {
 
 #[async_trait]
 impl JobRepository for MockJobRepository {
-    async fn create(&self, url: &str, settings: &JobSettings) -> anyhow::Result<String> {
+    async fn create(
+        &self,
+        url: &str,
+        settings: &JobSettings,
+    ) -> crate::repository::RepositoryResult<String> {
         let now = chrono::Utc::now();
         let job = Job {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: JobId::generate(),
             url: url.to_string(),
             status: JobStatus::Pending,
             progress: 0.0,
@@ -46,66 +50,71 @@ impl JobRepository for MockJobRepository {
             completed_at: None,
             error_message: None,
         };
-        let id = job.id.clone();
-        self.jobs.write().await.insert(id.clone(), job);
-        Ok(id)
+        let id_str = job.id.as_str().to_string();
+        self.jobs.write().await.insert(id_str.clone(), job);
+        Ok(id_str)
     }
 
-    async fn get_by_id(&self, id: &str) -> anyhow::Result<Job> {
-        self.jobs.read().await.get(id).cloned()
-            .ok_or_else(|| anyhow::anyhow!("Job not found"))
+    async fn get_by_id(&self, id: &str) -> crate::repository::RepositoryResult<Job> {
+        self.jobs
+            .read()
+            .await
+            .get(id)
+            .cloned()
+            .ok_or_else(|| crate::repository::RepositoryError::not_found("job", id))
     }
 
-    async fn get_all(&self) -> anyhow::Result<Vec<JobInfo>> {
-        Ok(self.jobs.read().await.values().map(|j| JobInfo {
-            id: j.id.clone(),
-            url: j.url.clone(),
-            status: j.status.clone(),
-            progress: j.progress,
-            total_pages: j.summary.total_pages,
-            total_issues: j.summary.total_issues,
-            created_at: j.created_at,
-            max_pages: j.settings.max_pages,
-            lighthouse_analysis: j.settings.lighthouse_analysis,
-        }).collect())
+    async fn get_all(&self) -> crate::repository::RepositoryResult<Vec<JobInfo>> {
+        Ok(self.jobs.read().await.values().map(JobInfo::from).collect())
     }
 
-    async fn get_paginated(&self, limit: i64, offset: i64) -> anyhow::Result<Vec<JobInfo>> {
+    async fn get_paginated(
+        &self,
+        limit: i64,
+        offset: i64,
+    ) -> crate::repository::RepositoryResult<Vec<JobInfo>> {
         let all = self.get_all().await?;
         Ok(all.into_iter().skip(offset as usize).take(limit as usize).collect())
     }
 
     async fn get_paginated_with_total(
         &self,
-        limit: i64,
-        offset: i64,
-        _url_filter: Option<String>,
-        _status_filter: Option<String>,
-    ) -> anyhow::Result<(Vec<JobInfo>, i64)> {
+        query: crate::contexts::analysis::JobPageQuery,
+    ) -> crate::repository::RepositoryResult<(Vec<JobInfo>, i64)> {
         let all = self.get_all().await?;
         let total = all.len() as i64;
-        Ok((all.into_iter().skip(offset as usize).take(limit as usize).collect(), total))
+        let limit = query.pagination().limit() as usize;
+        let offset = query.pagination().offset() as usize;
+        Ok((all.into_iter().skip(offset).take(limit).collect(), total))
     }
 
-    async fn get_pending(&self) -> anyhow::Result<Vec<Job>> {
+    async fn get_pending(&self) -> crate::repository::RepositoryResult<Vec<Job>> {
         Ok(self.jobs.read().await.values().filter(|j| j.status == JobStatus::Pending).cloned().collect())
     }
 
-    async fn get_running_jobs_id(&self) -> anyhow::Result<Vec<String>> {
+    async fn get_running_jobs_id(&self) -> crate::repository::RepositoryResult<Vec<String>> {
         Ok(self.jobs.read().await.values()
             .filter(|j| j.status == JobStatus::Processing || j.status == JobStatus::Discovery)
-            .map(|j| j.id.clone())
+            .map(|j| j.id.as_str().to_string())
             .collect())
     }
 
-    async fn update_status(&self, job_id: &str, status: JobStatus) -> anyhow::Result<()> {
+    async fn update_status(
+        &self,
+        job_id: &str,
+        status: JobStatus,
+    ) -> crate::repository::RepositoryResult<()> {
         if let Some(job) = self.jobs.write().await.get_mut(job_id) {
             job.status = status;
         }
         Ok(())
     }
 
-    async fn update_progress(&self, id: &str, progress: f64) -> anyhow::Result<()> {
+    async fn update_progress(
+        &self,
+        id: &str,
+        progress: f64,
+    ) -> crate::repository::RepositoryResult<()> {
         if let Some(job) = self.jobs.write().await.get_mut(id) {
             job.progress = progress;
         }
@@ -117,7 +126,7 @@ impl JobRepository for MockJobRepository {
         id: &str,
         sitemap_found: bool,
         robots_txt_found: bool,
-    ) -> anyhow::Result<()> {
+    ) -> crate::repository::RepositoryResult<()> {
         if let Some(job) = self.jobs.write().await.get_mut(id) {
             job.sitemap_found = sitemap_found;
             job.robots_txt_found = robots_txt_found;
@@ -125,7 +134,11 @@ impl JobRepository for MockJobRepository {
         Ok(())
     }
 
-    async fn set_error(&self, job_id: &str, error: &str) -> anyhow::Result<()> {
+    async fn set_error(
+        &self,
+        job_id: &str,
+        error: &str,
+    ) -> crate::repository::RepositoryResult<()> {
         if let Some(job) = self.jobs.write().await.get_mut(job_id) {
             job.status = JobStatus::Failed;
             job.error_message = Some(error.to_string());
@@ -133,11 +146,11 @@ impl JobRepository for MockJobRepository {
         Ok(())
     }
 
-    async fn count(&self) -> anyhow::Result<i64> {
+    async fn count(&self) -> crate::repository::RepositoryResult<i64> {
         Ok(self.jobs.read().await.len() as i64)
     }
 
-    async fn delete(&self, job_id: &str) -> anyhow::Result<()> {
+    async fn delete(&self, job_id: &str) -> crate::repository::RepositoryResult<()> {
         self.jobs.write().await.remove(job_id);
         Ok(())
     }
@@ -173,10 +186,10 @@ async fn test_analysis_service_create_job() {
         .expect("Failed to create job");
     
     // Assert
-    assert!(!job_id.is_empty(), "Job ID should not be empty");
-    
+    assert!(!job_id.as_str().is_empty(), "Job ID should not be empty");
+
     // Verify job was stored
-    let job = job_repo.get_by_id(&job_id).await
+    let job = job_repo.get_by_id(job_id.as_str()).await
         .expect("Job should exist in repository");
     assert_eq!(job.url, "https://example.com");
     assert_eq!(job.status, JobStatus::Pending);
@@ -189,18 +202,53 @@ async fn test_analysis_service_get_job() {
     let job_repo = Arc::new(MockJobRepository::new());
     let service = AnalysisService::new(job_repo.clone());
     let settings = JobSettings::default();
-    
+
     // Create a job first
     let job_id = service.create_job("https://example.com", &settings).await
         .expect("Failed to create job");
-    
+
     // Act
-    let job = service.get_job(&job_id).await
+    let job = service.get_job(job_id.as_str()).await
         .expect("Failed to get job");
-    
+
     // Assert
     assert_eq!(job.id, job_id);
     assert_eq!(job.url, "https://example.com");
+}
+
+/// Test: AnalysisService::get_job_state returns a typestate-wrapped job
+/// that callers can match on exhaustively.
+#[tokio::test]
+async fn test_analysis_service_get_job_state_routes_pending() {
+    use crate::contexts::analysis::AnyJob;
+
+    let job_repo = Arc::new(MockJobRepository::new());
+    let service = AnalysisService::new(job_repo);
+    let settings = JobSettings::default();
+
+    let job_id = service
+        .create_job("https://example.com", &settings)
+        .await
+        .expect("Failed to create job");
+
+    let any = service
+        .get_job_state(job_id.as_str())
+        .await
+        .expect("Failed to get job state");
+
+    // A freshly created job lands in the Pending variant — `complete()`
+    // is not even callable here because it only exists on
+    // JobState<Processing>. The test pins that the dispatch from
+    // JobStatus::Pending lands in AnyJob::Pending.
+    match any {
+        AnyJob::Pending(state) => {
+            // Drive a full lifecycle transition to prove the typestate
+            // chain works in service-level code.
+            let completed = state.start_discovery().start_processing().complete();
+            assert_eq!(completed.seo_score(), 100);
+        }
+        other => panic!("expected Pending, got {other:?}"),
+    }
 }
 
 /// Test: AnalysisService can list jobs with filter
@@ -233,18 +281,93 @@ async fn test_analysis_service_cancel_job() {
     let job_repo = Arc::new(MockJobRepository::new());
     let service = AnalysisService::new(job_repo.clone());
     let settings = JobSettings::default();
-    
+
     let job_id = service.create_job("https://example.com", &settings).await
         .expect("Failed to create job");
-    
+
     // Act
-    service.cancel_job(&job_id).await
+    service.cancel_job(job_id.as_str()).await
         .expect("Failed to cancel job");
-    
+
     // Assert
-    let job = job_repo.get_by_id(&job_id).await
+    let job = job_repo.get_by_id(job_id.as_str()).await
         .expect("Job should exist");
     assert_eq!(job.status, JobStatus::Cancelled);
+}
+
+/// Typestate-aware cancellation cancels Pending jobs.
+#[tokio::test]
+async fn test_cancel_job_typed_succeeds_for_pending() {
+    let job_repo = Arc::new(MockJobRepository::new());
+    let service = AnalysisService::new(job_repo.clone());
+    let settings = JobSettings::default();
+
+    let job_id = service
+        .create_job("https://example.com", &settings)
+        .await
+        .expect("Failed to create job");
+
+    service
+        .cancel_job_typed(job_id.as_str())
+        .await
+        .expect("typed cancel should succeed for pending job");
+
+    let job = job_repo.get_by_id(job_id.as_str()).await.unwrap();
+    assert_eq!(job.status, JobStatus::Cancelled);
+}
+
+/// Typestate-aware cancellation refuses to cancel an already-completed
+/// job. Pinning the precondition that `cancel_job` silently no-ops on,
+/// to give the caller a clear error.
+#[tokio::test]
+async fn test_cancel_job_typed_rejects_completed() {
+    let job_repo = Arc::new(MockJobRepository::new());
+    let service = AnalysisService::new(job_repo.clone());
+    let settings = JobSettings::default();
+
+    let job_id = service
+        .create_job("https://example.com", &settings)
+        .await
+        .expect("Failed to create job");
+
+    // Move the job into the Completed terminal state directly via the
+    // mock repo (simulating a job that finished naturally).
+    job_repo
+        .update_status(job_id.as_str(), JobStatus::Completed)
+        .await
+        .unwrap();
+
+    let err = service
+        .cancel_job_typed(job_id.as_str())
+        .await
+        .expect_err("typed cancel should reject completed job");
+    let msg = format!("{err:#}");
+    assert!(msg.contains("already completed"), "got: {msg}");
+}
+
+/// Typestate-aware cancellation refuses to cancel an already-failed job.
+#[tokio::test]
+async fn test_cancel_job_typed_rejects_failed() {
+    let job_repo = Arc::new(MockJobRepository::new());
+    let service = AnalysisService::new(job_repo.clone());
+    let settings = JobSettings::default();
+
+    let job_id = service
+        .create_job("https://example.com", &settings)
+        .await
+        .expect("Failed to create job");
+
+    job_repo
+        .update_status(job_id.as_str(), JobStatus::Failed)
+        .await
+        .unwrap();
+
+    let err = service
+        .cancel_job_typed(job_id.as_str())
+        .await
+        .expect_err("typed cancel should reject failed job");
+    let msg = format!("{err:#}");
+    assert!(msg.contains("already failed"), "got: {msg}");
 }
 
 /// Test: AnalysisService returns error for non-existent job
@@ -273,12 +396,12 @@ async fn test_analysis_service_get_progress() {
         .expect("Failed to create job");
     
     // Act
-    let progress = service.get_progress(&job_id).await
+    let progress = service.get_progress(job_id.as_str()).await
         .expect("Failed to get progress");
-    
+
     // Assert
-    assert_eq!(progress.job_id, job_id);
-    assert_eq!(progress.progress, Some(0.0));
+    assert_eq!(progress.job_id, job_id.as_str());
+    assert_eq!(progress.progress, 0.0);
 }
 
 // ============================================================================

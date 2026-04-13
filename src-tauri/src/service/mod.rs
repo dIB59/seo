@@ -1,5 +1,6 @@
 pub mod auditor;
 pub mod discovery;
+pub mod error;
 pub mod gemini;
 pub mod hardware;
 pub mod licensing;
@@ -7,6 +8,8 @@ pub mod local_model;
 pub mod processor;
 pub mod prompt;
 pub mod spider;
+
+pub use error::{ServiceError, ServiceResult};
 
 #[cfg(test)]
 mod tests;

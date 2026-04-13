@@ -8,7 +8,10 @@ use super::services::LocalModelService;
 pub struct LocalModelServiceFactory;
 
 impl LocalModelServiceFactory {
-    pub fn new(
+    /// Build a fully wired `LocalModelService`. Renamed from `new` to
+    /// `build` so the function name reflects that it returns the
+    /// product, not the factory itself (clippy::new_ret_no_self).
+    pub fn build(
         settings_repo: Arc<dyn SettingsRepository>,
         models_dir: PathBuf,
         app_handle: tauri::AppHandle,

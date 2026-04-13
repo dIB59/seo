@@ -30,11 +30,18 @@ impl MockAiRepository {
 
 #[async_trait]
 impl AiRepository for MockAiRepository {
-    async fn get_ai_insights(&self, job_id: &str) -> anyhow::Result<Option<String>> {
+    async fn get_ai_insights(
+        &self,
+        job_id: &str,
+    ) -> crate::repository::RepositoryResult<Option<String>> {
         Ok(self.insights.read().unwrap().get(job_id).cloned())
     }
 
-    async fn save_ai_insights(&self, job_id: &str, insights: &str) -> anyhow::Result<()> {
+    async fn save_ai_insights(
+        &self,
+        job_id: &str,
+        insights: &str,
+    ) -> crate::repository::RepositoryResult<()> {
         self.insights.write().unwrap().insert(job_id.to_string(), insights.to_string());
         Ok(())
     }
@@ -55,11 +62,18 @@ impl MockSettingsRepository {
 
 #[async_trait]
 impl SettingsRepository for MockSettingsRepository {
-    async fn get_setting(&self, key: &str) -> anyhow::Result<Option<String>> {
+    async fn get_setting(
+        &self,
+        key: &str,
+    ) -> crate::repository::RepositoryResult<Option<String>> {
         Ok(self.settings.read().unwrap().get(key).cloned())
     }
 
-    async fn set_setting(&self, key: &str, value: &str) -> anyhow::Result<()> {
+    async fn set_setting(
+        &self,
+        key: &str,
+        value: &str,
+    ) -> crate::repository::RepositoryResult<()> {
         self.settings.write().unwrap().insert(key.to_string(), value.to_string());
         Ok(())
     }
@@ -219,6 +233,12 @@ async fn test_ai_service_generate_insights_disabled() {
         ssl_certificate: true,
         sitemap_found: false,
         robots_txt_found: false,
+            issue_details: vec![],
+            page_summaries: vec![],
+            missing_meta_count: 0,
+            slow_pages_count: 0,
+            error_pages_count: 0,
+            tag_values: Default::default(),
     };
     
     // Act

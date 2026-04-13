@@ -62,6 +62,18 @@ fn backend() -> Result<&'static llama_cpp_2::llama_backend::LlamaBackend> {
 // ── Synchronous inference (runs on a blocking thread) ────────────────────────
 
 fn run_inference(req: InferenceRequest) -> Result<String> {
+    tracing::info!(
+        "[LLAMA] inference start — model: {}, prompt len: {} chars, max_tokens: {}, temp: {:.2}",
+        req.model_path.display(),
+        req.prompt.len(),
+        req.max_tokens,
+        req.temperature,
+    );
+    tracing::debug!(
+        "[LLAMA] prompt (first 200 chars):\n{}{}",
+        &req.prompt[..req.prompt.len().min(200)],
+        if req.prompt.len() > 200 { " […]" } else { "" }
+    );
     use llama_cpp_2::context::params::LlamaContextParams;
     use llama_cpp_2::llama_batch::LlamaBatch;
     use llama_cpp_2::model::params::LlamaModelParams;
@@ -101,8 +113,18 @@ fn run_inference(req: InferenceRequest) -> Result<String> {
     ctx.decode(&mut batch)
         .map_err(|e| anyhow::anyhow!("Prompt decode failed: {e}"))?;
 
-    // Sampler: temperature + greedy
+    // Sampler: repetition penalty → temperature → greedy.
+    // The penalty looks back 64 tokens and penalizes repeats — this
+    // prevents the "To ensure continuous progress…" infinite loop that
+    // small models fall into when the prompt is long relative to the
+    // context window.
     let mut sampler = LlamaSampler::chain_simple([
+        LlamaSampler::penalties(
+            64,   // penalty_last_n: look back 64 tokens
+            1.15, // penalty_repeat: >1.0 penalizes repetition
+            0.0,  // penalty_freq: frequency penalty (off)
+            0.0,  // penalty_present: presence penalty (off)
+        ),
         LlamaSampler::temp(req.temperature),
         LlamaSampler::greedy(),
     ]);
@@ -124,6 +146,20 @@ fn run_inference(req: InferenceRequest) -> Result<String> {
             .map_err(|e| anyhow::anyhow!("Token decode error: {e}"))?;
         output.push_str(&piece);
 
+        // Early exit: if the last 200 chars repeat a phrase 3+ times,
+        // the model is stuck. Truncate to just before the first repeat.
+        if output.len() > 200 {
+            if let Some(clean) = detect_and_truncate_repetition(&output) {
+                tracing::warn!(
+                    "[LLAMA] repetition detected at {} chars, truncating to {}",
+                    output.len(),
+                    clean.len()
+                );
+                output = clean;
+                break;
+            }
+        }
+
         batch.clear();
         batch
             .add(token, n_pos, &[0], true)
@@ -133,5 +169,46 @@ fn run_inference(req: InferenceRequest) -> Result<String> {
         n_pos += 1;
     }
 
-    Ok(output)
+    tracing::info!("[LLAMA] inference done — output len: {} chars", output.len());
+    tracing::debug!(
+        "[LLAMA] output (first 200 chars):\n{}{}",
+        &output[..output.len().min(200)],
+        if output.len() > 200 { " […]" } else { "" }
+    );
+
+    Ok(output.trim().to_string())
+}
+
+/// Detect if the output has fallen into a repetition loop. Scans the
+/// last portion of the text for any sentence-length substring (20+
+/// chars) that appears 3 or more times. Returns the text truncated to
+/// just before the second occurrence, or `None` if no repetition found.
+fn detect_and_truncate_repetition(text: &str) -> Option<String> {
+    // Only check the tail — early text is fine
+    let check_len = text.len().min(800);
+    let tail = &text[text.len() - check_len..];
+
+    // Try to find a repeated sentence by looking for repeated chunks.
+    // Slide a window of 30..80 chars and see if it appears 3+ times
+    // in the tail.
+    for window_size in [60, 50, 40, 30] {
+        if tail.len() < window_size * 3 {
+            continue;
+        }
+        // Take a chunk from the end and count occurrences
+        let chunk = &tail[tail.len() - window_size..];
+        let count = tail.matches(chunk).count();
+        if count >= 3 {
+            // Find the first occurrence in the full text and keep up to
+            // the second occurrence
+            if let Some(first) = text.find(chunk) {
+                let after_first = first + chunk.len();
+                if let Some(second) = text[after_first..].find(chunk) {
+                    let truncate_at = after_first + second;
+                    return Some(text[..truncate_at].trim().to_string());
+                }
+            }
+        }
+    }
+    None
 }

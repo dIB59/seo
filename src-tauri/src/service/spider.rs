@@ -48,21 +48,22 @@ impl Spider {
             ClientType::HeavyEmulation => Client::builder()
                 .timeout(Duration::from_secs(30))
                 .redirect(redirect)
+                .cert_verification(false)
                 .emulation(Emulation::Firefox136)
                 .build()
                 .context("Failed to build heavy impersonated rquest client")?,
             ClientType::Standard => Client::builder()
                 .timeout(Duration::from_secs(30))
                 .redirect(redirect)
+                .cert_verification(false)
                 .build()
                 .context("Failed to build standard rquest client")?,
             ClientType::Download => Client::builder()
-                // No request timeout — only a connection timeout.
-                // Model files are several GB; body reads can take many minutes.
                 .connect_timeout(Duration::from_secs(30))
                 .redirect(redirect)
+                .cert_verification(false)
                 .build()
-                .context("Failed to build download rquest client")?,
+                .context("Failed to build download request client")?,
         };
 
         Ok(Self { client })
@@ -162,11 +163,14 @@ impl StreamResponse {
     }
 }
 
+/// Boxed future that resolves to the next chunk in a streamed response.
+/// Aliased so the trait signature stays readable (clippy::type_complexity).
+type ChunkFuture<'a> =
+    Pin<Box<dyn std::future::Future<Output = Result<Option<Vec<u8>>>> + Send + 'a>>;
+
 // Object-safe async chunk iterator — keeps rquest types private to this module.
 trait ChunkStream: Send {
-    fn next_chunk<'a>(
-        &'a mut self,
-    ) -> Pin<Box<dyn std::future::Future<Output = Result<Option<Vec<u8>>>> + Send + 'a>>;
+    fn next_chunk<'a>(&'a mut self) -> ChunkFuture<'a>;
 }
 
 struct RquestChunker(rquest::Response);

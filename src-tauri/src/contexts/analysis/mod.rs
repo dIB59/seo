@@ -13,10 +13,18 @@ pub use services::AnalysisService;
 pub use factory::AnalysisServiceFactory;
 
 // Domain types exposed to external contexts
+pub use domain::{Depth, DepthError, MAX_DEPTH};
+pub use domain::{IdError, IssueId, JobId, LinkId, PageId, ResourceId};
+pub use domain::{JobPageQuery, Pagination, PaginationError, MAX_LIMIT};
+pub use domain::{RetryCount, RetryCountError, MAX_RETRY_COUNT};
 pub use domain::{
-    Job, JobId, JobSettings, JobStatus, JobInfo, JobFilter, JobSummary, CompleteJobResult,
+    AnyJob, Cancelled, Completed, Discovery, Failed, Job, JobFilter, JobInfo, JobSettings,
+    JobState, JobStatus, JobSummary, Pending, Processing, CompleteJobResult,
 };
-pub use domain::{Page, PageInfo, PageDetails, PageQueueItem, PageQueueStatus, NewPageQueueItem};
+pub use domain::{
+    NewPageQueueItem, Page, PageDetails, PageInfo, PageQueueItem, PageQueueStatus,
+    ParsePageQueueStatusError,
+};
 pub use domain::{Issue, NewIssue, IssueBuilder, IssueSeverity};
 pub use domain::{Link, NewLink, LinkType};
 pub use domain::LighthouseData;

@@ -45,39 +45,46 @@ impl LighthouseData {
         }
     }
 
-    pub fn is_mobile_friendly(&self) -> bool {
-        self.raw_json
+    /// All the fields derived from `raw_json` in one shot. Replaces the
+    /// previous `is_mobile_friendly` / `has_structured_data` /
+    /// `interpret_raw` trio, which each parsed `raw_json` independently
+    /// — three `serde_json::from_str` calls per page on the report
+    /// assembly path. Now parsed once per page.
+    pub fn interpret(&self) -> LighthouseInterpreted {
+        let Some(v) = self
+            .raw_json
             .as_deref()
             .and_then(|raw| serde_json::from_str::<serde_json::Value>(raw).ok())
-            .and_then(|v| {
-                v.get("seo_audits")?
-                    .get("viewport")?
-                    .get("passed")?
-                    .as_bool()
-            })
-            .unwrap_or(false)
+        else {
+            return LighthouseInterpreted::default();
+        };
+
+        let mobile_friendly = v
+            .get("seo_audits")
+            .and_then(|a| a.get("viewport"))
+            .and_then(|vp| vp.get("passed"))
+            .and_then(|b| b.as_bool())
+            .unwrap_or(false);
+
+        LighthouseInterpreted {
+            seo_audits: v.get("seo_audits").cloned(),
+            performance_metrics: v.get("performance_metrics").cloned(),
+            mobile_friendly,
+            has_structured_data: v.get("structured_data").is_some(),
+        }
     }
 
-    pub fn has_structured_data(&self) -> bool {
-        self.raw_json
-            .as_deref()
-            .and_then(|raw| serde_json::from_str::<serde_json::Value>(raw).ok())
-            .is_some_and(|v| v.get("structured_data").is_some())
-    }
+}
 
-    /// Extracts both SEO audits and performance metrics as JSON values.
-    pub fn interpret_raw(&self) -> (Option<serde_json::Value>, Option<serde_json::Value>) {
-        self.raw_json
-            .as_deref()
-            .and_then(|raw| serde_json::from_str::<serde_json::Value>(raw).ok())
-            .map(|v| {
-                (
-                    v.get("seo_audits").cloned(),
-                    v.get("performance_metrics").cloned(),
-                )
-            })
-            .unwrap_or((None, None))
-    }
+/// Parsed view of [`LighthouseData::raw_json`], returned by
+/// [`LighthouseData::interpret`]. All four fields derived from one
+/// `serde_json::from_str` call.
+#[derive(Debug, Default, Clone)]
+pub struct LighthouseInterpreted {
+    pub seo_audits: Option<serde_json::Value>,
+    pub performance_metrics: Option<serde_json::Value>,
+    pub mobile_friendly: bool,
+    pub has_structured_data: bool,
 }
 
 #[cfg(test)]

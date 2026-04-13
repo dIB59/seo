@@ -1,5 +1,5 @@
 use crate::contexts::analysis::JobSettings;
-use crate::service::discovery::{PageDiscovery, ResourceChecker, SiteResources};
+use crate::service::discovery::{DiscoveredPage, PageDiscovery, ResourceChecker, SiteResources};
 use crate::service::processor::reporter::{ProgressEmitter, ProgressEvent};
 use crate::service::spider::SpiderAgent;
 use anyhow::{Context, Result};
@@ -29,31 +29,41 @@ impl Crawler {
 
     pub async fn check_resources(&self, url_str: &str) -> Result<SiteResources> {
         let url = Url::parse(url_str)?;
-        let robots_txt = self
-            .resource_checker
-            .check_robots_txt(url.as_str())
-            .await
-            .map(|s| s.exists())
-            .unwrap_or(false);
-        let sitemap = self
-            .resource_checker
-            .check_sitemap_xml(url.as_str())
-            .await
-            .map(|s| s.exists())
-            .unwrap_or(false);
 
-        Ok(SiteResources {
+        // Both checks silently treat errors as "resource absent", but we
+        // now log the error so a misconfigured spider or a transient
+        // network blip doesn't vanish into a negative signal. The
+        // previous code dropped the error with `.unwrap_or(false)`.
+        async fn present<E: std::fmt::Display>(
+            what: &str,
+            fut: impl std::future::Future<
+                Output = std::result::Result<crate::contexts::analysis::ResourceStatus, E>,
+            >,
+        ) -> bool {
+            match fut.await {
+                Ok(status) => status.exists(),
+                Err(e) => {
+                    tracing::debug!("resource check for {what} failed: {e}");
+                    false
+                }
+            }
+        }
+
+        let robots_txt = present("robots.txt", self.resource_checker.check_robots_txt(url.as_str())).await;
+        let sitemap = present("sitemap.xml", self.resource_checker.check_sitemap_xml(url.as_str())).await;
+
+        Ok(SiteResources::new(
             robots_txt,
             sitemap,
-            ssl: url.scheme() == "https",
-        })
+            url.scheme() == "https",
+        ))
     }
 
     pub async fn discover_pages(
         &self,
         context: &CrawlContext,
         progress_emitter: Arc<dyn ProgressEmitter>,
-    ) -> Result<Vec<String>> {
+    ) -> Result<Vec<DiscoveredPage>> {
         let job_id = context.job_id.clone();
         let max_pages = context.settings.max_pages as usize;
 
@@ -82,7 +92,13 @@ impl Crawler {
 
         if discovered.is_empty() {
             tracing::warn!("[JOB] Discovery returned no pages, falling back to start URL");
-            discovered.push(context.start_url.to_string());
+            discovered.push(DiscoveredPage {
+                url: context.start_url.clone(),
+                final_url: context.start_url.clone(),
+                html: String::new(),
+                status_code: 0,
+                load_time_ms: 0.0,
+            });
         }
 
         Ok(discovered)

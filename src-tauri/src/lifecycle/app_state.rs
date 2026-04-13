@@ -11,8 +11,8 @@ use crate::{
     repository::{
         sqlite_ai_repo, sqlite_extension_repo, sqlite_issue_repo, sqlite_job_repo,
         sqlite_link_repo, sqlite_page_queue_repo, sqlite_page_repo, sqlite_report_pattern_repo,
-        sqlite_results_repo, sqlite_settings_repo, ExtensionRepository,
-        ReportPatternRepository,
+        sqlite_report_template_repo, sqlite_results_repo, sqlite_settings_repo,
+        ExtensionRepository, ReportPatternRepository, ReportTemplateRepository,
     },
     service::{
         JobProcessor, ProgressReporter,
@@ -39,6 +39,7 @@ pub struct AppState {
     pub local_model_context: Arc<LocalModelService>,
     pub extension_repo: Arc<dyn ExtensionRepository>,
     pub report_pattern_repo: Arc<dyn ReportPatternRepository>,
+    pub report_template_repo: Arc<dyn ReportTemplateRepository>,
     pub report_context: ReportService,
 }
 
@@ -59,6 +60,17 @@ impl AppState {
         let page_queue_repo = sqlite_page_queue_repo(pool.clone());
         let extension_repo = sqlite_extension_repo(pool.clone());
         let report_pattern_repo = sqlite_report_pattern_repo(pool.clone());
+        let report_template_repo = sqlite_report_template_repo(pool.clone());
+
+        // Ensure the default report template has its sections populated.
+        // The migration seeds an empty shell; this backfills the JSON on
+        // first launch.
+        if let Err(e) = crate::repository::sqlite::ReportTemplateRepository::new(pool.clone())
+            .ensure_default_sections()
+            .await
+        {
+            tracing::warn!("[INIT] Failed to seed default template sections: {e}");
+        }
         let progress_reporter: Arc<dyn ProgressEmitter> =
             Arc::new(ProgressReporter::new(app_handle.clone()));
 
@@ -69,7 +81,7 @@ impl AppState {
                 Ok(extractors) => {
                     for ext in extractors {
                         let config = ExtractorConfig {
-                            key: ext.key,
+                            tag: ext.tag,
                             selector: ext.selector,
                             attribute: ext.attribute,
                             multiple: ext.multiple,
@@ -85,11 +97,27 @@ impl AppState {
             Arc::new(registry)
         };
 
-        let analyzer = AnalyzerService::new(
+        // Load user-defined custom checks so they run alongside the
+        // built-ins during page analysis. {tag.X} placeholders in
+        // message_template are substituted with the page's extracted
+        // data when a check fires (chunk 3 of the tags feature).
+        let custom_checks = match extension_repo.list_enabled_checks().await {
+            Ok(checks) => {
+                tracing::info!("[INIT] Loaded {} custom check(s)", checks.len());
+                checks
+            }
+            Err(e) => {
+                tracing::warn!("[INIT] Failed to load custom checks: {}", e);
+                vec![]
+            }
+        };
+
+        let analyzer = AnalyzerService::with_custom_checks(
             pages_repo,
             issues_repo,
             heavy_spider.clone(),
             extractor_registry,
+            custom_checks,
         );
         let crawler = Crawler::new(heavy_spider.clone());
 
@@ -109,7 +137,7 @@ impl AppState {
             }
         });
 
-        let da_clone = job_processor.analyzer().deep_auditor();
+        let da_clone = job_processor.deep_auditor();
         tauri::async_runtime::spawn(async move {
             match da_clone.start_persistent().await {
                 Ok(_) => tracing::info!("DeepAuditor persistent mode started"),
@@ -144,7 +172,7 @@ impl AppState {
             .app_data_dir()
             .map_err(|e| anyhow::anyhow!("Failed to get app data dir: {e}"))?
             .join("models");
-        let local_model_context = Arc::new(LocalModelServiceFactory::new(
+        let local_model_context = Arc::new(LocalModelServiceFactory::build(
             settings_repo.clone(),
             models_dir,
             app_handle.clone(),
@@ -154,6 +182,7 @@ impl AppState {
             report_pattern_repo.clone(),
             results_repo.clone(),
             settings_repo.clone(),
+            report_template_repo.clone(),
             local_model_context.clone(),
         );
 
@@ -168,6 +197,7 @@ impl AppState {
             local_model_context,
             extension_repo,
             report_pattern_repo,
+            report_template_repo,
             report_context,
         })
     }

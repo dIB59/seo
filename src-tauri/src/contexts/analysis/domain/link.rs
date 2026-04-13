@@ -1,4 +1,3 @@
-use super::url_utils::extract_host;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -31,8 +30,14 @@ impl LinkType {
     }
 }
 
+/// Returned by [`LinkType::from_str`] when the input doesn't map to a known
+/// link type. Carries the offending string so decoder errors are diagnosable.
+#[derive(Debug, Clone, thiserror::Error, PartialEq, Eq)]
+#[error("invalid link type: '{0}'")]
+pub struct ParseLinkTypeError(pub String);
+
 impl std::str::FromStr for LinkType {
-    type Err = ();
+    type Err = ParseLinkTypeError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
@@ -40,7 +45,7 @@ impl std::str::FromStr for LinkType {
             "subdomain" => Ok(Self::Subdomain),
             "external" => Ok(Self::External),
             "resource" => Ok(Self::Resource),
-            _ => Err(()),
+            other => Err(ParseLinkTypeError(other.to_string())),
         }
     }
 }
@@ -64,19 +69,29 @@ impl Link {
             return false;
         };
 
-        // Use centralized host extraction
-        let source_host = extract_host(source_url);
-        let target_host = extract_host(&self.target_url);
+        // Parse each URL exactly once and pull both host and port from
+        // the parsed value. The previous version called `extract_host`
+        // (which parses internally) and then `Url::parse` again for the
+        // port — 4 parses per call. On a 1000-link page that was 4000
+        // wasted parses.
+        let parsed_src = Url::parse(source_url);
+        let parsed_tgt = Url::parse(&self.target_url);
 
-        if let (Some(source), Some(target)) = (source_host, target_host) {
-            // Also check port for complete comparison
-            let source_port = Url::parse(source_url).ok().and_then(|u| u.port());
-            let target_port = Url::parse(&self.target_url).ok().and_then(|u| u.port());
-            return source != target || source_port != target_port;
+        if let (Ok(src), Ok(tgt)) = (parsed_src.as_ref(), parsed_tgt.as_ref()) {
+            let src_host = src.host_str().map(strip_www);
+            let tgt_host = tgt.host_str().map(strip_www);
+            if let (Some(s), Some(t)) = (src_host, tgt_host) {
+                return s != t || src.port() != tgt.port();
+            }
         }
 
         !matches!(self.link_type, LinkType::Internal)
     }
+}
+
+/// Strip a leading `www.` from a host string for canonical comparison.
+fn strip_www(host: &str) -> &str {
+    host.strip_prefix("www.").unwrap_or(host)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -115,18 +130,22 @@ impl NewLink {
         let (Ok(target), Ok(base)) = (Url::parse(target_url), Url::parse(base_url)) else {
             return LinkType::External;
         };
+        Self::classify_urls(&target, &base)
+    }
 
+    /// Classify a link given already-parsed URLs. Use this from any
+    /// call site that already holds `Url` values to avoid the redundant
+    /// re-parse `classify` would otherwise do.
+    pub fn classify_urls(target: &Url, base: &Url) -> LinkType {
         if target.scheme() != "http" && target.scheme() != "https" {
             return LinkType::Resource;
         }
 
-        // Use centralized host extraction
-        let target_host = extract_host(target_url);
-        let base_host = extract_host(base_url);
-
-        let (Some(target_host), Some(base_host)) = (target_host, base_host) else {
+        let (Some(target_host), Some(base_host)) = (target.host_str(), base.host_str()) else {
             return LinkType::External;
         };
+        let target_host = strip_www(target_host);
+        let base_host = strip_www(base_host);
 
         if target_host == base_host && target.port() == base.port() {
             return LinkType::Internal;

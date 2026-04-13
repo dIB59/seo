@@ -15,17 +15,17 @@ impl PageQueueManager {
         Self { repo }
     }
 
-    /// Insert discovered URLs into the page queue.
-    /// This is called after the discovery phase.
-    pub async fn insert_discovered_urls(
+    /// Insert discovered pages into the page queue, caching their HTML
+    /// so the analysis phase can skip re-fetching.
+    pub async fn insert_discovered_pages(
         &self,
         job_id: &str,
-        urls: &[String],
-        max_depth: i64,
+        pages: &[crate::service::discovery::DiscoveredPage],
+        depth: crate::contexts::analysis::Depth,
     ) -> Result<usize> {
-        let items: Vec<NewPageQueueItem> = urls
+        let items: Vec<NewPageQueueItem> = pages
             .iter()
-            .map(|url| NewPageQueueItem::new(job_id, url, max_depth))
+            .map(|page| NewPageQueueItem::from_discovered(job_id, page, depth))
             .collect();
 
         let count = items.len();
@@ -43,42 +43,46 @@ impl PageQueueManager {
     /// Claim the next pending page for a job.
     /// Returns None if no pending pages are available.
     pub async fn claim_next_page(&self, job_id: &str) -> Result<Option<PageQueueItem>> {
-        self.repo.claim_next_pending(job_id).await
+        Ok(self.repo.claim_next_pending(job_id).await?)
     }
 
     /// Mark a page as completed.
     pub async fn mark_completed(&self, id: &str) -> Result<()> {
-        self.repo.update_status(id, PageQueueStatus::Completed).await
+        self.repo
+            .update_status(id, PageQueueStatus::Completed)
+            .await?;
+        Ok(())
     }
 
     /// Mark a page as failed with an error message.
     pub async fn mark_failed(&self, id: &str, error: &str) -> Result<()> {
-        self.repo.mark_failed(id, error).await
+        self.repo.mark_failed(id, error).await?;
+        Ok(())
     }
 
     /// Get the count of pending pages for a job.
     pub async fn pending_count(&self, job_id: &str) -> Result<i64> {
-        self.repo.count_pending(job_id).await
+        Ok(self.repo.count_pending(job_id).await?)
     }
 
     /// Get the count of completed pages for a job.
     pub async fn completed_count(&self, job_id: &str) -> Result<i64> {
-        self.repo.count_completed(job_id).await
+        Ok(self.repo.count_completed(job_id).await?)
     }
 
     /// Get the total count of pages for a job.
     pub async fn total_count(&self, job_id: &str) -> Result<i64> {
-        self.repo.count_total(job_id).await
+        Ok(self.repo.count_total(job_id).await?)
     }
 
     /// Check if all pages for a job are complete.
     pub async fn is_complete(&self, job_id: &str) -> Result<bool> {
-        self.repo.is_job_complete(job_id).await
+        Ok(self.repo.is_job_complete(job_id).await?)
     }
 
     /// Reset any processing pages back to pending (for recovery after crash).
     pub async fn reset_processing_pages(&self, job_id: &str) -> Result<i64> {
-        self.repo.reset_processing_to_pending(job_id).await
+        Ok(self.repo.reset_processing_to_pending(job_id).await?)
     }
 
     /// Get progress information for a job.
@@ -123,31 +127,53 @@ mod tests {
 
     #[async_trait]
     impl PageQueueRepository for MockPageQueueRepo {
-        async fn insert(&self, _item: &NewPageQueueItem) -> Result<String> {
+        async fn insert(
+            &self,
+            _item: &NewPageQueueItem,
+        ) -> crate::repository::RepositoryResult<String> {
             Ok(uuid::Uuid::new_v4().to_string())
         }
 
-        async fn insert_batch(&self, _items: &[NewPageQueueItem]) -> Result<()> {
+        async fn insert_batch(
+            &self,
+            _items: &[NewPageQueueItem],
+        ) -> crate::repository::RepositoryResult<()> {
             Ok(())
         }
 
-        async fn claim_next_pending(&self, _job_id: &str) -> Result<Option<PageQueueItem>> {
+        async fn claim_next_pending(
+            &self,
+            _job_id: &str,
+        ) -> crate::repository::RepositoryResult<Option<PageQueueItem>> {
             Ok(None)
         }
 
-        async fn claim_any_pending(&self) -> Result<Option<PageQueueItem>> {
+        async fn claim_any_pending(
+            &self,
+        ) -> crate::repository::RepositoryResult<Option<PageQueueItem>> {
             Ok(None)
         }
 
-        async fn update_status(&self, _id: &str, _status: PageQueueStatus) -> Result<()> {
+        async fn update_status(
+            &self,
+            _id: &str,
+            _status: PageQueueStatus,
+        ) -> crate::repository::RepositoryResult<()> {
             Ok(())
         }
 
-        async fn mark_failed(&self, _id: &str, _error: &str) -> Result<()> {
+        async fn mark_failed(
+            &self,
+            _id: &str,
+            _error: &str,
+        ) -> crate::repository::RepositoryResult<()> {
             Ok(())
         }
 
-        async fn get_by_job_id(&self, _job_id: &str) -> Result<Vec<PageQueueItem>> {
+        async fn get_by_job_id(
+            &self,
+            _job_id: &str,
+        ) -> crate::repository::RepositoryResult<Vec<PageQueueItem>> {
             Ok(vec![])
         }
 
@@ -155,31 +181,43 @@ mod tests {
             &self,
             _job_id: &str,
             _status: PageQueueStatus,
-        ) -> Result<Vec<PageQueueItem>> {
+        ) -> crate::repository::RepositoryResult<Vec<PageQueueItem>> {
             Ok(vec![])
         }
 
-        async fn count_pending(&self, _job_id: &str) -> Result<i64> {
+        async fn count_pending(&self, _job_id: &str) -> crate::repository::RepositoryResult<i64> {
             Ok(self.pending_count)
         }
 
-        async fn count_completed(&self, _job_id: &str) -> Result<i64> {
+        async fn count_completed(
+            &self,
+            _job_id: &str,
+        ) -> crate::repository::RepositoryResult<i64> {
             Ok(self.completed_count)
         }
 
-        async fn count_total(&self, _job_id: &str) -> Result<i64> {
+        async fn count_total(&self, _job_id: &str) -> crate::repository::RepositoryResult<i64> {
             Ok(self.total_count)
         }
 
-        async fn delete_by_job_id(&self, _job_id: &str) -> Result<()> {
+        async fn delete_by_job_id(
+            &self,
+            _job_id: &str,
+        ) -> crate::repository::RepositoryResult<()> {
             Ok(())
         }
 
-        async fn reset_processing_to_pending(&self, _job_id: &str) -> Result<i64> {
+        async fn reset_processing_to_pending(
+            &self,
+            _job_id: &str,
+        ) -> crate::repository::RepositoryResult<i64> {
             Ok(0)
         }
 
-        async fn is_job_complete(&self, _job_id: &str) -> Result<bool> {
+        async fn is_job_complete(
+            &self,
+            _job_id: &str,
+        ) -> crate::repository::RepositoryResult<bool> {
             Ok(self.pending_count == 0)
         }
     }

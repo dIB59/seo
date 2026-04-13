@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Save } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Separator } from "@/src/components/ui/separator";
@@ -8,11 +8,12 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { toast } from "sonner";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
-  set_gemini_persona,
-  set_gemini_prompt_blocks,
+  setPersona as savePersonaApi,
+  setPromptBlocks as savePromptBlocksApi,
 } from "@/src/api/ai";
 
 import { useAiSettings } from "@/src/hooks/use-ai-settings";
+import { useMutation } from "@/src/hooks/use-mutation";
 import type { PromptBlock } from "@/src/lib/types";
 
 // Components
@@ -25,6 +26,9 @@ import { ThemeSettings } from "./_components/ThemeSettings";
 import { CustomChecksSettings } from "./_components/CustomChecksSettings";
 import { ExtractorsSettings } from "./_components/ExtractorsSettings";
 import { ReportPatternsSettings } from "./_components/ReportPatternsSettings";
+import { TagsSettings } from "./_components/TagsSettings";
+import { ReportBuilder } from "./_components/ReportBuilder";
+import { ErrorBoundary } from "@/src/components/ErrorBoundary";
 
 function ContentSkeleton() {
   return (
@@ -46,7 +50,7 @@ function ContentSkeleton() {
 }
 
 export default function ConfigPage() {
-  const [activeSection, setActiveSection] = useState("general");
+  const [activeSection, setActiveSection] = useState("report-builder");
   const { settings: rawSettings, isLoading: isSwrLoading, mutate: rawMutate } = useAiSettings();
   // Narrow to just what ConfigContent needs
   const settings = rawSettings ? { persona: rawSettings.persona, blocks: rawSettings.blocks } : undefined;
@@ -61,16 +65,18 @@ export default function ConfigPage() {
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto bg-background/50">
-          <div className="max-w-3xl mx-auto p-8 space-y-8">
+          <div className="max-w-6xl mx-auto p-8 space-y-8">
             {isInitialLoad ? (
               <ContentSkeleton />
             ) : (
+              <ErrorBoundary>
               <ConfigContent
                 key={settings ? "loaded" : "loading"}
                 settings={settings}
                 mutate={mutate}
                 activeSection={activeSection}
               />
+              </ErrorBoundary>
             )}
           </div>
         </main>
@@ -93,55 +99,38 @@ function ConfigContent({
   mutate: (data?: PageSettings, options?: { revalidate: boolean }) => Promise<PageSettings | undefined>;
   activeSection: string;
 }) {
-  const [isLoading, setIsLoading] = useState(false);
   const [persona, setPersona] = useState(settings?.persona || "");
   const [blocks, setBlocks] = useState<PromptBlock[]>(settings?.blocks || []);
 
-  const handleSavePersona = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const res = await set_gemini_persona(persona);
-      if (res.isOk()) {
-        if (settings) mutate({ ...settings, persona }, { revalidate: false });
-        toast.success("Persona saved");
-      } else {
-        toast.error("Failed to save persona");
-      }
-    } catch {
-      toast.error("An error occurred while saving");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [persona, mutate, settings]);
+  const savePersona = useMutation(
+    async () => {
+      const res = await savePersonaApi(persona);
+      if (res.isErr()) throw new Error("Failed to save persona");
+      if (settings) mutate({ ...settings, persona }, { revalidate: false });
+    },
+    { successMessage: "Persona saved" },
+  );
 
-  const handleSavePrompt = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const res = await set_gemini_prompt_blocks(JSON.stringify(blocks));
-      if (res.isOk()) {
-        if (settings) mutate({ ...settings, blocks }, { revalidate: false });
-        toast.success("Prompt layout saved");
-      } else {
-        toast.error("Failed to save layout");
-      }
-    } catch {
-      toast.error("Error saving layout");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [blocks, mutate, settings]);
+  const savePrompt = useMutation(
+    async () => {
+      const res = await savePromptBlocksApi(JSON.stringify(blocks));
+      if (res.isErr()) throw new Error("Failed to save layout");
+      if (settings) mutate({ ...settings, blocks }, { revalidate: false });
+    },
+    { successMessage: "Prompt layout saved" },
+  );
 
   // ⌘S / Ctrl+S shortcut
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.key !== "s") return;
       e.preventDefault();
-      if (activeSection === "persona") handleSavePersona();
-      else if (activeSection === "prompt") handleSavePrompt();
+      if (activeSection === "report-builder") savePersona.execute();
+      else if (activeSection === "prompt") savePrompt.execute();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [activeSection, handleSavePersona, handleSavePrompt]);
+  }, [activeSection, savePersona, savePrompt]);
 
   return (
     <>
@@ -155,14 +144,8 @@ function ConfigContent({
             Manage your system configuration and AI preferences.
           </p>
         </div>
-        {activeSection === "persona" && (
-          <Button onClick={handleSavePersona} disabled={isLoading}>
-            <Save className="h-4 w-4 mr-2" />
-            Save
-          </Button>
-        )}
         {activeSection === "prompt" && (
-          <Button onClick={handleSavePrompt} disabled={isLoading}>
+          <Button onClick={() => savePrompt.execute()} disabled={savePrompt.isLoading}>
             <Save className="h-4 w-4 mr-2" />
             Save Layout
           </Button>
@@ -173,16 +156,16 @@ function ConfigContent({
 
       {/* Content Sections */}
       <div className="space-y-6">
-        {activeSection === "ai" && <AiSettings />}
-        {activeSection === "persona" && (
-          <PersonaSettings persona={persona} setPersona={setPersona} />
+        {activeSection === "report-builder" && (
+          <ReportBuilder persona={persona} setPersona={setPersona} />
         )}
+        {activeSection === "ai" && <AiSettings />}
         {activeSection === "prompt" && <PromptBuilder blocks={blocks} setBlocks={setBlocks} />}
-        {activeSection === "licensing" && <LicensingSection />}
-        {activeSection === "appearance" && <ThemeSettings />}
         {activeSection === "custom-checks" && <CustomChecksSettings />}
         {activeSection === "custom-extractors" && <ExtractorsSettings />}
-        {activeSection === "report-patterns" && <ReportPatternsSettings />}
+        {activeSection === "tags" && <TagsSettings />}
+        {activeSection === "licensing" && <LicensingSection />}
+        {activeSection === "appearance" && <ThemeSettings />}
       </div>
     </>
   );

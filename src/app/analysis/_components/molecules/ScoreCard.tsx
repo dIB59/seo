@@ -10,9 +10,9 @@ export function ScoreCard({ pages, issues }: { pages: PageAnalysisData[]; issues
   const criticalCount = issues.filter((i) => i.severity === "critical").length;
   const warningCount = issues.filter((i) => i.severity === "warning").length;
   const suggestionCount = issues.filter((i) => i.severity === "info").length;
-  const averageScore = Math.round(
-    pages.reduce((acc, p) => acc + (p.lighthouse_seo || 0), 0) / pages.length,
-  );
+  const averageScore = pages.length > 0
+    ? Math.round(pages.reduce((acc, p) => acc + (p.lighthouse_seo || 0), 0) / pages.length)
+    : 0;
   return (
     <Card className="bg-card/40 backdrop-blur-sm border-white/5 shadow-sm overflow-hidden relative group">
       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
@@ -32,19 +32,14 @@ export function ScoreCard({ pages, issues }: { pages: PageAnalysisData[]; issues
               <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
                 Overall Score
               </p>
-              <div className="flex items-baseline gap-2">
-                <h3
-                  className={cn(
-                    "text-4xl font-bold tracking-tighter font-mono",
-                    getScoreColor(averageScore),
-                  )}
-                >
-                  {averageScore}
-                </h3>
-                <span className="text-sm font-medium opacity-80">
-                  {getScoreLabel(averageScore)}
-                </span>
-              </div>
+              <h3
+                className={cn(
+                  "text-3xl font-bold tracking-tight",
+                  getScoreColor(averageScore),
+                )}
+              >
+                {getScoreLabel(averageScore)}
+              </h3>
             </div>
             <Separator className="bg-border/40" />
             <div className="pt-1">

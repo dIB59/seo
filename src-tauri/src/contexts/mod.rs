@@ -7,14 +7,15 @@ pub mod extension;
 pub mod licensing;
 pub mod local_model;
 pub mod report;
+pub mod tags;
 
 #[allow(unused_imports)]
 pub(crate) use crate::contexts::analysis::{
     extract_host, extract_root_domain, same_root_domain, AnalysisProgress, AnalysisResult,
     CompleteJobResult, Heading, Image, Issue, IssueBuilder, IssueSeverity, Job, JobFilter, JobId,
-    JobInfo, JobSettings, JobStatus, JobSummary, LighthouseData, Link, LinkType, NewHeading,
-    NewImage, NewIssue, NewLink, NewPageQueueItem, Page, PageDetails, PageInfo, PageQueueItem,
-    PageQueueStatus, ResourceStatus,
+    JobInfo, JobPageQuery, JobSettings, JobStatus, JobSummary, LighthouseData, Link, LinkType,
+    NewHeading, NewImage, NewIssue, NewLink, NewPageQueueItem, Page, PageDetails, PageInfo,
+    PageQueueItem, PageQueueStatus, ResourceStatus,
 };
 #[allow(unused_imports)]
 pub(crate) use crate::contexts::ai::{AiInsight, PromptBlock, PromptConfig};

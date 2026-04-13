@@ -23,7 +23,7 @@ impl JobCanceler {
     pub fn cancel(&self, job_id: &str) {
         self.cancel_map
             .entry(job_id.to_string())
-            .or_insert_with(CancellationToken::new)
+            .or_default()
             .cancel();
     }
 

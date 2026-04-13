@@ -9,10 +9,17 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { Separator } from "@/src/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/src/components/ui/tooltip";
-import { commands } from "@/src/bindings";
-import { set_gemini_api_key } from "@/src/api/ai";
+import {
+  getAiSource,
+  setAiSource,
+  getApiKey,
+  setApiKey as saveApiKey,
+} from "@/src/api/ai";
+import { useMutation } from "@/src/hooks/use-mutation";
 import { LocalModelSettings } from "./LocalModelSettings";
 import type { AiSource } from "@/src/api/ai";
+// All Tauri command access now goes through src/api/ai — no direct
+// `commands.*` imports in this component.
 
 // ── Source picker ─────────────────────────────────────────────────────────────
 
@@ -65,17 +72,14 @@ function SourceOption({
 export function AiSettings() {
   const [source, setSourceState] = useState<AiSource>("gemini");
   const [apiKey, setApiKey] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load current settings
+  // Load current settings via the API layer
   useEffect(() => {
-    Promise.all([commands.getAiSource(), commands.getGeminiApiKey()]).then(
+    Promise.all([getAiSource(), getApiKey()]).then(
       ([sourceRes, keyRes]) => {
-        if (sourceRes.status === "ok") {
-          setSourceState(sourceRes.data === "local" ? "local" : "gemini");
-        }
-        if (keyRes.status === "ok") setApiKey(keyRes.data ?? "");
+        if (sourceRes.isOk()) setSourceState(sourceRes.unwrap());
+        if (keyRes.isOk()) setApiKey(keyRes.unwrap() ?? "");
         setIsLoading(false);
       },
     );
@@ -85,8 +89,8 @@ export function AiSettings() {
     async (next: AiSource) => {
       if (next === source) return;
       setSourceState(next);
-      const res = await commands.setAiSource(next);
-      if (res.status === "error") {
+      const res = await setAiSource(next);
+      if (res.isErr()) {
         toast.error("Failed to save AI source");
         setSourceState(source); // rollback
       }
@@ -94,16 +98,13 @@ export function AiSettings() {
     [source],
   );
 
-  const saveGeminiKey = useCallback(async () => {
-    setIsSaving(true);
-    const res = await set_gemini_api_key(apiKey);
-    setIsSaving(false);
-    if (res.isOk()) {
-      toast.success("API key saved");
-    } else {
-      toast.error("Failed to save API key");
-    }
-  }, [apiKey]);
+  const saveKey = useMutation(
+    async (key: string) => {
+      const res = await saveApiKey(key);
+      if (res.isErr()) throw new Error("Failed to save API key");
+    },
+    { successMessage: "API key saved" },
+  );
 
   if (isLoading) return null;
 
@@ -172,7 +173,7 @@ export function AiSettings() {
               </a>
             </div>
           </div>
-          <Button onClick={saveGeminiKey} disabled={isSaving} size="sm" className="gap-2">
+          <Button onClick={() => saveKey.execute(apiKey)} disabled={saveKey.isLoading} size="sm" className="gap-2">
             <Save className="h-3.5 w-3.5" />
             Save Key
           </Button>

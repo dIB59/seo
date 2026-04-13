@@ -1,4 +1,6 @@
 use crate::checker::{CheckContext, CheckerRegistry};
+use crate::checker::custom::CustomCheckAdapter;
+use crate::contexts::extension::CustomCheck;
 use crate::contexts::analysis::{
     JobSettings, LighthouseData, LinkType, NewHeading, NewImage, NewIssue, NewLink, Page,
 };
@@ -54,12 +56,11 @@ fn extract_page_data(
     html: &str,
     url: &str,
     job_id: &str,
-    depth: i64,
+    depth: crate::contexts::analysis::Depth,
     audit_result: &AuditResult,
     extracted_data: std::collections::HashMap<String, serde_json::Value>,
 ) -> ExtractedPageData {
     let parsed_html = Html::parse_document(html);
-    let final_url = audit_result.url.clone();
 
     let title = PageExtractor::extract_title(&parsed_html);
     let meta_description = PageExtractor::extract_meta_description(&parsed_html);
@@ -69,7 +70,7 @@ fn extract_page_data(
     let has_structured_data = PageExtractor::extract_has_structured_data(&parsed_html);
 
     let (internal_urls, _external_urls, all_links) =
-        PageExtractor::extract_links(&parsed_html, &final_url);
+        PageExtractor::extract_links(&parsed_html, &audit_result.url);
 
     let headings = PageExtractor::extract_headings(&parsed_html);
     let images = PageExtractor::extract_images(&parsed_html, url);
@@ -116,7 +117,7 @@ fn extract_page_data(
         link_edges,
         headings,
         images,
-        final_url,
+        final_url: audit_result.url.clone(),
     }
 }
 
@@ -151,12 +152,33 @@ impl AnalyzerService {
         deep_spider: Arc<dyn SpiderAgent>,
         extractor_registry: Arc<ExtractorRegistry>,
     ) -> Self {
+        Self::with_custom_checks(page_db, issue_db, deep_spider, extractor_registry, vec![])
+    }
+
+    /// Build an analyzer with user-defined custom checks loaded from
+    /// the extension repository. Each `CustomCheck` is wrapped in a
+    /// [`CustomCheckAdapter`] and registered alongside the built-ins,
+    /// so they fire during `analyze_page` the same way as any built-in
+    /// check — with `{tag.X}` substitution in the issue message.
+    pub fn with_custom_checks(
+        page_db: Arc<dyn PageRepoTrait>,
+        issue_db: Arc<dyn IssueRepoTrait>,
+        deep_spider: Arc<dyn SpiderAgent>,
+        extractor_registry: Arc<ExtractorRegistry>,
+        custom_checks: Vec<CustomCheck>,
+    ) -> Self {
+        let mut checker_registry = CheckerRegistry::with_defaults();
+        for check in custom_checks {
+            if check.enabled {
+                checker_registry.register(Box::new(CustomCheckAdapter::new(check)));
+            }
+        }
         Self {
             page_db,
             issue_db,
             light_auditor: Arc::new(LightAuditor::new(deep_spider.clone())),
             deep_auditor: Arc::new(DeepAuditor::new(deep_spider.clone())),
-            checker_registry: Arc::new(CheckerRegistry::with_defaults()),
+            checker_registry: Arc::new(checker_registry),
             extractor_registry,
         }
     }
@@ -184,14 +206,39 @@ impl AnalyzerService {
         Ok(())
     }
 
+    /// Analyze a page using cached HTML from the discovery phase.
+    /// Identical to `analyze_page` but skips the HTTP fetch.
+    pub async fn analyze_page_cached(
+        &self,
+        url: &str,
+        job_id: &str,
+        depth: crate::contexts::analysis::Depth,
+        auditor: &Arc<dyn Auditor + Send + Sync>,
+        cached: crate::service::auditor::CachedHtml,
+    ) -> Result<(PageResult, Vec<String>)> {
+        let audit_result = auditor.analyze_from_cache(url, cached).await?;
+        self.process_audit_result(url, job_id, depth, audit_result).await
+    }
+
     pub async fn analyze_page(
         &self,
         url: &str,
         job_id: &str,
-        depth: i64,
+        depth: crate::contexts::analysis::Depth,
         auditor: &Arc<dyn Auditor + Send + Sync>,
     ) -> Result<(PageResult, Vec<String>)> {
         let audit_result = auditor.analyze(url).await?;
+        self.process_audit_result(url, job_id, depth, audit_result).await
+    }
+
+    /// Shared processing for both cached and non-cached paths.
+    async fn process_audit_result(
+        &self,
+        url: &str,
+        job_id: &str,
+        depth: crate::contexts::analysis::Depth,
+        audit_result: crate::service::auditor::AuditResult,
+    ) -> Result<(PageResult, Vec<String>)> {
 
         if audit_result.url != url {
             tracing::info!(

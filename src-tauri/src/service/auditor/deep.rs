@@ -205,16 +205,7 @@ impl DeepAuditor {
             .context("Failed to read response from persistent sidecar")?;
 
         let process_time_ms = start_time.elapsed().as_secs_f64() * 1000.0;
-        let response: SidecarResponse =
-            serde_json::from_str(&response_line).context("Failed to parse sidecar output")?;
-
-        if !response.success {
-            anyhow::bail!(
-                "Lighthouse failed: {}",
-                response.error.unwrap_or_else(|| "Unknown error".into())
-            );
-        }
-
+        let response = parse_sidecar_response(&response_line, "sidecar output")?;
         Ok(self.build_result(response, process_time_ms, url).await)
     }
 
@@ -244,16 +235,7 @@ impl DeepAuditor {
             );
         }
 
-        let response: SidecarResponse =
-            serde_json::from_str(&stdout).context("Failed to parse lighthouse output")?;
-
-        if !response.success {
-            anyhow::bail!(
-                "Lighthouse analysis failed: {}",
-                response.error.unwrap_or_else(|| "Unknown error".into())
-            );
-        }
-
+        let response = parse_sidecar_response(&stdout, "lighthouse output")?;
         Ok(self.build_result(response, process_time_ms, url).await)
     }
 
@@ -313,28 +295,24 @@ impl DeepAuditor {
     }
 
     fn convert_seo_audits(audits: Option<&SidecarSeoAudits>) -> SeoAuditDetails {
-        let convert = |audit: Option<&SidecarAudit>| -> CheckResult {
-            audit
-                .map(|a| CheckResult {
-                    passed: a.passed,
-                    value: a.value.clone(),
-                    score: Score::from(a.score),
-                    description: a.description.clone(),
-                })
-                .unwrap_or_default()
-        };
+        fn pick(
+            audits: Option<&SidecarSeoAudits>,
+            f: impl FnOnce(&SidecarSeoAudits) -> Option<&SidecarAudit>,
+        ) -> CheckResult {
+            audits.and_then(f).map(CheckResult::from).unwrap_or_default()
+        }
 
         SeoAuditDetails {
-            document_title: convert(audits.and_then(|a| a.document_title.as_ref())),
-            meta_description: convert(audits.and_then(|a| a.meta_description.as_ref())),
-            viewport: convert(audits.and_then(|a| a.viewport.as_ref())),
-            canonical: convert(audits.and_then(|a| a.canonical.as_ref())),
-            hreflang: convert(audits.and_then(|a| a.hreflang.as_ref())),
-            crawlable_anchors: convert(audits.and_then(|a| a.crawlable_anchors.as_ref())),
-            link_text: convert(audits.and_then(|a| a.link_text.as_ref())),
-            image_alt: convert(audits.and_then(|a| a.image_alt.as_ref())),
-            http_status_code: convert(audits.and_then(|a| a.http_status_code.as_ref())),
-            is_crawlable: convert(audits.and_then(|a| a.is_crawlable.as_ref())),
+            document_title: pick(audits, |a| a.document_title.as_ref()),
+            meta_description: pick(audits, |a| a.meta_description.as_ref()),
+            viewport: pick(audits, |a| a.viewport.as_ref()),
+            canonical: pick(audits, |a| a.canonical.as_ref()),
+            hreflang: pick(audits, |a| a.hreflang.as_ref()),
+            crawlable_anchors: pick(audits, |a| a.crawlable_anchors.as_ref()),
+            link_text: pick(audits, |a| a.link_text.as_ref()),
+            image_alt: pick(audits, |a| a.image_alt.as_ref()),
+            http_status_code: pick(audits, |a| a.http_status_code.as_ref()),
+            is_crawlable: pick(audits, |a| a.is_crawlable.as_ref()),
         }
     }
 
@@ -393,6 +371,18 @@ impl Auditor for DeepAuditor {
 // Sidecar response types (internal)
 // ============================================================================
 
+fn parse_sidecar_response(raw: &str, label: &str) -> Result<SidecarResponse> {
+    let response: SidecarResponse = serde_json::from_str(raw)
+        .with_context(|| format!("Failed to parse {}", label))?;
+    if !response.success {
+        anyhow::bail!(
+            "Lighthouse failed: {}",
+            response.error.unwrap_or_else(|| "Unknown error".into())
+        );
+    }
+    Ok(response)
+}
+
 #[derive(Debug, Deserialize)]
 struct SidecarResponse {
     success: bool,
@@ -444,6 +434,17 @@ struct SidecarAudit {
     score: f64,
     #[serde(default)]
     description: Option<String>,
+}
+
+impl From<&SidecarAudit> for CheckResult {
+    fn from(a: &SidecarAudit) -> Self {
+        CheckResult {
+            passed: a.passed,
+            value: a.value.clone(),
+            score: Score::from(a.score),
+            description: a.description.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Default)]

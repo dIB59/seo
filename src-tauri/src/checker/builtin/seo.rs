@@ -165,7 +165,7 @@ mod tests {
     fn make_page() -> Page {
         Page {
             id: "p1".into(), job_id: "j1".into(),
-            url: "https://example.com".into(), depth: 0,
+            url: "https://example.com".into(), depth: crate::contexts::analysis::Depth::root(),
             status_code: Some(200), content_type: None,
             title: Some("Title".into()), meta_description: Some("Desc".into()),
             canonical_url: None, robots_meta: None,

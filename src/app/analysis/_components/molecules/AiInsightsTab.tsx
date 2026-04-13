@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Bot, Cpu, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { generateAnalysis, type AiSource } from "@/src/api/ai";
+import { useMutation } from "@/src/hooks/use-mutation";
 import type { CompleteAnalysisResponse } from "@/src/api/analysis";
 
 const SOURCE_LABEL: Record<AiSource, { label: string; icon: React.ReactNode }> = {
@@ -13,25 +14,18 @@ const SOURCE_LABEL: Record<AiSource, { label: string; icon: React.ReactNode }> =
 
 export function AiInsightsTab({ data }: { data: CompleteAnalysisResponse }) {
   const [insights, setInsights] = useState<{ text: string; source: AiSource } | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
 
-  const generate = async () => {
-    setLoading(true);
-    setError(null);
-
-    const res = await generateAnalysis(data);
-
-    setLoading(false);
-
-    if (res.isOk()) {
-      setInsights(res.unwrap());
+  const generate = useMutation(
+    async () => {
+      const res = await generateAnalysis(data);
+      if (res.isErr()) throw new Error(res.unwrapErr());
+      const result = res.unwrap();
+      setInsights(result);
       topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    } else {
-      setError(res.unwrapErr());
-    }
-  };
+      return result;
+    },
+  );
 
   return (
     <div className="space-y-4">
@@ -47,28 +41,28 @@ export function AiInsightsTab({ data }: { data: CompleteAnalysisResponse }) {
         <Button
           size="sm"
           variant="outline"
-          disabled={loading}
-          onClick={generate}
+          disabled={generate.isLoading}
+          onClick={() => generate.execute()}
           className="gap-2 h-8 text-xs shrink-0"
         >
-          {loading ? (
+          {generate.isLoading ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
             <Bot className="h-3.5 w-3.5" />
           )}
-          {loading ? "Generating…" : insights ? "Regenerate" : "Generate"}
+          {generate.isLoading ? "Generating…" : insights ? "Regenerate" : "Generate"}
         </Button>
       </div>
 
       {/* Error */}
-      {error && !loading && (
+      {generate.error && !generate.isLoading && (
         <div className="p-4 rounded-lg border border-destructive/30 bg-destructive/5 text-sm text-destructive">
-          {error}
+          {generate.error}
         </div>
       )}
 
       {/* Result */}
-      {insights && !loading && (
+      {insights && !generate.isLoading && (
         <div className="rounded-lg border border-border/50 bg-card/30 overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border/40 bg-muted/20">
             {SOURCE_LABEL[insights.source].icon}
@@ -85,7 +79,7 @@ export function AiInsightsTab({ data }: { data: CompleteAnalysisResponse }) {
       )}
 
       {/* Empty state */}
-      {!insights && !loading && !error && (
+      {!insights && !generate.isLoading && !generate.error && (
         <div className="flex flex-col items-center justify-center py-16 text-center gap-3 text-muted-foreground">
           <Bot className="h-10 w-10 opacity-20" />
           <p className="text-sm">

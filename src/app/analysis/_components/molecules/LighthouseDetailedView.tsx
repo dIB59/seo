@@ -1,5 +1,6 @@
 import type { JsonValue, PageAnalysisData } from "@/src/api/analysis";
 import type { LighthouseAuditResult } from "@/src/lib/types";
+import { useState, type ComponentType, type ReactNode } from "react";
 import {
   Zap,
   Eye,
@@ -23,11 +24,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
-import { useState } from "react";
 
 interface LighthouseDetailedViewProps {
   page: PageAnalysisData;
 }
+
+type IconComponent = ComponentType<{ className?: string }>;
 
 function formatTime(ms: number | null): string {
   if (ms === null) return "N/A";
@@ -35,22 +37,19 @@ function formatTime(ms: number | null): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
+const METRIC_THRESHOLDS: Record<string, { good: number; moderate: number }> = {
+  first_contentful_paint: { good: 1800, moderate: 3000 },
+  largest_contentful_paint: { good: 2500, moderate: 4000 },
+  speed_index: { good: 3400, moderate: 5800 },
+  time_to_interactive: { good: 3800, moderate: 7300 },
+  total_blocking_time: { good: 200, moderate: 600 },
+  cumulative_layout_shift: { good: 0.1, moderate: 0.25 },
+};
+
 function getMetricColor(metric: string, value: number | null): string {
   if (value === null) return "text-muted-foreground";
-
-  // Thresholds based on Lighthouse recommendations
-  const thresholds: Record<string, { good: number; moderate: number }> = {
-    first_contentful_paint: { good: 1800, moderate: 3000 },
-    largest_contentful_paint: { good: 2500, moderate: 4000 },
-    speed_index: { good: 3400, moderate: 5800 },
-    time_to_interactive: { good: 3800, moderate: 7300 },
-    total_blocking_time: { good: 200, moderate: 600 },
-    cumulative_layout_shift: { good: 0.1, moderate: 0.25 },
-  };
-
-  const threshold = thresholds[metric];
+  const threshold = METRIC_THRESHOLDS[metric];
   if (!threshold) return "text-muted-foreground";
-
   if (value <= threshold.good) return "text-success";
   if (value <= threshold.moderate) return "text-warning";
   return "text-destructive";
@@ -91,7 +90,7 @@ function MetricRow({
   label: string;
   value: number | null;
   metric: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: IconComponent;
 }) {
   const isCLS = metric === "cumulative_layout_shift";
   const displayValue = isCLS ? (value?.toFixed(3) ?? "N/A") : formatTime(value);
@@ -108,45 +107,94 @@ function MetricRow({
   );
 }
 
-export function LighthouseDetailedView({ page }: LighthouseDetailedViewProps) {
-  const [seoOpen, setSeoOpen] = useState(true);
-  const [perfOpen, setPerfOpen] = useState(true);
+interface CollapsibleSectionProps {
+  icon: IconComponent;
+  title: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}
 
+function CollapsibleSection({
+  icon: Icon,
+  title,
+  defaultOpen = true,
+  children,
+}: CollapsibleSectionProps) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <Card>
+        <CollapsibleTrigger asChild>
+          <CardHeader className="pb-2 cursor-pointer hover:bg-muted/30 transition-colors">
+            <CardTitle className="flex items-center justify-between text-base">
+              <div className="flex items-center gap-2">
+                <Icon className="h-4 w-4" />
+                {title}
+              </div>
+              <ChevronDown
+                className={cn("h-4 w-4 transition-transform", open && "rotate-180")}
+              />
+            </CardTitle>
+          </CardHeader>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <CardContent className="pt-0">{children}</CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
+  );
+}
+
+interface PerfMetricSpec {
+  label: string;
+  key: string;
+  icon: IconComponent;
+}
+
+const PERF_METRICS: PerfMetricSpec[] = [
+  { label: "First Contentful Paint (FCP)", key: "first_contentful_paint", icon: Clock },
+  { label: "Largest Contentful Paint (LCP)", key: "largest_contentful_paint", icon: LayoutPanelTop },
+  { label: "Speed Index", key: "speed_index", icon: Gauge },
+  { label: "Time to Interactive (TTI)", key: "time_to_interactive", icon: MousePointer },
+  { label: "Total Blocking Time (TBT)", key: "total_blocking_time", icon: Clock },
+  { label: "Cumulative Layout Shift (CLS)", key: "cumulative_layout_shift", icon: LayoutPanelTop },
+];
+
+const SEO_AUDITS: { key: string; label: string }[] = [
+  { key: "document_title", label: "Document Title" },
+  { key: "meta_description", label: "Meta Description" },
+  { key: "viewport", label: "Viewport Meta Tag" },
+  { key: "canonical", label: "Canonical URL" },
+  { key: "hreflang", label: "Hreflang Tags" },
+  { key: "robots_txt", label: "Robots.txt Valid" },
+  { key: "crawlable_anchors", label: "Crawlable Anchors" },
+  { key: "link_text", label: "Descriptive Link Text" },
+  { key: "image_alt", label: "Image Alt Attributes" },
+  { key: "http_status_code", label: "HTTP Status Code" },
+  { key: "is_crawlable", label: "Page is Crawlable" },
+];
+
+function parseSafe(v: JsonValue): Record<string, unknown> | null {
+  if (!v) return null;
+  if (typeof v === "string") {
+    try {
+      return JSON.parse(v);
+    } catch {
+      return null;
+    }
+  }
+  return v as Record<string, unknown>;
+}
+
+export function LighthouseDetailedView({ page }: LighthouseDetailedViewProps) {
   if (!page.lighthouse_performance && !page.lighthouse_seo) return null;
 
   const scores = [
-    {
-      label: "Performance",
-      value: page.lighthouse_performance,
-      icon: Zap,
-      color: "text-orange-500",
-    },
-    {
-      label: "Accessibility",
-      value: page.lighthouse_accessibility,
-      icon: Eye,
-      color: "text-blue-500",
-    },
-    {
-      label: "Best Practices",
-      value: page.lighthouse_best_practices,
-      icon: Shield,
-      color: "text-purple-500",
-    },
+    { label: "Performance", value: page.lighthouse_performance, icon: Zap, color: "text-orange-500" },
+    { label: "Accessibility", value: page.lighthouse_accessibility, icon: Eye, color: "text-blue-500" },
+    { label: "Best Practices", value: page.lighthouse_best_practices, icon: Shield, color: "text-purple-500" },
     { label: "SEO", value: page.lighthouse_seo, icon: Search, color: "text-green-500" },
   ];
-
-  const parseSafe = (v: JsonValue) => {
-    if (!v) return null;
-    if (typeof v === "string") {
-      try {
-        return JSON.parse(v);
-      } catch {
-        return null;
-      }
-    }
-    return v;
-  };
 
   const seoAudits = parseSafe(page.lighthouse_seo_audits);
   const perfMetrics = parseSafe(page.lighthouse_performance_metrics);
@@ -182,102 +230,31 @@ export function LighthouseDetailedView({ page }: LighthouseDetailedViewProps) {
       </Card>
 
       {perfMetrics && (
-        <Collapsible open={perfOpen} onOpenChange={setPerfOpen}>
-          <Card>
-            <CollapsibleTrigger asChild>
-              <CardHeader className="pb-2 cursor-pointer hover:bg-muted/30 transition-colors">
-                <CardTitle className="flex items-center justify-between text-base">
-                  <div className="flex items-center gap-2">
-                    <Activity className="h-4 w-4" />
-                    Core Web Vitals & Performance Metrics
-                  </div>
-                  <ChevronDown
-                    className={cn("h-4 w-4 transition-transform", perfOpen && "rotate-180")}
-                  />
-                </CardTitle>
-              </CardHeader>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <CardContent className="pt-0">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <MetricRow
-                    label="First Contentful Paint (FCP)"
-                    value={perfMetrics.first_contentful_paint}
-                    metric="first_contentful_paint"
-                    icon={Clock}
-                  />
-                  <MetricRow
-                    label="Largest Contentful Paint (LCP)"
-                    value={perfMetrics.largest_contentful_paint}
-                    metric="largest_contentful_paint"
-                    icon={LayoutPanelTop}
-                  />
-                  <MetricRow
-                    label="Speed Index"
-                    value={perfMetrics.speed_index}
-                    metric="speed_index"
-                    icon={Gauge}
-                  />
-                  <MetricRow
-                    label="Time to Interactive (TTI)"
-                    value={perfMetrics.time_to_interactive}
-                    metric="time_to_interactive"
-                    icon={MousePointer}
-                  />
-                  <MetricRow
-                    label="Total Blocking Time (TBT)"
-                    value={perfMetrics.total_blocking_time}
-                    metric="total_blocking_time"
-                    icon={Clock}
-                  />
-                  <MetricRow
-                    label="Cumulative Layout Shift (CLS)"
-                    value={perfMetrics.cumulative_layout_shift}
-                    metric="cumulative_layout_shift"
-                    icon={LayoutPanelTop}
-                  />
-                </div>
-              </CardContent>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
+        <CollapsibleSection icon={Activity} title="Core Web Vitals & Performance Metrics">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {PERF_METRICS.map((m) => (
+              <MetricRow
+                key={m.key}
+                label={m.label}
+                value={(perfMetrics[m.key] as number | null | undefined) ?? null}
+                metric={m.key}
+                icon={m.icon}
+              />
+            ))}
+          </div>
+        </CollapsibleSection>
       )}
 
       {seoAudits && (
-        <Collapsible open={seoOpen} onOpenChange={setSeoOpen}>
-          <Card>
-            <CollapsibleTrigger asChild>
-              <CardHeader className="pb-2 cursor-pointer hover:bg-muted/30 transition-colors">
-                <CardTitle className="flex items-center justify-between text-base">
-                  <div className="flex items-center gap-2">
-                    <Search className="h-4 w-4" />
-                    SEO Audit Breakdown
-                  </div>
-                  <ChevronDown
-                    className={cn("h-4 w-4 transition-transform", seoOpen && "rotate-180")}
-                  />
-                </CardTitle>
-              </CardHeader>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <CardContent className="pt-0">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <AuditBadge audit={seoAudits.document_title} label="Document Title" />
-                  <AuditBadge audit={seoAudits.meta_description} label="Meta Description" />
-                  <AuditBadge audit={seoAudits.viewport} label="Viewport Meta Tag" />
-                  <AuditBadge audit={seoAudits.canonical} label="Canonical URL" />
-                  <AuditBadge audit={seoAudits.hreflang} label="Hreflang Tags" />
-                  <AuditBadge audit={seoAudits.robots_txt} label="Robots.txt Valid" />
-                  <AuditBadge audit={seoAudits.crawlable_anchors} label="Crawlable Anchors" />
-                  <AuditBadge audit={seoAudits.link_text} label="Descriptive Link Text" />
-                  <AuditBadge audit={seoAudits.image_alt} label="Image Alt Attributes" />
-                  <AuditBadge audit={seoAudits.http_status_code} label="HTTP Status Code" />
-                  <AuditBadge audit={seoAudits.is_crawlable} label="Page is Crawlable" />
-                </div>
-              </CardContent>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
+        <CollapsibleSection icon={Search} title="SEO Audit Breakdown">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {SEO_AUDITS.map((a) => {
+              const audit = seoAudits[a.key] as LighthouseAuditResult | undefined;
+              if (!audit) return null;
+              return <AuditBadge key={a.key} audit={audit} label={a.label} />;
+            })}
+          </div>
+        </CollapsibleSection>
       )}
     </div>
   );

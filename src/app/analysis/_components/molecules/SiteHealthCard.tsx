@@ -40,7 +40,7 @@ export function SiteHealthCard({
             <div className="h-1.5 w-full bg-muted/30 rounded-full overflow-hidden">
               <div
                 className="h-full bg-blue-500 rounded-full transition-all duration-1000"
-                style={{ width: `${(mobilePages / pages.length) * 100}%` }}
+                style={{ width: `${pages.length > 0 ? (mobilePages / pages.length) * 100 : 0}%` }}
               />
             </div>
           </div>
@@ -55,7 +55,7 @@ export function SiteHealthCard({
             <div className="h-1.5 w-full bg-muted/30 rounded-full overflow-hidden">
               <div
                 className="h-full bg-purple-500 rounded-full transition-all duration-1000"
-                style={{ width: `${(structuredDataPages / pages.length) * 100}%` }}
+                style={{ width: `${pages.length > 0 ? (structuredDataPages / pages.length) * 100 : 0}%` }}
               />
             </div>
           </div>

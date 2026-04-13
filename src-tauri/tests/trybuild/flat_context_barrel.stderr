@@ -7,8 +7,8 @@ error[E0603]: struct `JobSettings` is private
 note: the struct `JobSettings` is defined here
  --> src/contexts/mod.rs
   |
-  |     JobInfo, JobSettings, JobStatus, JobSummary, LighthouseData, Link, LinkType, NewHeading,
-  |              ^^^^^^^^^^^
+  |     JobInfo, JobPageQuery, JobSettings, JobStatus, JobSummary, LighthouseData, Link, LinkType,
+  |                            ^^^^^^^^^^^
 help: import `JobSettings` directly
   |
 1 | use app::contexts::analysis::domain::job::JobSettings;

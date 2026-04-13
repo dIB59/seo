@@ -4,9 +4,20 @@ import type {
   CustomCheckParams,
   CustomExtractor,
   CustomExtractorParams,
+  Tag,
+  TagScope,
 } from "@/src/bindings";
 
-export type { CustomCheck, CustomCheckParams, CustomExtractor, CustomExtractorParams };
+export type { CustomCheck, CustomCheckParams, CustomExtractor, CustomExtractorParams, Tag, TagScope };
+
+// --- Tags ---
+
+/** Fetch the full tag catalog, optionally filtered by scope. */
+export async function listTags(scope?: TagScope): Promise<Tag[]> {
+  const res = await commands.listTags(scope ?? null);
+  if (res.status === "ok") return res.data;
+  throw new Error(res.error ?? "Failed to list tags");
+}
 
 // --- Custom Checks ---
 

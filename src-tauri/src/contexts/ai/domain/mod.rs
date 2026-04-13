@@ -10,6 +10,48 @@ mod insight;
 pub use insight::AiInsight;
 
 // ============================================================================
+// AI source selection
+// ============================================================================
+
+/// Which backend the user has selected for AI analysis. Replaces the
+/// stringly-typed `String` previously returned by `AiService::get_ai_source`.
+/// Wire format stays `"gemini"` / `"local"` so frontend bindings and the
+/// `ai_source` settings row are unchanged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AiSource {
+    #[default]
+    Gemini,
+    Local,
+}
+
+/// Returned by [`AiSource::from_str`] when the input doesn't map to a
+/// known backend. Carries the offending value so logs / decoder errors
+/// surface what was actually seen.
+#[derive(Debug, Clone, thiserror::Error, PartialEq, Eq)]
+#[error("invalid AI source: '{0}'")]
+pub struct ParseAiSourceError(pub String);
+
+impl AiSource {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Gemini => "gemini",
+            Self::Local => "local",
+        }
+    }
+}
+
+impl std::str::FromStr for AiSource {
+    type Err = ParseAiSourceError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "gemini" => Ok(Self::Gemini),
+            "local" => Ok(Self::Local),
+            other => Err(ParseAiSourceError(other.to_string())),
+        }
+    }
+}
+
+// ============================================================================
 // Configuration Types
 // ============================================================================
 

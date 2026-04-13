@@ -53,13 +53,13 @@ fn sample_html() -> &'static str {
 fn extractor_registry_produces_data_from_html() {
     let mut registry = ExtractorRegistry::new();
     registry.register(Box::new(SelectorExtractor::new(ExtractorConfig {
-        key: "og_title".into(),
+        tag: "og_title".into(),
         selector: "meta[property='og:title']".into(),
         attribute: Some("content".into()),
         multiple: false,
     })));
     registry.register(Box::new(SelectorExtractor::new(ExtractorConfig {
-        key: "hreflang".into(),
+        tag: "hreflang".into(),
         selector: "link[rel='alternate'][hreflang]".into(),
         attribute: Some("hreflang".into()),
         multiple: true,
@@ -92,7 +92,7 @@ async fn extension_repo_persists_and_retrieves_extractors() {
     // Create two extractors
     repo.create_extractor(&CustomExtractorParams {
         name: "OG Title".into(),
-        key: "og_title".into(),
+        tag: "og_title".into(),
         selector: "meta[property='og:title']".into(),
         attribute: Some("content".into()),
         multiple: false,
@@ -103,7 +103,7 @@ async fn extension_repo_persists_and_retrieves_extractors() {
 
     repo.create_extractor(&CustomExtractorParams {
         name: "Hreflang (disabled)".into(),
-        key: "hreflang".into(),
+        tag: "hreflang".into(),
         selector: "link[rel='alternate'][hreflang]".into(),
         attribute: Some("hreflang".into()),
         multiple: true,
@@ -119,7 +119,7 @@ async fn extension_repo_persists_and_retrieves_extractors() {
     // list_enabled_extractors returns only the enabled one
     let enabled = repo.list_enabled_extractors().await.expect("list_enabled_extractors");
     assert_eq!(enabled.len(), 1, "only 1 extractor should be enabled");
-    assert_eq!(enabled[0].key, "og_title");
+    assert_eq!(enabled[0].tag, "og_title");
     assert_eq!(enabled[0].selector, "meta[property='og:title']");
     assert_eq!(enabled[0].attribute, Some("content".into()));
     assert!(!enabled[0].multiple);
@@ -137,7 +137,7 @@ async fn registry_built_from_db_extracts_correct_data() {
     // Persist two enabled extractors
     repo.create_extractor(&CustomExtractorParams {
         name: "OG Title".into(),
-        key: "og_title".into(),
+        tag: "og_title".into(),
         selector: "meta[property='og:title']".into(),
         attribute: Some("content".into()),
         multiple: false,
@@ -148,7 +148,7 @@ async fn registry_built_from_db_extracts_correct_data() {
 
     repo.create_extractor(&CustomExtractorParams {
         name: "Hreflang".into(),
-        key: "hreflang".into(),
+        tag: "hreflang".into(),
         selector: "link[rel='alternate'][hreflang]".into(),
         attribute: Some("hreflang".into()),
         multiple: true,
@@ -164,7 +164,7 @@ async fn registry_built_from_db_extracts_correct_data() {
 
     for ext in extractors {
         let config = ExtractorConfig {
-            key: ext.key,
+            tag: ext.tag,
             selector: ext.selector,
             attribute: ext.attribute,
             multiple: ext.multiple,
@@ -213,7 +213,7 @@ async fn extracted_data_survives_page_db_round_trip() {
         id: "test-page-001".into(),
         job_id: job_id.into(),
         url: "https://example.com/".into(),
-        depth: 0,
+        depth: app::contexts::analysis::Depth::root(),
         status_code: Some(200),
         content_type: None,
         title: Some("Integration Test Page".into()),
@@ -273,7 +273,7 @@ async fn full_pipeline_extractor_config_to_stored_page() {
     ext_repo
         .create_extractor(&CustomExtractorParams {
             name: "OG Title".into(),
-            key: "og_title".into(),
+            tag: "og_title".into(),
             selector: "meta[property='og:title']".into(),
             attribute: Some("content".into()),
             multiple: false,
@@ -286,7 +286,7 @@ async fn full_pipeline_extractor_config_to_stored_page() {
     let mut registry = ExtractorRegistry::new();
     for ext in ext_repo.list_enabled_extractors().await.unwrap() {
         registry.register(Box::new(SelectorExtractor::new(ExtractorConfig {
-            key: ext.key,
+            tag: ext.tag,
             selector: ext.selector,
             attribute: ext.attribute,
             multiple: ext.multiple,
@@ -313,7 +313,7 @@ async fn full_pipeline_extractor_config_to_stored_page() {
         id: "test-page-pipeline".into(),
         job_id: job_id.into(),
         url: "https://example.com/".into(),
-        depth: 0,
+        depth: app::contexts::analysis::Depth::root(),
         status_code: Some(200),
         content_type: None,
         title: Some("Test".into()),
