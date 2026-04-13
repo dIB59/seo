@@ -58,10 +58,9 @@ mod tests {
     //! frontend-visible payload of the analysis progress event, so the
     //! field shapes here are pinned by the Tauri bindings.
     //!
-    //! Both From impls always populate the `Option<_>` fields with
-    //! `Some(_)`. A future Phase 2 cleanup may drop the `Option<>`
-    //! wrappers; until then, these tests pin the current behavior so
-    //! the migration can land under green.
+    //! These tests verify that both `From` impls preserve the current
+    //! field mapping and populate the DTO's non-optional fields
+    //! consistently for frontend consumers.
 
     use super::*;
     use crate::contexts::analysis::{JobId, JobSettings, JobSummary};
