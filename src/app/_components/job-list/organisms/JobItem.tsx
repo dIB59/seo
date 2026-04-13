@@ -74,16 +74,14 @@ export function JobItem({ job, onViewResult, onCancel }: JobItemProps) {
       {/* Metrics */}
       <div className="hidden lg:flex items-center gap-6 mr-6">
         {/* Pages Limit */}
-        {job.max_pages !== undefined && (
-          <div className="flex flex-col items-end gap-1.5 w-12">
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50 font-medium leading-none">
-              Limit
-            </span>
-            <span className="text-xs font-mono text-muted-foreground/80 leading-none">
-              {job.max_pages}
-            </span>
-          </div>
-        )}
+        <div className="flex flex-col items-end gap-1.5 w-12">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50 font-medium leading-none">
+            Limit
+          </span>
+          <span className="text-xs font-mono text-muted-foreground/80 leading-none">
+            {job.max_pages}
+          </span>
+        </div>
 
         {/* Audit Mode */}
         <div className="flex flex-col items-end gap-1.5 w-16">
@@ -96,21 +94,19 @@ export function JobItem({ job, onViewResult, onCancel }: JobItemProps) {
         </div>
 
         {/* Issues Count */}
-        {job.total_issues !== undefined && job.total_issues !== null && (
-          <div className="flex flex-col items-end gap-1.5 w-12">
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50 font-medium leading-none">
-              Issues
-            </span>
-            <div
-              className={`flex items-center gap-1.5 text-xs font-mono leading-none ${job.total_issues > 0 ? "text-destructive" : "text-muted-foreground/40"}`}
-            >
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${job.total_issues > 0 ? "bg-destructive/80" : "bg-muted-foreground/20"}`}
-              />
-              {job.total_issues > 999 ? "999+" : job.total_issues}
-            </div>
+        <div className="flex flex-col items-end gap-1.5 w-12">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50 font-medium leading-none">
+            Issues
+          </span>
+          <div
+            className={`flex items-center gap-1.5 text-xs font-mono leading-none ${job.total_issues > 0 ? "text-destructive" : "text-muted-foreground/40"}`}
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${job.total_issues > 0 ? "bg-destructive/80" : "bg-muted-foreground/20"}`}
+            />
+            {job.total_issues > 999 ? "999+" : job.total_issues}
           </div>
-        )}
+        </div>
       </div>
 
       {/* Actions */}

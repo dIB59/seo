@@ -401,7 +401,7 @@ async fn test_analysis_service_get_progress() {
 
     // Assert
     assert_eq!(progress.job_id, job_id.as_str());
-    assert_eq!(progress.progress, Some(0.0));
+    assert_eq!(progress.progress, 0.0);
 }
 
 // ============================================================================

@@ -467,13 +467,6 @@ async deleteReportTemplate(id: string) : Promise<Result<null, CommandError>> {
 /** user-defined events **/
 
 
-export const events = __makeEvents__<{
-modelDownloadEvent: ModelDownloadEvent,
-progressEvent: ProgressEvent
-}>({
-modelDownloadEvent: "model-download-event",
-progressEvent: "progress-event"
-})
 
 /** user-defined constants **/
 
@@ -483,9 +476,13 @@ progressEvent: "progress-event"
 
 export type AnalysisJobResponse = { job_id: string; url: string; status: JobStatus }
 /**
- * Analysis progress for frontend updates
+ * Analysis progress for frontend updates.
+ * 
+ * All fields are non-optional — the `From<JobInfo>` conversion always
+ * populates them. Previous `Option<_>` wrappers added unnecessary
+ * null-checks on the TypeScript side with no upside.
  */
-export type AnalysisProgress = { job_id: string; url: string; job_status: JobStatus; result_id: string | null; progress: number | null; max_pages: number | null; is_deep_audit: boolean | null; total_issues: number | null }
+export type AnalysisProgress = { job_id: string; url: string; job_status: JobStatus; result_id: string; progress: number; max_pages: number; is_deep_audit: boolean; total_issues: number }
 export type AnalysisResults = { id: string; url: string; status: JobStatus; progress: number; total_pages: number; analyzed_pages: number; started_at: string | null; completed_at: string | null; sitemap_found: boolean; robots_txt_found: boolean; ssl_certificate: boolean; created_at: string }
 export type AnalysisSettingsRequest = { max_pages: number; include_subdomains: boolean; check_images: boolean; mobile_analysis: boolean; lighthouse_analysis: boolean; delay_between_requests: number }
 export type AnalysisSummary = { analysis_id: string; seo_score: number; avg_load_time: number; total_words: number; total_issues: number }
@@ -666,15 +663,6 @@ export type LicenseTier = "Free" | "Premium"
 export type LinkDetail = { href: string; text: string; link_type: LinkType; is_broken: boolean; status_code: number | null }
 export type LinkType = "internal" | "subdomain" | "external" | "resource"
 /**
- * Per-model download progress event emitted to the frontend.
- */
-export type ModelDownloadEvent = { modelId: string; status: ModelDownloadStatus; downloadedBytes: number; totalBytes: number; 
-/**
- * 0.0–1.0, or -1.0 when total size is unknown.
- */
-progress: number }
-export type ModelDownloadStatus = "downloading" | "completed" | "failed" | "cancelled"
-/**
  * Runtime state of a model: registry metadata + whether it's on disk.
  */
 export type ModelInfo = ({ id: string; name: string; description: string; tier: ModelTier; size_bytes: number; download_url: string; filename: string; sha256: string }) & { is_downloaded: boolean; is_active: boolean; 
@@ -694,11 +682,7 @@ export type ModelTier = "small" | "medium" | "large"
  * Condition operator for a custom check.
  */
 export type Operator = "missing" | "present" | "eq" | "lt" | "gt" | "contains" | "not_contains"
-export type PageAnalysisData = { analysis_id: string; url: string; title: string | null; meta_description: string | null; meta_keywords: string | null; canonical_url: string | null; word_count: number; image_count: number; images_without_alt: number; internal_links: number; external_links: number; load_time: number; status_code: number | null; content_size: number; mobile_friendly: boolean; has_structured_data: boolean; lighthouse_performance: number | null; lighthouse_accessibility: number | null; lighthouse_best_practices: number | null; lighthouse_seo: number | null; lighthouse_seo_audits: JsonValue | null; lighthouse_performance_metrics: JsonValue | null; images: ImageElement[]; detailed_links: LinkDetail[]; headings: HeadingElement[]; 
-/**
- * Extracted data from custom extractors (key-value pairs)
- */
-extracted_data: Partial<{ [key in string]: JsonValue }> }
+export type PageAnalysisData = { analysis_id: string; url: string; title: string | null; meta_description: string | null; meta_keywords: string | null; canonical_url: string | null; word_count: number; image_count: number; images_without_alt: number; internal_links: number; external_links: number; load_time: number; status_code: number | null; content_size: number; mobile_friendly: boolean; has_structured_data: boolean; lighthouse_performance: number | null; lighthouse_accessibility: number | null; lighthouse_best_practices: number | null; lighthouse_seo: number | null; lighthouse_seo_audits: JsonValue | null; lighthouse_performance_metrics: JsonValue | null; images: ImageElement[]; detailed_links: LinkDetail[]; headings: HeadingElement[]; extracted_data: Partial<{ [key in string]: JsonValue }> }
 export type PaginatedJobsResponse = { items: AnalysisProgress[]; total: number }
 export type PatternCategory = "technical" | "content" | "performance" | "accessibility"
 /**
@@ -745,7 +729,6 @@ export type Policy = { tier: LicenseTier; max_pages: number; enabled_features: F
  * The app still works — this flag drives a renewal banner in the UI.
  */
 updates_expired: boolean }
-export type ProgressEvent = { event: "analysis"; job_id: string; progress: number; pages_analyzed: number; total_pages: number } | { event: "discovery"; job_id: string; count: number; total_pages: number }
 /**
  * The full output of the report engine — ready for frontend rendering / PDF export.
  */
