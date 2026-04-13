@@ -79,7 +79,7 @@ pub async fn init_db(app: &AppHandle) -> Result<SqlitePool> {
 /// Apply the same pragmas to an externally-supplied pool. Used by the
 /// in-memory test fixtures so unit tests run against the same SQLite
 /// configuration as production.
-#[allow(dead_code)]
+#[cfg(test)]
 pub async fn apply_pragmas(pool: &SqlitePool) -> Result<()> {
     use sqlx::Acquire;
     let mut conn = pool.acquire().await.context("acquire connection for pragmas")?;

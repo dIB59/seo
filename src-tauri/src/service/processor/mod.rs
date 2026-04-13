@@ -292,6 +292,8 @@ impl WorkerContext {
             return Ok(id);
         }
 
+        let job_id_str = job.id.as_str().to_string();
+
         self.job_queue.mark_discovery(&job.id).await?;
 
         let resources = self.crawler.check_resources(&job.url).await?;
@@ -300,7 +302,7 @@ impl WorkerContext {
             .await?;
 
         let crawl_context = CrawlContext {
-            job_id: job.id.as_str().to_string(),
+            job_id: job_id_str.clone(),
             settings: job.settings.clone(),
             start_url: job.url.clone(),
             cancel_token: cancel_token.clone(),
@@ -340,7 +342,6 @@ impl WorkerContext {
 
         let auditor = self.analyzer.select_auditor(&job.settings);
         let total_pages = pages_to_queue.len();
-        let job_id_str = job.id.as_str().to_string();
 
         // ── Parallel analysis ────────────────────────────────────────
         //
@@ -361,12 +362,14 @@ impl WorkerContext {
 
         let semaphore = Arc::new(tokio::sync::Semaphore::new(concurrency));
         let pages_analyzed = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-        let crawl_pages = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-        let crawl_issues = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let crawl_links = Arc::new(tokio::sync::Mutex::new(Vec::<NewLink>::new()));
         let was_cancelled = Arc::new(std::sync::atomic::AtomicBool::new(false));
 
-        let mut handles: Vec<tokio::task::JoinHandle<()>> = Vec::new();
+        let mut handles: Vec<tokio::task::JoinHandle<()>> = Vec::with_capacity(total_pages);
+
+        // Extract Arc-wrapped shared state outside the loop to avoid
+        // re-cloning per iteration for fields that don't change.
+        let job_id_arc: Arc<str> = Arc::from(job.id.as_str());
 
         while let Some(mut page_item) = self.page_queue_manager.claim_next_page(&job.id).await? {
             if cancel_token.is_cancelled() {
@@ -386,12 +389,9 @@ impl WorkerContext {
             let page_queue_manager = self.page_queue_manager.clone();
             let job_queue = self.job_queue.clone();
             let progress_emitter = self.progress_emitter.clone();
-            let job_id = job.id.clone();
-            let job_id_str = job_id_str.clone();
+            let job_id = Arc::clone(&job_id_arc);
             let cancel = cancel_token.clone();
             let pages_analyzed = pages_analyzed.clone();
-            let crawl_pages = crawl_pages.clone();
-            let crawl_issues = crawl_issues.clone();
             let crawl_links = crawl_links.clone();
 
             handles.push(tokio::spawn(async move {
@@ -410,7 +410,7 @@ impl WorkerContext {
                     page_item.http_status,
                     page_item.cached_load_time_ms,
                 ) {
-                    let final_url = page_item.final_url.clone()
+                    let final_url = page_item.final_url.take()
                         .unwrap_or_else(|| page_item.url.clone());
                     let cached = crate::service::auditor::CachedHtml {
                         html,
@@ -419,11 +419,11 @@ impl WorkerContext {
                         load_time_ms: load_time,
                     };
                     analyzer
-                        .analyze_page_cached(&page_item.url, job_id.as_str(), page_item.depth, &auditor, cached)
+                        .analyze_page_cached(&page_item.url, &job_id, page_item.depth, &auditor, cached)
                         .await
                 } else {
                     analyzer
-                        .analyze_page(&page_item.url, job_id.as_str(), page_item.depth, &auditor)
+                        .analyze_page(&page_item.url, &job_id, page_item.depth, &auditor)
                         .await
                 };
 
@@ -431,8 +431,6 @@ impl WorkerContext {
                     Ok((page_result, _new_urls)) => {
                         let n_issues = page_result.issues.len();
                         let n_links = page_result.links.len();
-                        crawl_pages.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                        crawl_issues.fetch_add(n_issues, std::sync::atomic::Ordering::Relaxed);
                         crawl_links.lock().await.extend(page_result.links);
                         let _ = page_queue_manager.mark_completed(&page_item.id).await;
                         tracing::info!(
@@ -454,9 +452,9 @@ impl WorkerContext {
                 let done = pages_analyzed.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
                 let progress = (done as f64 / total_pages as f64) * 100.0;
 
-                let _ = job_queue.update_progress(job_id.as_str(), progress).await;
+                let _ = job_queue.update_progress(&job_id, progress).await;
                 progress_emitter.emit(ProgressEvent::Analysis {
-                    job_id: job_id_str,
+                    job_id: job_id.to_string(),
                     progress,
                     pages_analyzed: done,
                     total_pages,
@@ -471,13 +469,8 @@ impl WorkerContext {
             }
         }
 
-        let crawl_result = CrawlResult {
-            pages: crawl_pages.load(std::sync::atomic::Ordering::Relaxed),
-            issues: crawl_issues.load(std::sync::atomic::Ordering::Relaxed),
-            links: crawl_links.lock().await.drain(..).collect(),
-        };
-
-        self.persist_links(&crawl_result.links).await?;
+        let collected_links: Vec<NewLink> = crawl_links.lock().await.drain(..).collect();
+        self.persist_links(&collected_links).await?;
 
         if was_cancelled.load(std::sync::atomic::Ordering::Relaxed) {
             self.job_queue.mark_cancelled(&job.id).await?;
@@ -525,13 +518,6 @@ impl JobTimer {
     fn elapsed_ms(&self) -> u128 {
         self.start.elapsed().as_millis()
     }
-}
-
-#[derive(Default)]
-struct CrawlResult {
-    pages: usize,
-    issues: usize,
-    links: Vec<NewLink>,
 }
 
 #[cfg(test)]

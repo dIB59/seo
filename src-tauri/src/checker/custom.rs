@@ -14,7 +14,7 @@
 use std::collections::HashMap;
 
 use crate::checker::{Check, CheckContext};
-use crate::contexts::analysis::{IssueSeverity, NewIssue};
+use crate::contexts::analysis::NewIssue;
 use crate::contexts::extension::CustomCheck;
 use crate::contexts::report::services::pattern_engine::{
     evaluate_condition, resolve_field, FieldValue,
@@ -123,7 +123,7 @@ fn substitute_message(
 mod tests {
     use super::*;
     use crate::checker::CheckContext;
-    use crate::contexts::analysis::Depth;
+    use crate::contexts::analysis::{Depth, IssueSeverity};
     use crate::contexts::extension::Operator;
     use crate::service::auditor::{CheckResult, Score, SeoAuditDetails};
     use chrono::Utc;

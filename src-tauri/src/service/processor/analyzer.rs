@@ -61,7 +61,6 @@ fn extract_page_data(
     extracted_data: std::collections::HashMap<String, serde_json::Value>,
 ) -> ExtractedPageData {
     let parsed_html = Html::parse_document(html);
-    let final_url = audit_result.url.clone();
 
     let title = PageExtractor::extract_title(&parsed_html);
     let meta_description = PageExtractor::extract_meta_description(&parsed_html);
@@ -71,7 +70,7 @@ fn extract_page_data(
     let has_structured_data = PageExtractor::extract_has_structured_data(&parsed_html);
 
     let (internal_urls, _external_urls, all_links) =
-        PageExtractor::extract_links(&parsed_html, &final_url);
+        PageExtractor::extract_links(&parsed_html, &audit_result.url);
 
     let headings = PageExtractor::extract_headings(&parsed_html);
     let images = PageExtractor::extract_images(&parsed_html, url);
@@ -118,7 +117,7 @@ fn extract_page_data(
         link_edges,
         headings,
         images,
-        final_url,
+        final_url: audit_result.url.clone(),
     }
 }
 

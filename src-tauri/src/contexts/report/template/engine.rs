@@ -316,7 +316,7 @@ fn context_variables(ctx: &RenderContext<'_>) -> Vec<(String, String)> {
                 "(no custom extractor data)".to_string()
             } else {
                 let mut sorted: Vec<_> = ctx.tag_values.iter().collect();
-                sorted.sort_by_key(|(k, _)| k.clone());
+                sorted.sort_by_key(|(k, _)| *k);
                 sorted
                     .iter()
                     .map(|(k, v)| format!("  {k}: {v}"))

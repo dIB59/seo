@@ -7,7 +7,6 @@
 
 use super::condition::{Condition, PatternFilter};
 use super::model::{ReportTemplate, TemplateSection};
-use crate::contexts::report::domain::PatternSeverity;
 
 /// The default template id. Stable across migrations and code
 /// references so `set_active_template("default")` always resolves.
