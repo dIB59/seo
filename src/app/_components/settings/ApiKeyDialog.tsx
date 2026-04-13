@@ -13,7 +13,7 @@ import {
 import { Input } from "@/src/components/ui/input"
 import { Label } from "@/src/components/ui/label"
 import { Button } from "@/src/components/ui/button"
-import { getApiKey, setApiKey } from "@/src/api/ai"
+import { getApiKey, setApiKey as saveApiKey } from "@/src/api/ai"
 
 export function ApiKeyDialog() {
     const [open, setOpen] = useState(false)
@@ -52,7 +52,7 @@ export function ApiKeyDialog() {
 
         setIsLoading(true)
         try {
-            const res = await setApiKey(apiKey.trim())
+            const res = await saveApiKey(apiKey.trim())
             res.expect("Failed to save API key")
             toast.success("API Key saved successfully")
             setOpen(false)

@@ -13,7 +13,7 @@ import {
   getAiSource,
   setAiSource,
   getApiKey,
-  setApiKey,
+  setApiKey as saveApiKey,
 } from "@/src/api/ai";
 import { useMutation } from "@/src/hooks/use-mutation";
 import { LocalModelSettings } from "./LocalModelSettings";
@@ -100,7 +100,7 @@ export function AiSettings() {
 
   const saveKey = useMutation(
     async (key: string) => {
-      const res = await setApiKey(key);
+      const res = await saveApiKey(key);
       if (res.isErr()) throw new Error("Failed to save API key");
     },
     { successMessage: "API key saved" },
