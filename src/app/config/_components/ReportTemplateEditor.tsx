@@ -25,6 +25,7 @@ import {
 } from "@/src/api/report";
 import type { TemplateSection } from "@/src/bindings";
 import { TemplateSectionEditor } from "./TemplateSectionEditor";
+import { TagSelector } from "./TagSelector";
 
 const SECTION_TYPES = [
   { value: "heading", label: "Heading", icon: Heading },
@@ -163,44 +164,14 @@ export function ReportTemplateEditor() {
         </Button>
       </div>
 
-      {/* Tag selection */}
-      {extractorTags.length > 0 && (
-        <div className="rounded-md border p-3 space-y-2">
-          <div className="text-sm font-medium">Extractor Tags in Report</div>
-          <p className="text-xs text-muted-foreground">
-            Select which custom extractor tags to include in AI prompts via{" "}
-            <code className="text-[10px]">{"{tag_summary}"}</code>. Unselected tags
-            are excluded from the report. None selected = all included.
-          </p>
-          <div className="flex flex-wrap gap-2 pt-1">
-            {extractorTags.map((tag) => {
-              // Extract the bare tag name from "tag:og_image" → "og_image"
-              const bare = tag.name.startsWith("tag:") ? tag.name.slice(4) : tag.name;
-              const isSelected = selectedTags.includes(bare);
-              return (
-                <button
-                  key={tag.name}
-                  type="button"
-                  onClick={() => {
-                    setSelectedTags((prev) =>
-                      isSelected ? prev.filter((t) => t !== bare) : [...prev, bare],
-                    );
-                    setDirty(true);
-                  }}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
-                    isSelected
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-muted/50 text-muted-foreground border-border hover:border-primary/50"
-                  }`}
-                >
-                  <code className="text-[10px]">{tag.name}</code>
-                  <span className="opacity-70">{tag.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      <TagSelector
+        tags={extractorTags}
+        selectedTags={selectedTags}
+        onSelectionChange={(tags) => {
+          setSelectedTags(tags);
+          setDirty(true);
+        }}
+      />
 
       {/* Section list */}
       <div className="space-y-2">
