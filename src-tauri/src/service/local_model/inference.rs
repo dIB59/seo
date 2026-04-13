@@ -69,7 +69,11 @@ fn run_inference(req: InferenceRequest) -> Result<String> {
         req.max_tokens,
         req.temperature,
     );
-    tracing::debug!("[LLAMA] prompt:\n{}", req.prompt);
+    tracing::debug!(
+        "[LLAMA] prompt (first 200 chars):\n{}{}",
+        &req.prompt[..req.prompt.len().min(200)],
+        if req.prompt.len() > 200 { " […]" } else { "" }
+    );
     use llama_cpp_2::context::params::LlamaContextParams;
     use llama_cpp_2::llama_batch::LlamaBatch;
     use llama_cpp_2::model::params::LlamaModelParams;
@@ -166,7 +170,11 @@ fn run_inference(req: InferenceRequest) -> Result<String> {
     }
 
     tracing::info!("[LLAMA] inference done — output len: {} chars", output.len());
-    tracing::debug!("[LLAMA] output:\n{}", output);
+    tracing::debug!(
+        "[LLAMA] output (first 200 chars):\n{}{}",
+        &output[..output.len().min(200)],
+        if output.len() > 200 { " […]" } else { "" }
+    );
 
     Ok(output.trim().to_string())
 }
