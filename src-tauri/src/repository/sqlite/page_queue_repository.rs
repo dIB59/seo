@@ -7,6 +7,17 @@ use chrono::Utc;
 use sqlx::SqlitePool;
 use sqlx::Row;
 
+/// Column lists shared across INSERT and SELECT queries. Defined once
+/// to prevent drift when the schema changes.
+const INSERT_SQL: &str = r#"
+    INSERT INTO page_queue (id, job_id, url, depth, status, created_at, updated_at,
+                            cached_html, http_status, cached_load_time_ms, final_url)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+"#;
+
+const SELECT_COLUMNS: &str =
+    "id, job_id, url, depth, status, retry_count, error_message, created_at, updated_at, cached_html, http_status, cached_load_time_ms, final_url";
+
 pub struct PageQueueRepository {
     pool: SqlitePool,
 }
@@ -50,13 +61,7 @@ impl PageQueueRepositoryTrait for PageQueueRepository {
         let now = Utc::now();
         let status = "pending";
 
-        sqlx::query(
-            r#"
-            INSERT INTO page_queue (id, job_id, url, depth, status, created_at, updated_at,
-                                    cached_html, http_status, cached_load_time_ms, final_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            "#,
-        )
+        sqlx::query(INSERT_SQL)
         .bind(&id)
         .bind(&item.job_id)
         .bind(&item.url)
@@ -86,13 +91,7 @@ impl PageQueueRepositoryTrait for PageQueueRepository {
             let now = Utc::now();
             let status = "pending";
 
-            sqlx::query(
-                r#"
-                INSERT INTO page_queue (id, job_id, url, depth, status, created_at, updated_at,
-                                        cached_html, http_status, cached_load_time_ms, final_url)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                "#,
-            )
+            sqlx::query(INSERT_SQL)
             .bind(&id)
             .bind(&item.job_id)
             .bind(&item.url)
@@ -119,18 +118,12 @@ impl PageQueueRepositoryTrait for PageQueueRepository {
         let now = Utc::now();
 
         // Atomic update: find a pending page and mark it as processing
-        let result = sqlx::query(
-            r#"
-            UPDATE page_queue
-            SET status = ?, updated_at = ?
-            WHERE id = (
-                SELECT id FROM page_queue
-                WHERE job_id = ? AND status = 'pending'
-                LIMIT 1
-            )
-            RETURNING id, job_id, url, depth, status, retry_count, error_message, created_at, updated_at, cached_html, http_status, cached_load_time_ms, final_url
-            "#,
-        )
+        let sql = format!(
+            "UPDATE page_queue SET status = ?, updated_at = ? \
+             WHERE id = (SELECT id FROM page_queue WHERE job_id = ? AND status = 'pending' LIMIT 1) \
+             RETURNING {SELECT_COLUMNS}"
+        );
+        let result = sqlx::query(&sql)
         .bind(PageQueueStatus::Processing.as_str())
         .bind(now.to_rfc3339())
         .bind(job_id)
@@ -143,19 +136,12 @@ impl PageQueueRepositoryTrait for PageQueueRepository {
     async fn claim_any_pending(&self) -> RepositoryResult<Option<PageQueueItem>> {
         let now = Utc::now();
 
-        // Atomic update: find any pending page and mark it as processing
-        let result = sqlx::query(
-            r#"
-            UPDATE page_queue
-            SET status = ?, updated_at = ?
-            WHERE id = (
-                SELECT id FROM page_queue
-                WHERE status = 'pending'
-                LIMIT 1
-            )
-            RETURNING id, job_id, url, depth, status, retry_count, error_message, created_at, updated_at, cached_html, http_status, cached_load_time_ms, final_url
-            "#,
-        )
+        let sql = format!(
+            "UPDATE page_queue SET status = ?, updated_at = ? \
+             WHERE id = (SELECT id FROM page_queue WHERE status = 'pending' LIMIT 1) \
+             RETURNING {SELECT_COLUMNS}"
+        );
+        let result = sqlx::query(&sql)
         .bind(PageQueueStatus::Processing.as_str())
         .bind(now.to_rfc3339())
         .fetch_optional(&self.pool)
@@ -214,15 +200,10 @@ impl PageQueueRepositoryTrait for PageQueueRepository {
     }
 
     async fn get_by_job_id(&self, job_id: &str) -> RepositoryResult<Vec<PageQueueItem>> {
-        let rows = sqlx::query(
-            r#"
-            SELECT id, job_id, url, depth, status, retry_count, error_message, created_at, updated_at,
-                   cached_html, http_status, cached_load_time_ms, final_url
-            FROM page_queue
-            WHERE job_id = ?
-            ORDER BY created_at ASC
-            "#,
-        )
+        let sql = format!(
+            "SELECT {SELECT_COLUMNS} FROM page_queue WHERE job_id = ? ORDER BY created_at ASC"
+        );
+        let rows = sqlx::query(&sql)
         .bind(job_id)
         .fetch_all(&self.pool)
         .await?;
@@ -235,19 +216,12 @@ impl PageQueueRepositoryTrait for PageQueueRepository {
         job_id: &str,
         status: PageQueueStatus,
     ) -> RepositoryResult<Vec<PageQueueItem>> {
-        let status_str = status.as_str();
-
-        let rows = sqlx::query(
-            r#"
-            SELECT id, job_id, url, depth, status, retry_count, error_message, created_at, updated_at,
-                   cached_html, http_status, cached_load_time_ms, final_url
-            FROM page_queue
-            WHERE job_id = ? AND status = ?
-            ORDER BY created_at ASC
-            "#,
-        )
+        let sql = format!(
+            "SELECT {SELECT_COLUMNS} FROM page_queue WHERE job_id = ? AND status = ? ORDER BY created_at ASC"
+        );
+        let rows = sqlx::query(&sql)
         .bind(job_id)
-        .bind(status_str)
+        .bind(status.as_str())
         .fetch_all(&self.pool)
         .await?;
 
