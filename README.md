@@ -60,11 +60,25 @@ Built with a modern, high-performance stack for a seamless desktop experience:
 - **Rust & Cargo**: Required for building the Tauri application.
 - **Gemini API Key**: (Optional) For AI-powered insights.
 
+### System Dependencies
+
+Tauri requires platform-specific native libraries. Follow the official guide for your OS:
+
+- **macOS**: Xcode Command Line Tools (`xcode-select --install`)
+- **Linux (Debian/Ubuntu)**:
+  ```bash
+  sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
+    libappindicator3-dev librsvg2-dev patchelf cmake
+  ```
+- **Windows**: Microsoft Visual Studio C++ Build Tools and WebView2
+
+See the full [Tauri v2 prerequisites guide](https://v2.tauri.app/start/prerequisites/) for details.
+
 ### Installation
 
 1. **Clone and Install**:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/dIB59/seo.git
    cd seo
    npm install
    ```
@@ -86,6 +100,38 @@ Built with a modern, high-performance stack for a seamless desktop experience:
 
 We welcome contributions! Please feel free to submit Pull Requests or open issues for feature requests and bug reports.
 
-- **Frontend Logic**: `src/`
-- **Native Backend**: `src-tauri/src/`
+### Project Structure
+
+- **Frontend**: `src/` (Next.js / React)
+- **Backend**: `src-tauri/src/` (Rust / Tauri)
+
+### Running Tests
+
+```bash
+# Frontend tests
+npm test
+
+# Frontend lint
+npm run lint
+
+# Backend tests (from repo root)
+cd src-tauri && cargo test
+```
+
+### Important Caveats
+
+- **`src/bindings.ts` is auto-generated** — never edit it by hand. It is regenerated automatically every time `npm run tauri dev` runs.
+
+- **SQLx offline mode** — CI builds without a database (`SQLX_OFFLINE=true`). If you add or change a `sqlx::query!()` macro, regenerate the cache before pushing:
+  ```bash
+  cd src-tauri
+  DATABASE_URL=sqlite:./dev.db cargo sqlx prepare
+  ```
+  Then commit the updated files in `src-tauri/.sqlx/`.
+
+### Pull Request Workflow
+
+1. Fork the repo and create a branch from `main`.
+2. Make your changes and ensure tests pass (`npm test` and `cd src-tauri && cargo test`).
+3. Open a Pull Request against `main`.
 
